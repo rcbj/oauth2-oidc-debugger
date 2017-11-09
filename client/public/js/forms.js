@@ -128,6 +128,8 @@ window.onload = function() {
     var access_token = getParameterByName("access_token",window.location.href);
     $('#authorization_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
   }
+  document.getElementById("state").value = generateUUID();
+  document.getElementById("nonce_field").value = generateUUID();
 }
 
   $(function() {
@@ -164,9 +166,4 @@ function generateUUID () { // Public Domain/MIT
         return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
     });
 }
-
-  document.getElementById("state").value = generateUUID();
-  document.getElementById("nonce").value = generateUUID();
-
-
 
