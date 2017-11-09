@@ -18,6 +18,7 @@ get("/") do
 end
 
 get("/callback") do
-	@code = params[:state] == session[:state] ? params[:code] : "error: state does not match"
+        @code = params[:code]
+        @implicit_grant_access_token = params[:access_token]
 	erb :root
 end

@@ -29,7 +29,10 @@
 <div class="step2" id="step2">
 <form name="auth_step" id="auth_step" method="get" onsubmit="return OnSubmitForm();">
   <div class="form-group">
-    <label>State: </label><input type="text" name="state" value="return generateUUID()" id="state" />
+    <label>State: </label><input type="text" name="state" value="" id="state" />
+    <div class="nonce" id="nonce">
+      <label>Nonce: </label><input type="text" name="nonce" value="" id="nonce" />
+    </div>
   </div>
   <div class="form-group">
     <input type="hidden" name="response_type" value="code" id="response_type" />
@@ -85,3 +88,6 @@
 </div>
 <div class="token_endpoint_result" id="token_endpoint_result">
 </div>
+<div class="authorization_endpoint_result" id="authorization_endpoint_result">
+</div>
+
