@@ -1,0 +1,7 @@
+version: '2'
+services:
+  client:
+    build: ./client
+    network_mode: "host"
+    ports:
+      - "3001:3000"
