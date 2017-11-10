@@ -3,7 +3,7 @@ This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I cr
 
 ## Getting Started
 From a bash command prompt on Fedora or RHEL 7.x, run the following::
-`yum install git
+` yum install git
  git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
  yum install docker
  system start docker
@@ -29,7 +29,7 @@ On other systems, the commands needed to start the debugger in a local docker co
 To run this project you will need to install docker and docker-compose.
 
 ## Building the docker image
-`yum install git
+` yum install git
  git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
  yum install docker
  system start docker
@@ -45,5 +45,5 @@ Robert C. Broeckelmann Jr. - Initial work
 
 This project is licensed under the Apache 2.0 License - see the LICENSE.md file for details
 
-##Acknowledgments
+## Acknowledgments
 Thanks to the [APICast (3Scale API Management Gateway OAuth2 Example](https://github.com/3scale/apicast/tree/master/examples/oauth2)for being the starting point for this experiment.
