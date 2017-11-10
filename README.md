@@ -1,7 +1,7 @@
-#OAuth2 + OpenID Connect Debugger
+# OAuth2 + OpenID Connect Debugger
 This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I created as part of a Red Hat SSO blog post I created in November, 2017.  The blog post uses this debugger for testing the OpenID Connect setup.  So, checkout the blog for usage examples. This project builds a docker container that runs the debugger.
 
-##Getting Started
+## Getting Started
 From a bash command prompt on Fedora or RHEL 7.x, run the following::
 `yum install git
  git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
@@ -24,11 +24,11 @@ See the blog posts referenced above for more information.
 
 On other systems, the commands needed to start the debugger in a local docker container will be similar.
 
-##Prerequisites
+## Prerequisites
 
 To run this project you will need to install docker and docker-compose.
 
-##Building the docker image
+## Building the docker image
 `yum install git
  git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
  yum install docker
@@ -37,11 +37,11 @@ To run this project you will need to install docker and docker-compose.
  cd oauth-oidc-debugger
  docker-compose build`
 
-##Authors
+## Authors
 
 Robert C. Broeckelmann Jr. - Initial work
 
-License
+## License
 
 This project is licensed under the Apache 2.0 License - see the LICENSE.md file for details
 
