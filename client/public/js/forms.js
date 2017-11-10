@@ -28,48 +28,71 @@ $(document).ready(function(){ // ran when the document is fully loaded
     // retrieve the value of the object firing the event (referenced by this)
     var value = $(this).val();
     // print it in the logs
-    console.log("RCBJ0010: " + value); // crashes in IE, if console not open
-    // make the text of all label elements be the value
+    console.log("RCBJ0010: " + value);
+    // 
     resetUI(value);
-    }); // close the change listener
-}); // close the ready listener
+    });
+});
 
 function resetUI(value)
 {
+    console.log("RCBJ0020: " + value);
     if( value == "implicit_grant" )
     {
-      console.log("RCBJ0005");
+      $('#code').hide();
+      $('#password-form-group1').hide();
+      $('#password-form-group2').hide();
       $('#step2').show();
       $('#step3').hide();
       $('#nonce').show();
       document.getElementById('response_type').value = "token";
       document.getElementById('token_grant_type').value = "";
+      document.getElementById('h2_title_1').innerHTML = "Request Access Token";
+      $('#authorization_endpoint_result').html("");
+      $('#token_endpoint_result').html("");
     }
     if( value == "client_credential")
     {
+      $('#code').hide();
+      $('#password-form-group1').hide();
+      $('#password-form-group2').hide();
       $('#step2').hide();
       $('#step3').show();
       $('#nonce').hide();
       document.getElementById('response_type').value = "";
       document.getElementById('token_grant_type').value = "client_credentials";
+      document.getElementById('h2_title_2').innerHTML = "Obtain Access Token";
+      $('#authorization_endpoint_result').html("");
+      $('#token_endpoint_result').html("");
     }
     if( value == "resource_owner")
     {
+      $('#code').hide();
       $('#password-form-group1').show();
       $('#password-form-group2').show();
-      $('#step2').show();
+      $('#step2').hide();
       $('#step3').show();
       $('#nonce').hide();
       document.getElementById('response_type').value = "";
       document.getElementById('token_grant_type').value = "password";
+      document.getElementById('h2_title_2').innerHTML = "Obtain Access Token";
+      $('#authorization_endpoint_result').html("");
+      $('#token_endpoint_result').html("");
     }
-    if( value == "authorizaton_grant")
+    if( value == "authorization_grant")
     {
+      $('#code').show();
+      $('#password-form-group1').hide();
+      $('#password-form-group2').hide();
       $('#step2').show();
       $('#step3').show();
       $('#nonce').hide();
       document.getElementById('response_type').value = "code";
       document.getElementById('token_grant_type').value = "authorization_code";
+      document.getElementById('h2_title_1').innerHTML = "Request Authorization Code";
+      document.getElementById('h2_title_2').innerHTML = "Exchange Authorization Code for Access Token";
+      $('#authorization_endpoint_result').html("");
+      $('#token_endpoint_result').html("");
     }
 }
 
@@ -140,7 +163,18 @@ window.onload = function() {
       var code = document.getElementById('code').value;
       var grant_type = document.getElementById('token_grant_type').value;
       var redirect_uri = document.getElementById('token_redirect_uri').value;
-      var dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&code=' + code + '&redirect_uri=' + redirect_uri;
+      var username = document.getElementById('token_username').value;
+      var password = document.getElementById('token_password').value;
+      console.log("RCBJ0040: " + grant_type);
+      var dataString = "";
+      if(grant_type == "authorization_code")
+      {
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&code=' + code + '&redirect_uri=' + redirect_uri;
+      } else if( grant_type == "password") {
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&username=' + username + '&password=' + password;
+      } else if( grant_type == "client_credentials") {
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret;
+      }
   $.ajax({
     type: "POST",
     url: document.getElementById('token_endpoint').value,

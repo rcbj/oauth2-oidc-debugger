@@ -3,8 +3,8 @@
 
 <h1>OAuth2 or OpenID Connect Debugger</h1>
 
-<p>This is a simple Client to use with any <a href="">OAuth2</a> or <a href="" >OpenID Connect</a> compliant identity provider..</p>
-<h2>Step 1: Choose Authorization Grant</h2>
+<p>This is a simple Client to use with any <a href="https://medium.com/@robert.broeckelmann/saml2-vs-jwt-understanding-oauth2-4abde9e7ec8b">OAuth2</a> or <a href="https://medium.com/@robert.broeckelmann/understanding-openid-connect-series-37c93d25e92b">OpenID Connect</a> compliant identity provider..</p>
+<h2>Choose Authorization Grant</h2>
 <form id="authorization_grant" name="authorization_grant" action="">
   <div class="form-group">
     <label>Authorization Grant: </label>
@@ -17,7 +17,7 @@
   </div>
 </form>
 
-<h2>Step 2: Request Authorization Code</h2>
+<h2>Enter Endpoints</h2>
 <form id="endpoints" name="endpoints" action="">
   <div class="form-group">
     <label>Authorization Endpoint: </label><input type="text" name="authorization_endpoint" id="authorization_endpoint" class="stored"/>
@@ -27,6 +27,7 @@
   </div>
 </form>
 <div class="step2" id="step2">
+<h2 id="h2_title_1">Request Authorization Code</h2>
 <form name="auth_step" id="auth_step" method="get" onsubmit="return OnSubmitForm();">
   <div class="form-group">
     <label>State: </label><input type="text" name="state" value="" id="state" />
@@ -54,7 +55,7 @@
 </div>
 
 <div class="step3" id="step3">
-<h2>Step 3: Exchange Authorization Code for Access Token</h2>
+<h2 id="h2_title_2">Exchange Authorization Code for Access Token</h2>
 
 <form name="token_step" id="token_step">
   <div class="form-group">
@@ -90,4 +91,3 @@
 </div>
 <div class="authorization_endpoint_result" id="authorization_endpoint_result">
 </div>
-
