@@ -3,14 +3,14 @@ This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I cr
 
 ##Getting Started
 From a bash command prompt on Fedora or RHEL 7.x, run the following::
-` # yum install git
- # git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
- # yum install docker
- # system start docker
- # yum install docker-compose
- # cd oauth-oidc-debugger
- # docker-compose build
- # docker-compose up`
+`yum install git
+ git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
+ yum install docker
+ system start docker
+ yum install docker-compose
+ cd oauth-oidc-debugger
+ docker-compose build
+ docker-compose up`
 
 Open your favorite browser and enter "http://localhost:3000" in the address bar.
 
@@ -29,13 +29,13 @@ On other systems, the commands needed to start the debugger in a local docker co
 To run this project you will need to install docker and docker-compose.
 
 ##Building the docker image
-` # yum install git
- # git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
- # yum install docker
- # system start docker
- # yum install docker-compose
- # cd oauth-oidc-debugger
- # docker-compose build`
+`yum install git
+ git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
+ yum install docker
+ system start docker
+ yum install docker-compose
+ cd oauth-oidc-debugger
+ docker-compose build`
 
 ##Authors
 
