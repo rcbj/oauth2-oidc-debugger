@@ -54,6 +54,13 @@
 </form>
 </div>
 
+<div class="display_authz_request_class" id="display_authz_request_class">
+<form action="" name="display_authz_request_form" id="display_authz_request_form">
+<label name="display_authz_request_form_label1" id="display_authz_request_form_label1">Request</label>
+<textarea></textarea>
+</form>
+</div>
+
 <div class="step3" id="step3">
 <h2 id="h2_title_2">Exchange Authorization Code for Access Token</h2>
 
@@ -73,7 +80,7 @@
   </div>
   <div class="form-group">
     <label>Redirect URL: </label>
-    <input type="text" name="redirect_uri" value="<%= defined?(REDIRECT_URI) ? REDIRECT_URI : '' %>" class="input" id="token_redirect_uri" />
+    <input type="text" name="redirect_uri" value="" class="input" id="token_redirect_uri" />
   </div>
   <div class="form-group">
     <label>Scope </label>
@@ -91,6 +98,7 @@
 
   <input type="submit" class="btn1" value="Get Token">
 </form>
+<div class="display_token_request" id="display_token_request"/>
 </div>
 <div class="token_endpoint_result" id="token_endpoint_result">
 </div>

@@ -20,23 +20,16 @@ function getParameterByName(name, url) {
     return decodeURIComponent(results[2].replace(/\+/g, " "));
 }
 
-$(document).ready(function(){ // ran when the document is fully loaded
-  // retrieve the jQuery wrapped dom object identified by the selector '#mySel'
-  var sel = $('#authorization_grant_type');
-  // assign a change listener to it
-  sel.change(function(){ //inside the listener
-    // retrieve the value of the object firing the event (referenced by this)
+$(document).ready(function(){ 
+    var sel = $('#authorization_grant_type');
+    sel.change(function(){
     var value = $(this).val();
-    // print it in the logs
-    console.log("RCBJ0010: " + value);
-    // 
     resetUI(value);
-    });
+  });
 });
 
 function resetUI(value)
 {
-    console.log("RCBJ0020: " + value);
     if( value == "implicit_grant" )
     {
       $('#code').hide();
@@ -96,6 +89,53 @@ function resetUI(value)
     }
 }
 
+function writeValuesToLocalStorage()
+{
+  if (localStorage) {
+      localStorage.setItem('token_client_id', document.getElementById('token_client_id').value);
+      localStorage.setItem('token_client_secret', document.getElementById('token_client_secret').value);
+      localStorage.setItem('token_redirect_uri', document.getElementById('token_redirect_uri').value);
+      localStorage.setItem('token_username', document.getElementById('token_username').value);
+      localStorage.setItem('token_scope', document.getElementById('token_scope').value);
+      localStorage.setItem('authorization_grant_type', document.getElementById('authorization_grant_type').value);
+  }
+}
+
+function loadValuesFromLocalStorage()
+{
+ var authzGrantType = localStorage.getItem('authorization_grant_type');
+  console.log("authzGrantType=" + authzGrantType);
+  if (authzGrantType == "" || typeof(authzGrantType) == "undefined" || authzGrantType == "null")
+  {
+    document.getElementById('authorization_grant_type').value = "authorization_grant"
+    resetUI("authorization_grant");
+  } else {
+    document.getElementById('authorization_grant_type').value = authzGrantType;
+    resetUI(authzGrantType);
+  }
+  document.getElementById('authorization_endpoint').value = localStorage.getItem('authorization_endpoint');
+  document.getElementById('token_endpoint').value = localStorage.getItem('token_endpoint');
+  document.getElementById('redirect_uri').value = localStorage.getItem('redirect_uri');
+  document.getElementById('client_id').value = localStorage.getItem('client_id');
+  document.getElementById('scope').value = localStorage.getItem('scope');
+  document.getElementById('token_client_id').value = localStorage.getItem('token_client_id');
+  document.getElementById('token_client_secret').value = localStorage.getItem('token_client_secret');
+  document.getElementById('token_redirect_uri').value = localStorage.getItem('token_redirect_uri');
+  document.getElementById('token_scope').value = localStorage.getItem('token_scope');
+  document.getElementById('token_username').value = localStorage.getItem('token_username');
+  var agt = document.getElementById("authorization_grant_type").value;
+  var pathname = window.location.pathname;
+  console.log("agt=" + agt);
+  console.log("pathname=" + pathname);
+  if ( agt == "implicit_grant" && pathname == "/callback")
+  {
+    var access_token = getParameterByName("access_token",window.location.href);
+    $('#authorization_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
+  }
+  document.getElementById("state").value = generateUUID();
+  document.getElementById("nonce_field").value = generateUUID();
+}
+
 window.onload = function() {
 
   $('#password-form-group1').hide();
@@ -109,51 +149,10 @@ window.onload = function() {
       localStorage.setItem('authorization_endpoint', document.getElementById('authorization_endpoint').value);
       localStorage.setItem('token_endpoint', document.getElementById('token_endpoint').value);
       localStorage.setItem('redirect_uri', document.getElementById('redirect_uri').value);
-      console.log("RCBJ0003: " + document.getElementById('authorization_grant_type').value);
       localStorage.setItem('authorization_grant_type', document.getElementById('authorization_grant_type').value);
     });
-    document.getElementById('token_step').addEventListener('submit', function() {
-      localStorage.setItem('token_client_id', document.getElementById('token_client_id').value);
-      localStorage.setItem('token_client_secret', document.getElementById('token_client_secret').value);
-      localStorage.setItem('token_redirect_uri', document.getElementById('token_redirect_uri').value);
-      localStorage.setItem('token_username', document.getElementById('token_username').value);
-      localStorage.setItem('token_scope', document.getElementById('token_scope').value);
-    });
   }
-
-  document.getElementById('authorization_endpoint').value = localStorage.getItem('authorization_endpoint');
-  document.getElementById('token_endpoint').value = localStorage.getItem('token_endpoint');
-  document.getElementById('redirect_uri').value = localStorage.getItem('redirect_uri');
-  document.getElementById('client_id').value = localStorage.getItem('client_id');
-  document.getElementById('scope').value = localStorage.getItem('scope');
-  document.getElementById('token_client_id').value = localStorage.getItem('token_client_id');
-  document.getElementById('token_client_secret').value = localStorage.getItem('token_client_secret');
-  document.getElementById('token_redirect_uri').value = localStorage.getItem('token_redirect_uri');
-  document.getElementById('token_username').value = localStorage.getItem('token_username');
-  var authzGrantType = localStorage.getItem('authorization_grant_type');
-  console.log("authzGrantType=" + authzGrantType);
-  if (authzGrantType == "" || typeof(authzGrantType) == "undefined" || authzGrantType == "null")
-  {
-    console.log("RCBJ0001");
-    document.getElementById('authorization_grant_type').value = "authorization_grant"
-    resetUI("authorization_grant");
-  } else {
-    console.log("RCBJ0002");
-    document.getElementById('authorization_grant_type').value = authzGrantType;
-    resetUI(authzGrantType);
-  }
-  var agt = document.getElementById("authorization_grant_type").value;
-  var pathname = window.location.pathname;
-  console.log("agt=" + agt);
-  console.log("pathname=" + pathname);
-  if ( agt == "implicit_grant" && pathname == "/callback")
-  {
-    console.log("RCBJ0020");
-    var access_token = getParameterByName("access_token",window.location.href);
-    $('#authorization_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
-  }
-  document.getElementById("state").value = generateUUID();
-  document.getElementById("nonce_field").value = generateUUID();
+  loadValuesFromLocalStorage();
 }
 
   $(function() {
@@ -167,7 +166,6 @@ window.onload = function() {
       var username = document.getElementById('token_username').value;
       var password = document.getElementById('token_password').value;
       var scope = document.getElementById('token_scope').value;
-      console.log("RCBJ0040: " + grant_type);
       var dataString = "";
       if(grant_type == "authorization_code")
       {
@@ -183,6 +181,7 @@ window.onload = function() {
     data: dataString,
     success: function(data, textStatus, request) {
       $('#token_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea rows=5 cols=100>" + data.access_token + "</textarea></td></tr><tr><td>refresh_token</td><td><textarea rows=5 cols=100>" + data.refresh_token + "</textarea></td></tr><tr><td>id_token</td><td><textarea rows=5 cols=100>" + data.id_token + "</textarea></td></tr></table>");
+      writeValuesToLocalStorage();
 //    $('#token_endpoint_result').scrollView();
     }
   });
