@@ -117,6 +117,7 @@ window.onload = function() {
       localStorage.setItem('token_client_secret', document.getElementById('token_client_secret').value);
       localStorage.setItem('token_redirect_uri', document.getElementById('token_redirect_uri').value);
       localStorage.setItem('token_username', document.getElementById('token_username').value);
+      localStorage.setItem('token_scope', document.getElementById('token_scope').value);
     });
   }
 
@@ -165,15 +166,16 @@ window.onload = function() {
       var redirect_uri = document.getElementById('token_redirect_uri').value;
       var username = document.getElementById('token_username').value;
       var password = document.getElementById('token_password').value;
+      var scope = document.getElementById('token_scope').value;
       console.log("RCBJ0040: " + grant_type);
       var dataString = "";
       if(grant_type == "authorization_code")
       {
-        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&code=' + code + '&redirect_uri=' + redirect_uri;
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&code=' + code + '&redirect_uri=' + redirect_uri + "&scope=" + scope;
       } else if( grant_type == "password") {
-        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&username=' + username + '&password=' + password;
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&username=' + username + '&password=' + password + "&scope=" + scope;
       } else if( grant_type == "client_credentials") {
-        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret;
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + "&scope=" + scope;
       }
   $.ajax({
     type: "POST",
