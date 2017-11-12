@@ -1,6 +1,7 @@
 function OnSubmitForm()
 {
   document.auth_step.action = document.getElementById('authorization_endpoint').value;
+  recalculateAuthorizationRequestDescription();
   return true;
 }
 
@@ -25,7 +26,13 @@ $(document).ready(function(){
     sel.change(function(){
     var value = $(this).val();
     resetUI(value);
+    recalculateAuthorizationRequestDescription();
+    recalculateTokenRequestDescription();
   });
+  var value = $('#authorization_grant_type').value;
+  resetUI(value);
+  recalculateAuthorizationRequestDescription();
+  recalculateTokenRequestDescription();
 });
 
 function resetUI(value)
@@ -39,10 +46,13 @@ function resetUI(value)
       $('#step3').hide();
       $('#nonce').show();
       document.getElementById('response_type').value = "token";
+      recalculateAuthorizationRequestDescription();
       document.getElementById('token_grant_type').value = "";
       document.getElementById('h2_title_1').innerHTML = "Request Access Token";
       $('#authorization_endpoint_result').html("");
       $('#token_endpoint_result').html("");
+      $('#display_authz_request_class').show();
+      $('#display_token_request').hide();
     }
     if( value == "client_credential")
     {
@@ -54,9 +64,12 @@ function resetUI(value)
       $('#nonce').hide();
       document.getElementById('response_type').value = "";
       document.getElementById('token_grant_type').value = "client_credentials";
+      recalculateTokenRequestDescription();
       document.getElementById('h2_title_2').innerHTML = "Obtain Access Token";
       $('#authorization_endpoint_result').html("");
       $('#token_endpoint_result').html("");
+      $('#display_authz_request_class').hide();
+      $('#display_token_request').show();
     }
     if( value == "resource_owner")
     {
@@ -68,9 +81,12 @@ function resetUI(value)
       $('#nonce').hide();
       document.getElementById('response_type').value = "";
       document.getElementById('token_grant_type').value = "password";
+      recalculateTokenRequestDescription();
       document.getElementById('h2_title_2').innerHTML = "Obtain Access Token";
       $('#authorization_endpoint_result').html("");
       $('#token_endpoint_result').html("");
+      $('#display_authz_request_class').hide();
+      $('#display_token_request').show();
     }
     if( value == "authorization_grant")
     {
@@ -82,10 +98,14 @@ function resetUI(value)
       $('#nonce').hide();
       document.getElementById('response_type').value = "code";
       document.getElementById('token_grant_type').value = "authorization_code";
+      recalculateAuthorizationRequestDescription();
+      recalculateTokenRequestDescription();
       document.getElementById('h2_title_1').innerHTML = "Request Authorization Code";
       document.getElementById('h2_title_2').innerHTML = "Exchange Authorization Code for Access Token";
       $('#authorization_endpoint_result').html("");
       $('#token_endpoint_result').html("");
+      $('#display_authz_request_class').show();
+      $('#display_token_request').show();
     }
 }
 
@@ -129,6 +149,7 @@ function loadValuesFromLocalStorage()
   console.log("pathname=" + pathname);
   if ( agt == "implicit_grant" && pathname == "/callback")
   {
+    console.log("RCBJ0030");
     var access_token = getParameterByName("access_token",window.location.href);
     $('#authorization_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
   }
@@ -136,10 +157,87 @@ function loadValuesFromLocalStorage()
   document.getElementById("nonce_field").value = generateUUID();
 }
 
+function recalculateAuthorizationRequestDescription()
+{
+  console.log("update request field");
+  var ta1 = document.getElementById('display_authz_request_form_textarea1');
+  console.log("RCBJ0050: " + ta1);
+  if (ta1 != null)
+  {
+    var grant_type = document.getElementById('response_type').value;
+    if( grant_type == "code")
+    {
+      console.log("RCBJ0020");
+      document.getElementById('display_authz_request_form_textarea1').value = "GET " + document.getElementById('authorization_endpoint').value + "?" + "\n" +
+                                                                      "state=" + document.getElementById('state').value + "&" + "\n" +
+  								      "response_type=" + document.getElementById('response_type').value + "&" + "\n" +
+  								      "client_id=" + document.getElementById('client_id').value + "&" + "\n" +
+                						      "redirect_uri=" + document.getElementById('redirect_uri').value + "&" +"\n" +
+								      "scope=" + document.getElementById('scope').value + "\n";
+    } else if (grant_type == "token") {
+      console.log("RCBJ0021");
+      document.getElementById('display_authz_request_form_textarea1').value = "GET " + document.getElementById('authorization_endpoint').value + "?" + "\n" +
+                                                                      "state=" + document.getElementById('state').value + "&" + "\n" +
+                                                                      "nonce=" + document.getElementById('nonce_field').value + "&" + "\n" +
+                                                                      "response_type=" + document.getElementById('response_type').value + "&" + "\n" +
+                                                                      "client_id=" + document.getElementById('client_id').value + "&" + "\n" +
+                                                                      "redirect_uri=" + document.getElementById('redirect_uri').value + "&" +"\n" +
+                                                                      "scope=" + document.getElementById('scope').value + "\n";
+    }
+  }
+}
+
+function recalculateTokenRequestDescription()
+{
+  console.log("update request field");
+  var ta1 = document.getElementById('display_token_request_form_textarea1');
+  if (ta1 != null)
+  {
+    var grant_type = document.getElementById('token_grant_type').value;
+    if( grant_type == "authorization_code")
+    {
+      console.log("RCBJ0040");
+      document.getElementById('display_token_request_form_textarea1').value = "POST " + document.getElementById('token_endpoint').value + "?" + "\n" +
+                                                                      "grant_type=" + document.getElementById('token_grant_type').value + "&" + "\n" +
+                                                                      "code=" + document.getElementById('code').value + "&" + "\n" +
+                                                                      "client_id=" + document.getElementById('token_client_id').value + "&" + "\n" +
+                                                                      "redirect_uri=" + document.getElementById('token_redirect_uri').value + "&" +"\n" +
+                                                                      "scope=" + document.getElementById('token_scope').value + "\n";
+    } else if (grant_type == "client_credentials") {
+      console.log("RCBJ0041");
+      document.getElementById('display_token_request_form_textarea1').value = "POST " + document.getElementById('token_endpoint').value + "?" + "\n" +
+                                                                      "grant_type=" + document.getElementById('token_grant_type').value + "&" + "\n" +
+                                                                      "client_id=" + document.getElementById('token_client_id').value + "&" + "\n" +
+                                                                      "client_secret=" + document.getElementById('token_client_secret').value + "&" + "\n" +
+                                                                      "redirect_uri=" + document.getElementById('token_redirect_uri').value + "&" +"\n" +
+                                                                      "scope=" + document.getElementById('token_scope').value + "\n";
+    } else if (grant_type == "resource_owner") {
+      console.log("RCBJ0042");
+      document.getElementById('display_token_request_form_textarea1').value = "POST " + document.getElementById('token_endpoint').value + "?" + "\n" +
+                                                                      "grant_type=" + document.getElementById('token_grant_type').value + "&" + "\n" +
+                                                                      "client_id=" + document.getElementById('token_client_id').value + "&" + "\n" +
+                                                                      "client_secret=" + document.getElementById('token_client_secret').value + "&" + "\n" +
+                                                                      "username=" + document.getElementById('token_username').value + "&" + "\n" +
+                                                                      "password=" + document.getElementById('token_password').value + "&" + "\n" +
+                                                                      "scope=" + document.getElementById('token_scope').value + "\n"
+    } 
+
+
+  }
+}
+
 window.onload = function() {
 
   $('#password-form-group1').hide();
   $('#password-form-group2').hide();
+
+  document.getElementById('authorization_endpoint').addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+  document.getElementById('state').addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+  document.getElementById('nonce_field').addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+  document.getElementById('response_type').addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+  document.getElementById('client_id').addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+  document.getElementById('redirect_uri').addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+  document.getElementById('scope').addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
 
   if (localStorage) {
     // Add an event listener for form submissions
@@ -153,6 +251,10 @@ window.onload = function() {
     });
   }
   loadValuesFromLocalStorage();
+//  resetUI();
+  recalculateAuthorizationRequestDescription();
+  recalculateTokenRequestDescription();
+  
 }
 
   $(function() {
@@ -180,8 +282,9 @@ window.onload = function() {
     url: document.getElementById('token_endpoint').value,
     data: dataString,
     success: function(data, textStatus, request) {
-      $('#token_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea rows=5 cols=100>" + data.access_token + "</textarea></td></tr><tr><td>refresh_token</td><td><textarea rows=5 cols=100>" + data.refresh_token + "</textarea></td></tr><tr><td>id_token</td><td><textarea rows=5 cols=100>" + data.id_token + "</textarea></td></tr></table>");
+      $('#token_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea rows=10 cols=100>" + data.access_token + "</textarea></td></tr><tr><td>refresh_token</td><td><textarea rows=10 cols=100>" + data.refresh_token + "</textarea></td></tr><tr><td>id_token</td><td><textarea rows=10 cols=100>" + data.id_token + "</textarea></td></tr></table>");
       writeValuesToLocalStorage();
+      recalculateTokenRequestDescription();
 //    $('#token_endpoint_result').scrollView();
     }
   });

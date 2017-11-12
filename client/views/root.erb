@@ -30,7 +30,7 @@
 <h2 id="h2_title_1">Request Authorization Code</h2>
 <form name="auth_step" id="auth_step" method="get" onsubmit="return OnSubmitForm();">
   <div class="form-group">
-    <label>State: </label><input type="text" name="state" value="" id="state" />
+    <label>State: </label><input type="text" name="state" value="" id="state" onchange="recalculateAuthorizationRequestDescription();" />
     <div class="nonce" id="nonce">
       <label>Nonce: </label><input type="text" name="nonce" value="" id="nonce_field" />
     </div>
@@ -56,8 +56,8 @@
 
 <div class="display_authz_request_class" id="display_authz_request_class">
 <form action="" name="display_authz_request_form" id="display_authz_request_form">
-<label name="display_authz_request_form_label1" id="display_authz_request_form_label1">Request</label>
-<textarea></textarea>
+<label name="display_authz_request_form_label1" value="" id="display_authz_request_form_label1">Request</label>
+<textarea rows="10" cols="100" id="display_authz_request_form_textarea1"></textarea>
 </form>
 </div>
 
@@ -98,9 +98,15 @@
 
   <input type="submit" class="btn1" value="Get Token">
 </form>
-<div class="display_token_request" id="display_token_request"/>
 </div>
-<div class="token_endpoint_result" id="token_endpoint_result">
+<div class="display_token_request" id="display_token_request">
+<form action="" name="display_token_request_form" id="display_token_request_form">
+<label name="display_token_request_form_label1" value="" id="display_token_request_form_label1">Request</label>
+<textarea rows="10" cols="100" id="display_token_request_form_textarea1"></textarea>
+</form>
 </div>
 <div class="authorization_endpoint_result" id="authorization_endpoint_result">
 </div>
+<div class="token_endpoint_result" id="token_endpoint_result">
+</div>
+
