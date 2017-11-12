@@ -2,13 +2,13 @@
 This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I created as part of a Red Hat SSO blog post I created in November, 2017.  The blog post uses this debugger for testing the OpenID Connect setup.  So, checkout the blog for usage examples. This project builds a docker container that runs the debugger application.
 
 The following OAuth2 Authorization Grants are supported:
-*Authorization Code Grant
-*Implicit Code Grant
-*Resource Owner Password Grant
-*Client Credentials Grant
+* Authorization Code Grant
+* Implicit Code Grant
+* Resource Owner Password Grant
+* Client Credentials Grant
 
 The following OpenID Connect Authentication Flows are supported
-*Authorization Code Flow (use Authorization Code Grant option and scope="openid profile")
+* Authorization Code Flow (use Authorization Code Grant option and scope="openid profile")
 
 Support the remaining OIDC Authentication Flows will be implemented in the future.
 
