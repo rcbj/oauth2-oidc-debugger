@@ -284,7 +284,7 @@ window.onload = function() {
     success: function(data, textStatus, request) {
       $('#token_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea rows=10 cols=100>" + data.access_token + "</textarea></td></tr><tr><td>refresh_token</td><td><textarea rows=10 cols=100>" + data.refresh_token + "</textarea></td></tr><tr><td>id_token</td><td><textarea rows=10 cols=100>" + data.id_token + "</textarea></td></tr></table>");
       writeValuesToLocalStorage();
-      recalculateTokenRequestDescription();
+      recalculateAuthorizationRequestDescription();
 //    $('#token_endpoint_result').scrollView();
     }
   });
@@ -292,6 +292,41 @@ window.onload = function() {
 
     });
   });
+
+//  $(function() {
+//    $(".btn2").click(function() {
+//      // validate and process form here
+//      var client_id = document.getElementById('client_id').value;
+//      var code = document.getElementById('code').value;
+//      var response_type = document.getElementById('response_type').value;
+//      var redirect_uri = document.getElementById('redirect_uri').value;
+//      var scope = document.getElementById('scope').value;
+//      var state  = document.getElementById('state').value;
+//      var nonce = document.getElementById('nonce').value;
+//      var dataString = "";
+//      if(response_type == "code")
+//      {
+//
+//        dataString = 'response_type=' + response_type + '&client_id=' + client_id + '&redirect_uri=' + redirect_uri + '&scope=' + scope + '&state=' + state;
+//      }  else if( response_type == "token") {
+//        dataString = 'response_type=' + response_type + '&client_id=' + client_id + '&redirect_uri=' + redirect_uri + '&scope=' + scope + '&state=' + state + '&nonce=' + nonce;
+//      }
+//      console.log("RCBJ0070: ");
+//  $.ajax({
+//    type: "GET",
+//    url: document.getElementById('authorization_endpoint').value + "?" + dataString,
+//    success: function(data, textStatus, request) {
+//      console.log("RCBJ0060: " + JSON.stringify(data));
+//      writeValuesToLocalStorage();
+//      recalculateTokenRequestDescription();
+////      var access_token = getParameterByName("access_token",window.location.href);
+//      $('#authorization_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
+//    }
+//  });
+//  return false;
+//
+//    });
+//  });
 
 function generateUUID () { // Public Domain/MIT
     var d = new Date().getTime();
@@ -304,4 +339,5 @@ function generateUUID () { // Public Domain/MIT
         return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
     });
 }
+
 
