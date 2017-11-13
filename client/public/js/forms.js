@@ -211,7 +211,7 @@ function recalculateTokenRequestDescription()
                                                                       "client_secret=" + document.getElementById('token_client_secret').value + "&" + "\n" +
                                                                       "redirect_uri=" + document.getElementById('token_redirect_uri').value + "&" +"\n" +
                                                                       "scope=" + document.getElementById('token_scope').value + "\n";
-    } else if (grant_type == "resource_owner") {
+    } else if (grant_type == "password") {
       console.log("RCBJ0042");
       document.getElementById('display_token_request_form_textarea1').value = "POST " + document.getElementById('token_endpoint').value + "?" + "\n" +
                                                                       "grant_type=" + document.getElementById('token_grant_type').value + "&" + "\n" +
@@ -284,7 +284,7 @@ window.onload = function() {
     success: function(data, textStatus, request) {
       $('#token_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea rows=10 cols=100>" + data.access_token + "</textarea></td></tr><tr><td>refresh_token</td><td><textarea rows=10 cols=100>" + data.refresh_token + "</textarea></td></tr><tr><td>id_token</td><td><textarea rows=10 cols=100>" + data.id_token + "</textarea></td></tr></table>");
       writeValuesToLocalStorage();
-      recalculateAuthorizationRequestDescription();
+      recalculateTokenRequestDescription();
 //    $('#token_endpoint_result').scrollView();
     }
   });
