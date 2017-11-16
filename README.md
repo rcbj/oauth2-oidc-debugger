@@ -13,6 +13,7 @@ The following OpenID Connect Authentication Flows are supported
 Support the remaining OIDC Authentication Flows will be implemented in the future.
 
 So far, this tool has been tested with Red Hat SSO v7.1.  I'll add support for Azure Active Directory soon.
+Note, that all configuration values except for the user password is written to local storage to prepopulate fields later.  If this is not desired, clear your browser's local storage for the debugger when done using.
 
 ## Getting Started
 From a bash command prompt on Fedora or RHEL 7.x, run the following::
