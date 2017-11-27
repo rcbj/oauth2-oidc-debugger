@@ -26,10 +26,9 @@ From a bash command prompt on Fedora or RHEL 7.x, run the following::
  git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
  yum install docker
  system start docker
- yum install docker-compose
- cd oauth-oidc-debugger
- docker-compose build
- docker-compose up
+ cd oauth-oidc-debugger/client
+ docker build -t oauth2-oidc-debugger .
+ docker run -p 3000:3000 oauth2-oidc-debugger 
 ```
 Open your favorite browser and enter "http://localhost:3000" in the address bar.
 
