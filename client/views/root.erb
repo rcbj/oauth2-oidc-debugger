@@ -50,22 +50,36 @@
   <div class="form-group">    
     <label>Scope: </label>
     <input type="text" name="scope"  class="stored" id="scope"/>
-  </div>  
+  </div>
+  <div class="prompt-for-resource">
+    Add Resource field? Yes
+    <input type="radio" onclick="javascript:displayResourceCheck();" name="yesno" id="yesCheck"/>No
+    <input type="radio" onclick="javascript:displayResourceCheck();" name="yesno" id="noCheck"/>
+    <br>
+  </div>
+  <div class="form-group" id="resourceIfYes" style="visibility:hidden" style="display:none;margin-top:3%;">
+    <label>Resource: </label>
+    <input type="text" name="resource"  class="stored" id="resource"/>
+  </div>
+
   <input type="submit" class="btn2" value="Authorize" />
 </form>
 </div>
 
 <div class="display_authz_request_class" id="display_authz_request_class">
-<form action="" name="display_authz_request_form" id="display_authz_request_form">
-<label name="display_authz_request_form_label1" value="" id="display_authz_request_form_label1">Request</label>
-<textarea rows="10" cols="100" id="display_authz_request_form_textarea1"></textarea>
-</form>
+  <form action="" name="display_authz_request_form" id="display_authz_request_form">
+    <label name="display_authz_request_form_label1" value="" id="display_authz_request_form_label1">Request</label>
+    <textarea rows="10" cols="100" id="display_authz_request_form_textarea1"></textarea>
+  </form>
+</div>
+
+<div class="display_authz_error_class" id="display_authz_error_class">
 </div>
 
 <div class="step3" id="step3">
 <h2 id="h2_title_2">Exchange Authorization Code for Access Token</h2>
 
-<form name="token_step" id="token_step">
+<form name="token_step" id="token_step" method="post" onsubmit="return OnSubmitTokenEndpointForm();" >
   <div class="form-group">
     <label>Authorization Code: </label>
     <input type="text" name="code" id="code" value="<%= defined?(@code) ? @code : '' %>" class="input" />
@@ -97,15 +111,38 @@
     <input type="password" name="password" value="" class="input" id="token_password" />
   </div>
 
+  <div class="token-prompt-for-resource">
+    Add Resource field? Yes
+    <input type="radio" onclick="javascript:displayTokenResourceCheck();" name="token-yesno" id="yesCheckToken"/>No
+    <input type="radio" onclick="javascript:displayTokenResourceCheck();" name="token-yesno" id="noCheckToken"/>
+    <br>
+  </div>
+  <div class="form-group" id="resourceTokenIfYes" style="visibility:hidden" style="display:none;margin-top:3%;">
+    <label>Resource: </label>
+    <input type="text" name="token_resource"  class="stored" id="token_resource"/>
+  </div>
+
+  <div class="token-prompt-for-redirect-or-ajax">
+    Use Form Submission or AJAX (Some Identity Providers, Azure Active Directory, does not support CORS on the token endpoint, this makes the AJAX call this debugger makes impossible)? Redirect
+    <input type="radio" onclick="javascript:useTokenRedirectSubmission();" name="token-redirect-submission" id="token-redirect-submission"/>AJAX
+    <input type="radio" onclick="javascript:useTokenAJAXSubmission();" name="token-ajax-submission" id="token-ajax-submission"/>
+    <br>
+  </div>
+
   <input type="submit" class="btn1" value="Get Token">
 </form>
 </div>
+
 <div class="display_token_request" id="display_token_request">
 <form action="" name="display_token_request_form" id="display_token_request_form">
 <label name="display_token_request_form_label1" value="" id="display_token_request_form_label1">Request</label>
 <textarea rows="10" cols="100" id="display_token_request_form_textarea1"></textarea>
 </form>
 </div>
+
+<div class="display_token_error_class" id="display_token_error_class">
+</div>
+
 <div class="authorization_endpoint_result" id="authorization_endpoint_result">
 </div>
 <div class="token_endpoint_result" id="token_endpoint_result">
