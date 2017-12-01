@@ -58,14 +58,23 @@ $(document).ready(function()
       var username = document.getElementById('token_username').value;
       var password = document.getElementById('token_password').value;
       var scope = document.getElementById('token_scope').value;
+      var sslValidate = "";
+      if( document.getElementById('SSLValidate-yes').checked)
+      {
+        sslValidate = document.getElementById('SSLValidate-yes').value;
+      } else if (document.getElementById('SSLValidate-no').checked) {
+	sslValidate = document.getElementById('SSLValidate-no').value;
+      } else {
+	sslValidate = "true";
+      }
       var dataString = "";
       if(grant_type == "authorization_code")
       {
-        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&code=' + code + '&redirect_uri=' + redirect_uri + "&scope=" + scope + '&token_endpoint=' + token_endpoint;
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&code=' + code + '&redirect_uri=' + redirect_uri + "&scope=" + scope + '&token_endpoint=' + token_endpoint + "&sslValidate=" + sslValidate;
       } else if( grant_type == "password") {
-        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&username=' + username + '&password=' + password + "&scope=" + scope + '&token_endpoint=' + token_endpoint;
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&username=' + username + '&password=' + password + "&scope=" + scope + '&token_endpoint=' + token_endpoint + "&sslValidate=" + sslValidate;
       } else if( grant_type == "client_credentials") {
-        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + "&scope=" + scope + '&token_endpoint=' + token_endpoint;
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + "&scope=" + scope + '&token_endpoint=' + token_endpoint + "&sslValidate=" + sslValidate;
       }
       var yesCheck = document.getElementById('yesCheckToken').checked;
       if(yesCheck) //add resource value to OAuth query string

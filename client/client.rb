@@ -46,6 +46,17 @@ post("/token") do
                 if resource == nil
                 	resource = ""
 		end
+		sslValidate = params[:sslValidate]
+		if sslValidate == nil
+			sslValidate = false
+		elsif sslValidate == "false"
+			sslValidate = false
+		elsif sslValidate == "true"
+			sslValidate = true
+		else
+			sslValidate = false
+		end
+		puts "token_endpoint=" + token_endpoint
                 puts "client_id=" + client_id
                 puts "client_secret=" + client_secret
 		puts "code=" + code
@@ -53,6 +64,7 @@ post("/token") do
 		puts "redirect_uri=" + redirect_uri
 		puts "scope=" + scope
 		puts "resource=" + resource
+		puts "sslValidate=" + sslValidate.to_s
 		parameterObject={}
 		if grant_type == "authorization_code"
       			parameterObject = { 
@@ -84,7 +96,7 @@ post("/token") do
 			parameterObject[:scope] = scope
 		end
                 puts "parameterObject=" + parameterObject.to_s
-                api_result = RestClient::Request.execute(method: :post, url: params[:token_endpoint], payload: parameterObject, verify_ssl: false)
+                api_result = RestClient::Request.execute(method: :post, url: params[:token_endpoint], payload: parameterObject, verify_ssl: sslValidate)
         	oauth2_token_response = JSON.parse(api_result)
 		puts api_result
 		content_type :json
