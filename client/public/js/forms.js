@@ -45,7 +45,56 @@ $(document).ready(function()
   resetUI(value);
   recalculateAuthorizationRequestDescription();
   recalculateTokenRequestDescription();
-  console.log("Leaving ready function().");
+
+    $(".btn1").click(function() {
+      console.log("Entering token Submit button clicked function.");
+      // validate and process form here
+      var token_endpoint = document.getElementById('token_endpoint').value;
+      var client_id = document.getElementById('token_client_id').value;
+      var client_secret = document.getElementById('token_client_secret').value;
+      var code = document.getElementById('code').value;
+      var grant_type = document.getElementById('token_grant_type').value;
+      var redirect_uri = document.getElementById('token_redirect_uri').value;
+      var username = document.getElementById('token_username').value;
+      var password = document.getElementById('token_password').value;
+      var scope = document.getElementById('token_scope').value;
+      var dataString = "";
+      if(grant_type == "authorization_code")
+      {
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&code=' + code + '&redirect_uri=' + redirect_uri + "&scope=" + scope + '&token_endpoint=' + token_endpoint;
+      } else if( grant_type == "password") {
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&username=' + username + '&password=' + password + "&scope=" + scope + '&token_endpoint=' + token_endpoint;
+      } else if( grant_type == "client_credentials") {
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + "&scope=" + scope + '&token_endpoint=' + token_endpoint;
+      }
+      var yesCheck = document.getElementById('yesCheckToken').checked;
+      if(yesCheck) //add resource value to OAuth query string
+      {
+        var resource = document.getElementById('token_resource').value;
+        if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
+        {
+          dataString = dataString + '&resource=' + resource;
+        }
+      }
+      writeValuesToLocalStorage();
+      recalculateTokenRequestDescription();
+  $.ajax({
+    type: "POST",
+    url: "/token",
+    data: dataString,
+    success: function(data, textStatus, request) {
+      $('#token_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea rows=10 cols=100>" + data.access_token + "</textarea></td></tr><tr><td>refresh_token</td><td><textarea rows=10 cols=100>" + data.refresh_token + "</textarea></td></tr><tr><td>id_token</td><td><textarea rows=10 cols=100>" + data.id_token + "</textarea></td></tr></table>");
+    },
+    error: function (request, status, error) {
+      console.log("request: " + JSON.stringify(request));
+      console.log("status: " + JSON.stringify(status));
+      console.log("error: " + JSON.stringify(error));
+      recalculateTokenErrorDescription(request);
+    }
+  });
+  return false;
+    });
+    console.log("Leaving token submit button clicked function.");
 });
 
 function resetUI(value)
@@ -275,7 +324,8 @@ function recalculateTokenRequestDescription()
     if( grant_type == "authorization_code")
     {
       console.log("RCBJ0040");
-      document.getElementById('display_token_request_form_textarea1').value = "POST " + document.getElementById('token_endpoint').value + "?" + "\n" +
+      document.getElementById('display_token_request_form_textarea1').value = "POST " + document.getElementById('token_endpoint').value + "\n" +
+								      "Message Body:\n" +
                                                                       "grant_type=" + document.getElementById('token_grant_type').value + "&" + "\n" +
                                                                       "code=" + document.getElementById('code').value + "&" + "\n" +
                                                                       "client_id=" + document.getElementById('token_client_id').value + "&" + "\n" +
@@ -284,7 +334,8 @@ function recalculateTokenRequestDescription()
                                                            	      resourceComponent + "\n";
     } else if (grant_type == "client_credentials") {
       console.log("RCBJ0041");
-      document.getElementById('display_token_request_form_textarea1').value = "POST " + document.getElementById('token_endpoint').value + "?" + "\n" +
+      document.getElementById('display_token_request_form_textarea1').value = "POST " + document.getElementById('token_endpoint').value + "\n" +
+                                                                     "Message Body:\n" +
                                                                       "grant_type=" + document.getElementById('token_grant_type').value + "&" + "\n" +
                                                                       "client_id=" + document.getElementById('token_client_id').value + "&" + "\n" +
                                                                       "client_secret=" + document.getElementById('token_client_secret').value + "&" + "\n" +
@@ -293,7 +344,8 @@ function recalculateTokenRequestDescription()
                                                                       resourceComponent + "\n";
     } else if (grant_type == "password") {
       console.log("RCBJ0042");
-      document.getElementById('display_token_request_form_textarea1').value = "POST " + document.getElementById('token_endpoint').value + "?" + "\n" +
+      document.getElementById('display_token_request_form_textarea1').value = "POST " + document.getElementById('token_endpoint').value + "\n" +
+                                                                      "Message Body:\n" +
                                                                       "grant_type=" + document.getElementById('token_grant_type').value + "&" + "\n" +
                                                                       "client_id=" + document.getElementById('token_client_id').value + "&" + "\n" +
                                                                       "client_secret=" + document.getElementById('token_client_secret').value + "&" + "\n" +
@@ -359,41 +411,6 @@ window.onload = function() {
   }
   console.log("Leaving recalculateTokenRequestDescription().");
 }
-
-//  $(function() {
-//    $(".btn2").click(function() {
-//      // validate and process form here
-//      var client_id = document.getElementById('client_id').value;
-//      var code = document.getElementById('code').value;
-//      var response_type = document.getElementById('response_type').value;
-//      var redirect_uri = document.getElementById('redirect_uri').value;
-//      var scope = document.getElementById('scope').value;
-//      var state  = document.getElementById('state').value;
-//      var nonce = document.getElementById('nonce').value;
-//      var dataString = "";
-//      if(response_type == "code")
-//      {
-//
-//        dataString = 'response_type=' + response_type + '&client_id=' + client_id + '&redirect_uri=' + redirect_uri + '&scope=' + scope + '&state=' + state;
-//      }  else if( response_type == "token") {
-//        dataString = 'response_type=' + response_type + '&client_id=' + client_id + '&redirect_uri=' + redirect_uri + '&scope=' + scope + '&state=' + state + '&nonce=' + nonce;
-//      }
-//      console.log("RCBJ0070: ");
-//  $.ajax({
-//    type: "GET",
-//    url: document.getElementById('authorization_endpoint').value + "?" + dataString,
-//    success: function(data, textStatus, request) {
-//      console.log("RCBJ0060: " + JSON.stringify(data));
-//      writeValuesToLocalStorage();
-//      recalculateTokenRequestDescription();
-////      var access_token = getParameterByName("access_token",window.location.href);
-//      $('#authorization_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
-//    }
-//  });
-//  return false;
-//
-//    });
-//  });
 
 function generateUUID () { // Public Domain/MIT
     console.log("Entering generateUUID().");
@@ -579,73 +596,6 @@ function recalculateTokenErrorDescription(data)
     }
   }
   console.log("Leaving recalculateTokenErrorDescription().");
-}
-
-function useTokenRedirectSubmission()
-{
-  console.log("Entering useTokenRedirectSubmission().");
-  console.log("Leaving useTokenRedirectSubmission().");
-}
-
-function useTokenAJAXSubmission()
-{
-  console.log("Entering useTokenAJAXSubmission().");
-  $(function() {
-    $(".btn1").click(function() {
-      console.log("Entering token Submit button clicked function.");
-      // validate and process form here
-      var token_endpoint = document.getElementById('token_endpoint').value;
-      var client_id = document.getElementById('token_client_id').value;
-      var client_secret = document.getElementById('token_client_secret').value;
-      var code = document.getElementById('code').value;
-      var grant_type = document.getElementById('token_grant_type').value;
-      var redirect_uri = document.getElementById('token_redirect_uri').value;
-      var username = document.getElementById('token_username').value;
-      var password = document.getElementById('token_password').value;
-      var scope = document.getElementById('token_scope').value;
-      var dataString = "";
-      if(grant_type == "authorization_code")
-      {
-        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&code=' + code + '&redirect_uri=' + redirect_uri + "&scope=" + scope + '&token_endpoint=' + token_endpoint;
-      } else if( grant_type == "password") {
-        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&username=' + username + '&password=' + password + "&scope=" + scope + '&token_endpoint=' + token_endpoint;
-      } else if( grant_type == "client_credentials") {
-        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + "&scope=" + scope + '&token_endpoint=' + token_endpoint;
-      }
-      var yesCheck = document.getElementById('yesCheckToken').checked;
-      if(yesCheck) //add resource value to OAuth query string
-      {
-        var resource = document.getElementById('token_resource').value;
-        if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
-        {
-          dataString = dataString + '&resource=' + resource;
-        }
-      }
-      writeValuesToLocalStorage();
-      recalculateTokenRequestDescription();
-  $.ajax({
-    type: "POST",
-    url: "/token",
-    data: dataString,
-    success: function(data, textStatus, request) {
-      $('#token_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea rows=10 cols=100>" + data.access_token + "</textarea></td></tr><tr><td>refresh_token</td><td><textarea rows=10 cols=100>" + data.refresh_token + "</textarea></td></tr><tr><td>id_token</td><td><textarea rows=10 cols=100>" + data.id_token + "</textarea></td></tr></table>");
-    },
-    error: function (request, status, error) {
-      console.log("request: " + JSON.stringify(request));
-      console.log("status: " + JSON.stringify(status));
-      console.log("error: " + JSON.stringify(error));
-//      if(error != null && error != "null" && typeof error != "undefined" && error != "")
-//      {
-//        $('#display_authz_error_class').html("<form action=\"\" name=\"display_authz_error_form\" id=\"display_authz_error_form\"><label name=\"display_authz_error_form_label1\" value=\"\" id=\"display_authz_error_form_label1\">Error</label><textarea rows=\"10\" cols=\"100\" id=\"display_authz_error_form_textarea1\"></textarea></form>");
-//      }
-      recalculateTokenErrorDescription(request);
-    }
-  });
-  return false;
-
-    });
-    console.log("Leaving token submit button clicked function.");
- });
 }
 
 function parseFragment()

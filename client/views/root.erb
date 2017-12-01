@@ -121,14 +121,6 @@
     <label>Resource: </label>
     <input type="text" name="token_resource"  class="stored" id="token_resource"/>
   </div>
-
-  <div class="token-prompt-for-redirect-or-ajax">
-    Use Form Submission or AJAX (Some Identity Providers, Azure Active Directory, does not support CORS on the token endpoint, this makes the AJAX call this debugger makes impossible)? Redirect
-    <input type="radio" onclick="javascript:useTokenRedirectSubmission();" name="token-redirect-submission" id="token-redirect-submission"/>AJAX
-    <input type="radio" onclick="javascript:useTokenAJAXSubmission();" name="token-ajax-submission" id="token-ajax-submission"/>
-    <br>
-  </div>
-
   <input type="submit" class="btn1" value="Get Token">
 </form>
 </div>

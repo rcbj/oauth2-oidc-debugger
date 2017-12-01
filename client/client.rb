@@ -39,7 +39,13 @@ post("/token") do
 			password = params[:password]
 		end
       		scope = params[:scope]
+		if scope == nil
+			scope = ""
+		end
                 resource = params[:resource]
+                if resource == nil
+                	resource = ""
+		end
                 puts "client_id=" + client_id
                 puts "client_secret=" + client_secret
 		puts "code=" + code
@@ -54,31 +60,31 @@ post("/token") do
 				client_id: client_id,
 				client_secret: client_secret,
 				code: code,
-				redirect_uri: redirect_uri,
-				scope: scope,
-				resource: resource
+				redirect_uri: redirect_uri
 			}
 		elsif grant_type == "client_credentials"
 			parameterObject =  {
 				grant_type: grant_type,
 				client_id: client_id,
-				client_secret: client_secret,
-				scope: scope,
-				resource:resource
+				client_secret: client_secret
 			}
 		elsif grant_type == "password"
 			parameterObject = {
 				grant_type: grant_type,
 				client_id: client_id,
 				client_secret: client_secret,
-				scope: scope,
-				resource: resource,
 				username: username,
 				password: password
 			}
                 end
+		if resource != ""
+			parameterObject[:resource] = resource
+		end
+		if scope != ""
+			parameterObject[:scope] = scope
+		end
                 puts "parameterObject=" + parameterObject.to_s
-		api_result = RestClient.post(params[:token_endpoint], parameterObject )
+                api_result = RestClient::Request.execute(method: :post, url: params[:token_endpoint], payload: parameterObject, verify_ssl: false)
         	oauth2_token_response = JSON.parse(api_result)
 		puts api_result
 		content_type :json
@@ -89,5 +95,13 @@ post("/token") do
 		status e.response.code
 		content_type :json
 		e.response.body
+	rescue Exception => e
+		puts "Exception Message: " + e.message
+		status 500
+		content_type :json
+		{
+			code: "500",
+			error: e.message
+		}.to_json
 	end
 end
