@@ -55,9 +55,9 @@ To run this project you will need to install docker.
  git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
  yum install docker
  system start docker
- yum install docker-compose
- cd oauth-oidc-debugger
- docker-compose build`
+ cd oauth2-oidc-debugger/client
+ docker build -t oauth2-oidc-debugger .
+ docker run -p 3000:3000 oauth2-oidc-debugger 
 ```
 On other systems, the commands needed to start the debugger in a local docker container will be similar.
 
