@@ -28,7 +28,7 @@ From a bash command prompt on Fedora or RHEL 7.x, run the following::
  system start docker
  cd oauth2-oidc-debugger/client
  docker build -t oauth2-oidc-debugger .
- docker run -p 3000:3000 oauth2-oidc-debugger 
+ docker run -p 3000:3000 --net=host oauth2-oidc-debugger 
 ```
 On other systems, the commands needed to start the debugger in a local docker container will be similar.
 ### Running
@@ -55,9 +55,9 @@ To run this project you will need to install docker.
  git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
  yum install docker
  system start docker
- yum install docker-compose
- cd oauth-oidc-debugger
- docker-compose build`
+ cd oauth2-oidc-debugger/client
+ docker build -t oauth2-oidc-debugger .
+ docker run -p 3000:3000 --net=host oauth2-oidc-debugger 
 ```
 On other systems, the commands needed to start the debugger in a local docker container will be similar.
 
@@ -74,4 +74,4 @@ Robert C. Broeckelmann Jr. - Initial work
 This project is licensed under the Apache 2.0 License - see the LICENSE.md file for details
 
 ## Acknowledgments
-Thanks to the [APICast (3Scale API Management Gateway OAuth2 Example](https://github.com/3scale/apicast/tree/master/examples/oauth2)for being the starting point for this experiment.
+Thanks to the [APICast (3Scale API Management Gateway OAuth2 Example](https://github.com/3scale/apicast/tree/master/examples/oauth2) for being the starting point for this experiment.
