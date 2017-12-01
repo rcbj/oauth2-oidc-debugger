@@ -74,4 +74,4 @@ Robert C. Broeckelmann Jr. - Initial work
 This project is licensed under the Apache 2.0 License - see the LICENSE.md file for details
 
 ## Acknowledgments
-Thanks to the [APICast (3Scale API Management Gateway OAuth2 Example](https://github.com/3scale/apicast/tree/master/examples/oauth2)for being the starting point for this experiment.
+Thanks to the [APICast (3Scale API Management Gateway OAuth2 Example](https://github.com/3scale/apicast/tree/master/examples/oauth2) for being the starting point for this experiment.
