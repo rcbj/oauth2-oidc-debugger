@@ -56,7 +56,7 @@ On other systems, the commands needed to start the debugger in a local docker co
 * If the IdP is using a self-signed certificate or a cert issued from a non-public CA, click No next to the "Validate IdP Certificate?" question.  Note, certificates signed by public CAs are validated against the trusted CAs included with the Ruby 2.4.0 docker image.
 * Click the Get Token button.
 * The standard tokens that are returned from the token endpoint are displayed at the bottom.
-#### Implicit Grant:
+#### OAuth2 Implicit Grant:
 * Enter the client identifier.
 * Enter the Redirect URI.
 * Enter the scope information.
