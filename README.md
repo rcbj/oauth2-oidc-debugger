@@ -8,9 +8,9 @@ The following OAuth2 Authorization Grants are supported:
 * Client Credentials Grant
 
 The following OpenID Connect Authentication Flows are supported
-* Authorization Code Flow (use Authorization Code Grant option and scope="openid profile")
-
-Support for the remaining OIDC Authentication Flows will be implemented in the future.
+* Authorization Code Flow (could also use Authorization Code Grant option and scope="openid profile")
+* Implicit Flow (2 variants)
+* Hybrid Flow (3 variants)
 
 So far, this tool has been tested with:
 
@@ -41,6 +41,7 @@ Enter the Token Endpoint.
 Enter the other parameters as required by the chosen grant.
 If you need to provide a resource parameter, click the radio button.  Then, enter the desired resource parameter.
 If using the Authorization Code Grant, click the Authorize button.  Authenticate the user.  Verify that the Code field is filled in below in the Token Step section.  Fill in the fields needed for  the token endpoint.  Click the Get Token button.
+
 If using the Implicit Grant, click the the Authorize Button.  Authenticate the user.  The access_token will be listed below.
 For the other grants, click the Get Token button.
 
@@ -65,6 +66,8 @@ On other systems, the commands needed to start the debugger in a local docker co
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.2 - 3Scale + APICast support for all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.3 - Azure Active Directory support for OAuth2 Grans and OIDC Authorization Code Flow.  Added error reporting logic and support for optional resource parameter.  Added additional debug logging code in client.  Moved Token Endpoint interaction into server-side (Ruby/Sinatra/Docker); this was necessary because Azure Active Directory does not support CORS (making Javascript interaction from a browser impossible).  Disabled IdP server certificate validation in IdP call.
+* v0.4 - Full OpenID Connect support (all variations of Implicit and Hybrid Flows).  Support for public clients (ie, no client secret).
+
 ## Authors
 
 Robert C. Broeckelmann Jr. - Initial work
