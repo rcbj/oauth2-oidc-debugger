@@ -67,7 +67,7 @@ On other systems, the commands needed to start the debugger in a local docker co
 
 For the other grants and flows, similar steps to the above are used.
 
-See the blog [posts for more information](https://medium.com/@robert.broeckelmann/red-hat-sso-and-3scale-series-d904f2127702).
+See the blog [posts](https://medium.com/@robert.broeckelmann/red-hat-sso-and-3scale-series-d904f2127702) for more information.
 
 ## Prerequisites
 
@@ -99,4 +99,9 @@ Robert C. Broeckelmann Jr. - Initial work
 This project is licensed under the Apache 2.0 License - see the LICENSE.md file for details
 
 ## Acknowledgments
-Thanks to the [APICast (3Scale API Management Gateway OAuth2 Example](https://github.com/3scale/apicast/tree/master/examples/oauth2) for being the starting point for this experiment.
+Thanks to the following:
+* [APICast (3Scale API Management Gateway OAuth2 Example](https://github.com/3scale/apicast/tree/master/examples/oauth2) for being the starting point for this experiment.
+* [Docker](https://docker.com)
+* [Ruby v2.4.0 Docker Image](https://hub.docker.com/_/ruby/)
+* [Sinatra](http://sinatrarb.com/)
+
