@@ -36,20 +36,38 @@ From a bash command prompt on Fedora or RHEL 7.x, run the following::
 ```
 On other systems, the commands needed to start the debugger in a local docker container will be similar.
 ### Running
-Open your favorite browser and enter "http://localhost:3000" in the address bar.
+* Open your favorite browser and enter "http://localhost:3000" in the address bar.
+* Choose the OAuth2 Grant or OIDC Flow that you want to test.
+* Enter the Authorization Endpoint.
+* Enter the Token Endpoint.
+OAuth2 AUthorization Grant:
+* Enter the client identifier.
+* Enter the Redirect URI.
+* Enter the scope information.
+* If you need to provide a resource parameter, click the radio button.  Then, enter the desired resource parameter.
+* Click the Authorize button.  
+* Authenticate the user.
+* Scroll down to the "Exchange Authoriztaion Code for Access Token" Section.
+* Verify that the Code field is filled in below in the Token Step section.
+* Enter the client identifier
+* Enter the client secret if this is a confidential client.
+* Enter the scope information.
+* If a resource is needed, click Yes.  Enter the resource information in the Resource field.
+* If the IdP is using a self-signed certificate or a cert issued from a non-public CA, click No next to the "Validate IdP Certificate?" question.  Note, certificates signed by public CAs are validated against the trusted CAs included with the Ruby 2.4.0 docker image.
+* Click the Get Token button.
+* The standard tokens that are returned from the token endpoint are displayed at the bottom.
+Implicit Grant:
+* Enter the client identifier.
+* Enter the Redirect URI.
+* Enter the scope information.
+* If you need to provide a resource parameter, click the radio button.  Then, enter the desired resource parameter.
+* Click the Authorize button.
+* Authenticate the user.  
+* The access_token will be listed at the bottom of the screen.
 
-Choose the OAuth2 grant that you want to test.
+For the other grants and flows, similar steps to the above are used.
 
-Enter the Authorization Endpoint.
-Enter the Token Endpoint.
-Enter the other parameters as required by the chosen grant.
-If you need to provide a resource parameter, click the radio button.  Then, enter the desired resource parameter.
-If using the Authorization Code Grant, click the Authorize button.  Authenticate the user.  Verify that the Code field is filled in below in the Token Step section.  Fill in the fields needed for  the token endpoint.  Click the Get Token button.
-
-If using the Implicit Grant, click the the Authorize Button.  Authenticate the user.  The access_token will be listed below.
-For the other grants, click the Get Token button.
-
-See the blog posts referenced above for more information.
+See the blog [posts for more information](https://medium.com/@robert.broeckelmann/red-hat-sso-and-3scale-series-d904f2127702).
 
 ## Prerequisites
 
