@@ -13,7 +13,12 @@
   <option value="implicit_grant">OAuth2 Implicit Grant</option>
   <option value="resource_owner">OAuth2 Resource Owner Password Credential Grant</option>
   <option value="client_credential">OAuth2 Client Credential</option>
-  <option value="oidc_authorization_code_flow">OIDC Implicit Flow</option>
+  <option value="oidc_authorization_grant">OIDC Authorization Flow(code)</option>
+  <option value="oidc_implicit_flow">OIDC Implicit Flow(id_token token)</option>
+  <option value="oidc_implicit_flow_id_token">OIDC Implicit Flow(id_token)</option>
+  <option value="oidc_hybrid_code_id_token">OIDC Hybrid(code id_token)</option>
+  <option value="oidc_hybrid_code_token">OIDC Hybrid(code token)</option>
+  <option value="oidc_hybrid_code_id_token_token">OIDC Hybrid(code id_token token</option>
 </select>
   </div>
 </form>
@@ -144,6 +149,9 @@
 
 <div class="authorization_endpoint_result" id="authorization_endpoint_result">
 </div>
+<div class="authorization_endpoint_id_token_result" id="authorization_endpoint_id_token_result">
+</div>
+
 <div class="token_endpoint_result" id="token_endpoint_result">
 </div>
 

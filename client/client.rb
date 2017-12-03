@@ -58,7 +58,11 @@ post("/token") do
 		end
 		puts "token_endpoint=" + token_endpoint
                 puts "client_id=" + client_id
-                puts "client_secret=" + client_secret
+		if client_secret != nil
+                	puts "client_secret=" + client_secret
+		else
+			puts "client_secret=''"
+		end
 		puts "code=" + code
  		puts "grant_type=" + grant_type
 		puts "redirect_uri=" + redirect_uri
@@ -109,6 +113,7 @@ post("/token") do
 		e.response.body
 	rescue Exception => e
 		puts "Exception Message: " + e.message
+		puts "Stacktrace " + e.backtrace.inspect
 		status 500
 		content_type :json
 		{

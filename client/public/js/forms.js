@@ -68,13 +68,13 @@ $(document).ready(function()
 	sslValidate = "true";
       }
       var dataString = "";
-      if(grant_type == "authorization_code")
+      if(grant_type == "authorization_code" || grant_type == "oidc_implicit_flow_id_token")
       {
-        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&code=' + code + '&redirect_uri=' + redirect_uri + "&scope=" + scope + '&token_endpoint=' + token_endpoint + "&sslValidate=" + sslValidate;
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&code=' + code + '&redirect_uri=' + redirect_uri + "&scope=" + scope + '&token_endpoint=' + token_endpoint + "&sslValidate=" + sslValidate;
       } else if( grant_type == "password") {
-        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + '&username=' + username + '&password=' + password + "&scope=" + scope + '&token_endpoint=' + token_endpoint + "&sslValidate=" + sslValidate;
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&username=' + username + '&password=' + password + "&scope=" + scope + '&token_endpoint=' + token_endpoint + "&sslValidate=" + sslValidate;
       } else if( grant_type == "client_credentials") {
-        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + '&client_secret=' + client_secret + "&scope=" + scope + '&token_endpoint=' + token_endpoint + "&sslValidate=" + sslValidate;
+        dataString = 'grant_type=' + grant_type + '&client_id='+ client_id + "&scope=" + scope + '&token_endpoint=' + token_endpoint + "&sslValidate=" + sslValidate;
       }
       var yesCheck = document.getElementById('yesCheckToken').checked;
       if(yesCheck) //add resource value to OAuth query string
@@ -85,6 +85,10 @@ $(document).ready(function()
           dataString = dataString + '&resource=' + resource;
         }
       }
+      if(client_secret != "")
+      {
+        dataString = dataString + '&client_secret=' + client_secret;
+      }
       writeValuesToLocalStorage();
       recalculateTokenRequestDescription();
   $.ajax({
@@ -92,7 +96,7 @@ $(document).ready(function()
     url: "/token",
     data: dataString,
     success: function(data, textStatus, request) {
-      $('#token_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea rows=10 cols=100>" + data.access_token + "</textarea></td></tr><tr><td>refresh_token</td><td><textarea rows=10 cols=100>" + data.refresh_token + "</textarea></td></tr><tr><td>id_token</td><td><textarea rows=10 cols=100>" + data.id_token + "</textarea></td></tr></table>");
+      $('#token_endpoint_result').html("<H2>Token Endpoint Results:</H2><table><tr><td>access_token</td><td><textarea rows=10 cols=100>" + data.access_token + "</textarea></td></tr><tr><td>refresh_token</td><td><textarea rows=10 cols=100>" + data.refresh_token + "</textarea></td></tr><tr><td>id_token</td><td><textarea rows=10 cols=100>" + data.id_token + "</textarea></td></tr></table>");
     },
     error: function (request, status, error) {
       console.log("request: " + JSON.stringify(request));
@@ -123,6 +127,7 @@ function resetUI(value)
       document.getElementById('token_grant_type').value = "";
       document.getElementById('h2_title_1').innerHTML = "Request Access Token";
       $('#authorization_endpoint_result').html("");
+      $('#authorization_endpoint_id_token_result').html("");
       $('#token_endpoint_result').html("");
       $('#display_authz_request_class').show();
       $('#display_token_request').hide();
@@ -140,6 +145,7 @@ function resetUI(value)
       recalculateTokenRequestDescription();
       document.getElementById('h2_title_2').innerHTML = "Obtain Access Token";
       $('#authorization_endpoint_result').html("");
+      $('#authorization_endpoint_id_token_result').html("");
       $('#token_endpoint_result').html("");
       $('#display_authz_request_class').hide();
       $('#display_token_request').show();
@@ -157,6 +163,7 @@ function resetUI(value)
       recalculateTokenRequestDescription();
       document.getElementById('h2_title_2').innerHTML = "Obtain Access Token";
       $('#authorization_endpoint_result').html("");
+      $('#authorization_endpoint_id_token_result').html("");
       $('#token_endpoint_result').html("");
       $('#display_authz_request_class').hide();
       $('#display_token_request').show();
@@ -177,6 +184,137 @@ function resetUI(value)
       document.getElementById('h2_title_1').innerHTML = "Request Authorization Code";
       document.getElementById('h2_title_2').innerHTML = "Exchange Authorization Code for Access Token";
       $('#authorization_endpoint_result').html("");
+      $('#authorization_endpoint_id_token_result').html("");
+      $('#token_endpoint_result').html("");
+      $('#display_authz_request_class').show();
+      $('#display_token_request').show();
+    }
+    if ( value == "oidc_implicit_flow")
+    {
+      $('#code').hide();
+      $('#password-form-group1').hide();
+      $('#password-form-group2').hide();
+      $('#step2').show();
+      $('#step3').hide();
+      $('#nonce').show();
+      document.getElementById('response_type').value = "id_token token";
+      document.getElementById('scope').value = "openid profile";
+      recalculateAuthorizationRequestDescription();
+      recalculateAuthorizationErrorDescription();
+      document.getElementById('token_grant_type').value = "";
+      document.getElementById('h2_title_1').innerHTML = "Request Access Token";
+      $('#authorization_endpoint_result').html("");
+      $('#authorization_endpoint_id_token_result').html("");
+      $('#token_endpoint_result').html("");
+      $('#display_authz_request_class').show();
+      $('#display_token_request').hide();
+    }
+    if ( value == "oidc_implicit_flow_id_token")
+    {
+      $('#code').hide();
+      $('#password-form-group1').hide();
+      $('#password-form-group2').hide();
+      $('#step2').show();
+      $('#step3').hide();
+      $('#nonce').show();
+      document.getElementById('response_type').value = "id_token";
+      document.getElementById('scope').value = "openid profile";
+      recalculateAuthorizationRequestDescription();
+      recalculateAuthorizationErrorDescription();
+      document.getElementById('token_grant_type').value = "";
+      document.getElementById('h2_title_1').innerHTML = "Request Access Token";
+      $('#authorization_endpoint_result').html("");
+      $('#authorization_endpoint_id_token_result').html("");
+      $('#token_endpoint_result').html("");
+      $('#display_authz_request_class').show();
+      $('#display_token_request').hide();
+    }
+    if( value == "oidc_authorization_code")
+    {
+      $('#code').show();
+      $('#password-form-group1').hide();
+      $('#password-form-group2').hide();
+      $('#step2').show();
+      $('#step3').show();
+      $('#nonce').show();
+      document.getElementById('response_type').value = "code";
+      document.getElementById('token_grant_type').value = "authorization_code";
+      document.getElementById('scope').value = "openid profile";
+      recalculateAuthorizationRequestDescription();
+      recalculateAuthorizationErrorDescription();
+      recalculateTokenRequestDescription();
+      document.getElementById('h2_title_1').innerHTML = "Request Authorization Code";
+      document.getElementById('h2_title_2').innerHTML = "Exchange Authorization Code for Access Token";
+      $('#authorization_endpoint_result').html("");
+      $('#authorization_endpoint_id_token_result').html("");
+      $('#token_endpoint_result').html("");
+      $('#display_authz_request_class').show();
+      $('#display_token_request').show();
+//      document.getElementById('code').value = "";
+    }
+    if( value == "oidc_hybrid_code_id_token")
+    {
+      $('#code').show();
+      $('#password-form-group1').hide();
+      $('#password-form-group2').hide();
+      $('#step2').show();
+      $('#step3').show();
+      $('#nonce').show();
+      document.getElementById('response_type').value = "code id_token";
+      document.getElementById('token_grant_type').value = "authorization_code";
+      document.getElementById('scope').value = "openid profile";
+      recalculateAuthorizationRequestDescription();
+      recalculateAuthorizationErrorDescription();
+      recalculateTokenRequestDescription();
+      document.getElementById('h2_title_1').innerHTML = "Request Authorization Code";
+      document.getElementById('h2_title_2').innerHTML = "Exchange Authorization Code for Access Token";
+      $('#authorization_endpoint_result').html("");
+      $('#authorization_endpoint_id_token_result').html("");
+      $('#token_endpoint_result').html("");
+      $('#display_authz_request_class').show();
+      $('#display_token_request').show();
+      document.getElementById('code').value = "";
+    }
+    if( value == "oidc_hybrid_code_token")
+    {
+      $('#code').show();
+      $('#password-form-group1').hide();
+      $('#password-form-group2').hide();
+      $('#step2').show();
+      $('#step3').show();
+      $('#nonce').show();
+      document.getElementById('response_type').value = "code token";
+      document.getElementById('token_grant_type').value = "authorization_code";
+      document.getElementById('scope').value = "openid profile";
+      recalculateAuthorizationRequestDescription();
+      recalculateAuthorizationErrorDescription();
+      recalculateTokenRequestDescription();
+      document.getElementById('h2_title_1').innerHTML = "Request Authorization Code";
+      document.getElementById('h2_title_2').innerHTML = "Exchange Authorization Code for Access Token";
+      $('#authorization_endpoint_result').html("");
+      $('#authorization_endpoint_id_token_result').html("");
+      $('#token_endpoint_result').html("");
+      $('#display_authz_request_class').show();
+      $('#display_token_request').show();
+    }
+    if( value == "oidc_hybrid_code_id_token_token")
+    {
+      $('#code').show();
+      $('#password-form-group1').hide();
+      $('#password-form-group2').hide();
+      $('#step2').show();
+      $('#step3').show();
+      $('#nonce').show();
+      document.getElementById('response_type').value = "code id_token token";
+      document.getElementById('token_grant_type').value = "authorization_code";
+      document.getElementById('scope').value = "openid profile";
+      recalculateAuthorizationRequestDescription();
+      recalculateAuthorizationErrorDescription();
+      recalculateTokenRequestDescription();
+      document.getElementById('h2_title_1').innerHTML = "Request Authorization Code";
+      document.getElementById('h2_title_2').innerHTML = "Exchange Authorization Code for Access Token";
+      $('#authorization_endpoint_result').html("");
+      $('#authorization_endpoint_id_token_result').html("");
       $('#token_endpoint_result').html("");
       $('#display_authz_request_class').show();
       $('#display_token_request').show();
@@ -233,12 +371,29 @@ function loadValuesFromLocalStorage()
   document.getElementById('yesCheckToken').checked = localStorage.getItem('yesCheckToken');
   document.getElementById('noCheckToken').checked = localStorage.getItem('noCheckToken');
 
-
   var agt = document.getElementById("authorization_grant_type").value;
   var pathname = window.location.pathname;
   console.log("agt=" + agt);
   console.log("pathname=" + pathname);
-  if ( agt == "implicit_grant" && pathname == "/callback") //retrieve access_token for implicit_grant for callback redirect response
+  if (  (agt ==  "authorization_grant" || agt == "oidc_hybrid_code_id_token" || agt == "oidc_hybrid_code_token" || agt == "oidc_hybrid_code_id_token_token" ) &&
+	pathname == "/callback")
+  {
+    console.log("Checking for code.  agt=" + agt + ", pathname=" + pathname);
+    console.log("fragement: " + parseFragment());
+    code = parseFragment()['code'];
+    if(code == null || code == "null" || code == "" || typeof code == "undefined")
+    {
+      code = "NO_CODE_PRESENTED_IN_EXPECTED_LOCATIONS";
+    }
+    console.log("code=" + code);
+    if(document.getElementById('code').value == "")
+    {
+      console.log("code not yet set in next form. Doing so now.");
+      document.getElementById('code').value = code;
+    }
+  }
+  if ( 	(agt == "implicit_grant" || agt == "oidc_implicit_flow" ) && 
+	pathname == "/callback") //retrieve access_token for implicit_grant for callback redirect response
   {
     var access_token = getParameterByName("access_token",window.location.href);
     console.log("access_token=" + access_token);
@@ -253,19 +408,69 @@ function loadValuesFromLocalStorage()
       }
     }
     console.log("access_token=" + access_token);
-    $('#authorization_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
+    $('#authorization_endpoint_result').html("<H2>Authorization Endpoint Results:</H2><table><tr><td>access_token</td><td><textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
   }
+  if (  agt == "oidc_hybrid_code_id_token_token" &&
+        pathname == "/callback") //retrieve access code and id_token that is returned from authorization endpoint.
+  {
+    console.log("fragement: " + parseFragment());
+    access_token = parseFragment()['access_token'];
+    if(access_token == null || access_token == "null" || access_token == "" || typeof access_token == "undefined")
+    {
+      access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
+    }
+    console.log("access_token=" + access_token);
+    console.log("fragement: " + parseFragment());
+    id_token = parseFragment()['id_token'];
+    if(id_token == null || id_token == "null" || id_token == "" || typeof id_token == "undefined")
+    {
+      id_token = "NO_ID_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
+    }
+    $('#authorization_endpoint_result').html("<H2>Authorization Endpoint Results:</H2><table><tr><td>access_token</td><td><textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea></td></tr><tr><td>id_token</td><td><textarea id='implicit_grant_access_token' rows=5 cols=100>" + id_token + "</textarea></td></tr></table>");
+  }
+
+  if (  agt == "oidc_hybrid_code_token" &&
+        pathname == "/callback") //retrieve access code that is returned from authorization endpoint.
+  {
+    console.log("fragement: " + parseFragment());
+    access_token = parseFragment()['access_token'];
+    if(access_token == null || access_token == "null" || access_token == "" || typeof access_token == "undefined")
+    {
+      access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
+    }
+    console.log("access_token=" + access_token);
+    $('#authorization_endpoint_result').html("<H2>Authorization Endpoint Results:</H2><table><tr><td>access_token</td><td><textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
+  }
+  if ( 	(agt == "oidc_implicit_flow" || agt == "oidc_implicit_flow_id_token" ||  agt == "oidc_hybrid_code_id_token") && 
+	pathname == "/callback") //retrieve access_token for implicit_grant for callback redirect response
+  {
+    var id_token = getParameterByName("id_token",window.location.href);
+    console.log("id_token=" + access_token);
+    if(id_token == null || id_token == "null" || id_token == "" || typeof id_token == "undefined")
+    {
+      //Check to see if passed in as local anchor (ADFS & Azure Active Directory do this)
+      console.log("fragement: " + parseFragment());
+      id_token = parseFragment()['id_token'];
+      if(id_token == null || id_token == "null" || id_token == "" || typeof id_token == "undefined")
+      {
+        id_token = "NO_ID_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
+      }
+    }
+    console.log("id_token=" + id_token);
+    $('#authorization_endpoint_id_token_result').html("<h2>Authorization Endpoint Results</h2><table><tr><td>id_token</td><td><textarea id='implicit_flow_id_token' rows=5 cols=100>" + id_token + "</textarea></td></tr></table>");
+  }
+
   var error = getParameterByName("error",window.location.href);
   var authzGrantType = document.getElementById('authorization_grant_type').value;
   if(	pathname == "/callback" && 
-	(authzGrantType == "authorization_grant" || authzGrantType == "implicit_grant") &&
+	(authzGrantType == "authorization_grant" || authzGrantType == "implicit_grant" || authzGrantType == "oidc_hybrid_code_id_token") &&
 	(error != null && error != "null" && typeof error != "undefined" && error != ""))
-	
   {
     $('#display_authz_error_class').html("<form action=\"\" name=\"display_authz_error_form\" id=\"display_authz_error_form\"><label name=\"display_authz_error_form_label1\" value=\"\" id=\"display_authz_error_form_label1\">Error</label><textarea rows=\"10\" cols=\"100\" id=\"display_authz_error_form_textarea1\"></textarea></form>");
   }
   document.getElementById("state").value = generateUUID();
   document.getElementById("nonce_field").value = generateUUID();
+  recalculateAuthorizationRequestDescription();
   console.log("Leaving loadValuesFromLocalStorage().");
 }
 
@@ -274,6 +479,7 @@ function recalculateAuthorizationRequestDescription()
   console.log("Entering recalculateAuthorizationRequestDescription().");
   console.log("update request field");
   var ta1 = document.getElementById('display_authz_request_form_textarea1');
+  console.log("ta1=" + ta1);
   var yesCheck = document.getElementById('yesCheck').checked;
   console.log("yesCheck=" + yesCheck);
   var resourceComponent = "";
@@ -285,10 +491,15 @@ function recalculateAuthorizationRequestDescription()
       resourceComponent =  '&resource=' + resource;
     }
   }
+  console.log("resourceComponent=" + resourceComponent);
   if (ta1 != null)
   {
     var grant_type = document.getElementById('response_type').value;
-    if( grant_type == "code")
+    console.log("grant_type=" + grant_type);
+    if( grant_type == "code" ||
+	grant_type == "code id_token" ||
+	grant_type == "code token" ||
+	grant_type == "code id_token token")
     {
       document.getElementById('display_authz_request_form_textarea1').value = "GET " + document.getElementById('authorization_endpoint').value + "?" + "\n" +
                                                                       "state=" + document.getElementById('state').value + "&" + "\n" +
@@ -297,7 +508,9 @@ function recalculateAuthorizationRequestDescription()
                 						      "redirect_uri=" + document.getElementById('redirect_uri').value + "&" +"\n" +
 								      "scope=" + document.getElementById('scope').value + "\n" +
                                                                       resourceComponent + "\n";
-    } else if (grant_type == "token") {
+    } else if (	grant_type == "token" || 
+		grant_type == "id_token token" || 
+		grant_type == "id_token") {
       document.getElementById('display_authz_request_form_textarea1').value = "GET " + document.getElementById('authorization_endpoint').value + "?" + "\n" +
                                                                       "state=" + document.getElementById('state').value + "&" + "\n" +
                                                                       "nonce=" + document.getElementById('nonce_field').value + "&" + "\n" +
@@ -306,6 +519,8 @@ function recalculateAuthorizationRequestDescription()
                                                                       "redirect_uri=" + document.getElementById('redirect_uri').value + "&" +"\n" +
                                                                       "scope=" + document.getElementById('scope').value + "\n" +
                                                                       resourceComponent + "\n";
+    } else {
+      document.getElementById('display_authz_request_form_textarea1').value = "UNKNOWN_GRANT_TYPE";
     }
   }
   console.log("Leaving recalculateAuthorizationRequestDescription().");
@@ -524,13 +739,12 @@ function recalculateAuthorizationErrorDescription()
         var error_description = getParameterByName("error_description",window.location.href);
         var error_uri = getParameterByName("error_uri",window.location.href);
         var state = getParameterByName("state",window.location.href);
-//        $('#authorization_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
         document.getElementById('display_authz_error_form_textarea1').value = "error: " + error + "\n" +
                                                                               "error_description: " + error_description + "\n" +
                                                                               "error_uri: " + error_uri + "\n" +
                                                                               "state: " + state + "\n";
       }
-    } else if (grant_type == "token") {
+    } else if (grant_type == "token" || grant_type == "id_token token") {
       //document.getElementById('display_authz_request_form_textarea1').value = "";
       var pathname = window.location.pathname;
       console.log("pathname=" + pathname);
@@ -541,7 +755,6 @@ function recalculateAuthorizationErrorDescription()
         var error_description = getParameterByName("error_description",window.location.href);
         var error_uri = getParameterByName("error_uri",window.location.href);
         var state = getParameterByName("state",window.location.href);
-//        $('#authorization_endpoint_result').html("<H2>Results:</H2><table><tr><td>access_token</td><td><textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
         document.getElementById('display_authz_error_form_textarea1').value = "error: " + error + "\n" +
                                                                               "error_description: " + error_description + "\n" +
                                                                               "error_uri: " + error_uri + "\n" +
