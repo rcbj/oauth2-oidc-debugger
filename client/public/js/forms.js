@@ -231,7 +231,7 @@ function resetUI(value)
       $("#display_authz_request_class").show();
       $("#display_token_request").hide();
     }
-    if( value == "oidc_authorization_code")
+    if( value == "oidc_authorization_code_flow")
     {
       $("#code").show();
       $("#password-form-group1").hide();
@@ -410,25 +410,31 @@ function loadValuesFromLocalStorage()
       }
     }
     console.log("access_token=" + access_token);
-    $("#authorization_endpoint_result").html("<H2>Authorization Endpoint Results:</H2><table><tr><td>access_token</td><td><textarea id="implicit_grant_access_token" rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
+    $("#authorization_endpoint_result").html("<H2>Authorization Endpoint Results:</H2><table><tr><td>access_token</td><td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
   }
   if (  agt == "oidc_hybrid_code_id_token_token" &&
         pathname == "/callback") //retrieve access code and id_token that is returned from authorization endpoint.
   {
     console.log("fragement: " + parseFragment());
     access_token = parseFragment()["access_token"];
-    if(access_token == null || access_token == "null" || access_token == "" || typeof access_token == "undefined")
+    if(	access_token == null ||
+	access_token == "null" || 
+	access_token == "" ||
+	typeof access_token == "undefined")
     {
       access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
     console.log("access_token=" + access_token);
     console.log("fragement: " + parseFragment());
     id_token = parseFragment()["id_token"];
-    if(id_token == null || id_token == "null" || id_token == "" || typeof id_token == "undefined")
+    if(	id_token == null ||
+	id_token == "null" ||
+	id_token == "" ||
+	typeof id_token == "undefined")
     {
       id_token = "NO_ID_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
-    $("#authorization_endpoint_result").html("<H2>Authorization Endpoint Results:</H2><table><tr><td>access_token</td><td><textarea id="implicit_grant_access_token" rows=5 cols=100>" + access_token + "</textarea></td></tr><tr><td>id_token</td><td><textarea id="implicit_grant_access_token" rows=5 cols=100>" + id_token + "</textarea></td></tr></table>");
+    $("#authorization_endpoint_result").html("<H2>Authorization Endpoint Results:</H2><table><tr><td>access_token</td><td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + access_token + "</textarea></td></tr><tr><td>id_token</td><td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + id_token + "</textarea></td></tr></table>");
   }
 
   if (  agt == "oidc_hybrid_code_token" &&
@@ -444,7 +450,7 @@ function loadValuesFromLocalStorage()
       access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
     console.log("access_token=" + access_token);
-    $("#authorization_endpoint_result").html("<H2>Authorization Endpoint Results:</H2><table><tr><td>access_token</td><td><textarea id="implicit_grant_access_token" rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
+    $("#authorization_endpoint_result").html("<H2>Authorization Endpoint Results:</H2><table><tr><td>access_token</td><td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
   }
   if ( 	(agt == "oidc_implicit_flow" || agt == "oidc_implicit_flow_id_token" ||  agt == "oidc_hybrid_code_id_token") && 
 	pathname == "/callback") //retrieve access_token for implicit_grant for callback redirect response
@@ -462,7 +468,7 @@ function loadValuesFromLocalStorage()
       }
     }
     console.log("id_token=" + id_token);
-    $("#authorization_endpoint_id_token_result").html("<h2>Authorization Endpoint Results</h2><table><tr><td>id_token</td><td><textarea id="implicit_flow_id_token" rows=5 cols=100>" + id_token + "</textarea></td></tr></table>");
+    $("#authorization_endpoint_id_token_result").html("<h2>Authorization Endpoint Results</h2><table><tr><td>id_token</td><td><textarea id=\"implicit_flow_id_token\" rows=5 cols=100>" + id_token + "</textarea></td></tr></table>");
   }
   var error = getParameterByName("error",window.location.href);
   var authzGrantType = document.getElementById("authorization_grant_type").value;
