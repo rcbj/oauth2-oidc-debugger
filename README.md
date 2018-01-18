@@ -24,6 +24,8 @@ Azure Active Directory (v1 endpoints) support OIDC Authorization Code Flow, Impl
 
 Note, that all configuration values except for the user password is written to local storage to prepopulate fields later.  If this is not desired, clear your browser's local storage for the debugger when done using.
 
+The debugger has been tested with recent versions of Chrome.
+
 ## Getting Started
 From a bash command prompt on Fedora or RHEL 7.x, run the following::
 ``` yum install git
