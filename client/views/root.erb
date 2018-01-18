@@ -53,7 +53,7 @@
 </fieldset>
 
 <fieldset>
-<legend>Request Authorization Code</legend>
+<legend id="h2_title_1" name="">Request Authorization Code</legend>
 <div class="step2" id="step2">
 <form name="auth_step" id="auth_step" method="get" onsubmit="return OnSubmitForm();">
   <div class="form-group">
@@ -102,7 +102,7 @@
 </div>
 
 <fieldset>
-<legend>Exchange Authorization Code for Access Token</legend>
+<legend id="h2_title_2" name="h2_title_2">Exchange Authorization Code for Access Token</legend>
 <div class="step3" id="step3">
 <form name="token_step" id="token_step" method="post" onsubmit="return OnSubmitTokenEndpointForm();" >
   <div class="form-group">
@@ -170,11 +170,12 @@
 </div>
 
 <fieldset>
-<legend>Obtain New Access Token Using Refresh Token</legend>
+<legend id="h2_title_3" name="h2_title_3">Obtain New Access Token Using Refresh Token</legend>
+<div id="step4" class="step4">
 <form name="refresh_step" id="refresh_step" method="post" onsubmit="return OnSubmitTokenEndpointForm();" >
   <div class="form-group">
     <label>Refresh Token: </label>
-    <input type="text" name="refresh_refresh_token" id="refresh_refresh_token" value="<%= defined?(@code) ? @code : '' %>" class="input" />
+    <input type="text" name="refresh_refresh_token" id="refresh_refresh_token" value="" class="input" />
   </div>
   <div class="form-group">
     <label>Client ID: </label>
@@ -182,20 +183,21 @@
   </div>
   <div class="form-group">
     <label>Client Secret: </label>
-    <input type="text" name="refresh_client_secret" class="input" id="refresh_token_client_secret" />
-    <input type="hidden" name="refresh_grant_type" id="refresh_grant_type" class="input" value="authorization_code" />
+    <input type="text" name="refresh_client_secret" class="input" id="refresh_client_secret" />
+    <input type="hidden" name="refresh_grant_type" id="refresh_grant_type" class="input" value="refresh_token" />
   </div>
   <div class="form-group">
     <label>Scope </label>
     <input type="text" name="refresh_scope" value="" class="input" id="refresh_scope" />
   </div>
-  <input type="submit" class="btn1" value="Get Token">
+  <input type="submit" class="refresh_btn" value="Get Token">
 </form>
 <div class="display_refresh_request" id="display_refresh_request">
   <form action="" name="display_refresh_request_form" id="display_refresh_request_form">
     <label name="display_refresh_request_form_label1" value="" id="display_refresh_request_form_label1">Request</label>
     <textarea rows="10" cols="100" id="display_refresh_request_form_textarea1"></textarea>
   </form>
+</div>
 </div>
 </fieldset>
 

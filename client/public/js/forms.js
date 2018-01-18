@@ -117,6 +117,7 @@ $(document).ready(function() {
     data: dataString,
     success: function(data, textStatus, request) {
       var token_endpoint_result_html = "";
+      console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
       if(displayOpenIDConnectArtifacts == true)
       {
          token_endpoint_result_html = "<H2>Token Endpoint Results:</H2>" + 
@@ -163,6 +164,7 @@ $(document).ready(function() {
                                       "</table>";
       }
       $("#token_endpoint_result").html(token_endpoint_result_html);
+      document.getElementById("refresh_refresh_token").value = data.refresh_token;
     },
     error: function (request, status, error) {
       console.log("request: " + JSON.stringify(request));
@@ -173,6 +175,105 @@ $(document).ready(function() {
   });
   return false;
     });
+
+$(".refresh_btn").click(function() {
+      console.log("Entering refresh Submit button clicked function.");
+      // validate and process form here
+      var token_endpoint = document.getElementById("token_endpoint").value;
+      var client_id = document.getElementById("refresh_client_id").value;
+      var client_secret = document.getElementById("refresh_client_secret").value;
+      var refresh_token = document.getElementById("refresh_refresh_token").value;
+      var grant_type = document.getElementById("refresh_grant_type").value;
+      var scope = document.getElementById("refresh_scope").value;
+      var sslValidate = "";
+      if( document.getElementById("SSLValidate-yes").checked)
+      {
+        sslValidate = document.getElementById("SSLValidate-yes").value;
+      } else if (document.getElementById("SSLValidate-no").checked) {
+	sslValidate = document.getElementById("SSLValidate-no").value;
+      } else {
+        sslValidate = "true";
+      }
+      var dataString = "";
+      dataString = "grant_type=" + grant_type + 
+		     "&client_id="+ client_id + 
+                     "&refresh_token=" + refresh_token +
+                     "&scope=" + scope + 
+                     "&token_endpoint=" + token_endpoint + 
+                     "&sslValidate=" + sslValidate;
+      if(client_secret != "")
+      {
+        dataString = dataString + "&client_secret=" + client_secret;
+      }
+      writeValuesToLocalStorage();
+      recalculateRefreshRequestDescription();
+  $.ajax({
+    type: "POST",
+    url: "/token",
+    data: dataString,
+    success: function(data, textStatus, request) {
+      var refresh_endpoint_result_html = "";
+      console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
+      if(displayOpenIDConnectArtifacts == true)
+      {
+         refresh_endpoint_result_html = "<H2>Token Endpoint Results:</H2>" + 
+				      "<table>" +
+				        "<tr>" +
+                                          "<td>access_token</td>" + 
+                                          "<td><textarea rows=10 cols=100>" + 
+                                            data.access_token + 
+                                            "</textarea>" +
+                                          "</td>" +
+                                        "</tr>" +
+                                        "<tr>" +
+                                          "<td>refresh_token</td>" +
+                                          "<td><textarea rows=10 cols=100>" + 
+                                            data.refresh_token + 
+                                            "</textarea>" +
+                                          "</td>" +
+                                        "</tr>" +
+                                        "<tr>" +
+                                          "<td>id_token</td>" +
+                                          "<td><textarea rows=10 cols=100>" + 
+                                             data.id_token + 
+                                            "</textarea>" +
+                                          "</td>" +
+                                        "</tr>" +
+                                      "</table>";
+      } else {
+         refresh_endpoint_result_html = "<H2>Token Endpoint Results:</H2>" +
+                                      "<table>" +
+                                        "<tr>" +
+                                          "<td>access_token</td>" +
+                                          "<td><textarea rows=10 cols=100>" +
+                                            data.access_token +
+                                            "</textarea>" +
+                                          "</td>" +
+                                        "</tr>" +
+                                        "<tr>" +
+                                          "<td>refresh_token</td>" +
+                                          "<td><textarea rows=10 cols=100>" +
+                                            data.refresh_token +
+                                            "</textarea>" +
+                                          "</td>" +
+                                        "</tr>" +
+                                      "</table>";
+      }
+      $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
+      document.getElementById("refresh_refresh_token").value = data.refresh_token;
+    },
+    error: function (request, status, error) {
+      console.log("request: " + JSON.stringify(request));
+      console.log("status: " + JSON.stringify(status));
+      console.log("error: " + JSON.stringify(error));
+      recalculateRefreshErrorDescription(request);
+    }
+  });
+  return false;
+    });
+
+
+
     console.log("Leaving token submit button clicked function.");
 });
 
@@ -187,6 +288,7 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
+      $("#step4").hide();
       document.getElementById("response_type").value = "token";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
@@ -206,9 +308,11 @@ function resetUI(value)
       $("#step2").hide();
       $("#step3").show();
       $("#nonce").hide();
+      $("#step4").show();
       document.getElementById("response_type").value = "";
       document.getElementById("token_grant_type").value = "client_credentials";
       recalculateTokenRequestDescription();
+      recalculateRefreshRequestDescription();
       document.getElementById("h2_title_2").innerHTML = "Obtain Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
@@ -224,9 +328,11 @@ function resetUI(value)
       $("#step2").hide();
       $("#step3").show();
       $("#nonce").hide();
+      $("#step4").show();
       document.getElementById("response_type").value = "";
       document.getElementById("token_grant_type").value = "password";
       recalculateTokenRequestDescription();
+      recalculateRefreshRequestDescription();
       document.getElementById("h2_title_2").innerHTML = "Obtain Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
@@ -242,11 +348,13 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").show();
       $("#nonce").hide();
+      $("#step4").show();
       document.getElementById("response_type").value = "code";
       document.getElementById("token_grant_type").value = "authorization_code";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
+      recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
       document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
@@ -263,6 +371,7 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
+      $("#step4").hide();
       document.getElementById("response_type").value = "id_token token";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
@@ -284,6 +393,7 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
+      $("#step4").hide();
       document.getElementById("response_type").value = "id_token";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
@@ -305,12 +415,14 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
+      $("#step4").show();
       document.getElementById("response_type").value = "code";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
+      recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
       document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
@@ -329,12 +441,14 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
+      $("#step4").hide();
       document.getElementById("response_type").value = "code id_token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
+      recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
       document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
@@ -353,12 +467,14 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
+      $("#step4").hide();
       document.getElementById("response_type").value = "code token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
+      recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
       document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
@@ -376,12 +492,14 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
+      $("#step4").hide();
       document.getElementById("response_type").value = "code id_token token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
+      recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
       document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
@@ -393,6 +511,7 @@ function resetUI(value)
     }
     $("#display_authz_error_class").html("");
     $("#display_token_error_class").html("");
+    $("#display_refresh_error_class").html("");
     console.log("Leaving resetUI().");
 }
 
@@ -411,6 +530,9 @@ function writeValuesToLocalStorage()
       localStorage.setItem("noCheckToken", document.getElementById("noCheckToken").checked);
       localStorage.setItem("yesCheckOIDCArtifacts", document.getElementById("yesCheckOIDCArtifacts").checked);
       localStorage.setItem("noCheckOIDCArtifacts", document.getElementById("noCheckOIDCArtifacts").checked);
+      localStorage.setItem("refresh_client_id", document.getElementById("refresh_client_id").value);
+      localStorage.setItem("refresh_client_secret", document.getElementById("refresh_client_secret").value);
+      localStorage.setItem("refresh_scope", document.getElementById("refresh_scope").value);
   }
   console.log("Leaving writeValuesToLocalStorage().");
 }
@@ -446,6 +568,9 @@ function loadValuesFromLocalStorage()
   document.getElementById("noCheckToken").checked = localStorage.getItem("noCheckToken");
   document.getElementById("yesCheckOIDCArtifacts").checked = localStorage.getItem("yesCheckOIDCArtifacts");
   document.getElementById("noCheckOIDCArtifacts").checked = localStorage.getItem("noCheckOIDCArtifacts");
+  document.getElementById("refresh_client_id").value = localStorage.getItem("refresh_client_id");
+  document.getElementById("refresh_scope").value = localStorage.getItem("refresh_scope");
+  document.getElementById("refresh_client_secret").value = localStorage.getItem("refresh_client_secret");
 
   var agt = document.getElementById("authorization_grant_type").value;
   var pathname = window.location.pathname;
@@ -704,6 +829,39 @@ function recalculateTokenRequestDescription()
   console.log("Leaving recalculateTokenRequestDescription().");
 }
 
+function recalculateRefreshRequestDescription()
+{
+  console.log("Entering recalculateRefreshRequestDescription().");
+  console.log("update request field");
+  var ta1 = document.getElementById("display_refresh_request_form_textarea1");
+//  var yesCheck = document.getElementById("yesCheckToken").checked;
+  var resourceComponent = "";
+//  if(yesCheck) //add resource value to OAuth query string
+//  {
+//    var resource = document.getElementById("token_resource").value;
+//    if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
+//    {
+//      resourceComponent =  "&resource=" + resource;
+//    }
+//  }
+
+  if (ta1 != null)
+  {
+    var grant_type = document.getElementById("refresh_grant_type").value;
+    if( grant_type == "refresh_token")
+    {
+      document.getElementById("display_refresh_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
+                                                                      "Message Body:\n" +
+                                                                      "grant_type=" + document.getElementById("refresh_grant_type").value + "&" + "\n" +
+                                                                      "refresh_token=" + document.getElementById("refresh_refresh_token").value + "&" + "\n" +
+                                                                      "client_id=" + document.getElementById("refresh_client_id").value + "&" + "\n" +
+                                                                      "scope=" + document.getElementById("refresh_scope").value + "\n" +
+                                                                      resourceComponent + "\n";
+    }
+  }
+  console.log("Leaving recalculateRefreshRequestDescription().");
+}
+
 window.onload = function() {
   console.log("Entering onload function.");
   $("#password-form-group1").hide();
@@ -943,6 +1101,35 @@ function recalculateTokenErrorDescription(data)
     }
   }
   console.log("Leaving recalculateTokenErrorDescription().");
+}
+
+function recalculateRefreshErrorDescription(data)
+{
+  console.log("Entering recalculateRefreshErrorDescription().");
+//  $("#display_token_error_class").show();
+  $("#display_refresh_error_class").html("<form action=\"\" name=\"display_refresh_error_form\" id=\"display_refresh_error_form\"><label name=\"display_refresh_error_form_label1\" value=\"\" id=\"display_refresh_error_form_label1\">Error</label><textarea rows=\"10\" cols=\"100\" id=\"display_refresh_error_form_textarea1\"></textarea></form>");
+  console.log("update error field");
+  var ta1 = document.getElementById("display_refresh_error_form_textarea1");
+  if (ta1 != null)
+  {
+    var grant_type = document.getElementById("refresh_grant_type").value;
+    if( grant_type == "refresh_token")
+    {
+      var status = data.status;
+      var statusText = data.statusText;
+      var readyState = data.readyState;
+      var responseText = data.responseText;
+      var responseObject = JSON.parse(responseText);
+      document.getElementById("display_refresh_error_form_textarea1").value = "status: " + status + "\n" +
+										"statusText: " + statusText + "\n" +
+										"readyState: " + readyState + "\n" +
+										"responseText: " + responseText +"\n" +
+										"OAuth2 Response Error Details:" + "\n" +
+										"error: " + responseObject.error + "\n" +
+										"error_description: " + responseObject.error_description +"\n";
+    }
+  }
+  console.log("Leaving recalculateRefreshErrorDescription().");
 }
 
 function parseFragment()
