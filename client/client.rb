@@ -120,7 +120,11 @@ post("/token") do
 	rescue RestClient::ExceptionWithResponse => e
         	puts "An exception occured: " + e.message
 		puts "Stacktrace: " + e.backtrace.inspect
-		status e.response.code
+                if e.response.code != nil
+			status e.response.code
+                else
+			status 400
+                end
 		content_type :json
 		e.response.body
 	rescue Exception => e

@@ -214,9 +214,14 @@ $(".refresh_btn").click(function() {
     success: function(data, textStatus, request) {
       var refresh_endpoint_result_html = "";
       console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
+      var iteration = 1;
+      if( document.getElementById("refresh-token-results-iteration-count") != null)
+      {
+        iteration = parseInt(document.getElementById("refresh-token-results-iteration-count").value) + 1;
+      }
       if(displayOpenIDConnectArtifacts == true)
       {
-         refresh_endpoint_result_html = "<H2>Token Endpoint Results:</H2>" + 
+         refresh_endpoint_result_html = "<H2>Token Endpoint Results for Refresh Token Call:</H2>" + 
 				      "<table>" +
 				        "<tr>" +
                                           "<td>access_token</td>" + 
@@ -239,9 +244,13 @@ $(".refresh_btn").click(function() {
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
+                                        "<tr>" +
+					  "<td>iteration</td>" +
+					  "<td><input type=\"text\" value=\"" + iteration + "\" id=\"refresh-token-results-iteration-count\" name=\"refresh-token-results-iteration-count\"></td>" +
+                                        "</tr>" +
                                       "</table>";
       } else {
-         refresh_endpoint_result_html = "<H2>Token Endpoint Results:</H2>" +
+         refresh_endpoint_result_html = "<H2>Token Endpoint Results for Refresh Token Call:</H2>" +
                                       "<table>" +
                                         "<tr>" +
                                           "<td>access_token</td>" +
@@ -256,6 +265,10 @@ $(".refresh_btn").click(function() {
                                             data.refresh_token +
                                             "</textarea>" +
                                           "</td>" +
+                                        "</tr>" +
+                                        "<tr>" +
+                                          "<td>iteration</td>" +
+                                          "<td><input type=\"text\" value=\"" + iteration + "\" id=\"refresh-token-results-iteration-count\" name=\"refresh-token-results-iteration-count\"></td>" +
                                         "</tr>" +
                                       "</table>";
       }
