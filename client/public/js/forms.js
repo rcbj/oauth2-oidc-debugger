@@ -1,9 +1,11 @@
 var displayOpenIDConnectArtifacts = false;
+var useRefreshTokenTester = false;
 
 function OnSubmitForm()
 {
   console.log("Entering OnSubmitForm().");
   document.auth_step.action = document.getElementById("authorization_endpoint").value;
+  writeValuesToLocalStorage();
   recalculateAuthorizationRequestDescription();
   console.log("Leaving OnSubmitForm().");
   return true;
@@ -43,13 +45,18 @@ $(document).ready(function() {
     resetUI(value);
     recalculateAuthorizationRequestDescription();
     recalculateTokenRequestDescription();
+    recalculateRefreshRequestDescription();
     console.log("Leaving selection changed function().");
   });
   var value = $("#authorization_grant_type").value;
   resetUI(value);
   recalculateAuthorizationRequestDescription();
   recalculateTokenRequestDescription();
-
+  recalculateRefreshRequestDescription();
+  if(useRefreshTokenTester == true)
+  {
+    document.getElementById("step4").hide();
+  }
   $(".btn1").click(function() {
       console.log("Entering token Submit button clicked function.");
       // validate and process form here
@@ -111,6 +118,7 @@ $(document).ready(function() {
       }
       writeValuesToLocalStorage();
       recalculateTokenRequestDescription();
+      resetErrorDisplays();
   $.ajax({
     type: "POST",
     url: "/token",
@@ -120,7 +128,8 @@ $(document).ready(function() {
       console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
       if(displayOpenIDConnectArtifacts == true)
       {
-         token_endpoint_result_html = "<H2>Token Endpoint Results:</H2>" + 
+         token_endpoint_result_html = "<fieldset>" +
+                                      "<legend>Token Endpoint Results:</legend>" + 
 				      "<table>" +
 				        "<tr>" +
                                           "<td>access_token</td>" + 
@@ -143,9 +152,11 @@ $(document).ready(function() {
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
-                                      "</table>";
+                                      "</table>" +
+                                      "</fieldset>";
       } else {
-         token_endpoint_result_html = "<H2>Token Endpoint Results:</H2>" +
+         token_endpoint_result_html = "<fieldset>" +
+                                      "<legend>Token Endpoint Results:</legend>" +
                                       "<table>" +
                                         "<tr>" +
                                           "<td>access_token</td>" +
@@ -161,7 +172,8 @@ $(document).ready(function() {
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
-                                      "</table>";
+                                      "</table>" +
+                                      "</fieldset>";
       }
       $("#token_endpoint_result").html(token_endpoint_result_html);
       document.getElementById("refresh_refresh_token").value = data.refresh_token;
@@ -207,6 +219,7 @@ $(".refresh_btn").click(function() {
       }
       writeValuesToLocalStorage();
       recalculateRefreshRequestDescription();
+      resetErrorDisplays();
   $.ajax({
     type: "POST",
     url: "/token",
@@ -221,7 +234,8 @@ $(".refresh_btn").click(function() {
       }
       if(displayOpenIDConnectArtifacts == true)
       {
-         refresh_endpoint_result_html = "<H2>Token Endpoint Results for Refresh Token Call:</H2>" + 
+         refresh_endpoint_result_html = "<fieldset>" +
+                                      "<legend>Token Endpoint Results for Refresh Token Call:</legend>" + 
 				      "<table>" +
 				        "<tr>" +
                                           "<td>access_token</td>" + 
@@ -248,9 +262,11 @@ $(".refresh_btn").click(function() {
 					  "<td>iteration</td>" +
 					  "<td><input type=\"text\" value=\"" + iteration + "\" id=\"refresh-token-results-iteration-count\" name=\"refresh-token-results-iteration-count\"></td>" +
                                         "</tr>" +
-                                      "</table>";
+                                      "</table>" +
+                                      "</fieldset>";
       } else {
-         refresh_endpoint_result_html = "<H2>Token Endpoint Results for Refresh Token Call:</H2>" +
+         refresh_endpoint_result_html = "<fieldset>" +
+                                      "<legend>Token Endpoint Results for Refresh Token Call:</legend>" +
                                       "<table>" +
                                         "<tr>" +
                                           "<td>access_token</td>" +
@@ -270,7 +286,8 @@ $(".refresh_btn").click(function() {
                                           "<td>iteration</td>" +
                                           "<td><input type=\"text\" value=\"" + iteration + "\" id=\"refresh-token-results-iteration-count\" name=\"refresh-token-results-iteration-count\"></td>" +
                                         "</tr>" +
-                                      "</table>";
+                                      "</table>" +
+                                      "</fieldset>";
       }
       $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
       document.getElementById("refresh_refresh_token").value = data.refresh_token;
@@ -284,9 +301,6 @@ $(".refresh_btn").click(function() {
   });
   return false;
     });
-
-
-
     console.log("Leaving token submit button clicked function.");
 });
 
@@ -522,10 +536,17 @@ function resetUI(value)
       $("#display_token_request").show();
       displayOpenIDConnectArtifacts = true;
     }
-    $("#display_authz_error_class").html("");
-    $("#display_token_error_class").html("");
-    $("#display_refresh_error_class").html("");
+    resetErrorDisplays();
     console.log("Leaving resetUI().");
+}
+
+function resetErrorDisplays()
+{
+  console.log("Entering resetErrorDisplays().");
+  $("#display_authz_error_class").html("");
+  $("#display_token_error_class").html("");
+  $("#display_refresh_error_class").html("");
+  console.log("Leaving resetErrorDisplays().");
 }
 
 function writeValuesToLocalStorage()
@@ -546,6 +567,9 @@ function writeValuesToLocalStorage()
       localStorage.setItem("refresh_client_id", document.getElementById("refresh_client_id").value);
       localStorage.setItem("refresh_client_secret", document.getElementById("refresh_client_secret").value);
       localStorage.setItem("refresh_scope", document.getElementById("refresh_scope").value);
+      localStorage.setItem("useRefreshToken_yes", document.getElementById("useRefreshToken-yes").checked);
+      localStorage.setItem("useRefreshToken_no", document.getElementById("useRefreshToken-no").checked);
+
   }
   console.log("Leaving writeValuesToLocalStorage().");
 }
@@ -584,6 +608,8 @@ function loadValuesFromLocalStorage()
   document.getElementById("refresh_client_id").value = localStorage.getItem("refresh_client_id");
   document.getElementById("refresh_scope").value = localStorage.getItem("refresh_scope");
   document.getElementById("refresh_client_secret").value = localStorage.getItem("refresh_client_secret");
+  document.getElementById("useRefreshToken-yes").checked = localStorage.getItem("useRefreshToken_yes");
+  document.getElementById("useRefreshToken-no").checked = localStorage.getItem("useRefreshToken_no");
 
   var agt = document.getElementById("authorization_grant_type").value;
   var pathname = window.location.pathname;
@@ -629,7 +655,8 @@ function loadValuesFromLocalStorage()
       }
     }
     console.log("access_token=" + access_token);
-    var authorization_endpoint_result_html = "<H2>Authorization Endpoint Results:</H2>" +
+    var authorization_endpoint_result_html = "<fieldset>" +
+                                             "<legend>Authorization Endpoint Results:</legend>" +
                                              "<table>" + 
                                                "<tr>" +
                                                  "<td>access_token</td>" +
@@ -638,7 +665,8 @@ function loadValuesFromLocalStorage()
                                                    "</textarea>" +
                                                  "</td>" +
                                                "</tr>" + 
-                                             "</table>";
+                                             "</table>" +
+                                             "</fieldset>";
     $("#authorization_endpoint_result").html(authorization_endpoint_result_html);
   }
   if (  agt == "oidc_hybrid_code_id_token_token" &&
@@ -666,7 +694,8 @@ function loadValuesFromLocalStorage()
     var authz_endpoint_results_html = "";
     if(displayOpenIDConnectArtifacts == true)
     {
-      authz_endpoint_results_html = "<H2>Authorization Endpoint Results:</H2>" +
+      authz_endpoint_results_html = "<fieldset>" +
+                                    "<legend>Authorization Endpoint Results:</legend>" +
 				    "<table>" +
 				      "<tr>" +
 				        "<td>access_token</td>" +
@@ -674,18 +703,20 @@ function loadValuesFromLocalStorage()
 				      "</tr>" + 
 				      "<tr>" +
 				        "<td>id_token</td>" + 
-				        "<td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + id_token + "</textarea></td>"
-				      "</tr>"
-				    "</table>";
+				        "<td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + id_token + "</textarea></td>" +
+				      "</tr>" +
+				    "</table>" +
+                                    "</fieldset>";
     } else {
-      authz_endpoint_results_html = "<H2>Authorization Endpoint Results:</H2>" +
+      authz_endpoint_results_html = "<fieldset>" +
+                                    "<legend>Authorization Endpoint Results:</legend>" +
                                     "<table>" +
                                       "<tr>" +
                                         "<td>access_token</td>" +
                                         "<td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + access_token + "</textarea></td>"
                                       "</tr>" +
-                                    "</table>";
-
+                                    "</table>" +
+                                    "</fieldset>";
     }
     $("#authorization_endpoint_result").html(authz_endpoint_results_html);
   }
@@ -703,7 +734,7 @@ function loadValuesFromLocalStorage()
       access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
     console.log("access_token=" + access_token);
-    $("#authorization_endpoint_result").html("<H2>Authorization Endpoint Results:</H2><table><tr><td>access_token</td><td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + access_token + "</textarea></td></tr></table>");
+    $("#authorization_endpoint_result").html("<fieldset><legend>Authorization Endpoint Results:</legend><table><tr><td>access_token</td><td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + access_token + "</textarea></td></tr></table></fieldset>");
   }
   if ( 	(agt == "oidc_implicit_flow" || agt == "oidc_implicit_flow_id_token" ||  agt == "oidc_hybrid_code_id_token") && 
 	pathname == "/callback") //retrieve access_token for implicit_grant for callback redirect response
@@ -721,7 +752,7 @@ function loadValuesFromLocalStorage()
       }
     }
     console.log("id_token=" + id_token);
-    $("#authorization_endpoint_id_token_result").html("<h2>Authorization Endpoint Results</h2><table><tr><td>id_token</td><td><textarea id=\"implicit_flow_id_token\" rows=5 cols=100>" + id_token + "</textarea></td></tr></table>");
+    $("#authorization_endpoint_id_token_result").html("<fieldset><legend>Authorization Endpoint Results</legend><table><tr><td>id_token</td><td><textarea id=\"implicit_flow_id_token\" rows=5 cols=100>" + id_token + "</textarea></td></tr></table></fieldset>");
   }
   var error = getParameterByName("error",window.location.href);
   var authzGrantType = document.getElementById("authorization_grant_type").value;
@@ -729,7 +760,7 @@ function loadValuesFromLocalStorage()
 	(authzGrantType == "authorization_grant" || authzGrantType == "implicit_grant" || authzGrantType == "oidc_hybrid_code_id_token") &&
 	(error != null && error != "null" && typeof error != "undefined" && error != ""))
   {
-    $("#display_authz_error_class").html("<form action=\"\" name=\"display_authz_error_form\" id=\"display_authz_error_form\"><label name=\"display_authz_error_form_label1\" value=\"\" id=\"display_authz_error_form_label1\">Error</label><textarea rows=\"10\" cols=\"100\" id=\"display_authz_error_form_textarea1\"></textarea></form>");
+    $("#display_authz_error_class").html("<fieldset><legend>Authorization Endpoint Error</legend><form action=\"\" name=\"display_authz_error_form\" id=\"display_authz_error_form\"><table><tr><td><label name=\"display_authz_error_form_label1\" value=\"\" id=\"display_authz_error_form_label1\">Error</label></td><td><textarea rows=\"10\" cols=\"100\" id=\"display_authz_error_form_textarea1\"></td></tr></table></textarea></form></fieldset>");
   }
   document.getElementById("state").value = generateUUID();
   document.getElementById("nonce_field").value = generateUUID();
@@ -1065,7 +1096,18 @@ function recalculateTokenErrorDescription(data)
 {
   console.log("Entering recalculateTokenErrorDescription().");
 //  $("#display_token_error_class").show();
-  $("#display_token_error_class").html("<form action=\"\" name=\"display_token_error_form\" id=\"display_token_error_form\"><label name=\"display_token_error_form_label1\" value=\"\" id=\"display_token_error_form_label1\">Error</label><textarea rows=\"10\" cols=\"100\" id=\"display_token_error_form_textarea1\"></textarea></form>");
+  var display_token_error_class_html = "<fieldset>" +
+                                       "<legend>Token Endpoint Error</legend>" +
+                                         "<form action=\"\" name=\"display_token_error_form\" id=\"display_token_error_form\">" +
+                                           "<table>" +
+                                             "<tr>" +
+                                               "<td><label name=\"display_token_error_form_label1\" value=\"\" id=\"display_token_error_form_label1\">Error</label></td>" +
+                                               "<td><textarea rows=\"10\" cols=\"100\" id=\"display_token_error_form_textarea1\"></textarea></td>" +
+                                             "</tr>" +
+                                           "</table>" +
+                                         "</form>" +
+                                       "</fieldset>";
+  $("#display_token_error_class").html(display_token_error_class_html);
   console.log("update error field");
   var ta1 = document.getElementById("display_token_error_form_textarea1");
   if (ta1 != null)
@@ -1092,12 +1134,12 @@ function recalculateTokenErrorDescription(data)
       var responseText = data.responseText;
       var responseObject = JSON.parse(responseText);
       document.getElementById("display_token_error_form_textarea1").value = "status: " + status + "\n" +
-                                                                                "statusText: " + statusText + "\n" +
-                                                                                "readyState: " + readyState + "\n" +
-                                                                                "responseText: " + responseText +"\n" +
-                                                                                "OAuth2 Response Error Details:" + "\n" +
-                                                                                "error: " + responseObject.error + "\n" +
-                                                                                "error_description: " + responseObject.error_description +"\n";
+                                                                            "statusText: " + statusText + "\n" +
+                                                                            "readyState: " + readyState + "\n" +
+                                                                            "responseText: " + responseText +"\n" +
+                                                                            "OAuth2 Response Error Details:" + "\n" +
+                                                                            "error: " + responseObject.error + "\n" +
+                                                                            "error_description: " + responseObject.error_description +"\n";
     } else if (grant_type == "password") {
       var status = data.status;
       var statusText = data.statusText;
@@ -1105,12 +1147,12 @@ function recalculateTokenErrorDescription(data)
       var responseText = data.responseText;
       var responseObject = JSON.parse(responseText);
       document.getElementById("display_token_error_form_textarea1").value = "status: " + status + "\n" +
-                                                                                "statusText: " + statusText + "\n" +
-                                                                                "readyState: " + readyState + "\n" +
-                                                                                "responseText: " + responseText +"\n" +
-                                                                                "OAuth2 Response Error Details:" + "\n" +
-                                                                                "error: " + responseObject.error + "\n" +
-                                                                                "error_description: " + responseObject.error_description +"\n";
+                                                                            "statusText: " + statusText + "\n" +
+                                                                            "readyState: " + readyState + "\n" +
+                                                                            "responseText: " + responseText +"\n" +
+                                                                            "OAuth2 Response Error Details:" + "\n" +
+                                                                            "error: " + responseObject.error + "\n" +
+                                                                            "error_description: " + responseObject.error_description +"\n";
     }
   }
   console.log("Leaving recalculateTokenErrorDescription().");
@@ -1120,7 +1162,18 @@ function recalculateRefreshErrorDescription(data)
 {
   console.log("Entering recalculateRefreshErrorDescription().");
 //  $("#display_token_error_class").show();
-  $("#display_refresh_error_class").html("<form action=\"\" name=\"display_refresh_error_form\" id=\"display_refresh_error_form\"><label name=\"display_refresh_error_form_label1\" value=\"\" id=\"display_refresh_error_form_label1\">Error</label><textarea rows=\"10\" cols=\"100\" id=\"display_refresh_error_form_textarea1\"></textarea></form>");
+  var display_refresh_error_class = "<fieldset>" +
+                                    "<legend>Token Endpoint (For Refresh) Error</legend>" +
+                                       "<form action=\"\" name=\"display_refresh_error_form\" id=\"display_refresh_error_form\">" +
+                                         "<table>" +
+                                           "<tr>" +
+                                             "<td><label name=\"display_refresh_error_form_label1\" value=\"\" id=\"display_refresh_error_form_label1\">Error</label></td>" +
+                                             "<td><textarea rows=\"10\" cols=\"100\" id=\"display_refresh_error_form_textarea1\"></textarea></td>" +
+                                           "</tr>" +
+                                         "</table>" +
+                                        "</form>" +
+                                      "</fieldset>";
+  $("#display_refresh_error_class").html(display_refresh_error_class);
   console.log("update error field");
   var ta1 = document.getElementById("display_refresh_error_form_textarea1");
   if (ta1 != null)
@@ -1172,3 +1225,21 @@ function displayOIDCArtifacts()
   console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
   console.log("Leaving displayOIDCArtifacts().");
 }
+
+function useRefreshTokens()
+{
+  console.log("Entering useRefreshToken().");
+  var yesCheck = document.getElementById("useRefreshToken-yes").checked;
+  var noCheck = document.getElementById("useRefreshToken-no").checked;
+  console.log("useRefreshToken-yes=" + yesCheck, "useRefreshToken-no=" + noCheck);
+  if(yesCheck) {
+    useRefreshTokenTester = true;
+    $("#step4").show();
+  } else if(noCheck) {
+    useRefreshTokenTester = false;
+    $("#step4").hide();
+  }
+  console.log("useRefreshTokenTester=" + useRefreshTokenTester);
+  console.log("Leaving useRefreshTokens().");
+}
+

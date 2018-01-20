@@ -43,10 +43,16 @@
     <input type="radio" onclick="javascript:displayOIDCArtifacts();" name="yesno" id="yesCheckOIDCArtifacts"/>No
     <input type="radio" onclick="javascript:displayOIDCArtifacts();" name="yesno" id="noCheckOIDCArtifacts"/>
   </div>
-  <div class="password-form-group" id="password-form-group3">
+  <div class="ssl-validation-form-group" id="ssl-validation-form-group4">
     SSL Certificate Validation: Yes
     <input type="radio" name="sslValidation" id="SSLValidate-yes" value="true" checked="true"/>No
     <input type="radio" name="sslValidation" id="SSLValidate-no" value="false"/>
+    <br>
+  </div>
+  <div class="use-refresh-token-form-group" id="use-refresh-token-form-group3">
+    Use Refresh Token: Yes
+    <input type="radio" name="useRefreshToken" id="useRefreshToken-yes" onclick="javascript:useRefreshTokens();" value="true" checked="true"/>No
+    <input type="radio" name="useRefreshToken" id="useRefreshToken-no" onclick="javascript:useRefreshTokens();" value="false" checked="false"/>
     <br>
   </div>
 </form>
@@ -169,9 +175,9 @@
 <div class="token_endpoint_result" id="token_endpoint_result">
 </div>
 
+<div id="step4" class="step4">
 <fieldset>
 <legend id="h2_title_3" name="h2_title_3">Obtain New Access Token Using Refresh Token</legend>
-<div id="step4" class="step4">
 <form name="refresh_step" id="refresh_step" method="post" onsubmit="return OnSubmitTokenEndpointForm();" >
   <div class="form-group">
     <label>Refresh Token: </label>
@@ -198,8 +204,8 @@
     <textarea rows="10" cols="100" id="display_refresh_request_form_textarea1"></textarea>
   </form>
 </div>
-</div>
 </fieldset>
+</div>
 
 <div class="display_refresh_error_class" id="display_refresh_error_class">
 </div>
