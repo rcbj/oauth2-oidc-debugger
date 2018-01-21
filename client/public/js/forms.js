@@ -57,6 +57,14 @@ $(document).ready(function() {
   {
     document.getElementById("step4").hide();
   }
+  if( document.getElementById("useRefreshToken-yes").checked)
+  {
+    useRefreshTokenTester = document.getElementById("useRefreshToken-yes").value;
+  } else if (document.getElementById("useRefreshToken-no").checked) {
+    useRefreshTokenTester = document.getElementById("SSLValidate-no").value;
+  } else {
+    useRefreshTokenTester = true;
+  }
   $(".btn1").click(function() {
       console.log("Entering token Submit button clicked function.");
       // validate and process form here
@@ -118,6 +126,7 @@ $(document).ready(function() {
       }
       writeValuesToLocalStorage();
       recalculateTokenRequestDescription();
+      recalculateRefreshRequestDescription();
       resetErrorDisplays();
   $.ajax({
     type: "POST",
@@ -291,6 +300,7 @@ $(".refresh_btn").click(function() {
       }
       $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
       document.getElementById("refresh_refresh_token").value = data.refresh_token;
+      recalculateRefreshRequestDescription();
     },
     error: function (request, status, error) {
       console.log("request: " + JSON.stringify(request));
@@ -894,13 +904,26 @@ function recalculateRefreshRequestDescription()
     var grant_type = document.getElementById("refresh_grant_type").value;
     if( grant_type == "refresh_token")
     {
-      document.getElementById("display_refresh_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
+      var client_secret = document.getElementById("refresh_client_secret").value;
+      if( client_secret != "" &&
+          client_secret != null &&
+          client_secret != "null")
+      {
+        document.getElementById("display_refresh_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
                                                                       "Message Body:\n" +
                                                                       "grant_type=" + document.getElementById("refresh_grant_type").value + "&" + "\n" +
                                                                       "refresh_token=" + document.getElementById("refresh_refresh_token").value + "&" + "\n" +
                                                                       "client_id=" + document.getElementById("refresh_client_id").value + "&" + "\n" +
-                                                                      "scope=" + document.getElementById("refresh_scope").value + "\n" +
-                                                                      resourceComponent + "\n";
+                                                                      "client_secret=" + document.getElementById("refresh_client_secret").value + "&" + "\n" +
+                                                                      "scope=" + document.getElementById("refresh_scope").value + "\n";
+      } else {
+        document.getElementById("display_refresh_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
+                                                                      "Message Body:\n" +
+                                                                      "grant_type=" + document.getElementById("refresh_grant_type").value + "&" + "\n" +
+                                                                      "refresh_token=" + document.getElementById("refresh_refresh_token").value + "&" + "\n" +
+                                                                      "client_id=" + document.getElementById("refresh_client_id").value + "&" + "\n" +
+                                                                      "scope=" + document.getElementById("refresh_scope").value + "\n";
+      }
     }
   }
   console.log("Leaving recalculateRefreshRequestDescription().");
@@ -1219,6 +1242,7 @@ function displayOIDCArtifacts()
   console.log("yesCheckOIDCArtifacts=" + yesCheck, "noCheckOIDCArtifacts=" + noCheck);
   if(yesCheck) {
     displayOpenIDConnectArtifacts = true;
+    
   } else if(noCheck) {
     displayOpenIDConnectArtifacts = false;
   }
