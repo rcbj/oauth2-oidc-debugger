@@ -1,5 +1,11 @@
 var displayOpenIDConnectArtifacts = false;
 var useRefreshTokenTester = false;
+var displayStep0 = true;
+var displayStep1 = true;
+var displayStep2 = true;
+var displayStep3 = true;
+var displayStep4 = true;
+var displayStep5 = true;
 
 function OnSubmitForm()
 {
@@ -53,18 +59,21 @@ $(document).ready(function() {
   recalculateAuthorizationRequestDescription();
   recalculateTokenRequestDescription();
   recalculateRefreshRequestDescription();
-  if(useRefreshTokenTester == true)
-  {
-    document.getElementById("step4").hide();
-  }
   if( document.getElementById("useRefreshToken-yes").checked)
   {
     useRefreshTokenTester = document.getElementById("useRefreshToken-yes").value;
   } else if (document.getElementById("useRefreshToken-no").checked) {
-    useRefreshTokenTester = document.getElementById("SSLValidate-no").value;
+    useRefreshTokenTester = document.getElementById("useRefreshToken-no").value;
   } else {
     useRefreshTokenTester = true;
   }
+  if(useRefreshTokenTester == true)
+  {
+    $("#step4").show();
+  } else {
+    $("#step4").hide();
+  }
+
   $(".btn1").click(function() {
       console.log("Entering token Submit button clicked function.");
       // validate and process form here
@@ -312,6 +321,7 @@ $(".refresh_btn").click(function() {
   return false;
     });
     console.log("Leaving token submit button clicked function.");
+
 });
 
 function resetUI(value)
@@ -325,7 +335,7 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
-      $("#step4").hide();
+ //     $("#step4").hide();
       document.getElementById("response_type").value = "token";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
@@ -345,7 +355,7 @@ function resetUI(value)
       $("#step2").hide();
       $("#step3").show();
       $("#nonce").hide();
-      $("#step4").show();
+//      $("#step4").show();
       document.getElementById("response_type").value = "";
       document.getElementById("token_grant_type").value = "client_credentials";
       recalculateTokenRequestDescription();
@@ -365,7 +375,7 @@ function resetUI(value)
       $("#step2").hide();
       $("#step3").show();
       $("#nonce").hide();
-      $("#step4").show();
+ //     $("#step4").show();
       document.getElementById("response_type").value = "";
       document.getElementById("token_grant_type").value = "password";
       recalculateTokenRequestDescription();
@@ -385,7 +395,7 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").show();
       $("#nonce").hide();
-      $("#step4").show();
+//      $("#step4").show();
       document.getElementById("response_type").value = "code";
       document.getElementById("token_grant_type").value = "authorization_code";
       recalculateAuthorizationRequestDescription();
@@ -408,7 +418,7 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
-      $("#step4").hide();
+//      $("#step4").hide();
       document.getElementById("response_type").value = "id_token token";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
@@ -430,7 +440,7 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
-      $("#step4").hide();
+//      $("#step4").hide();
       document.getElementById("response_type").value = "id_token";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
@@ -452,7 +462,7 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
-      $("#step4").show();
+//      $("#step4").show();
       document.getElementById("response_type").value = "code";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -478,7 +488,7 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
-      $("#step4").hide();
+//      $("#step4").hide();
       document.getElementById("response_type").value = "code id_token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -504,7 +514,7 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
-      $("#step4").hide();
+//      $("#step4").hide();
       document.getElementById("response_type").value = "code token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -529,7 +539,7 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
-      $("#step4").hide();
+//      $("#step4").hide();
       document.getElementById("response_type").value = "code id_token token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -944,7 +954,6 @@ window.onload = function() {
   document.getElementById("resource").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
   document.getElementById("yesCheck").addEventListener("onClick", recalculateAuthorizationRequestDescription());
   document.getElementById("noCheck").addEventListener("onClick", recalculateAuthorizationRequestDescription());
-yesCheckOIDCArtifacts
   document.getElementById("yesCheckOIDCArtifacts").addEventListener("onClick", recalculateAuthorizationRequestDescription());
   document.getElementById("noCheckOIDCArtifacts").addEventListener("onClick", recalculateAuthorizationRequestDescription());
 
@@ -972,6 +981,7 @@ yesCheckOIDCArtifacts
   recalculateAuthorizationRequestDescription();
   recalculateAuthorizationErrorDescription();
   recalculateTokenRequestDescription();
+  recalculateRefreshRequestDescription();
   var yesChecked = document.getElementById("yesCheck").checked;
   if(yesChecked)
   {
@@ -986,7 +996,7 @@ yesCheckOIDCArtifacts
   } else {
     $("#resourceTokenIfYes").slideUp();
   }
-  console.log("Leaving recalculateTokenRequestDescription().");
+  console.log("Leaving onload().");
 }
 
 function generateUUID () { // Public Domain/MIT
@@ -1267,3 +1277,10 @@ function useRefreshTokens()
   console.log("Leaving useRefreshTokens().");
 }
 
+$("#tipText").hover(
+   function(e){
+       $("#tooltip").show();
+   },
+   function(e){
+       $("#tooltip").hide();
+  });
