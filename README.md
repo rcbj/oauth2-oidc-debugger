@@ -1,5 +1,5 @@
 # OAuth2 + OpenID Connect (OIDC) Debugger
-This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I created as part of a Red Hat SSO blog post I wrote in November, 2017.  The blog post uses this debugger for testing the OpenID Connect setup.  So, checkout the blog for usage examples. This project builds a docker container that runs the debugger application.
+This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I created as part of a Red Hat SSO blog post I wrote in November, 2017.  Since then, I have expanded support to include several major Identity Providers (see the complete list below). The blog post uses this debugger for testing the OpenID Connect setup.  So, checkout the blog for usage examples. This project builds a docker container that runs the debugger application.
 
 The following OAuth2 Authorization Grants are supported:
 * Authorization Code Grant
@@ -18,6 +18,7 @@ So far, this tool has been tested with:
 * 3Scale SaaS with self-managed APICast Gateway
 * Azure Active Directory (v1 endpoints)
 * Apigee Edge (with caveats described here)
+* Ping Federate
 
 The version of 3Scale SaaS + APICast only supports OAuth2; 3Scale can support the OIDC Authorization Code Flow since the response_type and grant_type values match OAuth2's Authorization Code Grant.  The other OIDC Authentication Flows are not supported by 3Scale OAuth2.  The latest version of 3Scale on-premise has OIDC support.  As of 12/3/2017, I haven't been able to test this yet.
 
@@ -70,7 +71,13 @@ On other systems, the commands needed to start the debugger in a local docker co
 * Click the Authorize button.
 * Authenticate the user.  
 * The access_token will be listed at the bottom of the screen.
-
+#### Refresh Token Grant
+ * In the configuration section, click the the "Yes" radio button next to "Use Refresh Token".  This will make the Refresh Token Section appear.
+ * The refresh token is automatically populated from the Token Endpoint call response.
+ * Enter the client identifier.
+ * Enter the client secret.
+ * Enter the scope.
+ * Press Enter.
 For the other grants and flows, similar steps to the above are used.
 
 See the blog [posts](https://medium.com/@robert.broeckelmann/red-hat-sso-and-3scale-series-d904f2127702) for more information.
@@ -95,6 +102,7 @@ On other systems, the commands needed to start the debugger in a local docker co
 * v0.2 - 3Scale + APICast support for all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.3 - Azure Active Directory support for OAuth2 Grans and OIDC Authorization Code Flow.  Added error reporting logic and support for optional resource parameter.  Added additional debug logging code in client.  Moved Token Endpoint interaction into server-side (Ruby/Sinatra/Docker); this was necessary because Azure Active Directory does not support CORS (making Javascript interaction from a browser impossible).  Disabled IdP server certificate validation in IdP call.
 * v0.4 - Full OpenID Connect support (all variations of Implicit and Hybrid Flows).  Support for public clients (ie, no client secret).
+* v0.5 - Refresh Token support. Updates to UI.
 
 ## Authors
 
@@ -110,4 +118,3 @@ Thanks to the following:
 * [Docker](https://docker.com)
 * [Ruby v2.4.0 Docker Image](https://hub.docker.com/_/ruby/)
 * [Sinatra](http://sinatrarb.com/)
-
