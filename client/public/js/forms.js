@@ -59,20 +59,6 @@ $(document).ready(function() {
   recalculateAuthorizationRequestDescription();
   recalculateTokenRequestDescription();
   recalculateRefreshRequestDescription();
-  if( document.getElementById("useRefreshToken-yes").checked)
-  {
-    useRefreshTokenTester = document.getElementById("useRefreshToken-yes").value;
-  } else if (document.getElementById("useRefreshToken-no").checked) {
-    useRefreshTokenTester = document.getElementById("useRefreshToken-no").value;
-  } else {
-    useRefreshTokenTester = true;
-  }
-  if(useRefreshTokenTester == true)
-  {
-    $("#step4").show();
-  } else {
-    $("#step4").hide();
-  }
 
   $(".btn1").click(function() {
       console.log("Entering token Submit button clicked function.");
@@ -330,12 +316,11 @@ function resetUI(value)
     if( value == "implicit_grant" )
     {
       $("#code").hide();
-      $("#password-form-group1").hide();
-      $("#password-form-group2").hide();
+      document.getElementById("authzUsernameRow").style.visibility = 'collapse'; 
+      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
- //     $("#step4").hide();
       document.getElementById("response_type").value = "token";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
@@ -350,12 +335,11 @@ function resetUI(value)
     if( value == "client_credential")
     {
       $("#code").hide();
-      $("#password-form-group1").hide();
-      $("#password-form-group2").hide();
+      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").hide();
       $("#step3").show();
       $("#nonce").hide();
-//      $("#step4").show();
       document.getElementById("response_type").value = "";
       document.getElementById("token_grant_type").value = "client_credentials";
       recalculateTokenRequestDescription();
@@ -370,12 +354,11 @@ function resetUI(value)
     if( value == "resource_owner")
     {
       $("#code").hide();
-      $("#password-form-group1").show();
-      $("#password-form-group2").show();
+      document.getElementById("authzUsernameRow").style.visibility = '';
+      document.getElementById("authzPasswordRow").style.visibility = '';
       $("#step2").hide();
       $("#step3").show();
       $("#nonce").hide();
- //     $("#step4").show();
       document.getElementById("response_type").value = "";
       document.getElementById("token_grant_type").value = "password";
       recalculateTokenRequestDescription();
@@ -390,12 +373,11 @@ function resetUI(value)
     if( value == "authorization_grant")
     {
       $("#code").show();
-      $("#password-form-group1").hide();
-      $("#password-form-group2").hide();
+      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").hide();
-//      $("#step4").show();
       document.getElementById("response_type").value = "code";
       document.getElementById("token_grant_type").value = "authorization_code";
       recalculateAuthorizationRequestDescription();
@@ -413,12 +395,11 @@ function resetUI(value)
     if ( value == "oidc_implicit_flow")
     {
       $("#code").hide();
-      $("#password-form-group1").hide();
-      $("#password-form-group2").hide();
+      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
-//      $("#step4").hide();
       document.getElementById("response_type").value = "id_token token";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
@@ -435,12 +416,11 @@ function resetUI(value)
     if ( value == "oidc_implicit_flow_id_token")
     {
       $("#code").hide();
-      $("#password-form-group1").hide();
-      $("#password-form-group2").hide();
+      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
-//      $("#step4").hide();
       document.getElementById("response_type").value = "id_token";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
@@ -457,12 +437,11 @@ function resetUI(value)
     if( value == "oidc_authorization_code_flow")
     {
       $("#code").show();
-      $("#password-form-group1").hide();
-      $("#password-form-group2").hide();
+      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
-//      $("#step4").show();
       document.getElementById("response_type").value = "code";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -477,18 +456,16 @@ function resetUI(value)
       $("#token_endpoint_result").html("");
       $("#display_authz_request_class").show();
       $("#display_token_request").show();
-//      document.getElementById("code").value = "";
       displayOpenIDConnectArtifacts = true;
     }
     if( value == "oidc_hybrid_code_id_token")
     {
       $("#code").show();
-      $("#password-form-group1").hide();
-      $("#password-form-group2").hide();
+      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
-//      $("#step4").hide();
       document.getElementById("response_type").value = "code id_token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -509,12 +486,11 @@ function resetUI(value)
     if( value == "oidc_hybrid_code_token")
     {
       $("#code").show();
-      $("#password-form-group1").hide();
-      $("#password-form-group2").hide();
+      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
-//      $("#step4").hide();
       document.getElementById("response_type").value = "code token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -534,12 +510,11 @@ function resetUI(value)
     if( value == "oidc_hybrid_code_id_token_token")
     {
       $("#code").show();
-      $("#password-form-group1").hide();
-      $("#password-form-group2").hide();
+      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
-//      $("#step4").hide();
       document.getElementById("response_type").value = "code id_token token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -589,7 +564,6 @@ function writeValuesToLocalStorage()
       localStorage.setItem("refresh_scope", document.getElementById("refresh_scope").value);
       localStorage.setItem("useRefreshToken_yes", document.getElementById("useRefreshToken-yes").checked);
       localStorage.setItem("useRefreshToken_no", document.getElementById("useRefreshToken-no").checked);
-
   }
   console.log("Leaving writeValuesToLocalStorage().");
 }
@@ -985,16 +959,30 @@ window.onload = function() {
   var yesChecked = document.getElementById("yesCheck").checked;
   if(yesChecked)
   {
-    $("#resourceIfYes").slideDown(); 
+    document.getElementById("authzResourceRow").style.visibility = '';
   } else {
-    $("#resourceIfYes").slideUp();
+    document.getElementById("authzResourceRow").style.visibility = 'collapse';
   }
   var yesCheckedToken = document.getElementById("yesCheckToken").checked
   if(yesCheckedToken)
   {
-    $("#resourceTokenIfYes").slideDown();
+    document.getElementById("authzTokenResourceRow").style.visibility = '';
   } else {
-    $("#resourceTokenIfYes").slideUp();
+    document.getElementById("authzTokenResourceRow").style.visibility = 'collapse';
+  }
+  if( document.getElementById("useRefreshToken-yes").checked)
+  {
+    useRefreshTokenTester = document.getElementById("useRefreshToken-yes").value;
+  } else if (document.getElementById("useRefreshToken-no").checked) {
+    useRefreshTokenTester = document.getElementById("useRefreshToken-no").value;
+  } else {
+    useRefreshTokenTester = true;
+  }
+  if(useRefreshTokenTester == true)
+  {
+    $("#step4").show();
+  } else {
+    $("#step4").hide();
   }
   console.log("Leaving onload().");
 }
@@ -1019,14 +1007,10 @@ function displayResourceCheck()
   var yesCheck = document.getElementById("yesCheck").checked;
   var noCheck = document.getElementById("noCheck").checked;
   console.log("yesCheck=" + yesCheck, "noCheck=" + noCheck);
-  if( yesCheck) {
-    document.getElementById("resourceIfYes").style.visibility = "visible";
-    document.getElementById("resourceIfYes").style.display = "block";
-    $("#resourceIfYes").slideDown();
+  if(yesCheck) {
+    document.getElementById("authzResourceRow").style.visibility = '';
   } else if(noCheck) {
-    document.getElementById("resourceIfYes").style.visibility = "hidden";
-    document.getElementById("resourceIfYes").style.display = "none";
-    $("#resourceIfYes").slideUp();
+    document.getElementById("authzResourceRow").style.visibility = "collapse"
   }
   recalculateAuthorizationRequestDescription();
   console.log("Leaving displayResourceCheck().");
@@ -1038,13 +1022,9 @@ function displayTokenResourceCheck()
   var yesCheck = document.getElementById("yesCheckToken").checked;
   var noCheck = document.getElementById("noCheckToken").checked;
   if( yesCheck) {
-    document.getElementById("resourceTokenIfYes").style.visibility = "visible";
-    document.getElementById("resourceTokenIfYes").style.display = "block";
-    $("#resourceTokenIfYes").slideDown();
+    document.getElementById("authzTokenResourceRow").style.visibility = '';
   } if(noCheck) {
-    document.getElementById("resourceTokenIfYes").style.visibility = "hidden";
-    document.getElementById("resourceTokenIfYes").style.display = "none";
-    $("#resourceTokenIfYes").slideUp();
+    document.getElementById("authzTokenResourceRow").style.visibility = 'collapse';
   }
   recalculateTokenRequestDescription();
   console.log("Leaving displayTokenResourceCheck().");
