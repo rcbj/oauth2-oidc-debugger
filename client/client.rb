@@ -30,6 +30,10 @@ post("/token") do
 		code = ""
 		username = ""
 		password = ""
+		refresh_token = params[:refresh_token]
+                if refresh_token == nil
+                        refresh_token = ""
+                end
 		if grant_type == "authorization_code"
       			code = params[:code]
 			redirect_uri = params[:redirect_uri]
@@ -69,6 +73,7 @@ post("/token") do
 		puts "scope=" + scope
 		puts "resource=" + resource
 		puts "sslValidate=" + sslValidate.to_s
+                puts "refreshToken =" + refresh_token
 		parameterObject={}
 		if grant_type == "authorization_code"
       			parameterObject = { 
@@ -92,6 +97,13 @@ post("/token") do
 				username: username,
 				password: password
 			}
+                elsif grant_type == "refresh_token"
+                       parameterObject = {
+                                grant_type: grant_type,
+                                client_id: client_id,
+                                client_secret: client_secret,
+				refresh_token: refresh_token
+                        }
                 end
 		if resource != ""
 			parameterObject[:resource] = resource
@@ -108,7 +120,11 @@ post("/token") do
 	rescue RestClient::ExceptionWithResponse => e
         	puts "An exception occured: " + e.message
 		puts "Stacktrace: " + e.backtrace.inspect
-		status e.response.code
+                if e.response.code != nil
+			status e.response.code
+                else
+			status 400
+                end
 		content_type :json
 		e.response.body
 	rescue Exception => e
