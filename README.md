@@ -12,7 +12,7 @@ The following OpenID Connect Authentication Flows are supported
 * Implicit Flow (2 variants)
 * Hybrid Flow (3 variants)
 
-So far, this tool has been tested with:
+So far, this tool has been tested with the following OAuth2 or OIDC implementations:
 
 * Red Hat SSO v7.1.  
 * 3Scale SaaS with self-managed APICast Gateway
@@ -20,6 +20,7 @@ So far, this tool has been tested with:
 * Apigee Edge (with caveats described here)
 * Ping Federate
 * AWS Cognito
+* Facebook
 
 # 3Scale Usage Notes
 The version of 3Scale SaaS + APICast only supports OAuth2; 3Scale can support the OIDC Authorization Code Flow since the response_type and grant_type values match OAuth2's Authorization Code Grant.  The other OIDC Authentication Flows are not supported by 3Scale OAuth2.  The latest version of 3Scale on-premise has OIDC support.  As of 12/3/2017, I haven't been able to test this yet.
@@ -32,6 +33,9 @@ Apigee Edge supports OAuth2 by providing the building blogs of an OAuth2 Provide
 
 # AWS Cognito Usage Notes
 AWS Cognito has been tested with the OIDC Authorization Code Flow (with a user defined in a user pool and with a facebook federation relationship. Cognito supports federation, but has optional parameters that need to be passed in to tell Cognito which Userpool and Identity Provider to use (like Facebook). The debugger does not support passing in these parameters at this time (we'll call that a future enhancement). It appears to have worked because I tested in a browser session where I had previously authenticated against Cognito using Facebook. Also, when the refresh grant is used, it works without issue the first time; however, the refresh grant response does not include a new refresh token. So, the refresh_token is not prepopulated correctly. The original refresh token can be copied into the field and subsequent refresh token calls will work. I admit I didn't test all possible scenarios, but I imagine that once the refresh token expires, it will issue a new refresh token. Another interesting note that mattered a lot in a recent project, each refresh token grant response has a new ID Token--and, access token, of course.
+
+# Facebook Usage Notes
+Facebook OAuth2 was tested with the OAuth2 Authorization Code Grant. It worked, but there was no refresh token provided in the OAuth2 Token Endpoint response. So, the refresh grant is obviously not going to work. Configuration details can be found (here)[https://developers.facebook.com/docs/facebook-login/manually-build-a-login-flow]. 
 
 # General Usage Notes
 
