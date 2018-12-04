@@ -22,6 +22,7 @@ So far, this tool has been tested with the following OAuth2 or OIDC implementati
 * AWS Cognito (OAuth2 + OIDC)
 * Facebook (OAuth2)
 * Google+ (OAuth2)
+* KeyCloak (reported to work by third-parties, Red Hat SSO v7.1 is KeyCloak under the Red Hat banner, so it should work)
 
 # 3Scale Usage Notes
 The version of 3Scale SaaS + APICast only supports OAuth2; 3Scale can support the OIDC Authorization Code Flow since the response_type and grant_type values match OAuth2's Authorization Code Grant.  The other OIDC Authentication Flows are not supported by 3Scale OAuth2.  The latest version of 3Scale on-premise has OIDC support.  As of 12/3/2017, I haven't been able to test this yet.
@@ -131,7 +132,7 @@ This project is licensed under the Apache 2.0 License - see the LICENSE.md file 
 
 ## Acknowledgments
 Thanks to the following:
-* [APICast (3Scale API Management Gateway OAuth2 Example](https://github.com/3scale/apicast/tree/master/examples/oauth2) for being the starting point for this experiment.
+* [APICast (3Scale API Management Gateway OAuth2 Example)](https://github.com/3scale/apicast/tree/master/examples/oauth2) for being the starting point for this experiment.
 * [Docker](https://docker.com)
 * [Ruby v2.4.0 Docker Image](https://hub.docker.com/_/ruby/)
 * [Sinatra](http://sinatrarb.com/)
