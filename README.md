@@ -51,6 +51,13 @@ Note, that all configuration values except for the user password is written to l
 The debugger has been tested with recent versions of Chrome.
 
 ## Getting Started
+If you have docker installed already::
+```
+git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
+cd oauth2-oidc-debugger
+docker-compose up
+```
+
 From a bash command prompt on Fedora or RHEL 7.x, run the following::
 ``` yum install git
  git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
@@ -60,6 +67,7 @@ From a bash command prompt on Fedora or RHEL 7.x, run the following::
  docker build -t oauth2-oidc-debugger .
  docker run -p 3000:3000 oauth2-oidc-debugger 
 ```
+
 On other systems, the commands needed to start the debugger in a local docker container will be similar. The docker Sinatra/Ruby runtime will have to be able to establish connections to remote IdP endpoint (whether locally in other docker containers, on the host VM, or over the network/internet). On the test system, it was necessary to add "--net=host" to the "docker run" args. The network connectivity details for docker may vary from platform-to-platform.
 
 ### Running
