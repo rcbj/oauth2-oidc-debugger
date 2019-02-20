@@ -53,14 +53,14 @@ The debugger has been tested with recent versions of Chrome.
 ## Getting Started
 If you have docker installed already::
 ```
-git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
+git clone https://github.com/rcbj/oauth2-oidc-debugger.git
 cd oauth2-oidc-debugger
 docker-compose up
 ```
 
 From a bash command prompt on Fedora or RHEL 7.x, run the following::
 ``` yum install git
- git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
+ git clone https://github.com/rcbj/oauth2-oidc-debugger.git
  yum install docker
  system start docker
  cd oauth2-oidc-debugger/client
@@ -116,7 +116,7 @@ To run this project you will need to install docker.
 
 ## Building the docker image
 ``` yum install git
- git clone https://github.com/rcbjLevvel/oauth2-oidc-debugger.git
+ git clone https://github.com/rcbj/oauth2-oidc-debugger.git
  yum install docker
  system start docker
  cd oauth2-oidc-debugger/client
