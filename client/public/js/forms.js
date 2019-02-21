@@ -81,30 +81,37 @@ $(document).ready(function() {
       } else {
         sslValidate = "true";
       }
-      var dataString = "";
+      var formData = {};
       if(grant_type == "authorization_code")
       {
-        dataString = "grant_type=" + grant_type + 
-		     "&client_id="+ client_id + 
-                     "&code=" + code + 
-                     "&redirect_uri=" + redirect_uri + 
-                     "&scope=" + scope + 
-                     "&token_endpoint=" + token_endpoint + 
-                      "&sslValidate=" + sslValidate;
+        formData = {
+          grant_type: grant_type,
+          client_id: client_id,
+          code: code,
+          redirect_uri: redirect_uri,
+          scope: scope,
+          token_endpoint: token_endpoint,
+          sslValidate: sslValidate
+        };
       } else if( grant_type == "password") {
-        dataString = "grant_type=" + grant_type + 
-                     "&client_id="+ client_id + 
-                     "&username=" + username + 
-                     "&password=" + password + 
-                     "&scope=" + scope + 
-                     "&token_endpoint=" + token_endpoint + 
-                     "&sslValidate=" + sslValidate;
+        formData = {
+          grant_type: grant_type,
+          client_id: client_id,
+          username: username,
+          password: password,
+          code: code,
+          scope: scope,
+          token_endpoint: token_endpoint,
+          sslValidate: sslValidate
+        };
       } else if( grant_type == "client_credentials") {
-        dataString = "grant_type=" + grant_type + 
-                     "&client_id="+ client_id + 
-                     "&scope=" + scope + 
-                     "&token_endpoint=" + token_endpoint + 
-                     "&sslValidate=" + sslValidate;
+        formData = {
+          grant_type: grant_type,
+          client_id: client_id,
+          scope: scope,
+          token_endpoint: token_endpoint,
+          sslValidate: sslValidate
+        };
       }
       var yesCheck = document.getElementById("yesCheckToken").checked;
       if(yesCheck) //add resource value to OAuth query string
@@ -112,12 +119,12 @@ $(document).ready(function() {
         var resource = document.getElementById("token_resource").value;
         if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
         {
-          dataString = dataString + "&resource=" + resource;
+          formData.resource = resource
         }
       }
       if(client_secret != "")
       {
-        dataString = dataString + "&client_secret=" + client_secret;
+        formData.client_secret = client_secret
       }
       writeValuesToLocalStorage();
       recalculateTokenRequestDescription();
@@ -126,7 +133,7 @@ $(document).ready(function() {
   $.ajax({
     type: "POST",
     url: "/token",
-    data: dataString,
+    data: formData,
     success: function(data, textStatus, request) {
       var token_endpoint_result_html = "";
       console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
@@ -210,16 +217,17 @@ $(".refresh_btn").click(function() {
       } else {
         sslValidate = "true";
       }
-      var dataString = "";
-      dataString = "grant_type=" + grant_type + 
-		     "&client_id="+ client_id + 
-                     "&refresh_token=" + refresh_token +
-                     "&scope=" + scope + 
-                     "&token_endpoint=" + token_endpoint + 
-                     "&sslValidate=" + sslValidate;
+      var formData = {
+        grant_type: grant_type,
+        client_id: client_id,
+        refresh_token: refresh_token,
+        scope: scope,
+        token_endpoint: token_endpoint,
+        sslValidate: sslValidate
+      };
       if(client_secret != "")
       {
-        dataString = dataString + "&client_secret=" + client_secret;
+        formData.client_secret = client_secret
       }
       writeValuesToLocalStorage();
       recalculateRefreshRequestDescription();
@@ -227,7 +235,7 @@ $(".refresh_btn").click(function() {
   $.ajax({
     type: "POST",
     url: "/token",
-    data: dataString,
+    data: formData,
     success: function(data, textStatus, request) {
       var refresh_endpoint_result_html = "";
       console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
