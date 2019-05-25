@@ -51,12 +51,13 @@ Note, that all configuration values except for the user password is written to l
 The debugger has been tested with recent versions of Chrome.
 
 ## Getting Started
-If you have docker installed already::
+If you have docker installed already:
 ```
 git clone https://github.com/rcbj/oauth2-oidc-debugger.git
 cd oauth2-oidc-debugger
 docker-compose up
 ```
+Note, you will need at least 950MB of disk space ree in order to build this Docker image.
 
 From a bash command prompt on Fedora or RHEL 7.x, run the following::
 ``` yum install git
