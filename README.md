@@ -6,6 +6,7 @@ This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I cr
 This project currently supports the following specs:
 * [RFC 6749](https://tools.ietf.org/html/rfc6749)
 * [OpenID Connect Core 1](https://openid.net/specs/openid-connect-core-1_0.html)
+It also supports a couple of proprietary IdP extensions as described below.
 
 The following OAuth2 Authorization Grants are supported:
 * Authorization Code Grant
