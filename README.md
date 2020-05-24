@@ -3,6 +3,10 @@
 
 This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I created as part of a Red Hat SSO blog post I wrote in November, 2017.  Since then, I have expanded support to include several major Identity Providers (see the complete list below). The blog post uses this debugger for testing the OpenID Connect setup.  So, checkout the blog for usage examples. This project builds a docker container that runs the debugger application.
 
+This project currently supports the following specs:
+* [RFC 6749](https://tools.ietf.org/html/rfc6749)
+* [OpenID Connect Core 1](https://openid.net/specs/openid-connect-core-1_0.html)
+
 The following OAuth2 Authorization Grants are supported:
 * Authorization Code Grant
 * Implicit Code Grant
