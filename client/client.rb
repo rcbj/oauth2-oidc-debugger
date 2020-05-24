@@ -8,6 +8,10 @@ set :session_secret, '*&(^B234'
 
 GATEWAY = ENV['GATEWAY'] || "http://localhost:8080"
 
+get("/robots.txt") do
+  erb :robots
+end
+
 get("/") do
   @state = SecureRandom.uuid
   session[:state] = @state
