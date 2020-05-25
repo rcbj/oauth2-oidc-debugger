@@ -1,9 +1,13 @@
 # OAuth2 + OpenID Connect (OIDC) Debugger
 This is the private repo with configuration settings necessary for deployment to AWS.  tester
 
-[This](https://github.com/rcbj/oauth2-oidc-debugger) is the official home of the OSS Project.
+[This](https://github.com/rcbj/oauth2-oidc-debugger) is the official home of the community Project.
 
 This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I created as part of a Red Hat SSO blog post I wrote in November, 2017.  Since then, I have expanded support to include several major Identity Providers (see the complete list below). The blog post uses this debugger for testing the OpenID Connect setup.  So, checkout the blog for usage examples. This project builds a docker container that runs the debugger application.
+
+# CICD Pipeline
+![CICD Pipeline](documentation/CICD%20Pipeline.jpg)
+# Site Architecture
 
 This project currently supports the following specs:
 * [RFC 6749](https://tools.ietf.org/html/rfc6749)
