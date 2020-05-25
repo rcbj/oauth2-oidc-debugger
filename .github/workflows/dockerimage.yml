@@ -31,7 +31,7 @@ jobs:
            # Comma-separated string of ECR image tags
            tags: latest
            # Name of Dockerfile to use
-           dockerfile: Dockerfile
+           dockerfile: client/Dockerfile
            # Extra flags to pass to docker build (see docs.docker.com/engine/reference/commandline/build)
            # extra_build_args:  
            # Path to Dockerfile, defaults to the working directory
