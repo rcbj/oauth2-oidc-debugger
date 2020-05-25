@@ -75,7 +75,3 @@ jobs:
         service: idptools-service
         cluster: idptools
         wait-for-service-stability: true
-
--- 
-Robert C. Broeckelmann Jr | Managing Director |  IyaSec
-Medium.com LinkedIn Twitter Personal Blogm: +1 314-494-3398 (SMS or WhatsApp) | fax: +1 (866) 484-1634email: robert@iyasec.io | site: iyasec.iomail: 19215 SE 34th St Ste 106-407 Camas WA 98607-8830 
