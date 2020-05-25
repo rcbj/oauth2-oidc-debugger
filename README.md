@@ -1,5 +1,7 @@
 # OAuth2 + OpenID Connect (OIDC) Debugger
-[This](https://github.com/rcbj/oauth2-oidc-debugger) is the new official home of this Project. It was moved after I changed employers. Sorry for the confusion.
+This is the private repo with configuration settings necessary for deployment to AWS.
+
+[This](https://github.com/rcbj/oauth2-oidc-debugger) is the official home of the OSS Project.
 
 This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I created as part of a Red Hat SSO blog post I wrote in November, 2017.  Since then, I have expanded support to include several major Identity Providers (see the complete list below). The blog post uses this debugger for testing the OpenID Connect setup.  So, checkout the blog for usage examples. This project builds a docker container that runs the debugger application.
 
