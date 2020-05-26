@@ -1,3 +1,8 @@
+// File: forms.js
+// Author: Robert C. Broeckelmann Jr.
+// Date: 06/15/2017
+// Notes:
+//
 var displayOpenIDConnectArtifacts = false;
 var useRefreshTokenTester = false;
 var displayStep0 = true;
@@ -6,6 +11,7 @@ var displayStep2 = true;
 var displayStep3 = true;
 var displayStep4 = true;
 var displayStep5 = true;
+var discoveryInfo = {};
 
 function OnSubmitForm()
 {
@@ -572,6 +578,7 @@ function writeValuesToLocalStorage()
       localStorage.setItem("refresh_scope", document.getElementById("refresh_scope").value);
       localStorage.setItem("useRefreshToken_yes", document.getElementById("useRefreshToken-yes").checked);
       localStorage.setItem("useRefreshToken_no", document.getElementById("useRefreshToken-no").checked);
+      localStorage.setItem("oidc_discovery_endpoint", document.getElementById("oidc_discovery_endpoint").value);
   }
   console.log("Leaving writeValuesToLocalStorage().");
 }
@@ -612,7 +619,7 @@ function loadValuesFromLocalStorage()
   document.getElementById("refresh_client_secret").value = localStorage.getItem("refresh_client_secret");
   document.getElementById("useRefreshToken-yes").checked = localStorage.getItem("useRefreshToken_yes");
   document.getElementById("useRefreshToken-no").checked = localStorage.getItem("useRefreshToken_no");
-
+  document.getElementById("oidc_discovery_endpoint").value = localStorage.getItem("oidc_discovery_endpoint");
   var agt = document.getElementById("authorization_grant_type").value;
   var pathname = window.location.pathname;
   console.log("agt=" + agt);
@@ -1272,3 +1279,121 @@ $("#tipText").hover(
    function(e){
        $("#tooltip").hide();
   });
+
+function OnSubmitOIDCDiscoveryEndpointForm()
+{
+  console.log("Entering OnSubmitOIDCDiscoveryEndpointForm().");
+  writeValuesToLocalStorage();
+  var oidcDiscoveryEndpoint = document.getElementById("oidc_discovery_endpoint").value;
+  console.log('URL: ' + oidcDiscoveryEndpoint);
+  if (isUrl(oidcDiscoveryEndpoint)) {
+    console.log('valid URL: ' + oidcDiscoveryEndpoint);
+    $.ajax({ type: 'GET',
+             crossOrigin: true,
+             url: oidcDiscoveryEndpoint,
+             success: function(result) {
+               console.log("OIDC Discovery Endpoint Result: " + JSON.stringify(result));
+               discoveryInfo = result;
+               parseDiscoveryInfo(result);
+               buildDiscoveryInfoTable(result);
+             },
+             error: function (request, status, error) {
+               console.log("request: " + JSON.stringify(request));
+               console.log("status: " + JSON.stringify(status));
+               console.log("error: " + JSON.stringify(error));
+             }
+           });
+    console.log("Leaving OnSubmitOIDCDiscoveryEndpointForm()");
+    return false;
+  } else {
+    console.log('Not a valid URL.');
+    console.log("Leaving OnSubmitOIDCDiscoveryEndpointForm()");
+    return false;
+  }
+}
+
+function isUrl(url) {
+  console.log('Entering isUrl().');
+  try {
+    return Boolean(new URL(url));
+  } catch(e) {
+    console.log('An error occurred: ' + e.stack);
+    return false;
+  }
+}
+
+function parseDiscoveryInfo(discoveryInfo) {
+  console.log("Entering parseDiscoveryInfo().");
+  var authorizationEndpoint = discoveryInfo["authorization_endpoint"];
+  var idTokenSigningAlgValuesSupported = discoveryInfo["id_token_signing_alg_values_supported"];
+  var issuer = discoveryInfo["issuer"];
+  var jwksUri = discoveryInfo["jwks_uri"];
+  var responseTypesSupported = discoveryInfo["response_types_supported"];
+  var scopesSupported = discoveryInfo["scopes_supported"];
+  var subjectTypesSupported = discoveryInfo["subject_types_supported"];
+  var tokenEndpoint = discoveryInfo["token_endpoint"];
+  var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
+  var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
+  console.log("authorizationEndpoint: " + authorizationEndpoint);
+  console.log("idTokenSigningAlgValuesSupported: " + JSON.stringify(idTokenSigningAlgValuesSupported));
+  console.log("issuer: " + issuer);
+  console.log("jwksUri: " + jwksUri);
+  console.log("responseTypesSupported: " + JSON.stringify(responseTypesSupported));
+  console.log("scopesSupported: " + JSON.stringify(scopesSupported));
+  console.log("subjectTypesSupported: " + JSON.stringify(subjectTypesSupported));
+  console.log("tokenEndpoint: " + tokenEndpoint);
+  console.log("tokenEndpointAuthMethodsSupported: " + JSON.stringify(tokenEndpointAuthMethodsSupported));
+  console.log("userInfoEndpoint: " + userInfoEndpoint);
+  console.log("Leaving parseDiscoveryInfo()."); 
+}
+
+function buildDiscoveryInfoTable(discoveryInfo) {
+  console.log("Entering buildDiscoveryInfoTable().");
+  var discovery_info_table_html = "<table border='2' style='border:2px;'>" +
+                                    "<tr>" +
+                                      "<td><strong>Attribute</strong></td>" +
+                                      "<td><strong>Value</strong></td>" +
+                                    "</tr>";
+   Object.keys(discoveryInfo).forEach( (key) => {
+     discovery_info_table_html = discovery_info_table_html +
+                                 "<tr>" +
+                                   "<td>" + key + "</td>" +
+                                   "<td>" + discoveryInfo[key] + "</td>" +
+                                 "</tr>";
+   });
+
+   discovery_info_table_html = discovery_info_table_html +
+                              "</table>";
+
+   var discovery_info_meta_data_html = '<form action="" id="oidc_form_populate_prompt" name="oidc_form_populate_prompt" method="get" onsubmit="return OnSubmitPopulateFormsWithDiscoveryInformation();"' +
+                                     '<input type=hidden name="tester"/>' +
+                                     '<input class="btn_oidc_populate_meta_data" type="submit" value="Populate Meta Data"/>' +
+                                   '</form>';
+  $("#discovery_info_meta_data_populate").html(discovery_info_meta_data_html);
+  $("#discovery_info_table").html(discovery_info_table_html);
+}
+
+function onSubmitPopulateFormsWithDiscoveryInformation() {
+  console.log('Entering OnSubmitPopulateFormsWithDiscoveryInformation().');
+  var authorizationEndpoint = discoveryInfo["authorization_endpoint"];
+  var idTokenSigningAlgValuesSupported = discoveryInfo["id_token_signing_alg_values_supported"];
+  var issuer = discoveryInfo["issuer"];
+  var jwksUri = discoveryInfo["jwks_uri"];
+  var responseTypesSupported = discoveryInfo["response_types_supported"];
+  var scopesSupported = discoveryInfo["scopes_supported"];
+  var subjectTypesSupported = discoveryInfo["subject_types_supported"];
+  var tokenEndpoint = discoveryInfo["token_endpoint"];
+  var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
+  var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
+
+  document.getElementById("authorization_endpoint").value = authorizationEndpoint;
+  document.getElementById("token_endpoint").value = tokenEndpoint;
+  if (localStorage) {
+      console.log('Adding to local storage.');
+      localStorage.setItem("authorization_endpoint", authorizationEndpoint );
+      localStorage.setItem("token_endpoint", tokenEndpoint );
+  }
+  return true;
+  console.log('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
+}
+// document.getElementById("step0").style.display = "none";
