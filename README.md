@@ -7,25 +7,33 @@ This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I cr
 
 # CICD Pipeline
 ![CICD Pipeline](documentation/CICD%20Pipeline.jpg)
+
+GitHub Actions + Workflow is used to build the docker image and push it to an AWS ECR workflow when the master branch is updated.
+
+An AWS CodePipeline is used to push the docker image to the ECS Service whenever the "latest" image is updated.
+
 # Site Architecture
 ![Architecture](documentation/Architecture.jpg)
+# Supported Specs
 This project currently supports the following specs:
 * [RFC 6749](https://tools.ietf.org/html/rfc6749)
 * [OpenID Connect Core 1](https://openid.net/specs/openid-connect-core-1_0.html)
 
 It also supports a couple of proprietary IdP extensions as described below.
-
+# Supported OAuth2 Authorization Grants
 The following OAuth2 Authorization Grants are supported:
 * Authorization Code Grant
 * Implicit Code Grant
 * Resource Owner Password Grant
 * Client Credentials Grant
 
+# Supported OIDC Grants
 The following OpenID Connect Authentication Flows are supported
 * Authorization Code Flow (could also use Authorization Code Grant option and scope="openid profile")
 * Implicit Flow (2 variants)
 * Hybrid Flow (3 variants)
 
+# Tested Platforms
 So far, this tool has been tested with the following OAuth2 or OIDC implementations:
 
 * Red Hat SSO v7.1 (OAuth2 + OIDC)
