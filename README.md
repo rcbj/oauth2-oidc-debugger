@@ -1,27 +1,39 @@
 # OAuth2 + OpenID Connect (OIDC) Debugger
 This is the private repo with configuration settings necessary for deployment to AWS.  tester
 
-[This](https://github.com/rcbj/oauth2-oidc-debugger) is the official home of the OSS Project.
+[This](https://github.com/rcbj/oauth2-oidc-debugger) is the official home of the community Project.
 
 This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I created as part of a Red Hat SSO blog post I wrote in November, 2017.  Since then, I have expanded support to include several major Identity Providers (see the complete list below). The blog post uses this debugger for testing the OpenID Connect setup.  So, checkout the blog for usage examples. This project builds a docker container that runs the debugger application.
 
+# CICD Pipeline
+![CICD Pipeline](documentation/CICD%20Pipeline.jpg)
+
+GitHub Actions + Workflow is used to build the docker image and push it to an AWS ECR workflow when the master branch is updated.
+
+An AWS CodePipeline is used to push the docker image to the ECS Service whenever the "latest" image is updated.
+
+# Site Architecture
+![Architecture](documentation/Architecture.jpg)
+# Supported Specs
 This project currently supports the following specs:
 * [RFC 6749](https://tools.ietf.org/html/rfc6749)
 * [OpenID Connect Core 1](https://openid.net/specs/openid-connect-core-1_0.html)
 
 It also supports a couple of proprietary IdP extensions as described below.
-
+# Supported OAuth2 Authorization Grants
 The following OAuth2 Authorization Grants are supported:
 * Authorization Code Grant
 * Implicit Code Grant
 * Resource Owner Password Grant
 * Client Credentials Grant
 
+# Supported OIDC Grants
 The following OpenID Connect Authentication Flows are supported
 * Authorization Code Flow (could also use Authorization Code Grant option and scope="openid profile")
 * Implicit Flow (2 variants)
 * Hybrid Flow (3 variants)
 
+# Tested Platforms
 So far, this tool has been tested with the following OAuth2 or OIDC implementations:
 
 * Red Hat SSO v7.1 (OAuth2 + OIDC)
