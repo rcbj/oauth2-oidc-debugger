@@ -1,5 +1,5 @@
 # OAuth2 + OpenID Connect (OIDC) Debugger
-This is the private repo with configuration settings necessary for deployment to AWS.  tester
+This is the private repo with configuration settings necessary for deployment to AWS.
 
 [This](https://github.com/rcbj/oauth2-oidc-debugger) is the official home of the community Project.
 
@@ -18,6 +18,7 @@ An AWS CodePipeline is used to push the docker image to the ECS Service whenever
 This project currently supports the following specs:
 * [RFC 6749](https://tools.ietf.org/html/rfc6749)
 * [OpenID Connect Core 1](https://openid.net/specs/openid-connect-core-1_0.html)
+* [OpenID Connect Discovery v1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
 
 It also supports a couple of proprietary IdP extensions as described below.
 # Supported OAuth2 Authorization Grants
