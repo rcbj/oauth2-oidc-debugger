@@ -12,6 +12,14 @@ get("/robots.txt") do
   erb :robots
 end
 
+get("/jwks") do
+  erb :jwks
+end
+
+get("/privacypolicy") do
+  erb :privacypolicy
+end
+
 get("/") do
   @state = SecureRandom.uuid
   session[:state] = @state

@@ -6,8 +6,8 @@
     <meta name="description" content="">
     <meta name="author" content="">
 
-    <!-- Le styles -->
     <link href="/css/bootstrap.css" rel="stylesheet">
+    <link href="/css/bottom.css" rel="stylesheet">
     <style>
       body {
         padding-top: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
@@ -43,4 +43,10 @@
       <%= yield %>
     </div>
   </body>
+
+  <div class="navbar">
+    <a href="#" class="active">Home</a>
+    <a href="/privacypolicy">Privacy Policy</a>
+    <a href="/contact">Contact</a>
+  </div>
 </html>

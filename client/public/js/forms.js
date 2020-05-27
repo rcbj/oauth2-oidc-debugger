@@ -579,6 +579,8 @@ function writeValuesToLocalStorage()
       localStorage.setItem("useRefreshToken_yes", document.getElementById("useRefreshToken-yes").checked);
       localStorage.setItem("useRefreshToken_no", document.getElementById("useRefreshToken-no").checked);
       localStorage.setItem("oidc_discovery_endpoint", document.getElementById("oidc_discovery_endpoint").value);
+      localStorage.setItem("oidc_userinfo_endpoint", document.getElementById("oidc_userinfo_endpoint").value);
+      localStorage.setItem("jwks_endpoint", document.getElementById("jwks_endpoint").value);
   }
   console.log("Leaving writeValuesToLocalStorage().");
 }
@@ -620,6 +622,8 @@ function loadValuesFromLocalStorage()
   document.getElementById("useRefreshToken-yes").checked = localStorage.getItem("useRefreshToken_yes");
   document.getElementById("useRefreshToken-no").checked = localStorage.getItem("useRefreshToken_no");
   document.getElementById("oidc_discovery_endpoint").value = localStorage.getItem("oidc_discovery_endpoint");
+  document.getElementById("oidc_userinfo_endpoint").value = localStorage.getItem("oidc_userinfo_endpoint");
+  document.getElementById("jwks_endpoint").value = localStorage.getItem("jwks_endpoint");
   var agt = document.getElementById("authorization_grant_type").value;
   var pathname = window.location.pathname;
   console.log("agt=" + agt);
@@ -1365,10 +1369,13 @@ function buildDiscoveryInfoTable(discoveryInfo) {
    discovery_info_table_html = discovery_info_table_html +
                               "</table>";
 
-   var discovery_info_meta_data_html = '<form action="" id="oidc_form_populate_prompt" name="oidc_form_populate_prompt" method="get" onsubmit="return OnSubmitPopulateFormsWithDiscoveryInformation();"' +
-                                     '<input type=hidden name="tester"/>' +
-                                     '<input class="btn_oidc_populate_meta_data" type="submit" value="Populate Meta Data"/>' +
-                                   '</form>';
+   var discovery_info_meta_data_html = '<table>' +
+                                       '<form>' +
+                                         '<td>' +
+                                           '<input class="btn_oidc_populate_meta_data" type="button" value="Populate Meta Data" onclick="return onSubmitPopulateFormsWithDiscoveryInformation();"/>' +
+                                         '</td>' +
+                                       '</form>' +
+                                       '</table>';
   $("#discovery_info_meta_data_populate").html(discovery_info_meta_data_html);
   $("#discovery_info_table").html(discovery_info_table_html);
 }
@@ -1380,7 +1387,7 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   var issuer = discoveryInfo["issuer"];
   var jwksUri = discoveryInfo["jwks_uri"];
   var responseTypesSupported = discoveryInfo["response_types_supported"];
-  var scopesSupported = discoveryInfo["scopes_supported"];
+  var scopesSupported = discoveryInfo["scopes_supported"].toString().replace(/,/g, " ");
   var subjectTypesSupported = discoveryInfo["subject_types_supported"];
   var tokenEndpoint = discoveryInfo["token_endpoint"];
   var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
@@ -1388,12 +1395,85 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
 
   document.getElementById("authorization_endpoint").value = authorizationEndpoint;
   document.getElementById("token_endpoint").value = tokenEndpoint;
+  document.getElementById("token_scope").value = scopesSupported;
+  document.getElementById("scope").value = scopesSupported;
+  document.getElementById("oidc_userinfo_endpoint").value = userInfoEndpoint;
+  document.getElementById("jwks_endpoint").value = jwksUri;
   if (localStorage) {
       console.log('Adding to local storage.');
       localStorage.setItem("authorization_endpoint", authorizationEndpoint );
       localStorage.setItem("token_endpoint", tokenEndpoint );
+      localStorage.setItem("scope", scopesSupported);
+      localStorage.setItem("token_scope", scopesSupported );
+      localStorage.setItem("jwks_endpoint", jwksUri);
   }
-  return true;
   console.log('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
+  return true;
 }
 // document.getElementById("step0").style.display = "none";
+
+// Reset all forms and clear local storage
+function onSubmitClearAllForms() {
+  if (localStorage) {
+      localStorage.setItem("authorization_endpoint", "");
+      localStorage.setItem("token_endpoint", "");
+      localStorage.setItem("client_id", "");
+      localStorage.setItem("scope", "");
+      localStorage.setItem("resource", "");
+      localStorage.setItem("redirect_uri", "");
+      localStorage.setItem("token_client_id", "");
+      localStorage.setItem("token_client_secret", "");
+      localStorage.setItem("token_redirect_uri", "");
+      localStorage.setItem("token_username", "");
+      localStorage.setItem("token_scope", "");
+      localStorage.setItem("authorization_grant_type", "");
+      localStorage.setItem("token_resource", "");
+      localStorage.setItem("yesCheckToken", true);
+      localStorage.setItem("noCheckToken", false);
+      localStorage.setItem("yesCheckOIDCArtifacts", true);
+      localStorage.setItem("noCheckOIDCArtifacts", false);
+      localStorage.setItem("refresh_client_id", "");
+      localStorage.setItem("refresh_client_secret", "");
+      localStorage.setItem("refresh_scope", "");
+      localStorage.setItem("useRefreshToken_yes", true);
+      localStorage.setItem("useRefreshToken_no", false);
+      localStorage.setItem("oidc_userinfo_endpoint", "");
+//      localStorage.setItem("oidc_discovery_endpoint", "");
+      localStorage.setItem("jwks_endpoint", "");
+  }
+  document.getElementById("authorization_endpoint").value = "";
+  document.getElementById("token_endpoint").value = "";
+  document.getElementById("token_client_id").value = "";
+  document.getElementById("token_client_secret").value = "";
+  document.getElementById("token_redirect_uri").value = "";
+  document.getElementById("token_username").value = "";
+  document.getElementById("token_scope").value = "";
+  document.getElementById("authorization_grant_type").value = "";
+  document.getElementById("token_resource").value = "";
+  document.getElementById("yesCheckToken").checked = true;
+  document.getElementById("noCheckToken").checked = false;
+  document.getElementById("yesCheckOIDCArtifacts").checked = true;
+  document.getElementById("noCheckOIDCArtifacts").checked = false;
+  document.getElementById("refresh_client_id").value = "";
+  document.getElementById("refresh_client_secret").value = "";
+  document.getElementById("refresh_scope").value = "";
+  document.getElementById("useRefreshToken-yes").checked = true;
+  document.getElementById("useRefreshToken-no").checked = false;
+//  document.getElementById("oidc_discovery_endpoint").value = "";
+  document.getElementById("client_id").value = "";
+  document.getElementById("scope").value = "";
+  document.getElementById("resource").value = "";
+  document.getElementById("redirect_uri").value = "";
+  document.getElementById("oidc_userinfo_endpoint").value = "";
+  document.getElementById("jwks_endpoint").value = "";
+
+  $("#discovery_info_table").html("");
+}
+
+function regenerateState() {
+  document.getElementById("state").value = generateUUID();
+}
+
+function regenerateNonce() {
+  document.getElementById("nonce_field").value = generateUUID();
+}

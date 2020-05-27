@@ -11,6 +11,10 @@
     <form action="" id="oidc_discovery_endpoint_form" name="oidc_discovery_endpoint_form" method="get" onsubmit="return OnSubmitOIDCDiscoveryEndpointForm();">
       <table border="0">
           <tr>
+            <td>&nbsp;</td>
+            <td><p>An OIDC Discovery endpoint uses a path that ends in /.well-known/openid-configuration. See the <a href="https://openid.net/specs/openid-connect-discovery-1_0.html">spec</spec>.<p></td>
+          </tr>
+          <tr>
             <td>
               <div class="tooltip"><label>OIDC Discovery Endpoint URL: </label><span class="tooltiptext">The OIDC Discovery Endpoint URL for your OpenID Connect Provider. Allows general values below to be auto-populated.</span>
               </div>
@@ -23,7 +27,8 @@
             <td>
               <input class="btn_oidc_discovery_endpoint" type="submit" value="Retrieve" />
             </td>
-            <td>&nbsp;
+            <td>
+              <input class="btn_clear_all_forms" type="button" value="Clear" onclick="return onSubmitClearAllForms();" />
             </td>
           </tr>
       </table>
@@ -49,7 +54,7 @@
               </div>
             </td>
             <td>
-              <select class="stored" id="authorization_grant_type" name="authorization_endpoint"><option value="authorization_grant">OAuth2 Authorization Code Grant</option><option value="implicit_grant">OAuth2 Implicit Grant</option><option value="resource_owner">OAuth2 Resource Owner Password Credential Grant</option><option value="client_credential">OAuth2 Client Credential</option><option value="oidc_authorization_code_flow">OIDC Authorization Code Flow(code)</option><option value="oidc_implicit_flow">OIDC Implicit Flow(id_token token)</option><option value="oidc_implicit_flow_id_token">OIDC Implicit Flow(id_token)</option><option value="oidc_hybrid_code_id_token">OIDC Hybrid(code id_token)</option><option value="oidc_hybrid_code_token">OIDC Hybrid(code token)</option><option value="oidc_hybrid_code_id_token_token">OIDC Hybrid(code id_token token)</option> 
+              <select class="stored" id="authorization_grant_type" name="authorization_grant_type"><option value="authorization_grant">OAuth2 Authorization Code Grant</option><option value="implicit_grant">OAuth2 Implicit Grant</option><option value="resource_owner">OAuth2 Resource Owner Password Credential Grant</option><option value="client_credential">OAuth2 Client Credential</option><option value="oidc_authorization_code_flow">OIDC Authorization Code Flow(code)</option><option value="oidc_implicit_flow">OIDC Implicit Flow(id_token token)</option><option value="oidc_implicit_flow_id_token">OIDC Implicit Flow(id_token)</option><option value="oidc_hybrid_code_id_token">OIDC Hybrid(code id_token)</option><option value="oidc_hybrid_code_token">OIDC Hybrid(code token)</option><option value="oidc_hybrid_code_id_token_token">OIDC Hybrid(code id_token token)</option> 
               </select>
             </td>
           </tr>
@@ -69,6 +74,24 @@
             </td>
             <td>
               <input class="stored" id="token_endpoint" name="token_endpoint" type="text" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>OIDC UserInfo Endpoint: </label><span class="tooltiptext">Enter the OIDC UserInfo Endpoint used by the debugger.</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="oidc_userinfo_endpoint" name="oidc_userinfo_endpoint" type="text" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>JWKS Endpoint: </label><span class="tooltiptext">Enter the JWKS Endpoint used by the debugger.</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="jwks_endpoint" name="jwks_endpoint" type="text" /><a href="/jwks">Review JWKS meta data</a>
             </td>
           </tr>
           <tr>
@@ -123,6 +146,7 @@
           </td>
           <td>
             <input id="state" name="state" onchange="recalculateAuthorizationRequestDescription();" type="text" value="" />
+            <input id="regenerate_state" name="regenerate_state" type="button" value="Regenerate" onclick="return regenerateState();" "/>
           </td>
         </tr>
         <tr>
@@ -132,6 +156,7 @@
           </td>
           <td>
             <input id="nonce_field" name="nonce" type="text" value="" />
+            <input id="regenerate_nonce" name="regenerate_nonce" type="button" value="Regenerate" onclick="return regenerateNonce();" "/>
           </td>
         </tr>
         <tr>
