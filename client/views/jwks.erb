@@ -1,31 +1,25 @@
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" type="text/javascript">
 </script>
-<script type="text/javascript" src="/js/forms.js">
+<script type="text/javascript" src="/js/jwks.js">
 </script>
-<p>This is a simple Client to use with any <a href="https://medium.com/@robert.broeckelmann/saml2-vs-jwt-understanding-oauth2-4abde9e7ec8b">OAuth2</a> or <a href="https://medium.com/@robert.broeckelmann/understanding-openid-connect-series-37c93d25e92b">OpenID Connect</a> compliant identity provider..
-</p>
 <div class="step0" id="step0">
  <fieldset>
-    <legend>OpenID Connect Discovery Endpoint Information
+    <legend>JWKS Information
     </legend>
-    <form action="" id="oidc_discovery_endpoint_form" name="oidc_discovery_endpoint_form" method="get" onsubmit="return OnSubmitOIDCDiscoveryEndpointForm();">
+    <form action="" id="jwks_endpoint_form" name="jwks_endpoint_form" method="get" onsubmit="return OnSubmitJWKSEndpointForm();">
       <table border="0">
           <tr>
-            <td>&nbsp;</td>
-            <td><p>An OIDC Discovery endpoint uses a path that ends in /.well-known/openid-configuration. See the <a href="https://openid.net/specs/openid-connect-discovery-1_0.html">spec</spec>.<p></td>
-          </tr>
-          <tr>
             <td>
-              <div class="tooltip"><label>OIDC Discovery Endpoint URL: </label><span class="tooltiptext">The OIDC Discovery Endpoint URL for your OpenID Connect Provider. Allows general values below to be auto-populated.</span>
+              <div class="tooltip"><label>JWKS Endpoint URL: </label><span class="tooltiptext">The JWKS Discovery Endpoint URL for your OpenID Connect Provider. Allows general values below to be auto-populated.</span>
               </div>
             </td>
             <td>
-              <input class="stored" id="oidc_discovery_endpoint" name="oidc_discovery_endpoint" type="text" max="100"/>
+              <input class="stored" id="jwks_endpoint" name="jwks_endpoint" type="text" max="100"/>
             </td>
           </tr>
           <tr>
             <td>
-              <input class="btn_oidc_discovery_endpoint" type="submit" value="Retrieve" />
+              <input class="btn_jwks_endpoint" type="submit" value="Retrieve" />
             </td>
             <td>
               <input class="btn_clear_all_forms" type="button" value="Clear" onclick="return onSubmitClearAllForms();" />
@@ -33,10 +27,9 @@
           </tr>
       </table>
     </form>
-    <div class="discovery_info_table" id="discovery_info_table">&nbsp;
+    <p>There will usually be multiple certificates advertised on an OIDC JWKS Endpoint. That way the OIDC Provider can rollover a signer certificate without any clients being caught off guard.</P>
+    <p>This information can be used to dynamically build a truststore.</p>
+    <div class="jwks_info_table" id="jwks_info_table">&nbsp;
     </div>
   </fieldset>
 </div>
-
-    <div class="discovery_info_meta_data_populate" id="discovery_info_meta_data_populate">&nbsp;
-    </div>

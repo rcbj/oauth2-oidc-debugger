@@ -1,6 +1,15 @@
-FROM ruby:2.4.0-onbuild
-
+FROM ruby:latest
 MAINTAINER Robert C. Broeckelmann Jr. <robert@iyasec.io>
-
+WORKDIR /usr/src/app/
+COPY Gemfile /usr/src/app/Gemfile
+COPY Gemfile.lock /usr/src/app/Gemfile.lock
+RUN gem install rails bundler
+RUN bundle install
+RUN bundle config --global frozen 1
+COPY . /usr/src/app
 EXPOSE 3000
-CMD ["bundle", "exec", "rackup", "--port", "3000", "--host", "0.0.0.0"]
+
+RUN apt-get update -qq && apt-get install 
+
+#CMD ["rails", "server", "-b", "0.0.0.0" ]
+CMD [ "rails", "server" ]
