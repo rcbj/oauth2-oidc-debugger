@@ -1,4 +1,4 @@
-// File: forms.js
+// File: debugger2_js.js
 // Author: Robert C. Broeckelmann Jr.
 // Date: 06/15/2017
 // Notes:
@@ -12,16 +12,6 @@ var displayStep3 = true;
 var displayStep4 = true;
 var displayStep5 = true;
 var discoveryInfo = {};
-
-function OnSubmitForm()
-{
-  console.log("Entering OnSubmitForm().");
-  document.auth_step.action = document.getElementById("authorization_endpoint").value;
-  writeValuesToLocalStorage();
-  recalculateAuthorizationRequestDescription();
-  console.log("Leaving OnSubmitForm().");
-  return true;
-}
 
 function OnSubmitTokenEndpointForm()
 {
@@ -62,7 +52,7 @@ $(document).ready(function() {
   });
   var value = $("#authorization_grant_type").value;
   resetUI(value);
-  recalculateAuthorizationRequestDescription();
+//  recalculateAuthorizationRequestDescription();
   recalculateTokenRequestDescription();
   recalculateRefreshRequestDescription();
 
@@ -138,8 +128,10 @@ $(document).ready(function() {
       resetErrorDisplays();
   $.ajax({
     type: "POST",
-    url: "/token",
-    data: formData,
+    crossdomain: true,
+    url: "http://localhost:4000/token",
+    data: JSON.stringify(formData),
+    contentType: "application/json; charset=utf-8",
     success: function(data, textStatus, request) {
       var token_endpoint_result_html = "";
       console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
@@ -240,8 +232,10 @@ $(".refresh_btn").click(function() {
       resetErrorDisplays();
   $.ajax({
     type: "POST",
-    url: "/token",
-    data: formData,
+    crossdomain: true,
+    url: "http://localhost:4000/token",
+    data: JSON.stringify(formData),
+    contentType: "application/json; charset=utf-8",
     success: function(data, textStatus, request) {
       var refresh_endpoint_result_html = "";
       console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
@@ -334,7 +328,7 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").hide();
-      $("#nonce").show();
+//      $("#nonce").show();
       document.getElementById("response_type").value = "token";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
@@ -353,7 +347,7 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").hide();
       $("#step3").show();
-      $("#nonce").hide();
+//      $("#nonce").hide();
       document.getElementById("response_type").value = "";
       document.getElementById("token_grant_type").value = "client_credentials";
       recalculateTokenRequestDescription();
@@ -372,7 +366,7 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = '';
       $("#step2").hide();
       $("#step3").show();
-      $("#nonce").hide();
+//      $("#nonce").hide();
       document.getElementById("response_type").value = "";
       document.getElementById("token_grant_type").value = "password";
       recalculateTokenRequestDescription();
@@ -391,7 +385,7 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
-      $("#nonce").hide();
+//      $("#nonce").hide();
       document.getElementById("response_type").value = "code";
       document.getElementById("token_grant_type").value = "authorization_code";
       recalculateAuthorizationRequestDescription();
@@ -413,7 +407,7 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").hide();
-      $("#nonce").show();
+//      $("#nonce").show();
       document.getElementById("response_type").value = "id_token token";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
@@ -434,7 +428,7 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").hide();
-      $("#nonce").show();
+//      $("#nonce").show();
       document.getElementById("response_type").value = "id_token";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
@@ -455,15 +449,15 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
-      $("#nonce").show();
-      document.getElementById("response_type").value = "code";
+//      $("#nonce").show();
+//      document.getElementById("response_type").value = "code";
       document.getElementById("token_grant_type").value = "authorization_code";
-      document.getElementById("scope").value = "openid profile";
-      recalculateAuthorizationRequestDescription();
+//      document.getElementById("scope").value = "openid profile";
+//      recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
-      document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
+//      document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
       document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
@@ -479,7 +473,7 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
-      $("#nonce").show();
+//      $("#nonce").show();
       document.getElementById("response_type").value = "code id_token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -504,7 +498,7 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
-      $("#nonce").show();
+//      $("#nonce").show();
       document.getElementById("response_type").value = "code token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -528,7 +522,7 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
-      $("#nonce").show();
+//      $("#nonce").show();
       document.getElementById("response_type").value = "code id_token token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -578,7 +572,7 @@ function writeValuesToLocalStorage()
       localStorage.setItem("refresh_scope", document.getElementById("refresh_scope").value);
       localStorage.setItem("useRefreshToken_yes", document.getElementById("useRefreshToken-yes").checked);
       localStorage.setItem("useRefreshToken_no", document.getElementById("useRefreshToken-no").checked);
-      localStorage.setItem("oidc_discovery_endpoint", document.getElementById("oidc_discovery_endpoint").value);
+//      localStorage.setItem("oidc_discovery_endpoint", document.getElementById("oidc_discovery_endpoint").value);
       localStorage.setItem("oidc_userinfo_endpoint", document.getElementById("oidc_userinfo_endpoint").value);
       localStorage.setItem("jwks_endpoint", document.getElementById("jwks_endpoint").value);
   }
@@ -600,18 +594,18 @@ function loadValuesFromLocalStorage()
   }
   document.getElementById("authorization_endpoint").value = localStorage.getItem("authorization_endpoint");
   document.getElementById("token_endpoint").value = localStorage.getItem("token_endpoint");
-  document.getElementById("redirect_uri").value = localStorage.getItem("redirect_uri");
-  document.getElementById("client_id").value = localStorage.getItem("client_id");
-  document.getElementById("scope").value = localStorage.getItem("scope");
-  document.getElementById("resource").value = localStorage.getItem("resource");
+//  document.getElementById("redirect_uri").value = localStorage.getItem("redirect_uri");
+//  document.getElementById("client_id").value = localStorage.getItem("client_id");
+//  document.getElementById("scope").value = localStorage.getItem("scope");
+//  document.getElementById("resource").value = localStorage.getItem("resource");
   document.getElementById("token_client_id").value = localStorage.getItem("token_client_id");
   document.getElementById("token_client_secret").value = localStorage.getItem("token_client_secret");
   document.getElementById("token_redirect_uri").value = localStorage.getItem("token_redirect_uri");
   document.getElementById("token_scope").value = localStorage.getItem("token_scope");
   document.getElementById("token_username").value = localStorage.getItem("token_username");
   document.getElementById("token_resource").value = localStorage.getItem("token_resource");
-  document.getElementById("yesCheck").checked = localStorage.getItem("yesCheck");
-  document.getElementById("noCheck").checked = localStorage.getItem("noCheck");
+//  document.getElementById("yesCheck").checked = localStorage.getItem("yesCheck");
+//  document.getElementById("noCheck").checked = localStorage.getItem("noCheck");
   document.getElementById("yesCheckToken").checked = localStorage.getItem("yesCheckToken");
   document.getElementById("noCheckToken").checked = localStorage.getItem("noCheckToken");
   document.getElementById("yesCheckOIDCArtifacts").checked = localStorage.getItem("yesCheckOIDCArtifacts");
@@ -621,7 +615,7 @@ function loadValuesFromLocalStorage()
   document.getElementById("refresh_client_secret").value = localStorage.getItem("refresh_client_secret");
   document.getElementById("useRefreshToken-yes").checked = localStorage.getItem("useRefreshToken_yes");
   document.getElementById("useRefreshToken-no").checked = localStorage.getItem("useRefreshToken_no");
-  document.getElementById("oidc_discovery_endpoint").value = localStorage.getItem("oidc_discovery_endpoint");
+//  document.getElementById("oidc_discovery_endpoint").value = localStorage.getItem("oidc_discovery_endpoint");
   document.getElementById("oidc_userinfo_endpoint").value = localStorage.getItem("oidc_userinfo_endpoint");
   document.getElementById("jwks_endpoint").value = localStorage.getItem("jwks_endpoint");
   var agt = document.getElementById("authorization_grant_type").value;
@@ -632,7 +626,7 @@ function loadValuesFromLocalStorage()
          agt == "oidc_hybrid_code_id_token" || 
          agt == "oidc_hybrid_code_token" || 
          agt == "oidc_hybrid_code_id_token_token" ) &&
-	pathname == "/callback")
+	pathname == "/debugger2.html")
   {
     console.log("Checking for code.  agt=" + agt + ", pathname=" + pathname);
     console.log("fragement: " + parseFragment());
@@ -650,7 +644,7 @@ function loadValuesFromLocalStorage()
   }
   if ( 	(agt == "implicit_grant" || 
          agt == "oidc_implicit_flow" ) &&
-	pathname == "/callback") //retrieve access_token for implicit_grant for callback redirect response
+	pathname == "/debugger2.html") //retrieve access_token for implicit_grant for callback redirect response
   {
     var access_token = getParameterByName("access_token",window.location.href);
     console.log("access_token=" + access_token);
@@ -683,7 +677,7 @@ function loadValuesFromLocalStorage()
     $("#authorization_endpoint_result").html(authorization_endpoint_result_html);
   }
   if (  agt == "oidc_hybrid_code_id_token_token" &&
-        pathname == "/callback") //retrieve access code and id_token that is returned from authorization endpoint.
+        pathname == "/debugger2.html") //retrieve access code and id_token that is returned from authorization endpoint.
   {
     console.log("fragement: " + parseFragment());
     access_token = parseFragment()["access_token"];
@@ -735,7 +729,7 @@ function loadValuesFromLocalStorage()
   }
 
   if (  agt == "oidc_hybrid_code_token" &&
-        pathname == "/callback") //retrieve access code that is returned from authorization endpoint.
+        pathname == "/debugger2.html") //retrieve access code that is returned from authorization endpoint.
   {
     console.log("fragement: " + parseFragment());
     access_token = parseFragment()["access_token"];
@@ -750,7 +744,7 @@ function loadValuesFromLocalStorage()
     $("#authorization_endpoint_result").html("<fieldset><legend>Authorization Endpoint Results:</legend><table><tr><td>access_token</td><td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + access_token + "</textarea></td></tr></table></fieldset>");
   }
   if ( 	(agt == "oidc_implicit_flow" || agt == "oidc_implicit_flow_id_token" ||  agt == "oidc_hybrid_code_id_token") && 
-	pathname == "/callback") //retrieve access_token for implicit_grant for callback redirect response
+	pathname == "/debugger2.html") //retrieve access_token for implicit_grant for callback redirect response
   {
     var id_token = getParameterByName("id_token",window.location.href);
     console.log("id_token=" + access_token);
@@ -769,15 +763,15 @@ function loadValuesFromLocalStorage()
   }
   var error = getParameterByName("error",window.location.href);
   var authzGrantType = document.getElementById("authorization_grant_type").value;
-  if(	pathname == "/callback" && 
+  if(	pathname == "/debugger2.html" && 
 	(authzGrantType == "authorization_grant" || authzGrantType == "implicit_grant" || authzGrantType == "oidc_hybrid_code_id_token") &&
 	(error != null && error != "null" && typeof error != "undefined" && error != ""))
   {
     $("#display_authz_error_class").html("<fieldset><legend>Authorization Endpoint Error</legend><form action=\"\" name=\"display_authz_error_form\" id=\"display_authz_error_form\"><table><tr><td><label name=\"display_authz_error_form_label1\" value=\"\" id=\"display_authz_error_form_label1\">Error</label></td><td><textarea rows=\"10\" cols=\"100\" id=\"display_authz_error_form_textarea1\"></td></tr></table></textarea></form></fieldset>");
   }
-  document.getElementById("state").value = generateUUID();
-  document.getElementById("nonce_field").value = generateUUID();
-  recalculateAuthorizationRequestDescription();
+//  document.getElementById("state").value = generateUUID();
+//  document.getElementById("nonce_field").value = generateUUID();
+//  recalculateAuthorizationRequestDescription();
   console.log("Leaving loadValuesFromLocalStorage().");
 }
 
@@ -937,51 +931,52 @@ window.onload = function() {
   $("#password-form-group1").hide();
   $("#password-form-group2").hide();
 
-  document.getElementById("authorization_endpoint").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("state").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("nonce_field").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("response_type").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("client_id").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("redirect_uri").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("scope").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("resource").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("yesCheck").addEventListener("onClick", recalculateAuthorizationRequestDescription());
-  document.getElementById("noCheck").addEventListener("onClick", recalculateAuthorizationRequestDescription());
-  document.getElementById("yesCheckOIDCArtifacts").addEventListener("onClick", recalculateAuthorizationRequestDescription());
-  document.getElementById("noCheckOIDCArtifacts").addEventListener("onClick", recalculateAuthorizationRequestDescription());
+  document.getElementById("code").value = getParameterByName('code');
+//  document.getElementById("authorization_endpoint").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+//  document.getElementById("state").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+//  document.getElementById("nonce_field").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+//  document.getElementById("response_type").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+//  document.getElementById("client_id").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+//  document.getElementById("redirect_uri").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+//  document.getElementById("scope").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+//  document.getElementById("resource").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
+//  document.getElementById("yesCheck").addEventListener("onClick", recalculateAuthorizationRequestDescription());
+//  document.getElementById("noCheck").addEventListener("onClick", recalculateAuthorizationRequestDescription());
+//  document.getElementById("yesCheckOIDCArtifacts").addEventListener("onClick", recalculateAuthorizationRequestDescription());
+//  document.getElementById("noCheckOIDCArtifacts").addEventListener("onClick", recalculateAuthorizationRequestDescription());
 
-  if (localStorage) {
-    // Add an event listener for form submissions
-    document.getElementById("auth_step").addEventListener("submit", function() {
-      console.log("Entering auth_step submit event listner function.");
-      localStorage.setItem("client_id", document.getElementById("client_id").value);
-      localStorage.setItem("scope", document.getElementById("scope").value);
-      localStorage.setItem("authorization_endpoint", document.getElementById("authorization_endpoint").value);
-      localStorage.setItem("token_endpoint", document.getElementById("token_endpoint").value);
-      localStorage.setItem("redirect_uri", document.getElementById("redirect_uri").value);
-      localStorage.setItem("authorization_grant_type", document.getElementById("authorization_grant_type").value);
-      localStorage.setItem("resource", document.getElementById("resource").value);
-      localStorage.setItem("yesCheck", document.getElementById("yesCheck").checked);
-      localStorage.setItem("noCheck", document.getElementById("noCheck").checked);
-      localStorage.setItem("yesCheckOIDCArtifacts", document.getElementById("yesCheckOIDCArtifacts").checked);
-      localStorage.setItem("noCheckOIDCArtifacts", document.getElementById("noCheckOIDCArtifacts").checked);
-
-      console.log("Leaving auth_step submit event listener function.");
-    });
-  }
+//  if (localStorage) {
+//    // Add an event listener for form submissions
+//    document.getElementById("auth_step").addEventListener("submit", function() {
+//      console.log("Entering auth_step submit event listner function.");
+//      localStorage.setItem("client_id", document.getElementById("client_id").value);
+//      localStorage.setItem("scope", document.getElementById("scope").value);
+//      localStorage.setItem("authorization_endpoint", document.getElementById("authorization_endpoint").value);
+//      localStorage.setItem("token_endpoint", document.getElementById("token_endpoint").value);
+//      localStorage.setItem("redirect_uri", document.getElementById("redirect_uri").value);
+//      localStorage.setItem("authorization_grant_type", document.getElementById("authorization_grant_type").value);
+//      localStorage.setItem("resource", document.getElementById("resource").value);
+//      localStorage.setItem("yesCheck", document.getElementById("yesCheck").checked);
+//      localStorage.setItem("noCheck", document.getElementById("noCheck").checked);
+//      localStorage.setItem("yesCheckOIDCArtifacts", document.getElementById("yesCheckOIDCArtifacts").checked);
+//      localStorage.setItem("noCheckOIDCArtifacts", document.getElementById("noCheckOIDCArtifacts").checked);
+//
+//      console.log("Leaving auth_step submit event listener function.");
+//    });
+//  }
   loadValuesFromLocalStorage();
 //  resetUI();
-  recalculateAuthorizationRequestDescription();
+//  recalculateAuthorizationRequestDescription();
   recalculateAuthorizationErrorDescription();
   recalculateTokenRequestDescription();
   recalculateRefreshRequestDescription();
-  var yesChecked = document.getElementById("yesCheck").checked;
-  if(yesChecked)
-  {
-    document.getElementById("authzResourceRow").style.visibility = '';
-  } else {
-    document.getElementById("authzResourceRow").style.visibility = 'collapse';
-  }
+//  var yesChecked = document.getElementById("yesCheck").checked;
+//  if(yesChecked)
+//  {
+//    document.getElementById("authzResourceRow").style.visibility = '';
+//  } else {
+//    document.getElementById("authzResourceRow").style.visibility = 'collapse';
+//  }
   var yesCheckedToken = document.getElementById("yesCheckToken").checked
   if(yesCheckedToken)
   {
@@ -1091,7 +1086,7 @@ function recalculateAuthorizationErrorDescription()
     {
       var pathname = window.location.pathname;
       console.log("pathname=" + pathname);
-      if (pathname == "/callback")
+      if (pathname == "/debugger2.html")
       {
         var error = getParameterByName("error",window.location.href);
         var error_description = getParameterByName("error_description",window.location.href);
@@ -1108,7 +1103,7 @@ function recalculateAuthorizationErrorDescription()
       //document.getElementById("display_authz_request_form_textarea1").value = "";
       var pathname = window.location.pathname;
       console.log("pathname=" + pathname);
-      if (pathname == "/callback")
+      if (pathname == "/debugger2.html")
       {
         var error = getParameterByName("error",window.location.href);
         var error_description = getParameterByName("error_description",window.location.href);

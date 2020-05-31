@@ -1,0 +1,16 @@
+{
+  "name": "idptools-api",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.16.1",
+    "express-logging": "latest",
+    "request": "latest",
+    "body-parser": "latest",
+    "logops": "latest",
+    "cors": "latest"
+  }
+}

@@ -1,3 +1,13 @@
+// File: jwks.js
+// Author: Robert C. Broeckelmann Jr.
+// Date: 05/28/2020
+//Notes:
+//
+const jwkToPem = require('jwk-to-pem');
+const jwt = require('jsonwebtoken');
+const pemfile = require('pem-file');
+const { Certificate } = require('@fidm/x509');
+const pkcs8 = require('@peculiar/asn1-pkcs8');
 
 window.onload = function() {
   console.log("Entering onload function.");
@@ -12,10 +22,6 @@ function loadValuesFromLocalStorage()
 
 function OnSubmitJWKSEndpointForm() {
   console.log("Entering OnSubmitJWKSEndpointForm().");
-}
-
-function onSubmitClearAllForms() {
-
 }
 
 function OnSubmitJWKSEndpointForm()
@@ -66,38 +72,53 @@ function parseJWKSInfo(discoveryInfo) {
 
 function buildJWKSInfoTable(discoveryInfo) {
   console.log("Entering buildJWKSInfoTable().");
-  var discovery_info_table_html = "<table border='2' style='border:2px;'>" +
-                                    "<tr>" +
-                                      "<td><strong>Attribute</strong></td>" +
-                                      "<td><strong>Value</strong></td>" +
-                                    "</tr>";
+  var discovery_info_table_html = "";
    var i = 0;
    for( i = 0; i < discoveryInfo.keys.length; i++) {
      console.log('iteration: ' + i);
      discovery_info_table_html = discovery_info_table_html +
-                                 "<tr>" +
-                                   "<td>" + "Signer Certificate" + i + "</td><td></td>" +
-                                 "</tr>";
+                                 "<fieldset><legend>Signer Certificate #" + i + "</legend>";
+     discovery_info_table_html = discovery_info_table_html +
+                                    "<fieldset><legend>JWKS Format</legend>" +
+                                    "<table border='2' style='border:2px;'>" +
+                                    "<tr>" +
+                                      "<th>Attribute</th>" +
+                                      '<th style="max-width: 50px; word-wrap: break-word;">Value</th>' +
+                                    "</tr>";
      Object.keys(discoveryInfo.keys[i]).forEach( (key) => {
-       discovery_info_table_html = discovery_info_table_html +
+       if ( key == 'n') {
+         discovery_info_table_html = discovery_info_table_html +
+                                 "<tr>" +
+                                   "<td>" + key + "</td>" +
+                                   '<td><textarea id="jwks-' + i + '" name="jwks-' + i + '" rows="10" cols="70" readonly="true">' + discoveryInfo.keys[i][key] + "</textarea></td>" +
+                                 "</tr>";
+       } else {
+        discovery_info_table_html = discovery_info_table_html +
                                  "<tr>" +
                                    "<td>" + key + "</td>" +
                                    "<td>" + discoveryInfo.keys[i][key] + "</td>" +
                                  "</tr>";
+       }
      });
+
+     discovery_info_table_html = discovery_info_table_html +
+                                "</table></fieldset>";
+
+     var pem = jwkToPem(discoveryInfo.keys[i]);
+     console.log('cert: ' + pem);
+     discovery_info_table_html = discovery_info_table_html +
+                                 "<fieldset><legend>PEM Format</legend>" +
+                                 '<textarea id="x509-' + i + '" name="x509-' + i + '" rows="10" cols="70" readonly="true">' + pem + '</textarea>' +
+                                 "</fieldset>";
+
+//     console.log('decoded: ' + pemfile.decode(pem).toString());    
+//     const cert = Certificate.fromPEM(pem);
+    discovery_info_table_html = discovery_info_table_html +
+                                "</fieldset>";
+
+     
   }
-
-   discovery_info_table_html = discovery_info_table_html +
-                              "</table>";
-
-//   var discovery_info_meta_data_html = '<table>' +
-//                                       '<form>' +
-//                                         '<td>' +
-//                                          '<input class="btn_oidc_populate_meta_data" type="button" value="Populate Meta Data" onclick="return onSubmitPopulateFormsWithDiscoveryInformation();"/>' +
-//                                        '</td>' +
-//                                       '</form>' +
-//                                       '</table>';
-//  $("#discovery_info_meta_data_populate").html(discovery_info_meta_data_html);
+  console.log('certData: ' + discovery_info_table_html);
   $("#jwks_info_table").html(discovery_info_table_html);
 }
 
@@ -136,65 +157,17 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
 // Reset all forms and clear local storage
 function onSubmitClearAllForms() {
   if (localStorage) {
-      localStorage.setItem("authorization_endpoint", "");
-      localStorage.setItem("token_endpoint", "");
-      localStorage.setItem("client_id", "");
-      localStorage.setItem("scope", "");
-      localStorage.setItem("resource", "");
-      localStorage.setItem("redirect_uri", "");
-      localStorage.setItem("token_client_id", "");
-      localStorage.setItem("token_client_secret", "");
-      localStorage.setItem("token_redirect_uri", "");
-      localStorage.setItem("token_username", "");
-      localStorage.setItem("token_scope", "");
-      localStorage.setItem("authorization_grant_type", "");
-      localStorage.setItem("token_resource", "");
-      localStorage.setItem("yesCheckToken", true);
-      localStorage.setItem("noCheckToken", false);
-      localStorage.setItem("yesCheckOIDCArtifacts", true);
-      localStorage.setItem("noCheckOIDCArtifacts", false);
-      localStorage.setItem("refresh_client_id", "");
-      localStorage.setItem("refresh_client_secret", "");
-      localStorage.setItem("refresh_scope", "");
-      localStorage.setItem("useRefreshToken_yes", true);
-      localStorage.setItem("useRefreshToken_no", false);
-      localStorage.setItem("oidc_userinfo_endpoint", "");
-//      localStorage.setItem("oidc_discovery_endpoint", "");
-      localStorage.setItem("jwks_endpoint", "");
   }
-  document.getElementById("authorization_endpoint").value = "";
-  document.getElementById("token_endpoint").value = "";
-  document.getElementById("token_client_id").value = "";
-  document.getElementById("token_client_secret").value = "";
-  document.getElementById("token_redirect_uri").value = "";
-  document.getElementById("token_username").value = "";
-  document.getElementById("token_scope").value = "";
-  document.getElementById("authorization_grant_type").value = "";
-  document.getElementById("token_resource").value = "";
-  document.getElementById("yesCheckToken").checked = true;
-  document.getElementById("noCheckToken").checked = false;
-  document.getElementById("yesCheckOIDCArtifacts").checked = true;
-  document.getElementById("noCheckOIDCArtifacts").checked = false;
-  document.getElementById("refresh_client_id").value = "";
-  document.getElementById("refresh_client_secret").value = "";
-  document.getElementById("refresh_scope").value = "";
-  document.getElementById("useRefreshToken-yes").checked = true;
-  document.getElementById("useRefreshToken-no").checked = false;
-//  document.getElementById("oidc_discovery_endpoint").value = "";
-  document.getElementById("client_id").value = "";
-  document.getElementById("scope").value = "";
-  document.getElementById("resource").value = "";
-  document.getElementById("redirect_uri").value = "";
-  document.getElementById("oidc_userinfo_endpoint").value = "";
-  document.getElementById("jwks_endpoint").value = "";
-
-  $("#discovery_info_table").html("");
+  $("#jwks_info_table").html("");
 }
 
-function regenerateState() {
-  document.getElementById("state").value = generateUUID();
-}
-
-function regenerateNonce() {
-  document.getElementById("nonce_field").value = generateUUID();
-}
+module.exports = {
+ loadValuesFromLocalStorage,
+ OnSubmitJWKSEndpointForm,
+ onSubmitClearAllForms,
+ OnSubmitJWKSEndpointForm,
+ isUrl,
+ parseJWKSInfo,
+ buildJWKSInfoTable,
+ onSubmitPopulateFormsWithDiscoveryInformation,
+};
