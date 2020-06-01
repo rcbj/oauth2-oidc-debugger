@@ -21,7 +21,7 @@ COPY package.json /usr/src/app
 COPY src/ /usr/src/app/src/
 RUN browserify src/jwks.js -o public/js/jwks.js --debug --standalone jwks
 RUN browserify src/debugger.js -o public/js/debugger.js --debug --standalone debug
-# RUN browserify src/debugger2.js -o public/js/debugger2.js --debug --standalone debug2
+RUN browserify src/token_detail.js -o public/js/token_detail.js --debug --standalone token_detail
 COPY src/debugger2_js.js public/js
 
 EXPOSE 3000

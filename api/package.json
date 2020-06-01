@@ -2,6 +2,8 @@
   "name": "idptools-api",
   "version": "1.0.0",
   "private": true,
+  "description": "idptools client project",
+  "author": "Robert C. Broeckelmann Jr. <robert@iyasec.io>",
   "scripts": {
     "start": "node server.js"
   },

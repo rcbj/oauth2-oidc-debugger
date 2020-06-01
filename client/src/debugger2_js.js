@@ -137,55 +137,62 @@ $(document).ready(function() {
       console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
       if(displayOpenIDConnectArtifacts == true)
       {
+         // Display OAuth2/OIDC Artifacts
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" + 
 				      "<table>" +
 				        "<tr>" +
-                                          "<td>access_token</td>" + 
-                                          "<td><textarea rows=10 cols=100>" + 
+                                          '<td><a href="/token_detail.html?type=access">Access Token</a></td>' + 
+                                          "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
                                             data.access_token + 
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          "<td>refresh_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" + 
+                                          '<td><a href="/token_detail.html?type=refresh">Refresh Token</a></td>' +
+                                          "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" + 
                                             data.refresh_token + 
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          "<td>id_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" + 
+                                          '<td><a href="/token_detail.html?type=id">ID Token</a></td>' +
+                                          "<td><textarea rows=10 cols=60 name=token_id_token id=token_id_token>" + 
                                              data.id_token + 
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                       "</table>" +
                                       "</fieldset>";
+                                     localStorage.setItem("token_access_token", data.access_token);
+                                     localStorage.setItem("token_refresh_token", data.refresh_token);
+                                     localStorage.setItem("token_id_token", data.id_token);
       } else {
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" +
                                       "<table>" +
                                         "<tr>" +
-                                          "<td>access_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" +
+                                          '<td><a href="/token_detail.html?type=access">Access Token</a></td>' +
+                                          "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" +
                                             data.access_token +
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          "<td>refresh_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" +
+                                          '<td>a href="/token_detail.html?type=access">Refresh Token</a></td>' +
+                                          "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" +
                                             data.refresh_token +
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                       "</table>" +
                                       "</fieldset>";
+                                     localStorage.setItem("token_acess_token", data.access_token);
+                                     localStorage.setItem("token_refresh_token", data.refresh_token);
       }
       $("#token_endpoint_result").html(token_endpoint_result_html);
       document.getElementById("refresh_refresh_token").value = data.refresh_token;
+      document.getElementById("step3").style = "visibility:collapse";
     },
     error: function (request, status, error) {
       console.log("request: " + JSON.stringify(request));
@@ -251,21 +258,21 @@ $(".refresh_btn").click(function() {
 				      "<table>" +
 				        "<tr>" +
                                           "<td>access_token</td>" + 
-                                          "<td><textarea rows=10 cols=100>" + 
+                                          "<td><textarea rows=10 cols=60>" + 
                                             data.access_token + 
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
                                           "<td>refresh_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" + 
+                                          "<td><textarea rows=10 cols=60>" + 
                                             data.refresh_token + 
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
                                           "<td>id_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" + 
+                                          "<td><textarea rows=10 cols=60>" + 
                                              data.id_token + 
                                             "</textarea>" +
                                           "</td>" +
@@ -998,6 +1005,12 @@ window.onload = function() {
   } else {
     $("#step4").hide();
   }
+
+  if(getParameterByName("redirectFromTokenDetail") == "true") {
+    console.log('Detected redirect back from token detail page.');
+    $("#step3").hide();
+    recreateTokenDisplay();
+  }
   console.log("Leaving onload().");
 }
 
@@ -1471,4 +1484,61 @@ function regenerateState() {
 
 function regenerateNonce() {
   document.getElementById("nonce_field").value = generateUUID();
+}
+
+function recreateTokenDisplay()
+{
+      var token_endpoint_result_html = "";
+      console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
+      if(displayOpenIDConnectArtifacts == true)
+      {
+         // Display OAuth2/OIDC Artifacts
+         token_endpoint_result_html = "<fieldset>" +
+                                      "<legend>Token Endpoint Results:</legend>" + 
+				      "<table>" +
+				        "<tr>" +
+                                          '<td><a href="/token_detail.html?type=access">Access Token</a></td>' + 
+                                          "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
+                                            localStorage.getItem("token_access_token") + 
+                                            "</textarea>" +
+                                          "</td>" +
+                                        "</tr>" +
+                                        "<tr>" +
+                                          '<td><a href="/token_detail.html?type=refresh">Refresh Token</a></td>' +
+                                          "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" + 
+                                            localStorage.getItem("token_refresh_token") + 
+                                            "</textarea>" +
+                                          "</td>" +
+                                        "</tr>" +
+                                        "<tr>" +
+                                          '<td><a href="/token_detail.html?type=id">ID Token</a></td>' +
+                                          "<td><textarea rows=10 cols=60 name=token_id_token id=token_id_token>" + 
+                                             localStorage.getItem("token_id_token") +
+                                            "</textarea>" +
+                                          "</td>" +
+                                        "</tr>" +
+                                      "</table>" +
+                                      "</fieldset>";
+      } else {
+         token_endpoint_result_html = "<fieldset>" +
+                                      "<legend>Token Endpoint Results:</legend>" +
+                                      "<table>" +
+                                        "<tr>" +
+                                          '<td><a href="/token_detail.html?type=access">Access Token</a></td>' +
+                                          "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" +
+                                            localStorage.getItem("token_access_token") +
+                                            "</textarea>" +
+                                          "</td>" +
+                                        "</tr>" +
+                                        "<tr>" +
+                                          '<td>a href="/token_detail.html?type=access">Refresh Token</a></td>' +
+                                          "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" +
+                                            localStorage.getItem("token_refresh_token") +
+                                            "</textarea>" +
+                                          "</td>" +
+                                        "</tr>" +
+                                      "</table>" +
+                                      "</fieldset>";
+      }
+      $("#token_endpoint_result").html(token_endpoint_result_html);
 }
