@@ -6126,3 +6126,10 @@ a.badge:focus {
 .affix {
   position: fixed;
 }
+
+#authz_custom_parameter_list {
+    display: table-cell;
+    width:50%;
+    vertical-align: bottom;
+    height: 100%;
+}

@@ -173,7 +173,7 @@
   </fieldset>
 </div>
 <div class="step2" id="step2">
-  <form name="auth_step" id="auth_step" method="get" onsubmit="return debug.OnSubmitForm();">
+  <form name="auth_step" id="auth_step">
   <fieldset>
     <legend id="h2_title_1" name="">Request Authorization Code
     </legend>
@@ -235,8 +235,8 @@
             </div>
           </td>
           <td>Yes 
-            <input id="yesCheck" name="yesno" onclick="debug.displayResourceCheck();" type="radio" />No 
-            <input id="noCheck" name="yesno" onclick="debug.displayResourceCheck();" type="radio" />
+            <input id="yesCheck" name="yesno" onclick="debug.displayResourceCheck();" type="radio"/>No 
+            <input id="noCheck" name="yesno" onclick="debug.displayResourceCheck();" type="radio"/>
           </td>
         </tr>
         <tr id="authzResourceRow" style="visibility:collapse">
@@ -250,7 +250,41 @@
         </tr>
         <tr>
           <td>
-            <input class="btn2" type="submit" value="Authorize" />
+            <div class="tooltip"><label>Custom query parameters</label><span class="tooltiptext">Custom query parameters for Authorization Endpoint call.</span>
+            </div>
+          </td>
+          <td>Yes
+            <input id="authzcustomParametersCheck-yes" name="authzcustomParametersCheck" onclick="debug.displayAuthzCustomParametersCheck();" type="radio" />No
+            <input id="authzcustomParametersCheck-no" name="authzcustomParametersCheck" onclick="debug.displayAuthzCustomParametersCheck();" type="radio" />
+          </td>
+        </tr>
+        <tr id="authzCustomParametersRow" style="visibility:collapse">
+          <td>
+            <div class="tooltip"><label>How many custom parameters: </label><span class="tooltiptext">How many custom query parameters will this request have? No more than ten.</span>
+            </div>
+          </td>
+          <td>
+            <input class="stored" id="authzNumberCustomParameters" name="authzNumberCustomParameters" type="text" maxlength="4" size="4" />
+            <input type="button" value="Enter parameters" onclick="return debug.generateCustomParametersListUI();"/>
+          </td>
+          </tr>
+          <tr>
+            <td colspan="2">
+              <div class="authz_custom_parameter_list" id="authz_custom_parameter_list">
+              </div>
+            </td>
+          </tr>
+         </tbody>
+        </table>
+       </fieldset>
+      </form>
+      <form name="make_call" id="make_call" onsubmit="return false;">
+        <fieldset>
+        <table>
+        <tbody>
+        <tr>
+          <td>
+            <input class="btn2" type="submit" value="Authorize" onclick="return debug.triggerAuthZEndpointCall();" />
           </td>
           <td>&nbsp;
           </td>
@@ -260,7 +294,7 @@
             <div class="tooltip"><label id="display_authz_request_form_label1" name="display_authz_request_form_label1" value="">Request</label><span class="tooltiptext">This field shows the request that is made to th Authorization Endpoint.</span>
             </div>
           </td>
-          <td><textarea cols="100" id="display_authz_request_form_textarea1" rows="10"></textarea>
+          <td><textarea cols="50" id="display_authz_request_form_textarea1" rows="10"></textarea>
           </td>
         </tr>
       </tbody>
