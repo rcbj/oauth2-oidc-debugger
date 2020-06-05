@@ -91,12 +91,10 @@ From a bash command prompt on Fedora or RHEL 7.x, run the following::
  docker run -p 3000:3000 oauth2-oidc-debugger 
 ```
 # Clean Up / Start Over
-```
-List all containers (only IDs) ```sudo docker ps -aq```
-Stop all running containers: ```sudo docker stop $(docker ps -aq)```
-Remove all containers: ```sudo docker rm $(docker ps -aq)```
-Remove all images: ```sudo docker rmi $(docker images -q)```
-```
+* List all containers (only IDs) ```sudo docker ps -aq```
+* Stop all running containers: ```sudo docker stop $(docker ps -aq)```
+* Remove all containers: ```sudo docker rm $(docker ps -aq)```
+* Remove all images: ```sudo docker rmi $(docker images -q)```
 
 On other systems, the commands needed to start the debugger in a local docker container will be similar. The docker Sinatra/Ruby runtime will have to be able to establish connections to remote IdP endpoint (whether locally in other docker containers, on the host VM, or over the network/internet). On the test system, it was necessary to add "--net=host" to the "docker run" args. The network connectivity details for docker may vary from platform-to-platform.
 
@@ -154,6 +152,13 @@ To run this project you will need to install docker.
  docker run -p 3000:3000 oauth2-oidc-debugger 
 ```
 On other systems, the commands needed to start the debugger in a local docker container will be similar. The docker Sinatra/Ruby runtime will have to be able to establish connections to remote IdP endpoint (whether locally in other docker containers, on the host VM, or over the network/internet).  On the test system, it was necessary to add "--net=host" to the "docker run" args. The network connectivity details for docker may vary from platform-to-platform.
+
+# Additional Feature Information
+## State Parameters
+* A state parameter can be submitted as part of the authorization endpoint request. The state parameter will be validated when the redirect comes back to the registered callback endpoint. A UUID is used as the state value. This is an optional, but recommended parameter.
+## Custom Parameters
+Various specs & RFCs that build on the OAuth2 & OIDC protocols add additional parameters that must be passed to the Authorization Endpoint and Token Endpoint. The debugger supports passing up to ten custom parameters.
+
 
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
