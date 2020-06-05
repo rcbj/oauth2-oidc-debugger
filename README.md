@@ -1,31 +1,3 @@
-# React_Express_App_Medium_Tutorial
-- This repository has the code to support a tutorial that I created on Medium called Create a React FrontEnd, a Node/Express BackEnd and connect them together.
-- This repository can also be used as a starting point (boilerplate), if you whant to create your own React/Express app.
-.
-
-## Where can I check the tutorial?
-You are very welcome to check the tutorial on Medium. Just follow the link below.
-- [Create a React FrontEnd, a Node/Express BackEnd and connect them together](https://medium.com/@jrshenrique/create-a-react-frontend-a-node-express-backend-and-connect-them-together-c5798926047c)
-
-## About the app
-Actually, there are two separated apps. The Client which serves the FrontEnd (using React), and the API (in Node/Express).
-
-## How to run the API
-1. In your terminal, navigate to the `api` directory.
-2. Run `npm install` to install all dependencies.
-3. Run `npm start` to start the app.
-
-## How to run the Client
-1. In another terminal, navigate to the `client` directory.
-2. Run `npm install` to install all dependencies.
-3. Run `npm start` to start the app
-
-## Check if they are connected
-1. With the two apps running, open your browser in http://localhost:3000/.
-2. If you see a webpage saying `Welcome to React`, it means the FrontEnd is working.
-3. If the same webpage has the phrase `API is working properly`, it means the API is working.
-4. Enjoy!
-=======
 # OAuth2 + OpenID Connect (OIDC) Debugger
 This is the private repo with configuration settings necessary for deployment to AWS.
 
@@ -47,6 +19,9 @@ This project currently supports the following specs:
 * [RFC 6749](https://tools.ietf.org/html/rfc6749)
 * [OpenID Connect Core 1](https://openid.net/specs/openid-connect-core-1_0.html)
 * [OpenID Connect Discovery v1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
+* [JWT RFC](https://tools.ietf.org/html/rfc7519)
+
+With the ability to add custom parameters to the Authorization Endpoint call and Token Endpoint call, numerous other protocols can be supported. We'll eventually get around to adding direct support.
 
 It also supports a couple of proprietary IdP extensions as described below.
 # Supported OAuth2 Authorization Grants
@@ -118,12 +93,10 @@ From a bash command prompt on Fedora or RHEL 7.x, run the following::
  docker run -p 3000:3000 oauth2-oidc-debugger 
 ```
 # Clean Up / Start Over
-```
-List all containers (only IDs) ```sudo docker ps -aq```
-Stop all running containers: ```sudo docker stop $(docker ps -aq)```
-Remove all containers: ```sudo docker rm $(docker ps -aq)```
-Remove all images: ```sudo docker rmi $(docker images -q)```
-```
+* List all containers (only IDs) ```sudo docker ps -aq```
+* Stop all running containers: ```sudo docker stop $(docker ps -aq)```
+* Remove all containers: ```sudo docker rm $(docker ps -aq)```
+* Remove all images: ```sudo docker rmi $(docker images -q)```
 
 On other systems, the commands needed to start the debugger in a local docker container will be similar. The docker Sinatra/Ruby runtime will have to be able to establish connections to remote IdP endpoint (whether locally in other docker containers, on the host VM, or over the network/internet). On the test system, it was necessary to add "--net=host" to the "docker run" args. The network connectivity details for docker may vary from platform-to-platform.
 
@@ -181,6 +154,14 @@ To run this project you will need to install docker.
  docker run -p 3000:3000 oauth2-oidc-debugger 
 ```
 On other systems, the commands needed to start the debugger in a local docker container will be similar. The docker Sinatra/Ruby runtime will have to be able to establish connections to remote IdP endpoint (whether locally in other docker containers, on the host VM, or over the network/internet).  On the test system, it was necessary to add "--net=host" to the "docker run" args. The network connectivity details for docker may vary from platform-to-platform.
+
+# Additional Feature Information
+## State Parameters
+* A state parameter can be submitted as part of the authorization endpoint request. The state parameter will be validated when the redirect comes back to the registered callback endpoint. A UUID is used as the state value. This is an optional, but recommended parameter.
+## Custom Parameters
+Various specs & RFCs that build on the OAuth2 & OIDC protocols add additional parameters that must be passed to the Authorization Endpoint and Token Endpoint. The debugger supports passing up to ten custom parameters.
+## Nonce Parameter
+A nonce parameter can be included in the Authorization Endpoint call. A UUID is used as the nonce value.
 
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
