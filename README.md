@@ -158,7 +158,8 @@ On other systems, the commands needed to start the debugger in a local docker co
 * A state parameter can be submitted as part of the authorization endpoint request. The state parameter will be validated when the redirect comes back to the registered callback endpoint. A UUID is used as the state value. This is an optional, but recommended parameter.
 ## Custom Parameters
 Various specs & RFCs that build on the OAuth2 & OIDC protocols add additional parameters that must be passed to the Authorization Endpoint and Token Endpoint. The debugger supports passing up to ten custom parameters.
-
+## Nonce Parameter
+A nonce parameter can be included in the Authorization Endpoint call. A UUID is used as the nonce value.
 
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
