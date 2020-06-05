@@ -791,7 +791,9 @@ function loadValuesFromLocalStorage()
     $("#display_authz_error_class").html("<fieldset><legend>Authorization Endpoint Error</legend><form action=\"\" name=\"display_authz_error_form\" id=\"display_authz_error_form\"><table><tr><td><label name=\"display_authz_error_form_label1\" value=\"\" id=\"display_authz_error_form_label1\">Error</label></td><td><textarea rows=\"10\" cols=\"100\" id=\"display_authz_error_form_textarea1\"></td></tr></table></textarea></form></fieldset>");
   }
   document.getElementById("state").value = generateUUID();
+  localStorage.setItem('state', document.getElementById("state").value);
   document.getElementById("nonce_field").value = generateUUID();
+  localStorage.setItem('nonce_field', document.getElementById("nonce_field").value);
   recalculateAuthorizationRequestDescription();
   console.log("Leaving loadValuesFromLocalStorage().");
 }
@@ -1146,7 +1148,7 @@ function recalculateAuthorizationErrorDescription()
         var error = getParameterByName("error",window.location.href);
         var error_description = getParameterByName("error_description",window.location.href);
         var error_uri = getParameterByName("error_uri",window.location.href);
-        var state = getParameterByName("state",window.location.href);
+        var state = getParameterByName("state", window.location.href);
         document.getElementById("display_authz_error_form_textarea1").value = "error: " + error + "\n" +
                                                                               "error_description: " + error_description + "\n" +
                                                                               "error_uri: " + error_uri + "\n" +
@@ -1522,10 +1524,12 @@ function onSubmitClearAllForms() {
 
 function regenerateState() {
   document.getElementById("state").value = generateUUID();
+  localStorage.setItem('state', document.getElementById("state").value);
 }
 
 function regenerateNonce() {
   document.getElementById("nonce_field").value = generateUUID();
+  localStorage.setItem('nonce_field', document.getElementById("nonce_field").value);
 }
 
 function displayAuthzCustomParametersCheck()

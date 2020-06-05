@@ -937,6 +937,21 @@ window.onload = function() {
   console.log("Entering onload function.");
   $("#password-form-group1").hide();
   $("#password-form-group2").hide();
+  
+  // Check if state matches
+  console.log('Checking on state.');
+  var state = getParameterByName('state');
+  if (typeof(state) != "undefined" && state != "null") {
+    console.log('Found state: ' + state)
+    var storedState = localStorage.getItem('state');
+    if ( state == storedState) {
+      console.log('State matches stored state.');
+      $("#state-status").html('<ul><il>State matches stored state.</il></ul>');
+    } else {
+      console.log('State does not match: state=' + state + ', storedState=' + storedState);
+      $("#state-status").html('<ul><il>State does not match: state=' + state + ', storedState=' + storedState + '</il></ul>');
+    }
+  }
 
   document.getElementById("code").value = getParameterByName('code');
 //  document.getElementById("authorization_endpoint").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
@@ -1480,10 +1495,12 @@ function onSubmitClearAllForms() {
 
 function regenerateState() {
   document.getElementById("state").value = generateUUID();
+  localStorage.setItem('state', document.getElementById("state").value);
 }
 
 function regenerateNonce() {
   document.getElementById("nonce_field").value = generateUUID();
+  localStorage.setItem('nonce_field', document.getElementById("nonce_field").value);
 }
 
 function recreateTokenDisplay()
