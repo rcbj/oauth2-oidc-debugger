@@ -6,7 +6,7 @@
 // This file provides the interactive functionality needed for the first debugger screen which
 // has the authorization endpoint, general configuration, and OIDC Discovery Endpoint pantes.
 //
-// This file is copied directly into the public/js directory. It does not go through browserify.
+// This file is run through browserify and the output copied into the public/js directory.
 //
 var displayOpenIDConnectArtifacts = false;
 var useRefreshTokenTester = false;
