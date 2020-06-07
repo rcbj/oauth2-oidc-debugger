@@ -1609,6 +1609,39 @@ function generateCustomParametersListUI()
 
 }
 
+function onClickShowAuthzFieldSet(id) {
+  console.log('Entering onClickShowAuthzFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
+  if(id == 'authz_fieldset') {
+    if(document.getElementById(id).style.display == 'block') {
+       console.log('Hide ' + id + '.');
+       document.getElementById(id).style.display = 'none'
+       document.getElementById('authz_expand_button').value='Expand';
+       document.getElementById('config_fieldset').style.display = 'block'
+       document.getElementById('config_expand_button').value='Collapse';
+       document.getElementById('oidc_fieldset').style.display = 'block'
+       document.getElementById('oidc_expand_button').value='Collapse';
+    } else {
+      console.log('Show ' + id + '.');
+      document.getElementById(id).style.display = 'block';
+      document.getElementById('authz_expand_button').value='Collapse';
+      document.getElementById('config_fieldset').style.display = 'none'
+      document.getElementById('config_expand_button').value='Expand';
+      document.getElementById('oidc_fieldset').style.display = 'none';
+      document.getElementById('oidc_expand_button').value='Expand';
+    }
+  } else {
+    if(document.getElementById(id).style.display == 'block') {
+      console.log('Hide ' + id + '.');
+      document.getElementById(id).style.display = 'none'
+    } else {
+      console.log('Show ' + id + '.');
+      document.getElementById(id).style.display = 'block';
+    }
+  }
+  console.log('Leaving onClickShowAuthzFieldSet().');
+  return false;
+}
+
 module.exports = {
   OnSubmitForm,
   OnSubmitTokenEndpointForm,
@@ -1639,5 +1672,6 @@ module.exports = {
   regenerateNonce,
   displayAuthzCustomParametersCheck,
   generateCustomParametersListUI,
-  triggerAuthZEndpointCall
+  triggerAuthZEndpointCall,
+  onClickShowAuthzFieldSet
 };

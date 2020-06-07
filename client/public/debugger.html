@@ -2,16 +2,11 @@
   <head>
     <meta charset="utf-8">
     <title>OAuth2 & OpenID Connect Debugger</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="">
-    <meta name="author" content="">
-
     <link href="/css/bootstrap.css" rel="stylesheet">
+    <link href="/css/header.css" rel="stylesheet">
     <link href="/css/bottom.css" rel="stylesheet">
+    <link href="/css/footer.css" rel="stylesheet">
     <style>
-      body {
-        padding-top: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
-      }
       textarea {
         width: auto;
       }
@@ -24,23 +19,14 @@
 
   <body>
 
-    <div class="navbar navbar-inverse navbar-fixed-top">
-      <div class="navbar-inner">
-        <div class="container">
-          <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-          </button>
-          <a class="brand" href="/debugger.html">IDPTools</a>
-          <div class="nav-collapse collapse">
-            <ul class="nav">
-              <li class="active"><a href="#">Home</a></li>
-            </ul>
-          </div><!--/.nav-collapse -->
-        </div>
-      </div>
-    </div>
+<div class="header_debugger">
+  <a href="/index.html" class="logo">IDPTools</a>
+  <div class="header-right">
+    <a class="active" href="#home">Home</a>
+    <a href="#contact">Contact</a>
+    <a href="#about">About</a>
+  </div>
+</div>
 
     <div class="container">
 
@@ -51,9 +37,10 @@
 <p>This is a simple Client to use with any <a href="https://medium.com/@robert.broeckelmann/saml2-vs-jwt-understanding-oauth2-4abde9e7ec8b">OAuth2</a> or <a href="https://medium.com/@robert.broeckelmann/understanding-openid-connect-series-37c93d25e92b">OpenID Connect</a> compliant identity provider..
 </p>
 <div class="step0" id="step0">
- <fieldset>
     <legend>OpenID Connect Discovery Endpoint Information
     </legend>
+    <form><input class="btn2" type="submit" name="oidc_expand_button" id="oidc_expand_button" value="Hide" onclick="return debug.onClickShowAuthzFieldSet('oidc_fieldset');"/></form>
+    <fieldset name="oidc_fieldset" id="oidc_fieldset" style="display: block;">
     <form action="" id="oidc_discovery_endpoint_form" name="oidc_discovery_endpoint_form" method="get" onsubmit="return debug.OnSubmitOIDCDiscoveryEndpointForm();">
       <table border="0">
           <tr>
@@ -88,9 +75,10 @@
     </div>
 
 
-  <fieldset>
     <legend>Configuration Parameters
     </legend>
+    <form><input class="btn2" type="submit" name="config_expand_button" id="config_expand_button" value="Hide" onclick="return debug.onClickShowAuthzFieldSet('config_fieldset');"/></form>
+    <fieldset name="config_fieldset" id="config_fieldset" style="display: block;">
     <form action="" id="endpoints" name="endpoints">
       <table border="0">
         <tbody>
@@ -177,9 +165,10 @@
 
 <div class="step2" id="step2">
   <form name="auth_step" id="auth_step">
-  <fieldset>
     <legend id="h2_title_1" name="">Request Authorization Code
     </legend>
+  <form><input class="btn2" name="authz_expand_button" id="authz_expand_button" type="submit" value="Expand" onclick="return debug.onClickShowAuthzFieldSet('authz_fieldset');"/></form>
+  <fieldset id="authz_fieldset" name="authz_fieldset" style="display: none;">
     <table>
       <tbody>
         <div class="form-group">
@@ -279,10 +268,8 @@
           </tr>
          </tbody>
         </table>
-       </fieldset>
       </form>
       <form name="make_call" id="make_call" onsubmit="return false;">
-        <fieldset>
         <table>
         <tbody>
         <tr>
@@ -302,16 +289,20 @@
         </tr>
       </tbody>
     </table>
-  </fieldset>
   </form>
+  </fieldset>
 </div>
 <div class="display_authz_error_class" id="display_authz_error_class">&nbsp;
 </div>
-</div>
-  <div class="navbar">
-    <a href="#" class="active">Home</a>
-    <a href="/privacypolicy.html">Privacy Policy</a>
-    <a href="/contact">Contact</a>
+
+<div class="footer_debugger">
+  <a href="/index.html" class="logo">IDPTools</a>
+  <div class="header-right">
+    <a class="active" href="#home">Home</a>
+    <a href="#contact">Contact</a>
+    <a href="#about">About</a>
   </div>
+</div>
+
 </body>
 </html>
