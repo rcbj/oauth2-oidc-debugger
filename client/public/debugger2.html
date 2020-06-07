@@ -2,18 +2,16 @@
   <head>
     <meta charset="utf-8">
     <title>OAuth2 & OpenID Connect Debugger</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="">
-    <meta name="author" content="">
-
     <link href="/css/bootstrap.css" rel="stylesheet">
+    <link href="/css/header.css" rel="stylesheet">
     <link href="/css/bottom.css" rel="stylesheet">
+    <link href="/css/footer.css" rel="stylesheet">
     <style>
-      body {
-        padding-top: 60px; /* 60px to make the container go all the way to the bottom of the topbar */
-      }
       textarea {
-        width: auto; 
+        width: auto;
+      }
+      legend {
+        width: 540px;
       }
     </style>
     <link href="/css/bootstrap-responsive.css" rel="stylesheet">
@@ -21,23 +19,15 @@
 
   <body>
 
-    <div class="navbar navbar-inverse navbar-fixed-top">
-      <div class="navbar-inner">
-        <div class="container">
-          <button type="button" class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-            <span class="icon-bar"></span>
-          </button>
-          <a class="brand" href="/debugger.html">IDPTools</a>
-          <div class="nav-collapse collapse">
-            <ul class="nav">
-              <li class="active"><a href="#">Home</a></li>
-            </ul>
-          </div><!--/.nav-collapse -->
-        </div>
-      </div>
-    </div>
+<div class="header_debugger">
+  <a href="/index.html" class="logo">IDPTools</a>
+  <div class="header-right">
+    <a class="active" href="#home">Home</a>
+    <a href="#contact">Contact</a>
+    <a href="#about">About</a>
+  </div>
+</div>
+
 
     <div class="container">
 
@@ -51,9 +41,9 @@
 <dif class="state-status" id="state-status"></div>
 <div class="step0" id="step0">
 
-  <fieldset>
     <legend>Configuration Parameters
     </legend>
+    <fieldset id="config_fieldset" name="config_fieldset" style="display: block;">
     <form action="" id="endpoints" name="endpoints">
       <table border="0">
         <tbody>
@@ -138,12 +128,14 @@
     </form>
   </fieldset>
 </div>
+
 <div class="display_authz_error_class" id="display_authz_error_class">&nbsp;
 </div>
+
 <div class="step3" id="step3">
-  <fieldset>
     <legend id="h2_title_2" name="h2_title_2">Exchange Authorization Code for Access Token
     </legend>
+    <fieldset id="token_fieldset" name="token_fieldset" style="display: block;">
     <input class="input" id="token_grant_type" name="grant_type" type="hidden" value="authorization_code" />
     <table>
       <tbody>
@@ -231,6 +223,32 @@
         </tr>
         <tr>
           <td>
+            <div class="tooltip"><label>Custom query parameters</label><span class="tooltiptext">Custom query parameters for Authorization Endpoint call.</span>
+            </div>
+          </td>
+          <td>Yes
+            <input id="customTokenParametersCheck-yes" name="customTokenParametersCheck" onclick="displayTokenCustomParametersCheck();" type="radio" />No
+            <input id="customTokenParametersCheck-no" name="customTokenParametersCheck" onclick="displayTokenCustomParametersCheck();" type="radio" />
+          </td>
+        </tr>
+        <tr id="tokenCustomParametersRow" style="visibility:collapse">
+          <td>
+            <div class="tooltip"><label>How many custom parameters: </label><span class="tooltiptext">How many custom query parameters will this request have? No more than ten.</span>
+            </div>
+          </td>
+          <td>
+            <input class="stored" id="tokenNumberCustomParameters" name="tokenNumberCustomParameters" type="text" maxlength="4" size="4" />
+            <input type="button" value="Enter parameters" onclick="return generateCustomParametersListUI();"/>
+          </td>
+        </tr>
+        <tr>
+            <td colspan="2">
+              <div class="token_custom_parameter_list" id="token_custom_parameter_list">
+              </div>
+            </td>
+          </tr>
+        <tr>
+          <td>
             <input class="btn1" type="submit" value="Get Token" />
           </td>
           <td>&nbsp;
@@ -248,6 +266,7 @@
     </table>
   </fieldset>
 </div>
+
 <div class="display_token_error_class" id="display_token_error_class">&nbsp;
 </div>
 <div class="authorization_endpoint_result" id="authorization_endpoint_result">&nbsp;
@@ -256,12 +275,12 @@
 </div>
 <div class="token_endpoint_result" id="token_endpoint_result">&nbsp;
 </div>
+
 <div class="step4" id="step4">
-  <fieldset>
     <legend id="h2_title_3" name="h2_title_3">Obtain New Access Token Using Refresh Token
-      <br />
       <input class="input" id="refresh_grant_type" name="refresh_grant_type" type="hidden" value="refresh_token" />
     </legend>
+    <fieldset id="refresh_fieldset" name="refresh_fieldset">
     <table>
       <tbody>
         <tr>
@@ -325,10 +344,13 @@
 </div>
     </div>
 
-  <div class="navbar">
-    <a href="#" class="active">Home</a>
-    <a href="/privacypolicy.html">Privacy Policy</a>
-    <a href="/contact">Contact</a>
+<div class="footer_debugger">
+  <a href="/index.html" class="logo">IDPTools</a>
+  <div class="header-right">
+    <a class="active" href="#home">Home</a>
+    <a href="#contact">Contact</a>
+    <a href="#about">About</a>
   </div>
+</div>
 </body>
 </html>

@@ -38,6 +38,7 @@ app.use(cors());
  * @property {string} username - The username used with the OAuth2 Resource Owner Credential Grant
  * @property {string} password - The password used with the OAuth2 Resource Owner Credential Grant
  * @property {string} client_secret - The client secret for a confidential client
+ * @property {object} customParams - List of key:value pairs
  */
 
 /**
@@ -81,6 +82,7 @@ app.post('/token', (req, res) => {
     var password = body.password || "";
     var refreshToken = body.refresh_token || "";
     var resource = body.resource || "";
+    var customParams = body.customParams || {}; 
   
     console.log('grantType: ' + grantType);
     console.log('clientId: ' + clientId);
@@ -94,7 +96,9 @@ app.post('/token', (req, res) => {
     console.log('password: ' + password);
     console.log('refreshToken: ' + refreshToken);
     console.log('resource: ' + resource);
-  
+    Object.keys(customParams).forEach( (key) => {
+      console.log(key + ':' + customParams[key]);
+    }); 
     var parameterObject = {};
     if(grantType == "authorization_code") {
       parameterObject = { 
@@ -135,6 +139,11 @@ app.post('/token', (req, res) => {
       parameterObject.scope = scope;
     }
 
+    if (Object.keys(customParams).length > 0) {
+      Object.keys(customParams).forEach( (key) => {
+        parameterObject[key] = customParams[key];
+      });
+    }
     console.log("parameterObject: " + JSON.stringify(parameterObject));
   
     var parameterString = "";
@@ -166,7 +175,7 @@ app.post('/token', (req, res) => {
 let options = {
     swaggerDefinition: {
         info: {
-            description: 'This is a sample server',
+            description: 'IDPTools API',
             title: 'Swagger',
             version: '1.0.0',
         },

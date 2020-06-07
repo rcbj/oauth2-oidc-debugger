@@ -571,6 +571,9 @@ function writeValuesToLocalStorage()
       localStorage.setItem("yesCheckOIDCArtifacts", document.getElementById("yesCheckOIDCArtifacts").checked);
       localStorage.setItem("noCheckOIDCArtifacts", document.getElementById("noCheckOIDCArtifacts").checked);
       localStorage.setItem("useRefreshToken_yes", document.getElementById("useRefreshToken-yes").checked);
+      localStorage.setItem("client_id", document.getElementById("client_id").value);
+      localStorage.setItem("redirect_uri", document.getElementById("redirect_uri").value);
+      localStorage.setItem("scope", document.getElementById("scope").value);
       localStorage.setItem("useRefreshToken_no", document.getElementById("useRefreshToken-no").checked);
       localStorage.setItem("oidc_discovery_endpoint", document.getElementById("oidc_discovery_endpoint").value);
       localStorage.setItem("oidc_userinfo_endpoint", document.getElementById("oidc_userinfo_endpoint").value);
@@ -1550,13 +1553,6 @@ function displayAuthzCustomParametersCheck()
   }
   if (yesCheck) {
     generateCustomParametersListUI();
-//    var i = 0;
-//    var authzNumberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);
-//    for(i = 0; i < authzNumberCustomParameters; i++)
-//    {
-//      localStorage.setItem("customParameterName-" + i, document.getElementById("customParameterName-" + i).value);
-//      localStorage.setItem("customParameterValue-" + i, document.getElementById("customParameterValue-" + i).value);
-//    }
   }
   recalculateAuthorizationRequestDescription();
   console.log("Leaving displayAuthzCustomParametersCheck()");
