@@ -10,19 +10,60 @@ const expressLogging = require('express-logging');
 const logger = require('logops');
 const request = require('request');
 const bodyParser = require('body-parser');
-var cors = require('cors');
+const cors = require('cors');
 
 // Constants
 const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 const app = express();
+const expressSwagger = require('express-swagger-generator')(app);
 
 app.use(bodyParser.json());
 app.use(expressLogging(logger));
 app.options('*', cors());
 app.use(cors());
 
+/**
+ * @typedef TokenRequest
+ * @property {string} grant_type.required - The OAuth2 / OIDC Grant / Flow Type
+ * @property {string} client_id.required - The OAuth2 client identifier
+ * @property {string} code.required - The OAuth2 Authorization Code
+ * @property {string} redirect_uri.required - The registered redirect (callback) URI for the OAuth2 application definition.
+ * @property {string} scope.required - The requested OAuth2 scope.
+ * @property {string} token_endpoint.required - The Token Endpoint URL for this OAuth2 Provider
+ * @property {boolean} sslValidate.required - Validate the token endpoint SSL/TLS certificate
+ * @property {string} resource - Resource parameter
+ * @property {string} refresh_token - OAuth2 Refresh Token needed for Refresh Grant
+ * @property {string} username - The username used with the OAuth2 Resource Owner Credential Grant
+ * @property {string} password - The password used with the OAuth2 Resource Owner Credential Grant
+ * @property {string} client_secret - The client secret for a confidential client
+ */
+
+/**
+ * @typedef TokenResponse
+ * @property {string} access_token.required - The OAuth2 Access Token
+ * @property {string} id_token - The OpenID Connect ID Token
+ * @property {string} refresh_token - The OAuth2 Refresh Token
+ * @property {string} expires_in.required - How long the access token is valid (seconds)
+ * @property {string} token_type - The OAuth2 Access Token type
+ */
+
+/**
+ * @typedef Error
+ * @property {boolean} status.required
+ * @property {string} code.required
+ */
+
+/**
+ * Wrapper around OAuth2 Token Endpoint
+ * @route POST /token
+ * @group Debugger - Operations for OAuth2/OIDC Debugger
+ * @param {TokenRequest.model} req.body.required - Token Endpoint Request
+ * @returns {TokenResponse.model} 200 - Token Endpoint Response
+ * @returns {Error.model} 400 - Syntax error
+ * @returns {Error.model} 500 - Unexpected error
+ */
 app.post('/token', (req, res) => {
   try {
     console.log('Entering app.post for /token.');
@@ -122,6 +163,27 @@ app.post('/token', (req, res) => {
   }
 });
 
+let options = {
+    swaggerDefinition: {
+        info: {
+            description: 'This is a sample server',
+            title: 'Swagger',
+            version: '1.0.0',
+        },
+        host: 'localhost:4000',
+        basePath: '/',
+        produces: [
+            "application/json",
+        ],
+        schemes: ['http', 'https'],
+        securityDefinitions: {
+        }
+    },
+    basedir: __dirname, //app absolute path
+    files: ['server.js'] //Path to the API handle folder
+};
+
+expressSwagger(options)
 app.listen(PORT, HOST);
 console.log(`Running on http://${HOST}:${PORT}`);
 

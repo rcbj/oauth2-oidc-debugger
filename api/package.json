@@ -13,6 +13,7 @@
     "request": "latest",
     "body-parser": "latest",
     "logops": "latest",
-    "cors": "latest"
+    "cors": "latest",
+    "express-swagger-generator": "latest"
   }
 }
