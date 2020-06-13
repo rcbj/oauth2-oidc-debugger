@@ -1,5 +1,5 @@
 # OAuth2 + OpenID Connect (OIDC) Debugger
-This is the private repo with configuration settings necessary for deployment to AWS.  tester
+This is the private repo with configuration settings necessary for deployment to AWS.
 
 [This](https://github.com/rcbj/oauth2-oidc-debugger) is the official home of the community Project.
 
