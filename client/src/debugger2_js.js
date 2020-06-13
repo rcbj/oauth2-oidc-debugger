@@ -201,7 +201,13 @@ $(document).ready(function() {
                                      localStorage.setItem("token_refresh_token", data.refresh_token);
       }
       $("#token_endpoint_result").html(token_endpoint_result_html);
-      document.getElementById("refresh_refresh_token").value = data.refresh_token;
+      if(data.refresh_token != undefined &&
+         typeof(data.refresh_token) != "undefined" &&
+         data.refresh_token != null &&
+         data.refresh_token != "null" &&
+         data.refresh_token.length > 0) {
+        document.getElementById("refresh_refresh_token").value = data.refresh_token;
+      }
       document.getElementById("step3").style = "visibility:collapse";
     },
     error: function (request, status, error) {
@@ -578,6 +584,7 @@ function writeValuesToLocalStorage()
       localStorage.setItem("refresh_client_id", document.getElementById("refresh_client_id").value);
       localStorage.setItem("refresh_client_secret", document.getElementById("refresh_client_secret").value);
       localStorage.setItem("refresh_scope", document.getElementById("refresh_scope").value);
+      localStorage.setItem("refresh_refresh_token", document.getElementById("refresh_refresh_token").vaalue);
       localStorage.setItem("useRefreshToken_yes", document.getElementById("useRefreshToken-yes").checked);
       localStorage.setItem("useRefreshToken_no", document.getElementById("useRefreshToken-no").checked);
       localStorage.setItem("oidc_userinfo_endpoint", document.getElementById("oidc_userinfo_endpoint").value);
@@ -632,6 +639,7 @@ function loadValuesFromLocalStorage()
   document.getElementById("noCheckToken").checked = localStorage.getItem("noCheckToken");
   document.getElementById("yesCheckOIDCArtifacts").checked = localStorage.getItem("yesCheckOIDCArtifacts");
   document.getElementById("noCheckOIDCArtifacts").checked = localStorage.getItem("noCheckOIDCArtifacts");
+  document.getElementById("refresh_refresh_token").value = localStorage.getItem("refresh_refresh_token");
   document.getElementById("refresh_client_id").value = localStorage.getItem("refresh_client_id");
   document.getElementById("refresh_scope").value = localStorage.getItem("refresh_scope");
   document.getElementById("refresh_client_secret").value = localStorage.getItem("refresh_client_secret");
@@ -940,7 +948,7 @@ window.onload = function() {
   // Check if state matches
   console.log('Checking on state.');
   var state = getParameterByName('state');
-  if (typeof(state) != "undefined" && state != "null") {
+  if (typeof(state) != "undefined" && state != "null" && state != null && state != undefined) {
     console.log('Found state: ' + state)
     var storedState = localStorage.getItem('state');
     if ( state == storedState) {
