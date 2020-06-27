@@ -12,6 +12,7 @@ var displayStep3 = true;
 var displayStep4 = true;
 var displayStep5 = true;
 var discoveryInfo = {};
+var currentRefreshToken = '';
 
 function OnSubmitTokenEndpointForm()
 {
@@ -143,7 +144,11 @@ $(document).ready(function() {
     data: JSON.stringify(formData),
     contentType: "application/json; charset=utf-8",
     success: function(data, textStatus, request) {
+      console.log('Entering ajax success function for Access Token call.');
       var token_endpoint_result_html = "";
+      if (data.refresh_token && data.refresh_token != 'undefined') {
+        currentRefreshToken = data.refresh_token;
+      }
       console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
       if(displayOpenIDConnectArtifacts == true)
       {
@@ -161,7 +166,7 @@ $(document).ready(function() {
                                         "<tr>" +
                                           '<td><a href="/token_detail.html?type=refresh">Refresh Token</a></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" + 
-                                            data.refresh_token + 
+                                            currentRefreshToken +
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
@@ -191,7 +196,7 @@ $(document).ready(function() {
                                         "<tr>" +
                                           '<td>a href="/token_detail.html?type=access">Refresh Token</a></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" +
-                                            data.refresh_token +
+                                           currentRefreshToken +
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
@@ -201,13 +206,7 @@ $(document).ready(function() {
                                      localStorage.setItem("token_refresh_token", data.refresh_token);
       }
       $("#token_endpoint_result").html(token_endpoint_result_html);
-      if(data.refresh_token != undefined &&
-         typeof(data.refresh_token) != "undefined" &&
-         data.refresh_token != null &&
-         data.refresh_token != "null" &&
-         data.refresh_token.length > 0) {
-        document.getElementById("refresh_refresh_token").value = data.refresh_token;
-      }
+      document.getElementById("refresh_refresh_token").value = currentRefreshToken;
       document.getElementById("step3").style = "visibility:collapse";
     },
     error: function (request, status, error) {
@@ -260,6 +259,7 @@ $(".refresh_btn").click(function() {
     data: JSON.stringify(formData),
     contentType: "application/json; charset=utf-8",
     success: function(data, textStatus, request) {
+      console.log('Entering ajax success function for Refresh Token call.');
       var refresh_endpoint_result_html = "";
       console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
       var iteration = 1;
@@ -267,28 +267,33 @@ $(".refresh_btn").click(function() {
       {
         iteration = parseInt(document.getElementById("refresh-token-results-iteration-count").value) + 1;
       }
+      console.log('data.refresh_token=' + data.refresh_token);
+      if(data.refresh_token && data.refresh_token != 'undefined') {
+        console.log('Setting new Refresh Token.');
+        currentRefreshToken = data.fresh_token;
+      }
       if(displayOpenIDConnectArtifacts == true)
       {
          refresh_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results for Refresh Token Call:</legend>" + 
 				      "<table>" +
 				        "<tr>" +
-                                          "<td>access_token</td>" + 
-                                          "<td><textarea rows=10 cols=60>" + 
+                                          '<td><a href="/token_detail.html?type=refresh_access">Access Token</a></td>' +
+                                          "<td><textarea rows=10 cols=60 name=refresh_access_token id=refresh_access_token>" + 
                                             data.access_token + 
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          "<td>refresh_token</td>" +
-                                          "<td><textarea rows=10 cols=60>" + 
-                                            data.refresh_token + 
+                                          '<td><a href="/token_detail.html?type=refresh_refesh">Refresh Token</a></td>' +
+                                          "<td><textarea rows=10 cols=60 name=refresh_refresh_token id=refresh_refresh_token>" + 
+                                            currentRefreshToken +
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          "<td>id_token</td>" +
-                                          "<td><textarea rows=10 cols=60>" + 
+                                          '<td><a href="/token_detail.html?type=refresh_id">ID Token</a></td>' +
+                                          "<td><textarea rows=10 cols=60> name=refresh_id_token id=refresh_id_token>" + 
                                              data.id_token + 
                                             "</textarea>" +
                                           "</td>" +
@@ -304,16 +309,16 @@ $(".refresh_btn").click(function() {
                                       "<legend>Token Endpoint Results for Refresh Token Call:</legend>" +
                                       "<table>" +
                                         "<tr>" +
-                                          "<td>access_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" +
+                                          '<td><a href="/token_detail.html?type=refresh_access">Access Token</a></td>' +
+                                          "<td><textarea rows=10 cols=60 name=refresh_access_token id=refresh_access_token>" +
                                             data.access_token +
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          "<td>refresh_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" +
-                                            data.refresh_token +
+                                          '<td><a href="/token_detail.html?type=refresh_id">ID Token</a></td>' +
+                                          "<td><textarea rows=10 cols=60 name=refresh_id_token id=refresh_id_token>" +
+                                            currentRefreshToken +
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
@@ -325,7 +330,11 @@ $(".refresh_btn").click(function() {
                                       "</fieldset>";
       }
       $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
-      document.getElementById("refresh_refresh_token").value = data.refresh_token;
+      document.getElementById("refresh_refresh_token").value = currentRefreshToken;
+      // Store new tokens in local storage
+      localStorage.setItem("refresh_access_token", data.access_token );
+      localStorage.setItem("refresh_refresh_token", currentRefreshToken );
+      localStorage.setItem("refresh_id_token", data.id_token );
       recalculateRefreshRequestDescription();
     },
     error: function (request, status, error) {
@@ -651,7 +660,7 @@ function loadValuesFromLocalStorage()
   document.getElementById("customTokenParametersCheck-yes").checked = localStorage.getItem("customTokenParametersCheck-yes");
   document.getElementById("customTokenParametersCheck-no").checked = localStorage.getItem("customTokenParametersCheck-no");
   document.getElementById("tokenNumberCustomParameters").value = localStorage.getItem("tokenNumberCustomParameters");
-
+  currentRefreshToken = localStorage.getItem("refresh_refresh_token");
   if (document.getElementById("customTokenParametersCheck-yes").checked) {
     generateCustomParametersListUI();
     var i = 0;
