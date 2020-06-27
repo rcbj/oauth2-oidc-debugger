@@ -3,6 +3,8 @@
 // Date: 05/28/2020
 // Notes:
 //
+// Node modules are needed to be able to read the JWT tokens.
+//
 const jwt = require('jsonwebtoken');
 
 function decodeJWT(jwt_) {
