@@ -18,6 +18,7 @@ RUN npm install -g browserify
 COPY public/ /usr/src/app/public/
 COPY server.js /usr/src/app
 COPY package.json /usr/src/app
+RUN true
 COPY src/ /usr/src/app/src/
 RUN browserify src/jwks.js -o public/js/jwks.js --debug --standalone jwks
 RUN browserify src/debugger.js -o public/js/debugger.js --debug --standalone debug
