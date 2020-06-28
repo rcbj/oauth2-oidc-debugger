@@ -416,12 +416,12 @@ function resetUI(value)
       $("#step2").show();
       $("#step3").show();
 //      $("#nonce").hide();
-      document.getElementById("response_type").value = "code";
+//      document.getElementById("response_type").value = "code";
       document.getElementById("token_grant_type").value = "authorization_code";
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
-      document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
+//      document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
       document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
@@ -563,6 +563,12 @@ function resetUI(value)
       displayOpenIDConnectArtifacts = true;
     }
     resetErrorDisplays();
+    console.log('RCBJ0001');
+    document.getElementById("yesCheckToken").checked = false;
+    document.getElementById("noCheckToken").checked = true;
+    document.getElementById("customTokenParametersCheck-yes").checked = false;
+    document.getElementById("customTokenParametersCheck-no").checked = true;
+
     console.log("Leaving resetUI().");
 }
 
@@ -644,8 +650,8 @@ function loadValuesFromLocalStorage()
   document.getElementById("token_resource").value = localStorage.getItem("token_resource");
 //  document.getElementById("yesCheck").checked = localStorage.getItem("yesCheck");
 //  document.getElementById("noCheck").checked = localStorage.getItem("noCheck");
-  document.getElementById("yesCheckToken").checked = localStorage.getItem("yesCheckToken");
-  document.getElementById("noCheckToken").checked = localStorage.getItem("noCheckToken");
+  document.getElementById("yesCheckToken").checked = localStorage.getItem("yesCheckToken")? localStorage.getItem("yesCheckToken") : false;
+  document.getElementById("noCheckToken").checked = localStorage.getItem("noCheckToken")? localStorage.getItem("noCheckToken") : true;
   document.getElementById("yesCheckOIDCArtifacts").checked = localStorage.getItem("yesCheckOIDCArtifacts");
   document.getElementById("noCheckOIDCArtifacts").checked = localStorage.getItem("noCheckOIDCArtifacts");
   document.getElementById("refresh_refresh_token").value = localStorage.getItem("refresh_refresh_token");
@@ -657,9 +663,9 @@ function loadValuesFromLocalStorage()
 //  document.getElementById("oidc_discovery_endpoint").value = localStorage.getItem("oidc_discovery_endpoint");
   document.getElementById("oidc_userinfo_endpoint").value = localStorage.getItem("oidc_userinfo_endpoint");
   document.getElementById("jwks_endpoint").value = localStorage.getItem("jwks_endpoint");
-  document.getElementById("customTokenParametersCheck-yes").checked = localStorage.getItem("customTokenParametersCheck-yes");
-  document.getElementById("customTokenParametersCheck-no").checked = localStorage.getItem("customTokenParametersCheck-no");
-  document.getElementById("tokenNumberCustomParameters").value = localStorage.getItem("tokenNumberCustomParameters");
+  document.getElementById("customTokenParametersCheck-yes").checked = localStorage.getItem("customTokenParametersCheck-yes")? localStorage.getItem("customTokenParametersCheck-yes"): false;
+  document.getElementById("customTokenParametersCheck-no").checked = localStorage.getItem("customTokenParametersCheck-no")? localStorage.getItem("customTokenParametersCheck-no"): true;
+  document.getElementById("tokenNumberCustomParameters").value = localStorage.getItem("tokenNumberCustomParameters")? localStorage.getItem("tokenNumberCustomParameters"): 1;
   currentRefreshToken = localStorage.getItem("refresh_refresh_token");
   if (document.getElementById("customTokenParametersCheck-yes").checked) {
     generateCustomParametersListUI();
@@ -953,7 +959,7 @@ window.onload = function() {
   console.log("Entering onload function.");
   $("#password-form-group1").hide();
   $("#password-form-group2").hide();
-  
+
   // Check if state matches
   console.log('Checking on state.');
   var state = getParameterByName('state');
@@ -962,13 +968,35 @@ window.onload = function() {
     var storedState = localStorage.getItem('state');
     if ( state == storedState) {
       console.log('State matches stored state.');
-      $("#state-status").html('<ul><il>State matches stored state.</il></ul>');
+      var stateReportHTML = '<h1>State Report</h1>' +
+                            '<P>' + 'State matches: state=' + state + '</P>';
+      $("#state-status").html(stateReportHTML);
     } else {
       console.log('State does not match: state=' + state + ', storedState=' + storedState);
-      $("#state-status").html('<ul><il>State does not match: state=' + state + ', storedState=' + storedState + '</il></ul>');
+      var stateReportHTML = '<h1>State Report</h1>' +
+                            '<P>State does not match: state=' + state + ', storedState=' + storedState + '</P>';
+      $("#state-status").html(stateREportHTML);
     }
   }
+ 
+  // an error was returned from the authorization endpoint
+  var errorDescriptionParam = getParameterByName('error_description');
+  var errorParam = getParameterByName('error');
+  console.log('errorDescriptionParam=' + errorDescriptionParam + ', errorParam=' + errorParam);
+  if (errorDescriptionParam || errorParam) {
+    $('#step0').hide();
+    $('#step3').hide();
+    $('#step4').hide();
+    var authzErrorReportHTML = '<h1>Authorization Endpoint Error Report</h1>' +
+                               '<P>' + 'Error: ' + errorParam + '</P>' +
+                               '<P>' + 'Error Description: ' +  errorDescriptionParam + '</P>';
+    $('#authz-error-report').html(authzErrorReportHTML);
+    console.log('errorDescriptionParam=' + errorDescriptionParam + ', errorParam=' + errorParam); 
+    return;
+  }
 
+  resetUI();
+  initFields();
   generateCustomParametersListUI();
   document.getElementById("code").value = getParameterByName('code');
   document.getElementById("customTokenParametersCheck-yes").addEventListener("onClick", recalculateTokenRequestDescription());
@@ -1145,7 +1173,7 @@ function recalculateTokenErrorDescription(data)
                                            "<table>" +
                                              "<tr>" +
                                                "<td><label name=\"display_token_error_form_label1\" value=\"\" id=\"display_token_error_form_label1\">Error</label></td>" +
-                                               "<td><textarea rows=\"10\" cols=\"100\" id=\"display_token_error_form_textarea1\"></textarea></td>" +
+                                               "<td><textarea rows=\"10\" cols=\"60\" id=\"display_token_error_form_textarea1\"></textarea></td>" +
                                              "</tr>" +
                                            "</table>" +
                                          "</form>" +
@@ -1211,7 +1239,7 @@ function recalculateRefreshErrorDescription(data)
                                          "<table>" +
                                            "<tr>" +
                                              "<td><label name=\"display_refresh_error_form_label1\" value=\"\" id=\"display_refresh_error_form_label1\">Error</label></td>" +
-                                             "<td><textarea rows=\"10\" cols=\"100\" id=\"display_refresh_error_form_textarea1\"></textarea></td>" +
+                                             "<td><textarea rows=\"10\" cols=\"60\" id=\"display_refresh_error_form_textarea1\"></textarea></td>" +
                                            "</tr>" +
                                          "</table>" +
                                         "</form>" +
@@ -1648,3 +1676,24 @@ function onClickShowTokenFieldSet(id) {
   return false;
 }
 
+function onClickShowConfigFieldSet(id) {
+  console.log('Entering onClickShowConfigFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
+  if(document.getElementById(id).style.display == 'block') {
+     document.getElementById('config_expand_button').value='Expand';
+  } else {
+    document.getElementById('config_expand_button').value='Hide';
+  }
+  if(document.getElementById(id).style.display == 'block') {
+    console.log('Hide ' + id + '.');
+    document.getElementById(id).style.display = 'none'
+  } else {
+    console.log('Show ' + id + '.');
+    document.getElementById(id).style.display = 'block';
+  }
+  console.log('Leaving onClickShowConfigFieldSet().');
+  return false;
+}
+
+function initFields() {
+  
+}

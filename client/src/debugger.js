@@ -615,8 +615,8 @@ function loadValuesFromLocalStorage()
   document.getElementById("client_id").value = localStorage.getItem("client_id");
   document.getElementById("scope").value = localStorage.getItem("scope");
   document.getElementById("resource").value = localStorage.getItem("resource");
-  document.getElementById("yesCheck").checked = localStorage.getItem("yesCheck");
-  document.getElementById("noCheck").checked = localStorage.getItem("noCheck");
+  document.getElementById("yesCheck").checked = localStorage.getItem("yesCheck")? localStorage.getItem("yesCheck") : false;
+  document.getElementById("noCheck").checked = localStorage.getItem("noCheck")? localStorage.getItem("noCheck") : true;
   document.getElementById("yesCheckOIDCArtifacts").checked = localStorage.getItem("yesCheckOIDCArtifacts");
   document.getElementById("noCheckOIDCArtifacts").checked = localStorage.getItem("noCheckOIDCArtifacts");
   document.getElementById("useRefreshToken-yes").checked = localStorage.getItem("useRefreshToken_yes");
@@ -624,9 +624,9 @@ function loadValuesFromLocalStorage()
   document.getElementById("oidc_discovery_endpoint").value = localStorage.getItem("oidc_discovery_endpoint");
   document.getElementById("oidc_userinfo_endpoint").value = localStorage.getItem("oidc_userinfo_endpoint");
   document.getElementById("jwks_endpoint").value = localStorage.getItem("jwks_endpoint");
-  document.getElementById("authzcustomParametersCheck-yes").checked = localStorage.getItem("authzcustomParametersCheck-yes");
-  document.getElementById("authzcustomParametersCheck-no").checked = localStorage.getItem("authzcustomParametersCheck-no");
-  document.getElementById("authzNumberCustomParameters").value = localStorage.getItem("authzNumberCustomParameters");
+  document.getElementById("authzcustomParametersCheck-yes").checked = localStorage.getItem("authzcustomParametersCheck-yes")? localStorage.getItem("authzcustomParametersCheck-yes") : false;
+  document.getElementById("authzcustomParametersCheck-no").checked = localStorage.getItem("authzcustomParametersCheck-no")? localStorage.getItem("authzcustomParametersCheck-no") : true;
+  document.getElementById("authzNumberCustomParameters").value = localStorage.getItem("authzNumberCustomParameters")? localStorage.getItem("authzNumberCustomParameters") : 1;
 
   if (document.getElementById("authzcustomParametersCheck-yes").checked) {
     generateCustomParametersListUI();
@@ -1007,6 +1007,9 @@ window.onload = function() {
   document.getElementById("noCheckOIDCArtifacts").addEventListener("onClick", recalculateAuthorizationRequestDescription());
   document.getElementById("authzcustomParametersCheck-yes").addEventListener("onClick", recalculateAuthorizationRequestDescription());
   document.getElementById("authzcustomParametersCheck-no").addEventListener("onClick", recalculateAuthorizationRequestDescription());
+
+  // Set initial values in case this is the first time the page was hit
+  onSubmitClearAllForms(); 
 
   if (localStorage) {
     // Add an event listener for form submissions
@@ -1449,7 +1452,7 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
 
   document.getElementById("authorization_endpoint").value = authorizationEndpoint;
-//  document.getElementById("token_endpoint").value = tokenEndpoint;
+  document.getElementById("token_endpoint").value = tokenEndpoint;
 //  document.getElementById("token_scope").value = scopesSupported;
   document.getElementById("scope").value = scopesSupported;
   document.getElementById("oidc_userinfo_endpoint").value = userInfoEndpoint;
@@ -1469,58 +1472,72 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
 
 // Reset all forms and clear local storage
 function onSubmitClearAllForms() {
-  if (localStorage) {
-      localStorage.setItem("authorization_endpoint", "");
-      localStorage.setItem("token_endpoint", "");
-      localStorage.setItem("client_id", "");
-      localStorage.setItem("scope", "");
-      localStorage.setItem("resource", "");
-      localStorage.setItem("redirect_uri", "");
-      localStorage.setItem("token_client_id", "");
-      localStorage.setItem("token_client_secret", "");
-      localStorage.setItem("token_redirect_uri", "");
-      localStorage.setItem("token_username", "");
-      localStorage.setItem("token_scope", "");
-      localStorage.setItem("authorization_grant_type", "");
-      localStorage.setItem("token_resource", "");
-      localStorage.setItem("yesCheckToken", true);
-      localStorage.setItem("noCheckToken", false);
-      localStorage.setItem("yesCheckOIDCArtifacts", true);
-      localStorage.setItem("noCheckOIDCArtifacts", false);
-      localStorage.setItem("refresh_client_id", "");
-      localStorage.setItem("refresh_client_secret", "");
-      localStorage.setItem("refresh_scope", "");
-      localStorage.setItem("useRefreshToken_yes", true);
-      localStorage.setItem("useRefreshToken_no", false);
-      localStorage.setItem("oidc_userinfo_endpoint", "");
-//      localStorage.setItem("oidc_discovery_endpoint", "");
-      localStorage.setItem("jwks_endpoint", "");
+  if (document.getElementById("authorization_endpoint")) {
+    document.getElementById("authorization_endpoint").value = "";
   }
-  document.getElementById("authorization_endpoint").value = "";
-  document.getElementById("token_endpoint").value = "";
-  document.getElementById("token_client_id").value = "";
-  document.getElementById("token_client_secret").value = "";
-  document.getElementById("token_redirect_uri").value = "";
-  document.getElementById("token_username").value = "";
-  document.getElementById("token_scope").value = "";
-  document.getElementById("authorization_grant_type").value = "";
-  document.getElementById("token_resource").value = "";
-  document.getElementById("yesCheckToken").checked = true;
-  document.getElementById("noCheckToken").checked = false;
-  document.getElementById("yesCheckOIDCArtifacts").checked = true;
-  document.getElementById("noCheckOIDCArtifacts").checked = false;
-  document.getElementById("refresh_client_id").value = "";
-  document.getElementById("refresh_client_secret").value = "";
-  document.getElementById("refresh_scope").value = "";
-  document.getElementById("useRefreshToken-yes").checked = true;
-  document.getElementById("useRefreshToken-no").checked = false;
-//  document.getElementById("oidc_discovery_endpoint").value = "";
-  document.getElementById("client_id").value = "";
-  document.getElementById("scope").value = "";
-  document.getElementById("resource").value = "";
-  document.getElementById("redirect_uri").value = "";
-  document.getElementById("oidc_userinfo_endpoint").value = "";
-  document.getElementById("jwks_endpoint").value = "";
+  if ( document.getElementById("token_endpoint")) {
+     document.getElementById("token_endpoint").value = "";
+  }
+  if (document.getElementById("authorization_grant_type")) {
+    document.getElementById("authorization_grant_type").value = "oidc_authorization_code_flow";
+  }
+  if (document.getElementById("token_resource")) {
+    document.getElementById("token_resource").value = "";
+  }
+  if (document.getElementById("yesCheck")) {
+    document.getElementById("yesCheck").checked = false;
+  }
+  if (document.getElementById("noCheck")) {
+    document.getElementById("noCheck").checked = true;
+  }
+  if (document.getElementById("yesCheckOIDCArtifacts")) {
+    document.getElementById("yesCheckOIDCArtifacts").checked = true;
+  }
+  if (document.getElementById("noCheckOIDCArtifacts")) {
+    document.getElementById("noCheckOIDCArtifacts").checked = false;
+  }
+  if (document.getElementById("refresh_client_id")) {
+    document.getElementById("refresh_client_id").value = "";
+  }
+  if (document.getElementById("refresh_client_secret")) {
+    document.getElementById("refresh_client_secret").value = "";
+  }
+  if (document.getElementById("refresh_scope")) {
+    document.getElementById("refresh_scope").value = "";
+  }
+  if (document.getElementById("useRefreshToken-yes")) {
+    document.getElementById("useRefreshToken-yes").checked = true;
+  }
+  if (document.getElementById("useRefreshToken-no")) {
+    document.getElementById("useRefreshToken-no").checked = false;
+  }
+  if (document.getElementById("authzcustomParametersCheck-yes")) {
+    document.getElementById("authzcustomParametersCheck-yes").checked = true;
+  }
+  if (document.getElementById("authzcustomParametersCheck-no")) {
+    document.getElementById("authzcustomParametersCheck-no").checked = false;
+  }
+  if (document.getElementById("oidc_discovery_endpoint")) {
+    document.getElementById("oidc_discovery_endpoint").value = "";
+  }
+  if (document.getElementById("client_id")) {
+    document.getElementById("client_id").value = "";
+  }
+  if (document.getElementById("scope")) {
+    document.getElementById("scope").value = "";
+  }
+  if (document.getElementById("resource")) {
+    document.getElementById("resource").value = "";
+  }
+  if (document.getElementById("redirect_uri")) {
+    document.getElementById("redirect_uri").value = "";
+  }
+  if (document.getElementById("oidc_userinfo_endpoint")) {
+    document.getElementById("oidc_userinfo_endpoint").value = "";
+  }
+  if (document.getElementById("jwks_endpoint")) {
+    document.getElementById("jwks_endpoint").value = "";
+  }
 
   $("#discovery_info_table").html("");
 }
@@ -1638,6 +1655,33 @@ function onClickShowAuthzFieldSet(id) {
   return false;
 }
 
+function onClickShowConfigFieldSet(id) {
+  console.log('Entering onClickShowConfigFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
+  if(document.getElementById(id).style.display == 'block') {
+     document.getElementById('config_expand_button').value='Expand';
+  } else {
+    document.getElementById('config_expand_button').value='Hide';
+  }
+  if(document.getElementById(id).style.display == 'block') {
+    console.log('Hide ' + id + '.');
+    document.getElementById(id).style.display = 'none'
+  } else {
+    console.log('Show ' + id + '.');
+    document.getElementById(id).style.display = 'block';
+  }
+  console.log('Leaving onClickShowConfigFieldSet().');
+  return false;
+}
+
+function onClickClearLocalStorage()
+{
+  if (localStorage) {
+    localStorage.clear(); 
+  }
+  onSubmitClearAllForms();
+  return false;
+}
+
 module.exports = {
   OnSubmitForm,
   OnSubmitTokenEndpointForm,
@@ -1669,5 +1713,7 @@ module.exports = {
   displayAuthzCustomParametersCheck,
   generateCustomParametersListUI,
   triggerAuthZEndpointCall,
-  onClickShowAuthzFieldSet
+  onClickShowAuthzFieldSet,
+  onClickShowConfigFieldSet,
+  onClickClearLocalStorage
 };

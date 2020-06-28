@@ -77,7 +77,7 @@
 
     <legend>Configuration Parameters
     </legend>
-    <form><input class="btn2" type="submit" name="config_expand_button" id="config_expand_button" value="Hide" onclick="return debug.onClickShowAuthzFieldSet('config_fieldset');"/></form>
+    <form><input class="btn2" type="submit" name="config_expand_button" id="config_expand_button" value="Hide" onclick="return debug.onClickShowConfigFieldSet('config_fieldset');"/></form>
     <fieldset name="config_fieldset" id="config_fieldset" style="display: block;">
     <form action="" id="endpoints" name="endpoints">
       <table border="0">
@@ -156,6 +156,17 @@
             <td>Yes 
               <input checked="true" id="useRefreshToken-yes" name="useRefreshToken" onclick="debug.useRefreshTokens();" type="radio" value="true" />No 
               <input checked="false" id="useRefreshToken-no" name="useRefreshToken" onclick="debug.:useRefreshTokens();" type="radio" value="false" />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </form>
+    <form action="" id="clear" name="clear">
+      <table border="0">
+        <tbody>
+          <tr>
+            <td>
+               <input class="btn2" name="clear_local_storage_button" id="clear_local_storage_button" type="submit" value="Clear Storage" onclick="return debug.onClickClearLocalStorage();"/>
             </td>
           </tr>
         </tbody>
@@ -284,7 +295,7 @@
             <div class="tooltip"><label id="display_authz_request_form_label1" name="display_authz_request_form_label1" value="">Request</label><span class="tooltiptext">This field shows the request that is made to th Authorization Endpoint.</span>
             </div>
           </td>
-          <td><textarea cols="50" id="display_authz_request_form_textarea1" rows="10"></textarea>
+          <td><textarea id="display_authz_request_form_textarea1" rows="10" cols="50"></textarea>
           </td>
         </tr>
       </tbody>
