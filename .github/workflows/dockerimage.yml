@@ -25,7 +25,7 @@ jobs:
            # AWS Account ID
            account_id: ${{ secrets.AWS_ACCOUNT_ID }}
            # Name of your ECR repository
-           repo: idptools
+           repo: idptools-client
            # The AWS region
            region: us-west-2
            # Set this to true to create the repository if it does not already exist
@@ -34,11 +34,8 @@ jobs:
            tags: latest,develop
            # Name of Dockerfile to use
            dockerfile: client/Dockerfile
-           # Extra flags to pass to docker build (see docs.docker.com/engine/reference/commandline/build)
-           # extra_build_args:  
            # Path to Dockerfile, defaults to the working directory
            path: client
-           # extra_build_args: https://github.com/rcbj/idptools-site.git#develop:client
        - uses: kciter/aws-ecr-action@v1
          with:
            # The AWS access key id
@@ -54,10 +51,8 @@ jobs:
            # Set this to true to create the repository if it does not already exist
            create_repo: true
            # Comma-separated string of ECR image tags
-           tags: latest
+           tags: latest,develop
            # Name of Dockerfile to use
            dockerfile: api/Dockerfile
-           # Extra flags to pass to docker build (see docs.docker.com/engine/reference/commandline/build)
-           # extra_build_args:  
            # Path to Dockerfile, defaults to the working directory
            path: api
