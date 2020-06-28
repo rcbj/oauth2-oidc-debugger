@@ -31,7 +31,7 @@ jobs:
            # Set this to true to create the repository if it does not already exist
            create_repo: true
            # Comma-separated string of ECR image tags
-           tags: latest
+           tags: latest,develop
            # Name of Dockerfile to use
            dockerfile: client/Dockerfile
            # Extra flags to pass to docker build (see docs.docker.com/engine/reference/commandline/build)
