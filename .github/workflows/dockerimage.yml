@@ -2,9 +2,9 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [ develop ]
   pull_request:
-    branches: [ master ]
+    branches: [ develop ]
 
 jobs:
 
@@ -23,11 +23,11 @@ jobs:
            # AWS Account ID
            account_id: ${{ AWS_ACCOUNT_ID }}
            # Name of your ECR repository
-           repo: idptools
+           repo: idptools-client
            # The AWS region
            region: us-west-2
            # Set this to true to create the repository if it does not already exist
-           create_repo: false
+           create_repo: true
            # Comma-separated string of ECR image tags
            tags: latest
            # Name of Dockerfile to use
@@ -36,3 +36,25 @@ jobs:
            # extra_build_args:  
            # Path to Dockerfile, defaults to the working directory
            path: client
+       - uses: kciter/aws-ecr-action@v1
+         with:
+           # The AWS access key id
+           access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+           # The AWS secret access key
+           secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+           # AWS Account ID
+           account_id: ${{ AWS_ACCOUNT_ID }}
+           # Name of your ECR repository
+           repo: idptools-api
+           # The AWS region
+           region: us-west-2
+           # Set this to true to create the repository if it does not already exist
+           create_repo: true
+           # Comma-separated string of ECR image tags
+           tags: latest
+           # Name of Dockerfile to use
+           dockerfile: api/Dockerfile
+           # Extra flags to pass to docker build (see docs.docker.com/engine/reference/commandline/build)
+           # extra_build_args:  
+           # Path to Dockerfile, defaults to the working directory
+           path: api
