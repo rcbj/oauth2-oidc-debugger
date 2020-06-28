@@ -64,6 +64,11 @@
               <input class="btn_clear_all_forms" type="button" value="Clear" onclick="return debug.onSubmitClearAllForms();" />
             </td>
           </tr>
+          <tr>
+            <td>
+               <input class="btn2" name="clear_local_storage_button" id="clear_local_storage_button" type="submit" value="Clear Storage" onclick="return debug.onClickClearLocalStorage();"/>
+            </td>
+          </tr>
       </table>
     </form>
     <div class="discovery_info_table" id="discovery_info_table">&nbsp;
@@ -156,17 +161,6 @@
             <td>Yes 
               <input checked="true" id="useRefreshToken-yes" name="useRefreshToken" onclick="debug.useRefreshTokens();" type="radio" value="true" />No 
               <input checked="false" id="useRefreshToken-no" name="useRefreshToken" onclick="debug.:useRefreshTokens();" type="radio" value="false" />
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </form>
-    <form action="" id="clear" name="clear">
-      <table border="0">
-        <tbody>
-          <tr>
-            <td>
-               <input class="btn2" name="clear_local_storage_button" id="clear_local_storage_button" type="submit" value="Clear Storage" onclick="return debug.onClickClearLocalStorage();"/>
             </td>
           </tr>
         </tbody>
