@@ -163,6 +163,18 @@ Various specs & RFCs that build on the OAuth2 & OIDC protocols add additional pa
 ## Nonce Parameter
 A nonce parameter can be included in the Authorization Endpoint call. A UUID is used as the nonce value.
 
+## Token Details
+All tokens (Access, Refresh, ID) returned by the IdP can have their details viewed by clicking on the link next to the token on the Debugger2 page.
+
+This feature currently only supports JWT tokens, but in the future will support other token types.
+
+Some caveats to keep in mind:
+
+* If nothing is displayed, then the requested token retrieved from the endpoint is not a JWT or not a valid JWT.
+* In the future, additional token formats may be added.
+* Although, many leading IdPs use JWT as the format for OAuth2 access tokens and refresh tokens. The spec does not require this.
+* Some IdPs intentionally use opaque tokens that have no deeper meaning than to be a randomly generated identifier that points back to session information stored on the IdP
+
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.2 - 3Scale + APICast support for all OAuth2 Grants and OIDC Authorization Code Flow
