@@ -21,7 +21,7 @@ jobs:
            # The AWS secret access key
            secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
            # AWS Account ID
-           account_id: ${{ AWS_ACCOUNT_ID }}
+           account_id: ${{ secrets.AWS_ACCOUNT_ID }}
            # Name of your ECR repository
            repo: idptools-client
            # The AWS region
@@ -43,7 +43,7 @@ jobs:
            # The AWS secret access key
            secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
            # AWS Account ID
-           account_id: ${{ AWS_ACCOUNT_ID }}
+           account_id: ${{ secrets.AWS_ACCOUNT_ID }}
            # Name of your ECR repository
            repo: idptools-api
            # The AWS region
