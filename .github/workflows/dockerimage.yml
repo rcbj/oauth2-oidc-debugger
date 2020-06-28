@@ -36,7 +36,7 @@ jobs:
            # extra_build_args:  
            # Path to Dockerfile, defaults to the working directory
            path: client
-           extra_build_args: https://github.com/rcbj/idptools-site.git#develop
+           extra_build_args: https://github.com/rcbj/idptools-site.git#develop:client
 #       - uses: kciter/aws-ecr-action@v1
 #         with:
 #           # The AWS access key id
