@@ -23,7 +23,7 @@ jobs:
            # AWS Account ID
            account_id: ${{ secrets.AWS_ACCOUNT_ID }}
            # Name of your ECR repository
-           repo: idptools-client
+           repo: idptools
            # The AWS region
            region: us-west-2
            # Set this to true to create the repository if it does not already exist
