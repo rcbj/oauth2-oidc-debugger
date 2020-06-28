@@ -18,6 +18,10 @@ An AWS CodePipeline is used to push the docker image to the ECS Service whenever
 This project currently supports the following specs:
 * [RFC 6749](https://tools.ietf.org/html/rfc6749)
 * [OpenID Connect Core 1](https://openid.net/specs/openid-connect-core-1_0.html)
+* [OpenID Connect Discovery v1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
+* [JWT RFC](https://tools.ietf.org/html/rfc7519)
+
+With the ability to add custom parameters to the Authorization Endpoint call and Token Endpoint call, numerous other protocols can be supported. We'll eventually get around to adding direct support.
 
 It also supports a couple of proprietary IdP extensions as described below.
 # Supported OAuth2 Authorization Grants
@@ -88,6 +92,11 @@ From a bash command prompt on Fedora or RHEL 7.x, run the following::
  docker build -t oauth2-oidc-debugger .
  docker run -p 3000:3000 oauth2-oidc-debugger 
 ```
+# Clean Up / Start Over
+* List all containers (only IDs) ```sudo docker ps -aq```
+* Stop all running containers: ```sudo docker stop $(docker ps -aq)```
+* Remove all containers: ```sudo docker rm $(docker ps -aq)```
+* Remove all images: ```sudo docker rmi $(docker images -q)```
 
 On other systems, the commands needed to start the debugger in a local docker container will be similar. The docker Sinatra/Ruby runtime will have to be able to establish connections to remote IdP endpoint (whether locally in other docker containers, on the host VM, or over the network/internet). On the test system, it was necessary to add "--net=host" to the "docker run" args. The network connectivity details for docker may vary from platform-to-platform.
 
@@ -145,6 +154,26 @@ To run this project you will need to install docker.
  docker run -p 3000:3000 oauth2-oidc-debugger 
 ```
 On other systems, the commands needed to start the debugger in a local docker container will be similar. The docker Sinatra/Ruby runtime will have to be able to establish connections to remote IdP endpoint (whether locally in other docker containers, on the host VM, or over the network/internet).  On the test system, it was necessary to add "--net=host" to the "docker run" args. The network connectivity details for docker may vary from platform-to-platform.
+
+# Additional Feature Information
+## State Parameters
+* A state parameter can be submitted as part of the authorization endpoint request. The state parameter will be validated when the redirect comes back to the registered callback endpoint. A UUID is used as the state value. This is an optional, but recommended parameter.
+## Custom Parameters
+Various specs & RFCs that build on the OAuth2 & OIDC protocols add additional parameters that must be passed to the Authorization Endpoint and Token Endpoint. The debugger supports passing up to ten custom parameters.
+## Nonce Parameter
+A nonce parameter can be included in the Authorization Endpoint call. A UUID is used as the nonce value.
+
+## Token Details
+All tokens (Access, Refresh, ID) returned by the IdP can have their details viewed by clicking on the link next to the token on the Debugger2 page.
+
+This feature currently only supports JWT tokens, but in the future will support other token types.
+
+Some caveats to keep in mind:
+
+* If nothing is displayed, then the requested token retrieved from the endpoint is not a JWT or not a valid JWT.
+* In the future, additional token formats may be added.
+* Although, many leading IdPs use JWT as the format for OAuth2 access tokens and refresh tokens. The spec does not require this.
+* Some IdPs intentionally use opaque tokens that have no deeper meaning than to be a randomly generated identifier that points back to session information stored on the IdP
 
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow

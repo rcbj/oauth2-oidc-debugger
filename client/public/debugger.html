@@ -1,0 +1,313 @@
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>OAuth2 & OpenID Connect Debugger</title>
+    <link href="/css/bootstrap.css" rel="stylesheet">
+    <link href="/css/header.css" rel="stylesheet">
+    <link href="/css/bottom.css" rel="stylesheet">
+    <link href="/css/footer.css" rel="stylesheet">
+    <style>
+      textarea {
+        width: auto;
+      }
+      legend {
+        width: 540px;
+      }
+    </style>
+    <link href="/css/bootstrap-responsive.css" rel="stylesheet">
+  </head>
+
+  <body>
+
+<div class="header_debugger">
+  <a href="/index.html" class="logo">IDPTools</a>
+  <div class="header-right">
+    <a class="active" href="#home">Home</a>
+    <a href="#contact">Contact</a>
+    <a href="#about">About</a>
+  </div>
+</div>
+
+    <div class="container">
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" type="text/javascript">
+</script>
+<script type="text/javascript" src="/js/debugger.js">
+</script>
+<p>This is a simple Client to use with any <a href="https://medium.com/@robert.broeckelmann/saml2-vs-jwt-understanding-oauth2-4abde9e7ec8b">OAuth2</a> or <a href="https://medium.com/@robert.broeckelmann/understanding-openid-connect-series-37c93d25e92b">OpenID Connect</a> compliant identity provider..
+</p>
+<div class="step0" id="step0">
+    <legend>OpenID Connect Discovery Endpoint Information
+    </legend>
+    <form><input class="btn2" type="submit" name="oidc_expand_button" id="oidc_expand_button" value="Hide" onclick="return debug.onClickShowAuthzFieldSet('oidc_fieldset');"/></form>
+    <fieldset name="oidc_fieldset" id="oidc_fieldset" style="display: block;">
+    <form action="" id="oidc_discovery_endpoint_form" name="oidc_discovery_endpoint_form" method="get" onsubmit="return debug.OnSubmitOIDCDiscoveryEndpointForm();">
+      <table border="0">
+          <tr>
+            <td>&nbsp;</td>
+            <td><p>An OIDC Discovery endpoint uses a path that ends in /.well-known/openid-configuration. See the <a href="https://openid.net/specs/openid-connect-discovery-1_0.html">spec</spec>.<p></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>OIDC Discovery Endpoint URL: </label><span class="tooltiptext">The OIDC Discovery Endpoint URL for your OpenID Connect Provider. Allows general values below to be auto-populated.</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="oidc_discovery_endpoint" name="oidc_discovery_endpoint" type="text" max="256"/>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <input class="btn_oidc_discovery_endpoint" type="submit" value="Retrieve" />
+            </td>
+            <td>
+              <input class="btn_clear_all_forms" type="button" value="Clear" onclick="return debug.onSubmitClearAllForms();" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+               <input class="btn2" name="clear_local_storage_button" id="clear_local_storage_button" type="submit" value="Clear Storage" onclick="return debug.onClickClearLocalStorage();"/>
+            </td>
+          </tr>
+      </table>
+    </form>
+    <div class="discovery_info_table" id="discovery_info_table">&nbsp;
+    </div>
+  </fieldset>
+</div>
+
+    <div class="discovery_info_meta_data_populate" id="discovery_info_meta_data_populate">&nbsp;
+    </div>
+
+
+    <legend>Configuration Parameters
+    </legend>
+    <form><input class="btn2" type="submit" name="config_expand_button" id="config_expand_button" value="Hide" onclick="return debug.onClickShowConfigFieldSet('config_fieldset');"/></form>
+    <fieldset name="config_fieldset" id="config_fieldset" style="display: block;">
+    <form action="" id="endpoints" name="endpoints">
+      <table border="0">
+        <tbody>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Authorization Grant: </label><span class="tooltiptext">Choose which Authorization Grant or OIDC Flow to test with.</span>
+              </div>
+            </td>
+            <td>
+              <select class="stored" id="authorization_grant_type" name="authorization_grant_type"><option value="authorization_grant">OAuth2 Authorization Code Grant</option><option value="implicit_grant">OAuth2 Implicit Grant</option><option value="resource_owner">OAuth2 Resource Owner Password Credential Grant</option><option value="client_credential">OAuth2 Client Credential</option><option value="oidc_authorization_code_flow">OIDC Authorization Code Flow(code)</option><option value="oidc_implicit_flow">OIDC Implicit Flow(id_token token)</option><option value="oidc_implicit_flow_id_token">OIDC Implicit Flow(id_token)</option><option value="oidc_hybrid_code_id_token">OIDC Hybrid(code id_token)</option><option value="oidc_hybrid_code_token">OIDC Hybrid(code token)</option><option value="oidc_hybrid_code_id_token_token">OIDC Hybrid(code id_token token)</option> 
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Authorization Endpoint: </label><span class="tooltiptext">Enter the Authorization Endpoint used by the debugger.</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="authorization_endpoint" name="authorization_endpoint" type="text" max="150" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Token Endpoint: </label><span class="tooltiptext">Enter the Token Endpoint used by the debugger.</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="token_endpoint" name="token_endpoint" type="text" max="150" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>OIDC UserInfo Endpoint: </label><span class="tooltiptext">Enter the OIDC UserInfo Endpoint used by the debugger.</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="oidc_userinfo_endpoint" name="oidc_userinfo_endpoint" type="text" max="150" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>JWKS Endpoint: </label><span class="tooltiptext">Enter the JWKS Endpoint used by the debugger.</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="jwks_endpoint" name="jwks_endpoint" type="text" max="150" /><a href="/jwks.html">Review JWKS meta data</a>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Display OIDC Related Artifacts? </label><span class="tooltiptext">Some OAuth2 identity providers return OIDC-related tokens even for plain OAuth2 calls. This option will display tokens in this case.</span>
+              </div>
+            </td>
+            <td>Yes 
+              <input id="yesCheckOIDCArtifacts" name="yesno" onclick="debug.displayOIDCArtifacts();" type="radio" />No 
+              <input id="noCheckOIDCArtifacts" name="yesno" onclick="debug.displayOIDCArtifacts();" type="radio" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>SSL Certificate Validation: </label><span class="tooltiptext">Should the backend debugger component validate the Identity Provider SSL/TLS certificate?</span>
+              </div>
+            </td>
+            <td>Yes 
+              <input checked="true" id="SSLValidate-yes" name="sslValidation" type="radio" value="true" />No 
+              <input id="SSLValidate-no" name="sslValidation" type="radio" value="false" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Use Refresh Token:</label> <span class="tooltiptext">Show Refresh Token panel?</span>
+              </div>
+            </td>
+            <td>Yes 
+              <input checked="true" id="useRefreshToken-yes" name="useRefreshToken" onclick="debug.useRefreshTokens();" type="radio" value="true" />No 
+              <input checked="false" id="useRefreshToken-no" name="useRefreshToken" onclick="debug.:useRefreshTokens();" type="radio" value="false" />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </form>
+  </fieldset>
+
+<div class="step2" id="step2">
+  <form name="auth_step" id="auth_step">
+    <legend id="h2_title_1" name="">Request Authorization Code
+    </legend>
+  <form><input class="btn2" name="authz_expand_button" id="authz_expand_button" type="submit" value="Expand" onclick="return debug.onClickShowAuthzFieldSet('authz_fieldset');"/></form>
+  <fieldset id="authz_fieldset" name="authz_fieldset" style="display: none;">
+    <table>
+      <tbody>
+        <div class="form-group">
+          <input type="hidden" name="response_type" value="code" id="response_type" />
+        </div>
+        <tr>
+          <td>
+            <div class="tooltip"><label>State:</label><span class="tooltiptext">Auto-generated state value.</span>
+            </div>
+          </td>
+          <td>
+            <input id="state" name="state" onchange="recalculateAuthorizationRequestDescription();" type="text" value="" />
+            <input id="regenerate_state" name="regenerate_state" type="button" value="Regenerate" onclick="return debug.regenerateState();" "/>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Nonce: </label><span class="tooltiptext">Auto-generated nonce value.</span>
+            </div>
+          </td>
+          <td>
+            <input id="nonce_field" name="nonce" type="text" value="" />
+            <input id="regenerate_nonce" name="regenerate_nonce" type="button" value="Regenerate" onclick="return debug.regenerateNonce();" "/>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Client ID: </label><span class="tooltiptext">The client identifier that belongs to the application registered with the identity provider.</span>
+            </div>
+          </td>
+          <td>
+            <input class="stored" id="client_id" name="client_id" type="text" value="" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Redirect URL: </label><span class="tooltiptext">The redirect URL registered with the identity provider. By default use http://localhost:3000.</span>
+            </div>
+          </td>
+          <td>
+            <input class="stored" id="redirect_uri" name="redirect_uri" type="text" value="" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Scope: </label><span class="tooltiptext">The requested scope.</span>
+            </div>
+          </td>
+          <td>
+            <input class="stored" id="scope" name="scope" type="text" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Add Resource field?</label><span class="tooltiptext">Some identity providers require the resource parameter..</span>
+            </div>
+          </td>
+          <td>Yes 
+            <input id="yesCheck" name="yesno" onclick="debug.displayResourceCheck();" type="radio"/>No 
+            <input id="noCheck" name="yesno" onclick="debug.displayResourceCheck();" type="radio"/>
+          </td>
+        </tr>
+        <tr id="authzResourceRow" style="visibility:collapse">
+          <td>
+            <div class="tooltip"><label>Resource: </label><span class="tooltiptext">The resource parameter, together with scope, tells the Identity Provider what audience or scope is desired with the access token.</span>
+            </div>
+          </td>
+          <td>
+            <input class="stored" id="resource" name="resource" type="text" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Custom query parameters</label><span class="tooltiptext">Custom query parameters for Authorization Endpoint call.</span>
+            </div>
+          </td>
+          <td>Yes
+            <input id="authzcustomParametersCheck-yes" name="authzcustomParametersCheck" onclick="debug.displayAuthzCustomParametersCheck();" type="radio" />No
+            <input id="authzcustomParametersCheck-no" name="authzcustomParametersCheck" onclick="debug.displayAuthzCustomParametersCheck();" type="radio" />
+          </td>
+        </tr>
+        <tr id="authzCustomParametersRow" style="visibility:collapse">
+          <td>
+            <div class="tooltip"><label>How many custom parameters: </label><span class="tooltiptext">How many custom query parameters will this request have? No more than ten.</span>
+            </div>
+          </td>
+          <td>
+            <input class="stored" id="authzNumberCustomParameters" name="authzNumberCustomParameters" type="text" maxlength="4" size="4" />
+            <input type="button" value="Enter parameters" onclick="return debug.generateCustomParametersListUI();"/>
+          </td>
+          </tr>
+          <tr>
+            <td colspan="2">
+              <div class="authz_custom_parameter_list" id="authz_custom_parameter_list">
+              </div>
+            </td>
+          </tr>
+         </tbody>
+        </table>
+      </form>
+      <form name="make_call" id="make_call" onsubmit="return false;">
+        <table>
+        <tbody>
+        <tr>
+          <td>
+            <input class="btn2" type="submit" value="Authorize" onclick="return debug.triggerAuthZEndpointCall();" />
+          </td>
+          <td>&nbsp;
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label id="display_authz_request_form_label1" name="display_authz_request_form_label1" value="">Request</label><span class="tooltiptext">This field shows the request that is made to th Authorization Endpoint.</span>
+            </div>
+          </td>
+          <td><textarea id="display_authz_request_form_textarea1" rows="10" cols="50"></textarea>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </form>
+  </fieldset>
+</div>
+<div class="display_authz_error_class" id="display_authz_error_class">&nbsp;
+</div>
+
+<div class="footer_debugger">
+  <a href="/index.html" class="logo">IDPTools</a>
+  <div class="header-right">
+    <a class="active" href="#home">Home</a>
+    <a href="#contact">Contact</a>
+    <a href="#about">About</a>
+  </div>
+</div>
+
+</body>
+</html>
