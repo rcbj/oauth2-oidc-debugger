@@ -14,6 +14,8 @@ jobs:
 
     steps:
        - uses: actions/checkout@v1
+         with:
+           ref: develop
        - uses: kciter/aws-ecr-action@v1
          with:
            # The AWS access key id
@@ -35,8 +37,8 @@ jobs:
            # Extra flags to pass to docker build (see docs.docker.com/engine/reference/commandline/build)
            # extra_build_args:  
            # Path to Dockerfile, defaults to the working directory
-           path: ""
-           extra_build_args: https://github.com/rcbj/idptools-site.git#develop:client
+           path: client
+           # extra_build_args: https://github.com/rcbj/idptools-site.git#develop:client
 #       - uses: kciter/aws-ecr-action@v1
 #         with:
 #           # The AWS access key id
