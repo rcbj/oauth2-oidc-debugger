@@ -1,0 +1,238 @@
+{
+  "info": {
+    "description": "IDPTools API",
+    "title": "Swagger",
+    "version": "1.0.0"
+  },
+  "host": "localhost:4000",
+  "basePath": "/",
+  "produces": [
+    "application/json"
+  ],
+  "schemes": [
+    "http",
+    "https"
+  ],
+  "securityDefinitions": {},
+  "swagger": "2.0",
+  "paths": {
+    "/token": {
+      "post": {
+        "parameters": [
+          {
+            "name": "req",
+            "in": "body",
+            "description": "Token Endpoint Request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TokenRequest"
+            }
+          }
+        ],
+        "description": "Wrapper around OAuth2 Token Endpoint",
+        "tags": [
+          "Debugger"
+        ],
+        "responses": {
+          "200": {
+            "description": "Token Endpoint Response",
+            "schema": {
+              "$ref": "#/definitions/TokenResponse"
+            }
+          },
+          "400": {
+            "description": "Syntax error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          },
+          "500": {
+            "description": "Unexpected error",
+            "schema": {
+              "$ref": "#/definitions/Error"
+            }
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "uri": "http://${stageVariables.integrationHost}/token",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "passthroughBehavior": "when_no_match",
+          "httpMethod": "POST",
+          "type": "http"
+        }
+      },
+      "options": {
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+        ],
+        "responses": {
+          "200": {
+            "description": "200 response",
+            "schema": {
+              "$ref": "#/definitions/Empty"
+            },
+            "headers": {
+              "Access-Control-Allow-Origin": {
+                "type": "string"
+              },
+              "Access-Control-Allow-Methods": {
+                "type": "string"
+              },
+              "Access-Control-Allow-Headers": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "x-amazon-apigateway-integration": {
+          "responses": {
+            "default": {
+              "statusCode": "200",
+              "responseParameters": {
+                "method.response.header.Access-Control-Allow-Methods": "'GET,OPTIONS'",
+                "method.response.header.Access-Control-Allow-Headers": "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'",
+                "method.response.header.Access-Control-Allow-Origin": "'*'"
+              }
+            }
+          },
+          "requestTemplates": {
+            "application/json": "{\"statusCode\": 200}"
+          },
+          "passthroughBehavior": "when_no_match",
+          "type": "mock"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "TokenRequest": {
+      "required": [
+        "grant_type",
+        "client_id",
+        "code",
+        "redirect_uri",
+        "scope",
+        "token_endpoint",
+        "sslValidate"
+      ],
+      "properties": {
+        "grant_type": {
+          "type": "string",
+          "description": "The OAuth2 / OIDC Grant / Flow Type"
+        },
+        "client_id": {
+          "type": "string",
+          "description": "The OAuth2 client identifier"
+        },
+        "code": {
+          "type": "string",
+          "description": "The OAuth2 Authorization Code"
+        },
+        "redirect_uri": {
+          "type": "string",
+          "description": "The registered redirect (callback) URI for the OAuth2 application definition."
+        },
+        "scope": {
+          "type": "string",
+          "description": "The requested OAuth2 scope."
+        },
+        "token_endpoint": {
+          "type": "string",
+          "description": "The Token Endpoint URL for this OAuth2 Provider"
+        },
+        "sslValidate": {
+          "type": "boolean",
+          "description": "Validate the token endpoint SSL/TLS certificate"
+        },
+        "resource": {
+          "type": "string",
+          "description": "Resource parameter"
+        },
+        "refresh_token": {
+          "type": "string",
+          "description": "OAuth2 Refresh Token needed for Refresh Grant"
+        },
+        "username": {
+          "type": "string",
+          "description": "The username used with the OAuth2 Resource Owner Credential Grant"
+        },
+        "password": {
+          "type": "string",
+          "description": "The password used with the OAuth2 Resource Owner Credential Grant"
+        },
+        "client_secret": {
+          "type": "string",
+          "description": "The client secret for a confidential client"
+        },
+        "customParams": {
+          "type": "object",
+          "description": "List of key:value pairs"
+        }
+      }
+    },
+    "TokenResponse": {
+      "required": [
+        "access_token",
+        "expires_in"
+      ],
+      "properties": {
+        "access_token": {
+          "type": "string",
+          "description": "The OAuth2 Access Token"
+        },
+        "id_token": {
+          "type": "string",
+          "description": "The OpenID Connect ID Token"
+        },
+        "refresh_token": {
+          "type": "string",
+          "description": "The OAuth2 Refresh Token"
+        },
+        "expires_in": {
+          "type": "string",
+          "description": "How long the access token is valid (seconds)"
+        },
+        "token_type": {
+          "type": "string",
+          "description": "The OAuth2 Access Token type"
+        }
+      }
+    },
+    "Error": {
+      "required": [
+        "status",
+        "code"
+      ],
+      "properties": {
+        "status": {
+          "type": "boolean",
+          "description": ""
+        },
+        "code": {
+          "type": "string",
+          "description": ""
+        }
+      }
+    },
+    "Empty": {
+      "type": "object"
+    }
+  },
+  "responses": {},
+  "parameters": {},
+  "tags": [
+    {
+      "name": "Debugger",
+      "description": "Operations for OAuth2/OIDC Debugger"
+    }
+  ]
+}
