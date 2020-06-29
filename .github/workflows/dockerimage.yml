@@ -36,7 +36,7 @@ jobs:
            dockerfile: client/Dockerfile
            # Path to Dockerfile, defaults to the working directory
            path: client
-           extra_build_args: -e CONFIG_FILE=env/test.js
+           extra_build_args: --build-arg CONFIG_FILE=env/test.js
        - uses: kciter/aws-ecr-action@v1
          with:
            # The AWS access key id
