@@ -13,6 +13,7 @@ var displayStep4 = true;
 var displayStep5 = true;
 var discoveryInfo = {};
 var currentRefreshToken = '';
+var appconfig = require(process.env.CONFIG_FILE);
 
 function OnSubmitTokenEndpointForm()
 {
@@ -140,7 +141,7 @@ $(document).ready(function() {
   $.ajax({
     type: "POST",
     crossdomain: true,
-    url: "http://localhost:4000/token",
+    url: appconfig.apiUrl + "/token",
     data: JSON.stringify(formData),
     contentType: "application/json; charset=utf-8",
     success: function(data, textStatus, request) {
@@ -255,7 +256,7 @@ $(".refresh_btn").click(function() {
   $.ajax({
     type: "POST",
     crossdomain: true,
-    url: "http://localhost:4000/token",
+    url: appconfig.apiUrl + "/token",
     data: JSON.stringify(formData),
     contentType: "application/json; charset=utf-8",
     success: function(data, textStatus, request) {
@@ -957,6 +958,11 @@ function recalculateRefreshRequestDescription()
 
 window.onload = function() {
   console.log("Entering onload function.");
+
+  if (!appconfig) {
+    console.log('Failed to load appconfig.');
+  }
+ 
   $("#password-form-group1").hide();
   $("#password-form-group2").hide();
 
@@ -1697,3 +1703,37 @@ function onClickShowConfigFieldSet(id) {
 function initFields() {
   
 }
+
+module.exports = {
+OnSubmitTokenEndpointForm,
+getParameterByName,
+resetUI,
+resetErrorDisplays,
+writeValuesToLocalStorage,
+loadValuesFromLocalStorage,
+recalculateTokenRequestDescription,
+recalculateRefreshRequestDescription,
+generateUUID,
+displayResourceCheck,
+displayTokenResourceCheck,
+recalculateAuthorizationErrorDescription,
+recalculateTokenErrorDescription,
+recalculateRefreshErrorDescription,
+parseFragment,
+displayOIDCArtifacts,
+useRefreshTokens,
+OnSubmitOIDCDiscoveryEndpointForm,
+isUrl,
+parseDiscoveryInfo,
+buildDiscoveryInfoTable,
+onSubmitPopulateFormsWithDiscoveryInformation,
+onSubmitClearAllForms,
+regenerateState,
+regenerateNonce,
+recreateTokenDisplay,
+displayTokenCustomParametersCheck,
+generateCustomParametersListUI,
+onClickShowTokenFieldSet,
+onClickShowConfigFieldSet,
+initFields
+};

@@ -1,5 +1,6 @@
 FROM node:12
 
+ARG CONFIG_FILE
 # Create app directory
 WORKDIR /usr/src/app
 
@@ -20,10 +21,13 @@ COPY server.js /usr/src/app
 COPY package.json /usr/src/app
 RUN true
 COPY src/ /usr/src/app/src/
+RUN true
+COPY src/env/ /usr/src/app/public/js/env/
 RUN browserify src/jwks.js -o public/js/jwks.js --debug --standalone jwks
 RUN browserify src/debugger.js -o public/js/debugger.js --debug --standalone debug
 RUN browserify src/token_detail.js -o public/js/token_detail.js --debug --standalone token_detail
-COPY src/debugger2_js.js public/js
+RUN browserify src/debugger2.js -o public/js/debugger2.js --debug --standalone debugger2 -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ]
+#COPY src/debugger2_js.js public/js
 
 EXPOSE 3000
 CMD [ "npm", "start" ]
