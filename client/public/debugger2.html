@@ -33,7 +33,7 @@
 
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" type="text/javascript">
 </script>
-<script type="text/javascript" src="/js/debugger2_js.js">
+<script type="text/javascript" src="/js/debugger2.js">
 </script>
 <p>This is a simple Client to use with any <a href="https://medium.com/@robert.broeckelmann/saml2-vs-jwt-understanding-oauth2-4abde9e7ec8b">OAuth2</a> or <a href="https://medium.com/@robert.broeckelmann/understanding-openid-connect-series-37c93d25e92b">OpenID Connect</a> compliant identity provider..
 </p>
@@ -101,8 +101,8 @@
               </div>
             </td>
             <td>Yes 
-              <input id="yesCheckOIDCArtifacts" name="yesno" onclick="displayOIDCArtifacts();" type="radio" />No 
-              <input id="noCheckOIDCArtifacts" name="yesno" onclick="displayOIDCArtifacts();" type="radio" />
+              <input id="yesCheckOIDCArtifacts" name="yesno" onclick="debugger2.displayOIDCArtifacts();" type="radio" />No 
+              <input id="noCheckOIDCArtifacts" name="yesno" onclick="debugger2.displayOIDCArtifacts();" type="radio" />
             </td>
           </tr>
           <tr>
@@ -121,8 +121,8 @@
               </div>
             </td>
             <td>Yes 
-              <input checked="true" id="useRefreshToken-yes" name="useRefreshToken" onclick="javascript:useRefreshTokens();" type="radio" value="true" />No 
-              <input checked="false" id="useRefreshToken-no" name="useRefreshToken" onclick="javascript:useRefreshTokens();" type="radio" value="false" />
+              <input checked="true" id="useRefreshToken-yes" name="useRefreshToken" onclick="debugger2.useRefreshTokens();" type="radio" value="true" />No 
+              <input checked="false" id="useRefreshToken-no" name="useRefreshToken" onclick="debugger2.useRefreshTokens();" type="radio" value="false" />
             </td>
           </tr>
         </tbody>
@@ -210,8 +210,8 @@
             </div>
           </td>
           <td>Yes 
-            <input id="yesCheckToken" name="token-yesno" onclick="javascript:displayTokenResourceCheck();" type="radio" />No 
-            <input id="noCheckToken" name="token-yesno" onclick="javascript:displayTokenResourceCheck();" type="radio" />
+            <input id="yesCheckToken" name="token-yesno" onclick="debugger2.displayTokenResourceCheck();" type="radio" />No 
+            <input id="noCheckToken" name="token-yesno" onclick="debugger2.displayTokenResourceCheck();" type="radio" />
           </td>
         </tr>
         <tr id="authzTokenResourceRow" style="visibility:collapse">
@@ -229,8 +229,8 @@
             </div>
           </td>
           <td>Yes
-            <input id="customTokenParametersCheck-yes" name="customTokenParametersCheck" onclick="displayTokenCustomParametersCheck();" type="radio" />No
-            <input id="customTokenParametersCheck-no" name="customTokenParametersCheck" onclick="displayTokenCustomParametersCheck();" type="radio" />
+            <input id="customTokenParametersCheck-yes" name="customTokenParametersCheck" onclick="debugger2.displayTokenCustomParametersCheck();" type="radio" />No
+            <input id="customTokenParametersCheck-no" name="customTokenParametersCheck" onclick="debugger2.displayTokenCustomParametersCheck();" type="radio" />
           </td>
         </tr>
         <tr id="tokenCustomParametersRow" style="visibility:collapse">
@@ -240,7 +240,7 @@
           </td>
           <td>
             <input class="stored" id="tokenNumberCustomParameters" name="tokenNumberCustomParameters" type="text" maxlength="4" size="4" />
-            <input type="button" value="Enter parameters" onclick="return generateCustomParametersListUI();"/>
+            <input type="button" value="Enter parameters" onclick="return debugger2.generateCustomParametersListUI();"/>
           </td>
         </tr>
         <tr>

@@ -22,5 +22,7 @@ services:
     build:
       context: client
       dockerfile: Dockerfile 
+      args:
+        CONFIG_FILE: ${CONFIG_FILE}
     ports:
       - "3000:3000"
