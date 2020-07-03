@@ -335,8 +335,12 @@ function resetUI(value)
     if( value == "implicit_grant" )
     {
       $("#code").hide();
-      document.getElementById("authzUsernameRow").style.visibility = 'collapse'; 
-      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
+      if(document.getElementById("authzUsernameRow")) {
+        document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      }
+      if(document.getElementById("authzPasswordRow")) {
+        document.getElementById("authzPasswordRow").style.visibility = 'collapse';
+      }
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
@@ -354,8 +358,12 @@ function resetUI(value)
     if( value == "client_credential")
     {
       $("#code").hide();
-      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
+      if(document.getElementById("authzUsernameRow")) {
+        document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      }
+      if(document.getElementById("authzPasswordRow")) {
+        document.getElementById("authzPasswordRow").style.visibility = 'collapse';
+      }
       $("#step2").hide();
       $("#step3").show();
       $("#nonce").hide();
@@ -373,8 +381,12 @@ function resetUI(value)
     if( value == "resource_owner")
     {
       $("#code").hide();
-      document.getElementById("authzUsernameRow").style.visibility = '';
-      document.getElementById("authzPasswordRow").style.visibility = '';
+      if(document.getElementById("authzUsernameRow")) {
+        document.getElementById("authzUsernameRow").style.visibility = '';
+      }
+      if(document.getElementById("authzPasswordRow")) {
+        document.getElementById("authzPasswordRow").style.visibility = '';
+      }
       $("#step2").hide();
       $("#step3").show();
       $("#nonce").hide();
@@ -392,8 +404,6 @@ function resetUI(value)
     if( value == "authorization_grant")
     {
       $("#code").show();
-//      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-//      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").hide();
@@ -414,8 +424,12 @@ function resetUI(value)
     if ( value == "oidc_implicit_flow")
     {
       $("#code").hide();
-//      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-//      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
+      if(document.getElementById("authzUsernameRow")) {
+        document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      }
+      if(document.getElementById("authzPasswordRow")) {
+        document.getElementById("authzPasswordRow").style.visibility = 'collapse';
+      }
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
@@ -423,7 +437,6 @@ function resetUI(value)
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
-//      document.getElementById("token_grant_type").value = "";
       document.getElementById("h2_title_1").innerHTML = "Request Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
@@ -435,8 +448,6 @@ function resetUI(value)
     if ( value == "oidc_implicit_flow_id_token")
     {
       $("#code").hide();
-//      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-//      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
@@ -456,8 +467,6 @@ function resetUI(value)
     if( value == "oidc_authorization_code_flow")
     {
       $("#code").show();
-//      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-//      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
@@ -480,8 +489,6 @@ function resetUI(value)
     if( value == "oidc_hybrid_code_id_token")
     {
       $("#code").show();
-//      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-//      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
@@ -505,8 +512,6 @@ function resetUI(value)
     if( value == "oidc_hybrid_code_token")
     {
       $("#code").show();
-//      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-//      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
@@ -529,8 +534,6 @@ function resetUI(value)
     if( value == "oidc_hybrid_code_id_token_token")
     {
       $("#code").show();
-//      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-//      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
