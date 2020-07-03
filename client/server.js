@@ -10,6 +10,7 @@ var appconfig = require(process.env.CONFIG_FILE);
 const expressLogging = require('express-logging');
 const logger = require('logops');
 
+console.log('appconfig: ' + JSON.stringify(appconfig));
 // Constants
 const PORT = appconfig.port || 3000;
 const HOST = appconfig.hostname || '0.0.0.0';
