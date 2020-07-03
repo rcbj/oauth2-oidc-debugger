@@ -6,12 +6,13 @@
 'use strict';
 
 const express = require('express');
-
+var appconfig = require(process.env.CONFIG_FILE);
 const expressLogging = require('express-logging');
 const logger = require('logops');
+
 // Constants
-const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || '0.0.0.0';
+const PORT = appconfig.port || 3000;
+const HOST = appconfig.hostname || '0.0.0.0';
 
 // App
 const app = express();
@@ -33,7 +34,7 @@ app.get('/callback', (req, res) => {
   console.log('host: ' + req.headers.host);
   console.log('queryString: ' + queryString);
   res.writeHead(302, {
-    'Location': process.env.BASE_URL + '/debugger2.html' + '?' + queryString
+    'Location': appconfig.uiUrl + '/debugger2.html' + '?' + queryString
   });
   res.end();
 });
