@@ -194,5 +194,8 @@ This project is licensed under the Apache 2.0 License - see the LICENSE.md file 
 Thanks to the following:
 * [APICast (3Scale API Management Gateway OAuth2 Example)](https://github.com/3scale/apicast/tree/master/examples/oauth2) for being the starting point for this experiment.
 * [Docker](https://docker.com)
-* [Ruby v2.4.0 Docker Image](https://hub.docker.com/_/ruby/)
-* [Sinatra](http://sinatrarb.com/)
+* Node.js
+* Typesccript
+* Browserify
+* AWS ECS
+* AWS ECR
