@@ -199,3 +199,4 @@ Thanks to the following:
 * Browserify
 * AWS ECS
 * AWS ECR
+* AWS CodeDeploy
