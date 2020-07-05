@@ -981,7 +981,7 @@ window.onload = function() {
       console.log('State does not match: state=' + state + ', storedState=' + storedState);
       var stateReportHTML = '<h1>State Report</h1>' +
                             '<P>State does not match: state=' + state + ', storedState=' + storedState + '</P>';
-      $("#state-status").html(stateREportHTML);
+      $("#state-status").html(stateReportHTML);
     }
   }
  
