@@ -25,6 +25,22 @@ app.options('*', cors());
 app.use(cors());
 
 /**
+ * @typedef HealthcheckResponse
+ * @property {string} message - Status message
+ */
+/**
+ * System healthcheck
+ * @route GET /healthcheck
+ * @group System - Support operations
+ * @returns {HealthcheckResponse.model} 200 - Token Endpoint Response
+ * @returns {Error.model} 400 - Syntax error
+ * @returns {Error.model} 500 - Unexpected error
+ */
+app.get('/healthcheck', function (req, res) {
+  res.json({ message: 'Success' });
+})
+
+/**
  * @typedef TokenRequest
  * @property {string} grant_type.required - The OAuth2 / OIDC Grant / Flow Type
  * @property {string} client_id.required - The OAuth2 client identifier
