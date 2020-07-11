@@ -207,9 +207,17 @@ This project is licensed under the Apache 2.0 License - see the LICENSE.md file 
 Thanks to the following:
 * [APICast (3Scale API Management Gateway OAuth2 Example)](https://github.com/3scale/apicast/tree/master/examples/oauth2) for being the starting point for this experiment.
 * [Docker](https://docker.com)
+* docker-compose
 * Node.js
-* Typesccript
+* Javascript
+* Typescript
 * Browserify
+* Swagger
 * AWS ECS
 * AWS ECR
 * AWS CodeDeploy
+* AWS Shield
+* AWS WAF
+* AWS CloudFront
+* AWS Route53
+* AWS API Gateway
