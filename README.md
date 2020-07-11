@@ -175,6 +175,18 @@ Some caveats to keep in mind:
 * Although, many leading IdPs use JWT as the format for OAuth2 access tokens and refresh tokens. The spec does not require this.
 * Some IdPs intentionally use opaque tokens that have no deeper meaning than to be a randomly generated identifier that points back to session information stored on the IdP
 
+# Application Logs
+Logs are generally kept in AWS CloudWatch.
+
+The idptools-client and idptools-api container logs are written to CloudWatch under log groups of the same name. Make sure you are in the correct region.
+
+The AWS API Gateway logs to a CloudWatch log group named as API-Gateway-Execution-Logs_${API_ID}/{STAGE}. These logs roll every so often, but the log messages pertaining to a single API GW request are in a single file.
+
+The CloudFront logs are stored on an S3 bucket. These logs can be pulled into an Athena Database per the instructions available [here](https://docs.aws.amazon.com/athena/latest/ug/cloudfront-logs.html#create-cloudfront-table). These queries are already setup in the us-west-2 region for the Test environment.
+
+# CloudWatch Canary
+There are CloudWatch canaries checking the availability of the public API Gateway and public UI sites once per minute.
+
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.2 - 3Scale + APICast support for all OAuth2 Grants and OIDC Authorization Code Flow
