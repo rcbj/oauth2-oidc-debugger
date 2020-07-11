@@ -7,6 +7,7 @@ This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I cr
 
 # CICD Pipeline
 ![CICD Pipeline](documentation/CICD%20Pipeline.jpg)
+There are actually two separate ECR repos. Both are upated by the same Github.com Action that builds the docker container images and pushes them to AWS.
 
 GitHub Actions + Workflow is used to build the docker image and push it to an AWS ECR workflow when the master branch is updated.
 
