@@ -191,7 +191,7 @@ There are CloudWatch canaries checking the availability of the public API Gatewa
 # Monitoring
 A CloudWatch Dashboard is availabile.
 
-![CloudWatchDashboard](documentation/cloudwatch_dashboard.jpeg)
+![CloudWatchDashboard](documentation/cloudwatch_dashboard.png)
 
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
