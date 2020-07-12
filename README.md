@@ -188,13 +188,18 @@ The CloudFront logs are stored on an S3 bucket. These logs can be pulled into an
 # CloudWatch Canary
 There are CloudWatch canaries checking the availability of the public API Gateway and public UI sites once per minute.
 
+# Monitoring
+A CloudWatch Dashboard is availabile.
+
+![CloudWatchDashboard](documentation/cloudwatch_dashboard.jpeg)
+
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.2 - 3Scale + APICast support for all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.3 - Azure Active Directory support for OAuth2 Grans and OIDC Authorization Code Flow.  Added error reporting logic and support for optional resource parameter.  Added additional debug logging code in client.  Moved Token Endpoint interaction into server-side (Ruby/Sinatra/Docker); this was necessary because Azure Active Directory does not support CORS (making Javascript interaction from a browser impossible).  Disabled IdP server certificate validation in IdP call.
 * v0.4 - Full OpenID Connect support (all variations of Implicit and Hybrid Flows).  Support for public clients (ie, no client secret).
 * v0.5 - Refresh Token support. Updates to UI.
-
+* v0.6 - Rewritten in JavaScript. Ported to AWS for idptools.io website. Numerous enhancements. See Release Notes.
 ## Authors
 
 Robert C. Broeckelmann Jr. - Initial work
