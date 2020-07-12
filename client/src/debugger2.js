@@ -172,7 +172,8 @@ $(document).ready(function() {
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          '<td><a href="/token_detail.html?type=id">ID Token</a></td>' +
+                                          '<td><P><a href="/token_detail.html?type=id">ID Token</a><p>' +
+                                          '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_id_token id=token_id_token>" + 
                                              data.id_token + 
                                             "</textarea>" +
