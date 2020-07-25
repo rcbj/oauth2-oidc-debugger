@@ -26,11 +26,15 @@ With the ability to add custom parameters to the Authorization Endpoint call and
 
 It also supports a couple of proprietary IdP extensions as described below.
 # Supported OAuth2 Authorization Grants
+
+The referenced blog posts are the only documentation currently available for the debugger.
+
 The following OAuth2 Authorization Grants are supported:
 * Authorization Code Grant
-* Implicit Code Grant
-* Resource Owner Password Grant
-* Client Credentials Grant
+* [Implicit Code Grant](https://medium.com/@robert.broeckelmann/oauth2-implicit-grant-with-red-hat-sso-v7-1-234810b0ea6f)
+* [Resource Owner Password Grant](https://medium.com/@robert.broeckelmann/red-hat-sso-v7-1-oauth2-resource-owner-password-credential-grant-support-6ee40f047f31)
+* [Client Credentials Grant](https://medium.com/@robert.broeckelmann/red-hat-sso-v7-1-oauth2-client-credentials-grant-6c64e5ec8bc1)
+* [Refresh Grant](https://medium.com/@robert.broeckelmann/refresh-token-support-in-oauth2-oidc-debugger-c792b3a3f65a)
 
 # Supported OIDC Grants
 The following OpenID Connect Authentication Flows are supported
