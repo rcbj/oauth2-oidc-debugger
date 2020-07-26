@@ -20,7 +20,7 @@ const app = express();
 const expressSwagger = require('express-swagger-generator')(app);
 
 app.use(bodyParser.json());
-app.use(expressLogging(logger));
+// app.use(expressLogging(logger));
 app.options('*', cors());
 app.use(cors());
 
