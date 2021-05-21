@@ -6,7 +6,7 @@ This is the private repo with configuration settings necessary for deployment to
 This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I created as part of a Red Hat SSO blog post I wrote in November, 2017.  Since then, I have expanded support to include several major Identity Providers (see the complete list below). The blog post uses this debugger for testing the OpenID Connect setup.  So, checkout the blog for usage examples. This project builds a docker container that runs the debugger application.
 
 # CICD Pipeline
-![CICD Pipeline](documentation/CICD%20Pipeline.jpg)
+![CICD Pipeline](documentation/VPC%20Traffic%20Mirroring%20-%20Hypertrace.jpg)
 
 GitHub Actions + Workflow is used to build the docker image and push it to an AWS ECR workflow when the master branch is updated.
 
