@@ -125,6 +125,16 @@
               <input checked="false" id="useRefreshToken-no" name="useRefreshToken" onclick="debugger2.useRefreshTokens();" type="radio" value="false" />
             </td>
           </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Use PKCE:</label> <span class="tooltiptext">Use Proof Key for Code Exchange (RFC-7636)?</span>
+              </div>
+            </td>
+            <td>Yes
+              <input checked="true" id="usePKCE-yes" name="usePKCE" onclick="debugger2.usePKCERFC();" type="radio" value="true" />No
+              <input checked="false" id="usePKCE-no" name="usePKCE" onclick="debugger2.usePKCERFC();" type="radio" value="false" />
+            </td>
+          </tr>
         </tbody>
       </table>
     </form>
@@ -221,6 +231,33 @@
           </td>
           <td>
             <input class="stored" id="token_resource" name="token_resource" type="text" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>PKCE code_challenge</label><span class="tooltiptext">PKCE RFC code_challenge.</span>
+            </div>
+          </td>
+          <td>
+            <input type="text" name="pkce_code_challenge" value="123456679" id="pkce_code_challenge" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>PKCE code_verifier</label><span class="tooltiptext">PKCE RFC code_verifier.</span>
+            </div>
+          </td>
+          <td>
+            <input type="text" name="pkce_code_verifier" value="987654321" id="pkce_code_verifier" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>PKCE code_method</label><span class="tooltiptext">PKCE RFC code_method.</span>
+            </div>
+          </td>
+          <td>
+            <input type="text" name="pkce_code_method" value="S256" id="pkce_code_method" />
           </td>
         </tr>
         <tr>

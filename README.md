@@ -7,6 +7,7 @@ This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I cr
 
 # CICD Pipeline
 ![CICD Pipeline](documentation/CICD%20Pipeline.jpg)
+There are actually two separate ECR repos. Both are upated by the same Github.com Action that builds the docker container images and pushes them to AWS.
 
 GitHub Actions + Workflow is used to build the docker image and push it to an AWS ECR workflow when the master branch is updated.
 
@@ -25,11 +26,15 @@ With the ability to add custom parameters to the Authorization Endpoint call and
 
 It also supports a couple of proprietary IdP extensions as described below.
 # Supported OAuth2 Authorization Grants
+
+The referenced blog posts are the only documentation currently available for the debugger.
+
 The following OAuth2 Authorization Grants are supported:
 * Authorization Code Grant
-* Implicit Code Grant
-* Resource Owner Password Grant
-* Client Credentials Grant
+* [Implicit Code Grant](https://medium.com/@robert.broeckelmann/oauth2-implicit-grant-with-red-hat-sso-v7-1-234810b0ea6f)
+* [Resource Owner Password Grant](https://medium.com/@robert.broeckelmann/red-hat-sso-v7-1-oauth2-resource-owner-password-credential-grant-support-6ee40f047f31)
+* [Client Credentials Grant](https://medium.com/@robert.broeckelmann/red-hat-sso-v7-1-oauth2-client-credentials-grant-6c64e5ec8bc1)
+* [Refresh Grant](https://medium.com/@robert.broeckelmann/refresh-token-support-in-oauth2-oidc-debugger-c792b3a3f65a)
 
 # Supported OIDC Grants
 The following OpenID Connect Authentication Flows are supported
@@ -78,19 +83,21 @@ The debugger has been tested with recent versions of Chrome.
 If you have docker installed already:
 ```
 git clone https://github.com/rcbj/oauth2-oidc-debugger.git
-cd oauth2-oidc-debugger
-docker-compose up
+cd idptools-site
+sudo CONFIG_FILE=./env/local.js docker-compose build
+sudo CONFIG_FILE=./env/local.js docker-compose up
 ```
 Note, you will need at least 950MB of disk space ree in order to build this Docker image.
 
 From a bash command prompt on Fedora or RHEL 7.x, run the following::
-``` yum install git
- git clone https://github.com/rcbj/oauth2-oidc-debugger.git
- yum install docker
- system start docker
- cd oauth2-oidc-debugger/client
- docker build -t oauth2-oidc-debugger .
- docker run -p 3000:3000 oauth2-oidc-debugger 
+```
+yum install git
+git clone https://github.com/rcbj/idptools-site/
+dnf install docker
+systemctl start docker
+cd idptools-site
+sudo CONFIG_FILE=./env/local.js docker-compose build
+sudo CONFIG_FILE=./env/local.js docker-compose up
 ```
 # Clean Up / Start Over
 * List all containers (only IDs) ```sudo docker ps -aq```
@@ -175,13 +182,30 @@ Some caveats to keep in mind:
 * Although, many leading IdPs use JWT as the format for OAuth2 access tokens and refresh tokens. The spec does not require this.
 * Some IdPs intentionally use opaque tokens that have no deeper meaning than to be a randomly generated identifier that points back to session information stored on the IdP
 
+# Application Logs
+Logs are generally kept in AWS CloudWatch.
+
+The idptools-client and idptools-api container logs are written to CloudWatch under log groups of the same name. Make sure you are in the correct region.
+
+The AWS API Gateway logs to a CloudWatch log group named as API-Gateway-Execution-Logs_${API_ID}/{STAGE}. These logs roll every so often, but the log messages pertaining to a single API GW request are in a single file.
+
+The CloudFront logs are stored on an S3 bucket. These logs can be pulled into an Athena Database per the instructions available [here](https://docs.aws.amazon.com/athena/latest/ug/cloudfront-logs.html#create-cloudfront-table). These queries are already setup in the us-west-2 region for the Test environment.
+
+# CloudWatch Canary
+There are CloudWatch canaries checking the availability of the public API Gateway and public UI sites once per minute.
+
+# Monitoring
+A CloudWatch Dashboard is availabile.
+
+![CloudWatchDashboard](documentation/cloudwatch_dashboard.png)
+
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.2 - 3Scale + APICast support for all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.3 - Azure Active Directory support for OAuth2 Grans and OIDC Authorization Code Flow.  Added error reporting logic and support for optional resource parameter.  Added additional debug logging code in client.  Moved Token Endpoint interaction into server-side (Ruby/Sinatra/Docker); this was necessary because Azure Active Directory does not support CORS (making Javascript interaction from a browser impossible).  Disabled IdP server certificate validation in IdP call.
 * v0.4 - Full OpenID Connect support (all variations of Implicit and Hybrid Flows).  Support for public clients (ie, no client secret).
 * v0.5 - Refresh Token support. Updates to UI.
-
+* v0.6 - Rewritten in JavaScript. Ported to AWS for idptools.io website. Numerous enhancements. See Release Notes.
 ## Authors
 
 Robert C. Broeckelmann Jr. - Initial work
@@ -194,9 +218,17 @@ This project is licensed under the Apache 2.0 License - see the LICENSE.md file 
 Thanks to the following:
 * [APICast (3Scale API Management Gateway OAuth2 Example)](https://github.com/3scale/apicast/tree/master/examples/oauth2) for being the starting point for this experiment.
 * [Docker](https://docker.com)
+* docker-compose
 * Node.js
-* Typesccript
+* Javascript
+* Typescript
 * Browserify
+* Swagger
 * AWS ECS
 * AWS ECR
 * AWS CodeDeploy
+* AWS Shield
+* AWS WAF
+* AWS CloudFront
+* AWS Route53
+* AWS API Gateway

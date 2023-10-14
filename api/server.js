@@ -15,6 +15,7 @@ const cors = require('cors');
 // Constants
 const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || '0.0.0.0';
+const uiUrl = 'http://localhost:3000';
 
 const app = express();
 const expressSwagger = require('express-swagger-generator')(app);
@@ -55,6 +56,7 @@ app.get('/healthcheck', function (req, res) {
  * @property {string} password - The password used with the OAuth2 Resource Owner Credential Grant
  * @property {string} client_secret - The client secret for a confidential client
  * @property {object} customParams - List of key:value pairs
+ * @property {string} code_verifier - PKCE RFC code_verifier parameter
  */
 
 /**
@@ -99,7 +101,8 @@ app.post('/token', (req, res) => {
     var refreshToken = body.refresh_token || "";
     var resource = body.resource || "";
     var customParams = body.customParams || {}; 
-  
+    var code_verifier = body.code_verifier;
+ 
     console.log('grantType: ' + grantType);
     console.log('clientId: ' + clientId);
     console.log('code: ' + code);
@@ -114,16 +117,20 @@ app.post('/token', (req, res) => {
     console.log('resource: ' + resource);
     Object.keys(customParams).forEach( (key) => {
       console.log(key + ':' + customParams[key]);
-    }); 
+    });
+    console.log("code_verifier: " + code_verifier);
     var parameterObject = {};
     if(grantType == "authorization_code") {
       parameterObject = { 
   	grant_type: grantType,
   	client_id: clientId,
-  	client_secret: clientSecret,
   	code: code,
-  	redirect_uri: redirectUri
+  	redirect_uri: redirectUri,
+        code_verifier: code_verifier
       };
+      if (typeof client_secret != "undefined") {
+        parameterObject.client_secret = clientSecret;
+      }
     } else if(grantType == "client_credentials") {
        parameterObject =  {
           grant_type: grantType,
@@ -172,7 +179,9 @@ app.post('/token', (req, res) => {
     });
     parameterString = parameterString.substring(0, parameterString.length - 1);
     request.post({
-      headers: {'content-type' : 'application/x-www-form-urlencoded'},
+      headers: {'content-type' : 'application/x-www-form-urlencoded',
+                'origin' : uiUrl
+      },
       url:    tokenEndpoint,
       body: parameterString,
       strictSSL: sslValidate

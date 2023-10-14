@@ -160,7 +160,17 @@
             </td>
             <td>Yes 
               <input checked="true" id="useRefreshToken-yes" name="useRefreshToken" onclick="debug.useRefreshTokens();" type="radio" value="true" />No 
-              <input checked="false" id="useRefreshToken-no" name="useRefreshToken" onclick="debug.:useRefreshTokens();" type="radio" value="false" />
+              <input checked="false" id="useRefreshToken-no" name="useRefreshToken" onclick="debug.useRefreshTokens();" type="radio" value="false" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Use PKCE:</label> <span class="tooltiptext">Use Proof Key for Code Exchange (RFC-7636)?</span>
+              </div>
+            </td>
+            <td>Yes
+              <input checked="true" id="usePKCE-yes" name="usePKCE" onclick="debug.usePKCERFC();" type="radio" value="true" />No
+              <input checked="false" id="usePKCE-no" name="usePKCE" onclick="debug.usePKCERFC();" type="radio" value="false" />
             </td>
           </tr>
         </tbody>
@@ -178,6 +188,9 @@
       <tbody>
         <div class="form-group">
           <input type="hidden" name="response_type" value="code" id="response_type" />
+          <input type="hidden" name="pkce_code_challenge" value="123456679" id="pkce_code_challenge" />
+          <input type="hidden" name="pkce_code_verifier" value="987654321" id="pkce_code_verifier" />
+          <input type="hidden" name="pkce_code_method" value="S256" id="pkce_code_method" />
         </div>
         <tr>
           <td>
