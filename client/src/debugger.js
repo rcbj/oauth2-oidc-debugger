@@ -10,6 +10,7 @@
 //
 var displayOpenIDConnectArtifacts = false;
 var useRefreshTokenTester = false;
+var usePKCE = false;
 var displayStep0 = true;
 var displayStep1 = true;
 var displayStep2 = true;
@@ -574,10 +575,12 @@ function writeValuesToLocalStorage()
       localStorage.setItem("yesCheckOIDCArtifacts", document.getElementById("yesCheckOIDCArtifacts").checked);
       localStorage.setItem("noCheckOIDCArtifacts", document.getElementById("noCheckOIDCArtifacts").checked);
       localStorage.setItem("useRefreshToken_yes", document.getElementById("useRefreshToken-yes").checked);
+      localStorage.setItem("usePKCE_yes", document.getElementById("usePKCE-yes").checked);
       localStorage.setItem("client_id", document.getElementById("client_id").value);
       localStorage.setItem("redirect_uri", document.getElementById("redirect_uri").value);
       localStorage.setItem("scope", document.getElementById("scope").value);
       localStorage.setItem("useRefreshToken_no", document.getElementById("useRefreshToken-no").checked);
+      localStorage.setItem("usePKCE_no", document.getElementById("usePKCE-no").checked);
       localStorage.setItem("oidc_discovery_endpoint", document.getElementById("oidc_discovery_endpoint").value);
       localStorage.setItem("oidc_userinfo_endpoint", document.getElementById("oidc_userinfo_endpoint").value);
       localStorage.setItem("jwks_endpoint", document.getElementById("jwks_endpoint").value);
@@ -595,6 +598,7 @@ function writeValuesToLocalStorage()
           localStorage.setItem("customParameterValue-" + i, document.getElementById("customParameterValue-" + i).value);
         }
       }
+      setPKCEValues();
   }
   console.log("Leaving writeValuesToLocalStorage().");
 }
@@ -624,12 +628,18 @@ function loadValuesFromLocalStorage()
   document.getElementById("noCheckOIDCArtifacts").checked = localStorage.getItem("noCheckOIDCArtifacts");
   document.getElementById("useRefreshToken-yes").checked = localStorage.getItem("useRefreshToken_yes");
   document.getElementById("useRefreshToken-no").checked = localStorage.getItem("useRefreshToken_no");
+  document.getElementById("usePKCE-yes").checked = localStorage.getItem("usePKCE_yes");
+  document.getElementById("usePKCE-no").checked = localStorage.getItem("usePKCE_no");
   document.getElementById("oidc_discovery_endpoint").value = localStorage.getItem("oidc_discovery_endpoint");
   document.getElementById("oidc_userinfo_endpoint").value = localStorage.getItem("oidc_userinfo_endpoint");
   document.getElementById("jwks_endpoint").value = localStorage.getItem("jwks_endpoint");
   document.getElementById("authzcustomParametersCheck-yes").checked = localStorage.getItem("authzcustomParametersCheck-yes")? localStorage.getItem("authzcustomParametersCheck-yes") : false;
   document.getElementById("authzcustomParametersCheck-no").checked = localStorage.getItem("authzcustomParametersCheck-no")? localStorage.getItem("authzcustomParametersCheck-no") : true;
   document.getElementById("authzNumberCustomParameters").value = localStorage.getItem("authzNumberCustomParameters")? localStorage.getItem("authzNumberCustomParameters") : 1;
+
+  document.getElementById("pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
+  document.getElementById("pkce_code_verifier").value = localStorage.getItem("PKCE_code_challenge_verifier");
+  document.getElementById("pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
 
   if (document.getElementById("authzcustomParametersCheck-yes").checked) {
     generateCustomParametersListUI();
@@ -643,6 +653,7 @@ function loadValuesFromLocalStorage()
       document.getElementById("customParameterValue-" + i).value = localStorage.getItem("customParameterValue-" + i);
     }
   }
+  setPKCEValues();
 
   var agt = document.getElementById("authorization_grant_type").value;
 
@@ -858,6 +869,10 @@ function recalculateAuthorizationRequestDescription()
        }
        if (customParametersComponent.length > 0) {
          document.getElementById("display_authz_request_form_textarea1").value += "&\n" +  customParametersComponent + "\n";
+       }
+       if (usePKCE) {
+         document.getElementById("display_authz_request_form_textarea1").value += "&\n" + "code_challenge=" + document.getElementById("pkce_code_challenge").value  + "&\n" +
+                                                                                          "code_challenge_method=" + document.getElementById("pkce_code_method").value
        }
     } else if (	grant_type == "token" || 
 		grant_type == "id_token token" || 
@@ -1337,6 +1352,21 @@ function useRefreshTokens()
   console.log("Leaving useRefreshTokens().");
 }
 
+function usePKCERFC()
+{
+  console.log("Entering usePKCERFC().");
+  var yesCheck = document.getElementById("usePKCE-yes").checked;
+  var noCheck = document.getElementById("usePKCE-no").checked;
+  console.log("usePKCE-yes=" + yesCheck, "useRefreshToken-no=" + noCheck);
+  if (yesCheck) {
+    usePKCE = true;
+  } else {
+    usePKCE = false;
+  }
+  recalculateAuthorizationRequestDescription();
+  console.log("Leaving usePKCERFC().");
+}
+
 $("#tipText").hover(
    function(e){
        $("#tooltip").show();
@@ -1685,6 +1715,29 @@ function onClickClearLocalStorage()
   return false;
 }
 
+function generateCodeChallenge(codeVerifier) {
+  const crypto = require('crypto');
+  const hash = crypto.createHash('sha256');
+  return hash.update(codeVerifier).digest("base64").replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+//function generatePKCECodeVerifier()
+function setPKCEValues()
+{
+  var code_verifier = Buffer.from(generateUUID() + generateUUID(),'binary').toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  console.log("code_verifier: " + code_verifier);
+  var code_challenge = generateCodeChallenge(code_verifier);
+  console.log("code_challenge: " + code_challenge);
+  localStorage.setItem("PKCE_code_challenge", code_challenge);
+  localStorage.setItem("PKCE_code_challenge_method", "S256");
+  localStorage.setItem("PKCE_code_verifier", code_verifier );
+  document.getElementById("pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
+  document.getElementById("pkce_code_verifier").value = localStorage.getItem("PKCE_code_challenge_verifier");
+  document.getElementById("pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+  recalculateAuthorizationRequestDescription();
+  return code_challenge
+}
+
 module.exports = {
   OnSubmitForm,
   OnSubmitTokenEndpointForm,
@@ -1718,5 +1771,6 @@ module.exports = {
   triggerAuthZEndpointCall,
   onClickShowAuthzFieldSet,
   onClickShowConfigFieldSet,
-  onClickClearLocalStorage
+  onClickClearLocalStorage,
+  usePKCERFC
 };

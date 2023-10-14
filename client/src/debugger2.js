@@ -14,6 +14,7 @@ var displayStep5 = true;
 var discoveryInfo = {};
 var currentRefreshToken = '';
 var appconfig = require(process.env.CONFIG_FILE);
+var usePKCE = false;
 
 function OnSubmitTokenEndpointForm()
 {
@@ -68,6 +69,7 @@ $(document).ready(function() {
       var password = document.getElementById("token_password").value;
       var scope = document.getElementById("token_scope").value;
       var sslValidate = "";
+      var code_verifier = document.getElementById("pkce_code_verifier").value;
       if( document.getElementById("SSLValidate-yes").checked)
       {
         sslValidate = document.getElementById("SSLValidate-yes").value;
@@ -86,7 +88,7 @@ $(document).ready(function() {
           redirect_uri: redirect_uri,
           scope: scope,
           token_endpoint: token_endpoint,
-          sslValidate: sslValidate
+          sslValidate: sslValidate,
         };
       } else if( grant_type == "password") {
         formData = {
@@ -133,6 +135,9 @@ $(document).ready(function() {
            formData.customParams[document.getElementById("customTokenParameterName-" + i).value] =
                                   document.getElementById("customTokenParameterValue-" + i).value;
         }
+      }
+      if(usePKCE) {
+        formData.code_verifier = code_verifier;
       }
       writeValuesToLocalStorage();
       recalculateTokenRequestDescription();
@@ -620,6 +625,9 @@ function writeValuesToLocalStorage()
           localStorage.setItem("customTokenParameterValue-" + i, document.getElementById("customTokenParameterValue-" + i).value);
         }
       }
+      localStorage.setItem("PKCE_code_challenge",document.getElementById("pkce_code_challenge").value);
+      localStorage.setItem("PKCE_code_challenge_method", document.getElementById("pkce_code_method").value);
+      localStorage.setItem("PKCE_code_verifier", document.getElementById("pkce_code_verifier").value );
   }
 
   console.log("Leaving writeValuesToLocalStorage().");
@@ -681,6 +689,9 @@ function loadValuesFromLocalStorage()
       document.getElementById("customTokenParameterValue-" + i).value = localStorage.getItem("customTokenParameterValue-" + i);
     }
   }
+  document.getElementById("pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
+  document.getElementById("pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
+  document.getElementById("pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
 
 
 
@@ -883,6 +894,9 @@ function recalculateTokenRequestDescription()
                                                                       "client_id=" + document.getElementById("token_client_id").value + "&" + "\n" +
                                                                       "redirect_uri=" + document.getElementById("token_redirect_uri").value + "&" +"\n" +
                                                                       "scope=" + document.getElementById("token_scope").value;
+      if(usePKCE) {
+        document.getElementById("display_token_request_form_textarea1").value += "&\n" + "code_verifier=" + document.getElementById("pkce_code_verifier").value;
+      }
     } else if (grant_type == "client_credentials") {
       document.getElementById("display_token_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
                                                                      "Message Body:\n" +
@@ -1705,6 +1719,21 @@ function initFields() {
   
 }
 
+function usePKCERFC()
+{
+  console.log("Entering usePKCERFC().");
+  var yesCheck = document.getElementById("usePKCE-yes").checked;
+  var noCheck = document.getElementById("usePKCE-no").checked;
+  console.log("usePKCE-yes=" + yesCheck, "useRefreshToken-no=" + noCheck);
+  if (yesCheck) {
+    usePKCE = true;
+  } else {
+    usePKCE = false;
+  }
+  recalculateTokenRequestDescription();
+  console.log("Leaving usePKCERFC().");
+}
+
 module.exports = {
 OnSubmitTokenEndpointForm,
 getParameterByName,
@@ -1736,5 +1765,6 @@ displayTokenCustomParametersCheck,
 generateCustomParametersListUI,
 onClickShowTokenFieldSet,
 onClickShowConfigFieldSet,
-initFields
+initFields,
+usePKCERFC
 };
