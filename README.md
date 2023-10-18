@@ -1,27 +1,15 @@
 # OAuth2 + OpenID Connect (OIDC) Debugger
-This is the private repo with configuration settings necessary for deployment to AWS.
-
 [This](https://github.com/rcbj/oauth2-oidc-debugger) is the official home of the community Project.
 
 This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I created as part of a Red Hat SSO blog post I wrote in November, 2017.  Since then, I have expanded support to include several major Identity Providers (see the complete list below). The blog post uses this debugger for testing the OpenID Connect setup.  So, checkout the blog for usage examples. This project builds a docker container that runs the debugger application.
 
-# CICD Pipeline
-![CICD Pipeline](documentation/CICD%20Pipeline.jpg)
-There are actually two separate ECR repos. Both are upated by the same Github.com Action that builds the docker container images and pushes them to AWS.
-
-GitHub Actions + Workflow is used to build the docker image and push it to an AWS ECR workflow when the master branch is updated.
-
-An AWS CodePipeline is used to push the docker image to the ECS Service whenever the "latest" image is updated.
-
-# Site Architecture
-![Architecture](documentation/Architecture.jpg)
 # Supported Specs
 This project currently supports the following specs:
-* [RFC 6749](https://tools.ietf.org/html/rfc6749)
+* [OAuth2 - RFC 6749](https://tools.ietf.org/html/rfc6749)
 * [OpenID Connect Core 1](https://openid.net/specs/openid-connect-core-1_0.html)
 * [OpenID Connect Discovery v1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
 * [JWT RFC](https://tools.ietf.org/html/rfc7519)
-
+* [PKCE - RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)
 With the ability to add custom parameters to the Authorization Endpoint call and Token Endpoint call, numerous other protocols can be supported. We'll eventually get around to adding direct support.
 
 It also supports a couple of proprietary IdP extensions as described below.
@@ -36,7 +24,7 @@ The following OAuth2 Authorization Grants are supported:
 * [Client Credentials Grant](https://medium.com/@robert.broeckelmann/red-hat-sso-v7-1-oauth2-client-credentials-grant-6c64e5ec8bc1)
 * [Refresh Grant](https://medium.com/@robert.broeckelmann/refresh-token-support-in-oauth2-oidc-debugger-c792b3a3f65a)
 
-# Supported OIDC Grants
+# Supported OIDC Authentication Flows
 The following OpenID Connect Authentication Flows are supported
 * Authorization Code Flow (could also use Authorization Code Grant option and scope="openid profile")
 * Implicit Flow (2 variants)
@@ -48,12 +36,14 @@ So far, this tool has been tested with the following OAuth2 or OIDC implementati
 * Red Hat SSO v7.1 (OAuth2 + OIDC)
 * 3Scale SaaS with self-managed APICast Gateway (OAuth2 + OIDC)
 * Azure Active Directory (v1 endpoints, OIDC + OAuth2)
+* Azure Active Directory (v2 endpoints, OIDC + OAuth2)
 * Apigee Edge (OAuth2, with caveats described [here](https://medium.com/@robert.broeckelmann/demo-apigee-edge-oauth2-debugging-a10223eb334))
 * Ping Federate (OAuth2 + OIDC)
 * AWS Cognito (OAuth2 + OIDC)
 * Facebook (OAuth2)
 * Google+ (OAuth2)
 * KeyCloak (reported to work by third-parties, Red Hat SSO v7.1 is KeyCloak under the Red Hat banner, so it should work)
+* Okta (OIDC)
 
 # 3Scale Usage Notes
 The version of 3Scale SaaS + APICast only supports OAuth2; 3Scale can support the OIDC Authorization Code Flow since the response_type and grant_type values match OAuth2's Authorization Code Grant.  The other OIDC Authentication Flows are not supported by 3Scale OAuth2.  The latest version of 3Scale on-premise has OIDC support.  As of 12/3/2017, I haven't been able to test this yet.
@@ -182,23 +172,6 @@ Some caveats to keep in mind:
 * Although, many leading IdPs use JWT as the format for OAuth2 access tokens and refresh tokens. The spec does not require this.
 * Some IdPs intentionally use opaque tokens that have no deeper meaning than to be a randomly generated identifier that points back to session information stored on the IdP
 
-# Application Logs
-Logs are generally kept in AWS CloudWatch.
-
-The idptools-client and idptools-api container logs are written to CloudWatch under log groups of the same name. Make sure you are in the correct region.
-
-The AWS API Gateway logs to a CloudWatch log group named as API-Gateway-Execution-Logs_${API_ID}/{STAGE}. These logs roll every so often, but the log messages pertaining to a single API GW request are in a single file.
-
-The CloudFront logs are stored on an S3 bucket. These logs can be pulled into an Athena Database per the instructions available [here](https://docs.aws.amazon.com/athena/latest/ug/cloudfront-logs.html#create-cloudfront-table). These queries are already setup in the us-west-2 region for the Test environment.
-
-# CloudWatch Canary
-There are CloudWatch canaries checking the availability of the public API Gateway and public UI sites once per minute.
-
-# Monitoring
-A CloudWatch Dashboard is availabile.
-
-![CloudWatchDashboard](documentation/cloudwatch_dashboard.png)
-
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.2 - 3Scale + APICast support for all OAuth2 Grants and OIDC Authorization Code Flow
@@ -206,6 +179,7 @@ A CloudWatch Dashboard is availabile.
 * v0.4 - Full OpenID Connect support (all variations of Implicit and Hybrid Flows).  Support for public clients (ie, no client secret).
 * v0.5 - Refresh Token support. Updates to UI.
 * v0.6 - Rewritten in JavaScript. Ported to AWS for idptools.io website. Numerous enhancements. See Release Notes.
+* v0.7 - PKCE Support added.
 ## Authors
 
 Robert C. Broeckelmann Jr. - Initial work
@@ -224,11 +198,3 @@ Thanks to the following:
 * Typescript
 * Browserify
 * Swagger
-* AWS ECS
-* AWS ECR
-* AWS CodeDeploy
-* AWS Shield
-* AWS WAF
-* AWS CloudFront
-* AWS Route53
-* AWS API Gateway
