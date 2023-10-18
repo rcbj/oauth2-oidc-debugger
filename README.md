@@ -73,7 +73,7 @@ The debugger has been tested with recent versions of Chrome.
 If you have docker installed already:
 ```
 git clone https://github.com/rcbj/oauth2-oidc-debugger.git
-cd idptools-site
+cd oauth2-oidc-debugger
 sudo CONFIG_FILE=./env/local.js docker-compose build
 sudo CONFIG_FILE=./env/local.js docker-compose up
 ```
@@ -82,10 +82,10 @@ Note, you will need at least 950MB of disk space ree in order to build this Dock
 From a bash command prompt on Fedora or RHEL 7.x, run the following::
 ```
 yum install git
-git clone https://github.com/rcbj/idptools-site/
+git clone https://github.com/rcbj/oauth2-oidc-debugger.git
 dnf install docker
 systemctl start docker
-cd idptools-site
+cd oauth2-oidc-debugger
 sudo CONFIG_FILE=./env/local.js docker-compose build
 sudo CONFIG_FILE=./env/local.js docker-compose up
 ```
