@@ -1,0 +1,21 @@
+{
+  "name": "docker_web_server",
+  "version": "1.0.0",
+  "description": "idptools client project",
+  "author": "Robert C. Broeckelmann Jr. <robert@iyasec.io>",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@fidm/x509": "^1.2.1",
+    "express": "^4.16.1",
+    "express-logging": "latest",
+    "jsonwebtoken": "latest",
+    "jwk-to-pem": "latest",
+    "logops": "latest",
+    "pem-file": "latest",
+    "@peculiar/asn1-pkcs8": "latest",
+    "envify": "latest"
+  }
+}

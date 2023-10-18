@@ -1,36 +1,49 @@
 # OAuth2 + OpenID Connect (OIDC) Debugger
-[This](https://github.com/rcbj/oauth2-oidc-debugger) is the new official home of this Project. It was moved after I changed employers. Sorry for the confusion.
+[This](https://github.com/rcbj/oauth2-oidc-debugger) is the official home of the community Project.
 
 This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I created as part of a Red Hat SSO blog post I wrote in November, 2017.  Since then, I have expanded support to include several major Identity Providers (see the complete list below). The blog post uses this debugger for testing the OpenID Connect setup.  So, checkout the blog for usage examples. This project builds a docker container that runs the debugger application.
 
+# Supported Specs
 This project currently supports the following specs:
-* [RFC 6749](https://tools.ietf.org/html/rfc6749)
+* [OAuth2 - RFC 6749](https://tools.ietf.org/html/rfc6749)
 * [OpenID Connect Core 1](https://openid.net/specs/openid-connect-core-1_0.html)
+* [OpenID Connect Discovery v1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
+* [JWT RFC](https://tools.ietf.org/html/rfc7519)
+* [PKCE - RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)
+* With the ability to add custom parameters to the Authorization Endpoint call and Token Endpoint call, numerous other protocols can be supported. We'll eventually get around to adding direct support.
 
 It also supports a couple of proprietary IdP extensions as described below.
+# Supported OAuth2 Authorization Grants
+
+The referenced blog posts are the only documentation currently available for the debugger.
 
 The following OAuth2 Authorization Grants are supported:
 * Authorization Code Grant
-* Implicit Code Grant
-* Resource Owner Password Grant
-* Client Credentials Grant
+* [Implicit Code Grant](https://medium.com/@robert.broeckelmann/oauth2-implicit-grant-with-red-hat-sso-v7-1-234810b0ea6f)
+* [Resource Owner Password Grant](https://medium.com/@robert.broeckelmann/red-hat-sso-v7-1-oauth2-resource-owner-password-credential-grant-support-6ee40f047f31)
+* [Client Credentials Grant](https://medium.com/@robert.broeckelmann/red-hat-sso-v7-1-oauth2-client-credentials-grant-6c64e5ec8bc1)
+* [Refresh Grant](https://medium.com/@robert.broeckelmann/refresh-token-support-in-oauth2-oidc-debugger-c792b3a3f65a)
 
+# Supported OIDC Authentication Flows
 The following OpenID Connect Authentication Flows are supported
 * Authorization Code Flow (could also use Authorization Code Grant option and scope="openid profile")
 * Implicit Flow (2 variants)
 * Hybrid Flow (3 variants)
 
+# Tested Platforms
 So far, this tool has been tested with the following OAuth2 or OIDC implementations:
 
 * Red Hat SSO v7.1 (OAuth2 + OIDC)
 * 3Scale SaaS with self-managed APICast Gateway (OAuth2 + OIDC)
 * Azure Active Directory (v1 endpoints, OIDC + OAuth2)
+* Azure Active Directory (v2 endpoints, OIDC + OAuth2)
 * Apigee Edge (OAuth2, with caveats described [here](https://medium.com/@robert.broeckelmann/demo-apigee-edge-oauth2-debugging-a10223eb334))
 * Ping Federate (OAuth2 + OIDC)
 * AWS Cognito (OAuth2 + OIDC)
 * Facebook (OAuth2)
 * Google+ (OAuth2)
 * KeyCloak (reported to work by third-parties, Red Hat SSO v7.1 is KeyCloak under the Red Hat banner, so it should work)
+* Okta (OIDC)
 
 # 3Scale Usage Notes
 The version of 3Scale SaaS + APICast only supports OAuth2; 3Scale can support the OIDC Authorization Code Flow since the response_type and grant_type values match OAuth2's Authorization Code Grant.  The other OIDC Authentication Flows are not supported by 3Scale OAuth2.  The latest version of 3Scale on-premise has OIDC support.  As of 12/3/2017, I haven't been able to test this yet.
@@ -60,20 +73,27 @@ The debugger has been tested with recent versions of Chrome.
 If you have docker installed already:
 ```
 git clone https://github.com/rcbj/oauth2-oidc-debugger.git
-cd oauth2-oidc-debugger
-docker-compose up
+cd idptools-site
+sudo CONFIG_FILE=./env/local.js docker-compose build
+sudo CONFIG_FILE=./env/local.js docker-compose up
 ```
 Note, you will need at least 950MB of disk space ree in order to build this Docker image.
 
 From a bash command prompt on Fedora or RHEL 7.x, run the following::
-``` yum install git
- git clone https://github.com/rcbj/oauth2-oidc-debugger.git
- yum install docker
- system start docker
- cd oauth2-oidc-debugger/client
- docker build -t oauth2-oidc-debugger .
- docker run -p 3000:3000 oauth2-oidc-debugger 
 ```
+yum install git
+git clone https://github.com/rcbj/idptools-site/
+dnf install docker
+systemctl start docker
+cd idptools-site
+sudo CONFIG_FILE=./env/local.js docker-compose build
+sudo CONFIG_FILE=./env/local.js docker-compose up
+```
+# Clean Up / Start Over
+* List all containers (only IDs) ```sudo docker ps -aq```
+* Stop all running containers: ```sudo docker stop $(docker ps -aq)```
+* Remove all containers: ```sudo docker rm $(docker ps -aq)```
+* Remove all images: ```sudo docker rmi $(docker images -q)```
 
 On other systems, the commands needed to start the debugger in a local docker container will be similar. The docker Sinatra/Ruby runtime will have to be able to establish connections to remote IdP endpoint (whether locally in other docker containers, on the host VM, or over the network/internet). On the test system, it was necessary to add "--net=host" to the "docker run" args. The network connectivity details for docker may vary from platform-to-platform.
 
@@ -132,13 +152,34 @@ To run this project you will need to install docker.
 ```
 On other systems, the commands needed to start the debugger in a local docker container will be similar. The docker Sinatra/Ruby runtime will have to be able to establish connections to remote IdP endpoint (whether locally in other docker containers, on the host VM, or over the network/internet).  On the test system, it was necessary to add "--net=host" to the "docker run" args. The network connectivity details for docker may vary from platform-to-platform.
 
+# Additional Feature Information
+## State Parameters
+* A state parameter can be submitted as part of the authorization endpoint request. The state parameter will be validated when the redirect comes back to the registered callback endpoint. A UUID is used as the state value. This is an optional, but recommended parameter.
+## Custom Parameters
+Various specs & RFCs that build on the OAuth2 & OIDC protocols add additional parameters that must be passed to the Authorization Endpoint and Token Endpoint. The debugger supports passing up to ten custom parameters.
+## Nonce Parameter
+A nonce parameter can be included in the Authorization Endpoint call. A UUID is used as the nonce value.
+
+## Token Details
+All tokens (Access, Refresh, ID) returned by the IdP can have their details viewed by clicking on the link next to the token on the Debugger2 page.
+
+This feature currently only supports JWT tokens, but in the future will support other token types.
+
+Some caveats to keep in mind:
+
+* If nothing is displayed, then the requested token retrieved from the endpoint is not a JWT or not a valid JWT.
+* In the future, additional token formats may be added.
+* Although, many leading IdPs use JWT as the format for OAuth2 access tokens and refresh tokens. The spec does not require this.
+* Some IdPs intentionally use opaque tokens that have no deeper meaning than to be a randomly generated identifier that points back to session information stored on the IdP
+
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.2 - 3Scale + APICast support for all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.3 - Azure Active Directory support for OAuth2 Grans and OIDC Authorization Code Flow.  Added error reporting logic and support for optional resource parameter.  Added additional debug logging code in client.  Moved Token Endpoint interaction into server-side (Ruby/Sinatra/Docker); this was necessary because Azure Active Directory does not support CORS (making Javascript interaction from a browser impossible).  Disabled IdP server certificate validation in IdP call.
 * v0.4 - Full OpenID Connect support (all variations of Implicit and Hybrid Flows).  Support for public clients (ie, no client secret).
 * v0.5 - Refresh Token support. Updates to UI.
-
+* v0.6 - Rewritten in JavaScript. Ported to AWS for idptools.io website. Numerous enhancements. See Release Notes.
+* v0.7 - PKCE Support added.
 ## Authors
 
 Robert C. Broeckelmann Jr. - Initial work
@@ -151,5 +192,9 @@ This project is licensed under the Apache 2.0 License - see the LICENSE.md file 
 Thanks to the following:
 * [APICast (3Scale API Management Gateway OAuth2 Example)](https://github.com/3scale/apicast/tree/master/examples/oauth2) for being the starting point for this experiment.
 * [Docker](https://docker.com)
-* [Ruby v2.4.0 Docker Image](https://hub.docker.com/_/ruby/)
-* [Sinatra](http://sinatrarb.com/)
+* docker-compose
+* Node.js
+* Javascript
+* Typescript
+* Browserify
+* Swagger

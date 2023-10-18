@@ -1,9 +1,29 @@
-version: '3.3'
+version: '3'
 services:
-  oauth2-oidc-debugger:
-    image: 'oauth2-oidc-debugger'
+  api:
+    container_name: api
+    image: rcbj/api
+    environment:
+     - HOST=0.0.0.0
+     - PORT=4000
     build:
-      context: ./client
+      context: api
       dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+  client:
+    container_name: client
+    image: rcbj/client
+    environment:
+#     - BASE_URL=http://localhost:3000
+#     - API_URL=http://localhost:4000
+#     - HOST=0.0.0.0
+#     - PORT=3000
+      - CONFIG_FILE=./env/local.js
+    build:
+      context: client
+      dockerfile: Dockerfile 
+      args:
+        CONFIG_FILE: ${CONFIG_FILE}
     ports:
       - "3000:3000"

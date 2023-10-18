@@ -341,7 +341,7 @@ a:focus {
 }
 
 .offset12 {
-  margin-left: 980px;
+  margin-left: 30px;
 }
 
 .offset11 {
@@ -6125,4 +6125,11 @@ a.badge:focus {
 
 .affix {
   position: fixed;
+}
+
+#authz_custom_parameter_list {
+    display: table-cell;
+    width:50%;
+    vertical-align: bottom;
+    height: 100%;
 }

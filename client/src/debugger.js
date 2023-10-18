@@ -1,16 +1,28 @@
+// File: debugger.js
+// Author: Robert C. Broeckelmann Jr.
+// Date: 06/15/2017
+// Notes:
+//
+// This file provides the interactive functionality needed for the first debugger screen which
+// has the authorization endpoint, general configuration, and OIDC Discovery Endpoint pantes.
+//
+// This file is run through browserify and the output copied into the public/js directory.
+//
 var displayOpenIDConnectArtifacts = false;
 var useRefreshTokenTester = false;
+var usePKCE = false;
 var displayStep0 = true;
 var displayStep1 = true;
 var displayStep2 = true;
 var displayStep3 = true;
 var displayStep4 = true;
 var displayStep5 = true;
+var discoveryInfo = {};
 
 function OnSubmitForm()
 {
   console.log("Entering OnSubmitForm().");
-  document.auth_step.action = document.getElementById("authorization_endpoint").value;
+//  document.auth_step.action = document.getElementById("authorization_endpoint").value;
   writeValuesToLocalStorage();
   recalculateAuthorizationRequestDescription();
   console.log("Leaving OnSubmitForm().");
@@ -324,8 +336,12 @@ function resetUI(value)
     if( value == "implicit_grant" )
     {
       $("#code").hide();
-      document.getElementById("authzUsernameRow").style.visibility = 'collapse'; 
-      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
+      if(document.getElementById("authzUsernameRow")) {
+        document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      }
+      if(document.getElementById("authzPasswordRow")) {
+        document.getElementById("authzPasswordRow").style.visibility = 'collapse';
+      }
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
@@ -343,8 +359,12 @@ function resetUI(value)
     if( value == "client_credential")
     {
       $("#code").hide();
-      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
+      if(document.getElementById("authzUsernameRow")) {
+        document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      }
+      if(document.getElementById("authzPasswordRow")) {
+        document.getElementById("authzPasswordRow").style.visibility = 'collapse';
+      }
       $("#step2").hide();
       $("#step3").show();
       $("#nonce").hide();
@@ -352,7 +372,7 @@ function resetUI(value)
       document.getElementById("token_grant_type").value = "client_credentials";
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
-      document.getElementById("h2_title_2").innerHTML = "Obtain Access Token";
+//      document.getElementById("h2_title_2").innerHTML = "Obtain Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
@@ -362,8 +382,12 @@ function resetUI(value)
     if( value == "resource_owner")
     {
       $("#code").hide();
-      document.getElementById("authzUsernameRow").style.visibility = '';
-      document.getElementById("authzPasswordRow").style.visibility = '';
+      if(document.getElementById("authzUsernameRow")) {
+        document.getElementById("authzUsernameRow").style.visibility = '';
+      }
+      if(document.getElementById("authzPasswordRow")) {
+        document.getElementById("authzPasswordRow").style.visibility = '';
+      }
       $("#step2").hide();
       $("#step3").show();
       $("#nonce").hide();
@@ -371,7 +395,7 @@ function resetUI(value)
       document.getElementById("token_grant_type").value = "password";
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
-      document.getElementById("h2_title_2").innerHTML = "Obtain Access Token";
+//      document.getElementById("h2_title_2").innerHTML = "Obtain Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
@@ -381,19 +405,17 @@ function resetUI(value)
     if( value == "authorization_grant")
     {
       $("#code").show();
-      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").hide();
       document.getElementById("response_type").value = "code";
-      document.getElementById("token_grant_type").value = "authorization_code";
+//      document.getElementById("token_grant_type").value = "authorization_code";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
-      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
+//      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
@@ -403,8 +425,12 @@ function resetUI(value)
     if ( value == "oidc_implicit_flow")
     {
       $("#code").hide();
-      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
+      if(document.getElementById("authzUsernameRow")) {
+        document.getElementById("authzUsernameRow").style.visibility = 'collapse';
+      }
+      if(document.getElementById("authzPasswordRow")) {
+        document.getElementById("authzPasswordRow").style.visibility = 'collapse';
+      }
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
@@ -412,7 +438,6 @@ function resetUI(value)
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
-      document.getElementById("token_grant_type").value = "";
       document.getElementById("h2_title_1").innerHTML = "Request Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
@@ -424,8 +449,6 @@ function resetUI(value)
     if ( value == "oidc_implicit_flow_id_token")
     {
       $("#code").hide();
-      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").hide();
       $("#nonce").show();
@@ -433,7 +456,7 @@ function resetUI(value)
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
-      document.getElementById("token_grant_type").value = "";
+//      document.getElementById("token_grant_type").value = "";
       document.getElementById("h2_title_1").innerHTML = "Request Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
@@ -445,20 +468,18 @@ function resetUI(value)
     if( value == "oidc_authorization_code_flow")
     {
       $("#code").show();
-      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
       document.getElementById("response_type").value = "code";
-      document.getElementById("token_grant_type").value = "authorization_code";
+//      document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
-      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
+//      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
@@ -469,20 +490,18 @@ function resetUI(value)
     if( value == "oidc_hybrid_code_id_token")
     {
       $("#code").show();
-      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
       document.getElementById("response_type").value = "code id_token";
-      document.getElementById("token_grant_type").value = "authorization_code";
+//      document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
-      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
+//      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
@@ -494,20 +513,18 @@ function resetUI(value)
     if( value == "oidc_hybrid_code_token")
     {
       $("#code").show();
-      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
       document.getElementById("response_type").value = "code token";
-      document.getElementById("token_grant_type").value = "authorization_code";
+//      document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
-      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
+//      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
@@ -518,20 +535,18 @@ function resetUI(value)
     if( value == "oidc_hybrid_code_id_token_token")
     {
       $("#code").show();
-      document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-      document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
       $("#nonce").show();
       document.getElementById("response_type").value = "code id_token token";
-      document.getElementById("token_grant_type").value = "authorization_code";
+//      document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
-      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
+//      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
@@ -556,22 +571,34 @@ function writeValuesToLocalStorage()
 {
   console.log("Entering writeValuesToLocalStorage().");
   if (localStorage) {
-      localStorage.setItem("token_client_id", document.getElementById("token_client_id").value);
-      localStorage.setItem("token_client_secret", document.getElementById("token_client_secret").value);
-      localStorage.setItem("token_redirect_uri", document.getElementById("token_redirect_uri").value);
-      localStorage.setItem("token_username", document.getElementById("token_username").value);
-      localStorage.setItem("token_scope", document.getElementById("token_scope").value);
       localStorage.setItem("authorization_grant_type", document.getElementById("authorization_grant_type").value);
-      localStorage.setItem("token_resource", document.getElementById("token_resource").value);
-      localStorage.setItem("yesCheckToken", document.getElementById("yesCheckToken").checked);
-      localStorage.setItem("noCheckToken", document.getElementById("noCheckToken").checked);
       localStorage.setItem("yesCheckOIDCArtifacts", document.getElementById("yesCheckOIDCArtifacts").checked);
       localStorage.setItem("noCheckOIDCArtifacts", document.getElementById("noCheckOIDCArtifacts").checked);
-      localStorage.setItem("refresh_client_id", document.getElementById("refresh_client_id").value);
-      localStorage.setItem("refresh_client_secret", document.getElementById("refresh_client_secret").value);
-      localStorage.setItem("refresh_scope", document.getElementById("refresh_scope").value);
       localStorage.setItem("useRefreshToken_yes", document.getElementById("useRefreshToken-yes").checked);
+      localStorage.setItem("usePKCE_yes", document.getElementById("usePKCE-yes").checked);
+      localStorage.setItem("client_id", document.getElementById("client_id").value);
+      localStorage.setItem("redirect_uri", document.getElementById("redirect_uri").value);
+      localStorage.setItem("scope", document.getElementById("scope").value);
       localStorage.setItem("useRefreshToken_no", document.getElementById("useRefreshToken-no").checked);
+      localStorage.setItem("usePKCE_no", document.getElementById("usePKCE-no").checked);
+      localStorage.setItem("oidc_discovery_endpoint", document.getElementById("oidc_discovery_endpoint").value);
+      localStorage.setItem("oidc_userinfo_endpoint", document.getElementById("oidc_userinfo_endpoint").value);
+      localStorage.setItem("jwks_endpoint", document.getElementById("jwks_endpoint").value);
+      localStorage.setItem("authzcustomParametersCheck-yes", document.getElementById("authzcustomParametersCheck-yes").checked);
+      localStorage.setItem("authzcustomParametersCheck-no", document.getElementById("authzcustomParametersCheck-no").checked);
+      localStorage.setItem("authzNumberCustomParameters", document.getElementById("authzNumberCustomParameters").value);
+      if (document.getElementById("authzcustomParametersCheck-yes").checked) {
+        var i = 0;
+        var authzNumberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);
+        for(i = 0; i < authzNumberCustomParameters; i++)
+        {
+          console.log("Writing customParameterName-" + i + " as " + document.getElementById("customParameterName-" + i).value + "\n");
+          localStorage.setItem("customParameterName-" + i, document.getElementById("customParameterName-" + i).value);
+          console.log("Writing customParameterValue-" + i + " as " + document.getElementById("customParameterValue-" + i).value + "\n");
+          localStorage.setItem("customParameterValue-" + i, document.getElementById("customParameterValue-" + i).value);
+        }
+      }
+      setPKCEValues();
   }
   console.log("Leaving writeValuesToLocalStorage().");
 }
@@ -595,25 +622,41 @@ function loadValuesFromLocalStorage()
   document.getElementById("client_id").value = localStorage.getItem("client_id");
   document.getElementById("scope").value = localStorage.getItem("scope");
   document.getElementById("resource").value = localStorage.getItem("resource");
-  document.getElementById("token_client_id").value = localStorage.getItem("token_client_id");
-  document.getElementById("token_client_secret").value = localStorage.getItem("token_client_secret");
-  document.getElementById("token_redirect_uri").value = localStorage.getItem("token_redirect_uri");
-  document.getElementById("token_scope").value = localStorage.getItem("token_scope");
-  document.getElementById("token_username").value = localStorage.getItem("token_username");
-  document.getElementById("token_resource").value = localStorage.getItem("token_resource");
-  document.getElementById("yesCheck").checked = localStorage.getItem("yesCheck");
-  document.getElementById("noCheck").checked = localStorage.getItem("noCheck");
-  document.getElementById("yesCheckToken").checked = localStorage.getItem("yesCheckToken");
-  document.getElementById("noCheckToken").checked = localStorage.getItem("noCheckToken");
+  document.getElementById("yesCheck").checked = localStorage.getItem("yesCheck")? localStorage.getItem("yesCheck") : false;
+  document.getElementById("noCheck").checked = localStorage.getItem("noCheck")? localStorage.getItem("noCheck") : true;
   document.getElementById("yesCheckOIDCArtifacts").checked = localStorage.getItem("yesCheckOIDCArtifacts");
   document.getElementById("noCheckOIDCArtifacts").checked = localStorage.getItem("noCheckOIDCArtifacts");
-  document.getElementById("refresh_client_id").value = localStorage.getItem("refresh_client_id");
-  document.getElementById("refresh_scope").value = localStorage.getItem("refresh_scope");
-  document.getElementById("refresh_client_secret").value = localStorage.getItem("refresh_client_secret");
   document.getElementById("useRefreshToken-yes").checked = localStorage.getItem("useRefreshToken_yes");
   document.getElementById("useRefreshToken-no").checked = localStorage.getItem("useRefreshToken_no");
+  document.getElementById("usePKCE-yes").checked = localStorage.getItem("usePKCE_yes");
+  document.getElementById("usePKCE-no").checked = localStorage.getItem("usePKCE_no");
+  document.getElementById("oidc_discovery_endpoint").value = localStorage.getItem("oidc_discovery_endpoint");
+  document.getElementById("oidc_userinfo_endpoint").value = localStorage.getItem("oidc_userinfo_endpoint");
+  document.getElementById("jwks_endpoint").value = localStorage.getItem("jwks_endpoint");
+  document.getElementById("authzcustomParametersCheck-yes").checked = localStorage.getItem("authzcustomParametersCheck-yes")? localStorage.getItem("authzcustomParametersCheck-yes") : false;
+  document.getElementById("authzcustomParametersCheck-no").checked = localStorage.getItem("authzcustomParametersCheck-no")? localStorage.getItem("authzcustomParametersCheck-no") : true;
+  document.getElementById("authzNumberCustomParameters").value = localStorage.getItem("authzNumberCustomParameters")? localStorage.getItem("authzNumberCustomParameters") : 1;
+
+  document.getElementById("pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
+  document.getElementById("pkce_code_verifier").value = localStorage.getItem("PKCE_code_challenge_verifier");
+  document.getElementById("pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+
+  if (document.getElementById("authzcustomParametersCheck-yes").checked) {
+    generateCustomParametersListUI();
+    var i = 0;
+    var authzNumberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);  
+    for(i = 0; i < authzNumberCustomParameters; i++)
+    {
+      console.log("Reading customParameterName-" + i + " as " + localStorage.getItem("customParameterName-" + i + "\n"));
+      document.getElementById("customParameterName-" + i).value = localStorage.getItem("customParameterName-" + i);
+      console.log("Reading customParameterValue-" + i + " as " + localStorage.getItem("customParameterValue-" + i + "\n"));
+      document.getElementById("customParameterValue-" + i).value = localStorage.getItem("customParameterValue-" + i);
+    }
+  }
+  setPKCEValues();
 
   var agt = document.getElementById("authorization_grant_type").value;
+
   var pathname = window.location.pathname;
   console.log("agt=" + agt);
   console.log("pathname=" + pathname);
@@ -765,7 +808,9 @@ function loadValuesFromLocalStorage()
     $("#display_authz_error_class").html("<fieldset><legend>Authorization Endpoint Error</legend><form action=\"\" name=\"display_authz_error_form\" id=\"display_authz_error_form\"><table><tr><td><label name=\"display_authz_error_form_label1\" value=\"\" id=\"display_authz_error_form_label1\">Error</label></td><td><textarea rows=\"10\" cols=\"100\" id=\"display_authz_error_form_textarea1\"></td></tr></table></textarea></form></fieldset>");
   }
   document.getElementById("state").value = generateUUID();
+  localStorage.setItem('state', document.getElementById("state").value);
   document.getElementById("nonce_field").value = generateUUID();
+  localStorage.setItem('nonce_field', document.getElementById("nonce_field").value);
   recalculateAuthorizationRequestDescription();
   console.log("Leaving loadValuesFromLocalStorage().");
 }
@@ -788,6 +833,22 @@ function recalculateAuthorizationRequestDescription()
     }
   }
   console.log("resourceComponent=" + resourceComponent);
+  var customParametersComponent = "";
+  var authzcustomParametersCheck = document.getElementById("authzcustomParametersCheck-yes").checked;
+  console.log("authzcustomParametersCheck: " + authzcustomParametersCheck + ", type=" + typeof(authzcustomParametersCheck));
+  if(authzcustomParametersCheck) {
+    const numberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);
+    console.log('numberCustomParameters=' + numberCustomParameters);
+    var i = 0;
+    for(i = 0; i < numberCustomParameters; i++) 
+    {
+       customParametersComponent = customParametersComponent +
+                                   document.getElementById("customParameterName-" + i).value +
+                                   '=' + document.getElementById("customParameterValue-" + i).value + "&" + "\n";
+    }
+    customParametersComponent = customParametersComponent.substring(0,  customParametersComponent.length - 2);
+    console.log('customParametersComponent=' + customParametersComponent);
+  }
   if (ta1 != null)
   {
     var grant_type = document.getElementById("response_type").value;
@@ -802,8 +863,17 @@ function recalculateAuthorizationRequestDescription()
   								      "response_type=" + document.getElementById("response_type").value + "&" + "\n" +
   								      "client_id=" + document.getElementById("client_id").value + "&" + "\n" +
                 						      "redirect_uri=" + document.getElementById("redirect_uri").value + "&" +"\n" +
-								      "scope=" + document.getElementById("scope").value + "\n" +
-                                                                      resourceComponent + "\n";
+								      "scope=" + document.getElementById("scope").value;
+       if ( resourceComponent.length > 0) {
+         document.getElementById("display_authz_request_form_textarea1").value += "&\n" + resourceComponent + "\n";
+       }
+       if (customParametersComponent.length > 0) {
+         document.getElementById("display_authz_request_form_textarea1").value += "&\n" +  customParametersComponent + "\n";
+       }
+       if (usePKCE) {
+         document.getElementById("display_authz_request_form_textarea1").value += "&\n" + "code_challenge=" + document.getElementById("pkce_code_challenge").value  + "&\n" +
+                                                                                          "code_challenge_method=" + document.getElementById("pkce_code_method").value
+       }
     } else if (	grant_type == "token" || 
 		grant_type == "id_token token" || 
 		grant_type == "id_token") {
@@ -813,13 +883,28 @@ function recalculateAuthorizationRequestDescription()
                                                                       "response_type=" + document.getElementById("response_type").value + "&" + "\n" +
                                                                       "client_id=" + document.getElementById("client_id").value + "&" + "\n" +
                                                                       "redirect_uri=" + document.getElementById("redirect_uri").value + "&" +"\n" +
-                                                                      "scope=" + document.getElementById("scope").value + "\n" +
-                                                                      resourceComponent + "\n";
+                                                                      "scope=" + document.getElementById("scope").value;
+      if ( resourceComponent.length > 0) {
+        document.getElementById("display_authz_request_form_textarea1").value += "&" + resourceComponent + "\n";
+      }
+      if (customParametersComponent.length > 0) {
+        document.getElementById("display_authz_request_form_textarea1").value += "&" +  customParametersComponent + "\n";
+      }
     } else {
       document.getElementById("display_authz_request_form_textarea1").value = "UNKNOWN_GRANT_TYPE";
     }
   }
+  console.log('display_authz_request_form_textarea1=' + document.getElementById("display_authz_request_form_textarea1").value);
   console.log("Leaving recalculateAuthorizationRequestDescription().");
+}
+
+function triggerAuthZEndpointCall()
+{
+  console.log("Entering triggerAuthZEndpointCall().");
+  writeValuesToLocalStorage();
+  recalculateAuthorizationRequestDescription();
+  window.location.href = document.getElementById("display_authz_request_form_textarea1").value.substring(4, document.getElementById("display_authz_request_form_textarea1").value.length).replace("\n","");
+  console.log("Leaving triggerAuthZEndpointCall().");
 }
 
 function recalculateTokenRequestDescription()
@@ -827,11 +912,11 @@ function recalculateTokenRequestDescription()
   console.log("Entering recalculateTokenRequestDescription().");
   console.log("update request field");
   var ta1 = document.getElementById("display_token_request_form_textarea1");
-  var yesCheck = document.getElementById("yesCheckToken").checked;
+//  var yesCheck = document.getElementById("yesCheckToken").checked;
   var resourceComponent = "";
   if(yesCheck) //add resource value to OAuth query string
   {
-    var resource = document.getElementById("token_resource").value;
+//    var resource = document.getElementById("token_resource").value;
     if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
     {
       resourceComponent =  "&resource=" + resource;
@@ -938,6 +1023,11 @@ window.onload = function() {
   document.getElementById("noCheck").addEventListener("onClick", recalculateAuthorizationRequestDescription());
   document.getElementById("yesCheckOIDCArtifacts").addEventListener("onClick", recalculateAuthorizationRequestDescription());
   document.getElementById("noCheckOIDCArtifacts").addEventListener("onClick", recalculateAuthorizationRequestDescription());
+  document.getElementById("authzcustomParametersCheck-yes").addEventListener("onClick", recalculateAuthorizationRequestDescription());
+  document.getElementById("authzcustomParametersCheck-no").addEventListener("onClick", recalculateAuthorizationRequestDescription());
+
+  // Set initial values in case this is the first time the page was hit
+  onSubmitClearAllForms(); 
 
   if (localStorage) {
     // Add an event listener for form submissions
@@ -954,12 +1044,14 @@ window.onload = function() {
       localStorage.setItem("noCheck", document.getElementById("noCheck").checked);
       localStorage.setItem("yesCheckOIDCArtifacts", document.getElementById("yesCheckOIDCArtifacts").checked);
       localStorage.setItem("noCheckOIDCArtifacts", document.getElementById("noCheckOIDCArtifacts").checked);
+      localStorage.setItem("authzcustomParametersCheck-yes", document.getElementById("authzcustomParametersCheck-yes").checked);
+      localStorage.setItem("authzcustomParametersCheck-no", document.getElementById("authzcustomParametersCheck-no").checked);
 
       console.log("Leaving auth_step submit event listener function.");
     });
   }
   loadValuesFromLocalStorage();
-//  resetUI();
+  generateCustomParametersListUI
   recalculateAuthorizationRequestDescription();
   recalculateAuthorizationErrorDescription();
   recalculateTokenRequestDescription();
@@ -971,13 +1063,6 @@ window.onload = function() {
   } else {
     document.getElementById("authzResourceRow").style.visibility = 'collapse';
   }
-  var yesCheckedToken = document.getElementById("yesCheckToken").checked
-  if(yesCheckedToken)
-  {
-    document.getElementById("authzTokenResourceRow").style.visibility = '';
-  } else {
-    document.getElementById("authzTokenResourceRow").style.visibility = 'collapse';
-  }
   if( document.getElementById("useRefreshToken-yes").checked)
   {
     useRefreshTokenTester = document.getElementById("useRefreshToken-yes").value;
@@ -986,12 +1071,14 @@ window.onload = function() {
   } else {
     useRefreshTokenTester = true;
   }
-  if(useRefreshTokenTester == true)
+  var authzcustomParametersCheck = document.getElementById("authzcustomParametersCheck-yes").checked;
+  if(authzcustomParametersCheck)
   {
-    $("#step4").show();
+    document.getElementById("authzCustomParametersRow").style.visibility = '';
   } else {
-    $("#step4").hide();
+    document.getElementById("authzCustomParametersRow").style.visibility = 'collapse';
   }
+  displayAuthzCustomParametersCheck();
   console.log("Leaving onload().");
 }
 
@@ -1085,7 +1172,7 @@ function recalculateAuthorizationErrorDescription()
         var error = getParameterByName("error",window.location.href);
         var error_description = getParameterByName("error_description",window.location.href);
         var error_uri = getParameterByName("error_uri",window.location.href);
-        var state = getParameterByName("state",window.location.href);
+        var state = getParameterByName("state", window.location.href);
         document.getElementById("display_authz_error_form_textarea1").value = "error: " + error + "\n" +
                                                                               "error_description: " + error_description + "\n" +
                                                                               "error_uri: " + error_uri + "\n" +
@@ -1265,6 +1352,21 @@ function useRefreshTokens()
   console.log("Leaving useRefreshTokens().");
 }
 
+function usePKCERFC()
+{
+  console.log("Entering usePKCERFC().");
+  var yesCheck = document.getElementById("usePKCE-yes").checked;
+  var noCheck = document.getElementById("usePKCE-no").checked;
+  console.log("usePKCE-yes=" + yesCheck, "useRefreshToken-no=" + noCheck);
+  if (yesCheck) {
+    usePKCE = true;
+  } else {
+    usePKCE = false;
+  }
+  recalculateAuthorizationRequestDescription();
+  console.log("Leaving usePKCERFC().");
+}
+
 $("#tipText").hover(
    function(e){
        $("#tooltip").show();
@@ -1272,3 +1374,403 @@ $("#tipText").hover(
    function(e){
        $("#tooltip").hide();
   });
+
+function OnSubmitOIDCDiscoveryEndpointForm()
+{
+  console.log("Entering OnSubmitOIDCDiscoveryEndpointForm().");
+  writeValuesToLocalStorage();
+  var oidcDiscoveryEndpoint = document.getElementById("oidc_discovery_endpoint").value;
+  console.log('URL: ' + oidcDiscoveryEndpoint);
+  if (isUrl(oidcDiscoveryEndpoint)) {
+    console.log('valid URL: ' + oidcDiscoveryEndpoint);
+    $.ajax({ type: 'GET',
+             crossOrigin: true,
+             url: oidcDiscoveryEndpoint,
+             success: function(result) {
+               console.log("OIDC Discovery Endpoint Result: " + JSON.stringify(result));
+               discoveryInfo = result;
+               parseDiscoveryInfo(result);
+               buildDiscoveryInfoTable(result);
+             },
+             error: function (request, status, error) {
+               console.log("request: " + JSON.stringify(request));
+               console.log("status: " + JSON.stringify(status));
+               console.log("error: " + JSON.stringify(error));
+             }
+           });
+    console.log("Leaving OnSubmitOIDCDiscoveryEndpointForm()");
+    return false;
+  } else {
+    console.log('Not a valid URL.');
+    console.log("Leaving OnSubmitOIDCDiscoveryEndpointForm()");
+    return false;
+  }
+}
+
+function isUrl(url) {
+  console.log('Entering isUrl().');
+  try {
+    return Boolean(new URL(url));
+  } catch(e) {
+    console.log('An error occurred: ' + e.stack);
+    return false;
+  }
+}
+
+function parseDiscoveryInfo(discoveryInfo) {
+  console.log("Entering parseDiscoveryInfo().");
+  var authorizationEndpoint = discoveryInfo["authorization_endpoint"];
+  var idTokenSigningAlgValuesSupported = discoveryInfo["id_token_signing_alg_values_supported"];
+  var issuer = discoveryInfo["issuer"];
+  var jwksUri = discoveryInfo["jwks_uri"];
+  var responseTypesSupported = discoveryInfo["response_types_supported"];
+  var scopesSupported = discoveryInfo["scopes_supported"];
+  var subjectTypesSupported = discoveryInfo["subject_types_supported"];
+  var tokenEndpoint = discoveryInfo["token_endpoint"];
+  var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
+  var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
+  console.log("authorizationEndpoint: " + authorizationEndpoint);
+  console.log("idTokenSigningAlgValuesSupported: " + JSON.stringify(idTokenSigningAlgValuesSupported));
+  console.log("issuer: " + issuer);
+  console.log("jwksUri: " + jwksUri);
+  console.log("responseTypesSupported: " + JSON.stringify(responseTypesSupported));
+  console.log("scopesSupported: " + JSON.stringify(scopesSupported));
+  console.log("subjectTypesSupported: " + JSON.stringify(subjectTypesSupported));
+  console.log("tokenEndpoint: " + tokenEndpoint);
+  console.log("tokenEndpointAuthMethodsSupported: " + JSON.stringify(tokenEndpointAuthMethodsSupported));
+  console.log("userInfoEndpoint: " + userInfoEndpoint);
+  console.log("Leaving parseDiscoveryInfo()."); 
+}
+
+function buildDiscoveryInfoTable(discoveryInfo) {
+  console.log("Entering buildDiscoveryInfoTable().");
+  var discovery_info_table_html = "<table border='2' style='border:2px;'>" +
+                                    "<tr>" +
+                                      "<td><strong>Attribute</strong></td>" +
+                                      "<td><strong>Value</strong></td>" +
+                                    "</tr>";
+   Object.keys(discoveryInfo).forEach( (key) => {
+     discovery_info_table_html = discovery_info_table_html +
+                                 "<tr>" +
+                                   "<td>" + key + "</td>" +
+                                   "<td>" + discoveryInfo[key] + "</td>" +
+                                 "</tr>";
+   });
+
+   discovery_info_table_html = discovery_info_table_html +
+                              "</table>";
+
+   var discovery_info_meta_data_html = '<table>' +
+                                       '<form>' +
+                                         '<td>' +
+                                           '<input class="btn_oidc_populate_meta_data" type="button" value="Populate Meta Data" onclick="return debug.onSubmitPopulateFormsWithDiscoveryInformation();"/>' +
+                                         '</td>' +
+                                       '</form>' +
+                                       '</table>';
+  $("#discovery_info_meta_data_populate").html(discovery_info_meta_data_html);
+  $("#discovery_info_table").html(discovery_info_table_html);
+}
+
+function onSubmitPopulateFormsWithDiscoveryInformation() {
+  console.log('Entering OnSubmitPopulateFormsWithDiscoveryInformation().');
+  var authorizationEndpoint = discoveryInfo["authorization_endpoint"];
+  var idTokenSigningAlgValuesSupported = discoveryInfo["id_token_signing_alg_values_supported"];
+  var issuer = discoveryInfo["issuer"];
+  var jwksUri = discoveryInfo["jwks_uri"];
+  var responseTypesSupported = discoveryInfo["response_types_supported"];
+  var scopesSupported = discoveryInfo["scopes_supported"].toString().replace(/,/g, " ");
+  var subjectTypesSupported = discoveryInfo["subject_types_supported"];
+  var tokenEndpoint = discoveryInfo["token_endpoint"];
+  var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
+  var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
+
+  document.getElementById("authorization_endpoint").value = authorizationEndpoint;
+  document.getElementById("token_endpoint").value = tokenEndpoint;
+//  document.getElementById("token_scope").value = scopesSupported;
+  document.getElementById("scope").value = scopesSupported;
+  document.getElementById("oidc_userinfo_endpoint").value = userInfoEndpoint;
+  document.getElementById("jwks_endpoint").value = jwksUri;
+  if (localStorage) {
+      console.log('Adding to local storage.');
+      localStorage.setItem("authorization_endpoint", authorizationEndpoint );
+      localStorage.setItem("token_endpoint", tokenEndpoint );
+      localStorage.setItem("scope", scopesSupported);
+      localStorage.setItem("token_scope", scopesSupported );
+      localStorage.setItem("jwks_endpoint", jwksUri);
+  }
+  console.log('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
+  return true;
+}
+// document.getElementById("step0").style.display = "none";
+
+// Reset all forms and clear local storage
+function onSubmitClearAllForms() {
+  if (document.getElementById("authorization_endpoint")) {
+    document.getElementById("authorization_endpoint").value = "";
+  }
+  if ( document.getElementById("token_endpoint")) {
+     document.getElementById("token_endpoint").value = "";
+  }
+  if (document.getElementById("authorization_grant_type")) {
+    document.getElementById("authorization_grant_type").value = "oidc_authorization_code_flow";
+  }
+  if (document.getElementById("token_resource")) {
+    document.getElementById("token_resource").value = "";
+  }
+  if (document.getElementById("yesCheck")) {
+    document.getElementById("yesCheck").checked = false;
+  }
+  if (document.getElementById("noCheck")) {
+    document.getElementById("noCheck").checked = true;
+  }
+  if (document.getElementById("yesCheckOIDCArtifacts")) {
+    document.getElementById("yesCheckOIDCArtifacts").checked = true;
+  }
+  if (document.getElementById("noCheckOIDCArtifacts")) {
+    document.getElementById("noCheckOIDCArtifacts").checked = false;
+  }
+  if (document.getElementById("refresh_client_id")) {
+    document.getElementById("refresh_client_id").value = "";
+  }
+  if (document.getElementById("refresh_client_secret")) {
+    document.getElementById("refresh_client_secret").value = "";
+  }
+  if (document.getElementById("refresh_scope")) {
+    document.getElementById("refresh_scope").value = "";
+  }
+  if (document.getElementById("useRefreshToken-yes")) {
+    document.getElementById("useRefreshToken-yes").checked = true;
+  }
+  if (document.getElementById("useRefreshToken-no")) {
+    document.getElementById("useRefreshToken-no").checked = false;
+  }
+  if (document.getElementById("authzcustomParametersCheck-yes")) {
+    document.getElementById("authzcustomParametersCheck-yes").checked = true;
+  }
+  if (document.getElementById("authzcustomParametersCheck-no")) {
+    document.getElementById("authzcustomParametersCheck-no").checked = false;
+  }
+  if (document.getElementById("oidc_discovery_endpoint")) {
+    document.getElementById("oidc_discovery_endpoint").value = "";
+  }
+  if (document.getElementById("client_id")) {
+    document.getElementById("client_id").value = "";
+  }
+  if (document.getElementById("scope")) {
+    document.getElementById("scope").value = "";
+  }
+  if (document.getElementById("resource")) {
+    document.getElementById("resource").value = "";
+  }
+  if (document.getElementById("redirect_uri")) {
+    document.getElementById("redirect_uri").value = "";
+  }
+  if (document.getElementById("oidc_userinfo_endpoint")) {
+    document.getElementById("oidc_userinfo_endpoint").value = "";
+  }
+  if (document.getElementById("jwks_endpoint")) {
+    document.getElementById("jwks_endpoint").value = "";
+  }
+
+  $("#discovery_info_table").html("");
+}
+
+function regenerateState() {
+  document.getElementById("state").value = generateUUID();
+  localStorage.setItem('state', document.getElementById("state").value);
+}
+
+function regenerateNonce() {
+  document.getElementById("nonce_field").value = generateUUID();
+  localStorage.setItem('nonce_field', document.getElementById("nonce_field").value);
+}
+
+function displayAuthzCustomParametersCheck()
+{
+  console.log("Entering displayAuthzCustomParametersCheck().");
+  var yesCheck = document.getElementById("authzcustomParametersCheck-yes").checked;
+  var noCheck = document.getElementById("authzcustomParametersCheck-no").checked;
+  console.log("customParamtersYesCheck=" + yesCheck, "customParamtersNoCheck=" + noCheck);
+  if(yesCheck) {
+    document.getElementById("authzCustomParametersRow").style.visibility = '';
+    document.getElementById("authzcustomParametersCheck-no").checked = false;
+    document.getElementById("authzcustomParametersCheck-yes").checked = true;
+  } else if(noCheck) {
+    document.getElementById("authzCustomParametersRow").style.visibility = "collapse"
+    document.getElementById("authzcustomParametersCheck-yes").checked = false;
+    document.getElementById("authzcustomParametersCheck-no").checked = true;
+    $("#authz_custom_parameter_list").html("");
+  }
+  if (yesCheck) {
+    generateCustomParametersListUI();
+  }
+  recalculateAuthorizationRequestDescription();
+  console.log("Leaving displayAuthzCustomParametersCheck()");
+}
+
+function generateCustomParametersListUI()
+{
+  var customParametersListHTML = "" +
+    "<legend>Custom Parameters" +
+    "</legend>" +
+    "<table>" +
+      "<tr>" +
+        "<th>&nbsp;</th>" +
+        "<th>Name</th>" +
+        "<th>Value</th>" +
+      "</tr>";
+      var i = 0;
+      var j = parseInt(document.getElementById("authzNumberCustomParameters").value);
+      if (j > 10) {
+        j = 10; // no more than ten
+      }
+      for( var i = 0; i < j; i++)
+      {
+        customParametersListHTML = customParametersListHTML +
+        "<tr>" +
+          "<td>Custom Parameter #" + i + "</td>" +
+          "<td>" +
+            '<input class="stored" id="' + 'customParameterName-' + i + '" name="' + 'customParameterName-' + i + '" type="text" maxlength="32" size="32" />' +
+          "</td>" +
+          "<td>" +
+            '<input class="stored" id="' + 'customParameterValue-' + i + '" name="' + 'customParameterValue-' + i + '" type="text" maxlength="32" size="32" />' +
+          "</td>" +
+        "</tr>";
+      }
+      customParametersListHTML = customParametersListHTML +
+        "</table>";
+      $("#authz_custom_parameter_list").html(customParametersListHTML); 
+  if (document.getElementById("authzcustomParametersCheck-yes").checked) {
+    var i = 0;
+    var authzNumberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);
+    for(i = 0; i < authzNumberCustomParameters; i++)
+    {
+//     localStorage.setItem("customParameterName-" + i, document.getElementById("customParameterName-" + i).value);
+//      localStorage.setItem("customParameterValue-" + i, document.getElementById("customParameterValue-" + i).value);
+      document.getElementById("customParameterName-" + i).value = localStorage.getItem("customParameterName-" + i);
+      document.getElementById("customParameterValue-" + i).value = localStorage.getItem("customParameterValue-" + i);
+    }
+  }
+  recalculateAuthorizationRequestDescription();
+
+}
+
+function onClickShowAuthzFieldSet(id) {
+  console.log('Entering onClickShowAuthzFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
+  if(id == 'authz_fieldset') {
+    if(document.getElementById(id).style.display == 'block') {
+       console.log('Hide ' + id + '.');
+       document.getElementById(id).style.display = 'none'
+       document.getElementById('authz_expand_button').value='Expand';
+       document.getElementById('config_fieldset').style.display = 'block'
+       document.getElementById('config_expand_button').value='Collapse';
+       document.getElementById('oidc_fieldset').style.display = 'block'
+       document.getElementById('oidc_expand_button').value='Collapse';
+    } else {
+      console.log('Show ' + id + '.');
+      document.getElementById(id).style.display = 'block';
+      document.getElementById('authz_expand_button').value='Collapse';
+      document.getElementById('config_fieldset').style.display = 'none'
+      document.getElementById('config_expand_button').value='Expand';
+      document.getElementById('oidc_fieldset').style.display = 'none';
+      document.getElementById('oidc_expand_button').value='Expand';
+    }
+  } else {
+    if(document.getElementById(id).style.display == 'block') {
+      console.log('Hide ' + id + '.');
+      document.getElementById(id).style.display = 'none'
+    } else {
+      console.log('Show ' + id + '.');
+      document.getElementById(id).style.display = 'block';
+    }
+  }
+  console.log('Leaving onClickShowAuthzFieldSet().');
+  return false;
+}
+
+function onClickShowConfigFieldSet(id) {
+  console.log('Entering onClickShowConfigFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
+  if(document.getElementById(id).style.display == 'block') {
+     document.getElementById('config_expand_button').value='Expand';
+  } else {
+    document.getElementById('config_expand_button').value='Hide';
+  }
+  if(document.getElementById(id).style.display == 'block') {
+    console.log('Hide ' + id + '.');
+    document.getElementById(id).style.display = 'none'
+  } else {
+    console.log('Show ' + id + '.');
+    document.getElementById(id).style.display = 'block';
+  }
+  console.log('Leaving onClickShowConfigFieldSet().');
+  return false;
+}
+
+function onClickClearLocalStorage()
+{
+  if (localStorage) {
+    localStorage.clear(); 
+  }
+  onSubmitClearAllForms();
+  return false;
+}
+
+function generateCodeChallenge(codeVerifier) {
+  const crypto = require('crypto');
+  const hash = crypto.createHash('sha256');
+  return hash.update(codeVerifier).digest("base64").replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+//function generatePKCECodeVerifier()
+function setPKCEValues()
+{
+  var code_verifier = Buffer.from(generateUUID() + generateUUID(),'binary').toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  console.log("code_verifier: " + code_verifier);
+  var code_challenge = generateCodeChallenge(code_verifier);
+  console.log("code_challenge: " + code_challenge);
+  localStorage.setItem("PKCE_code_challenge", code_challenge);
+  localStorage.setItem("PKCE_code_challenge_method", "S256");
+  localStorage.setItem("PKCE_code_verifier", code_verifier );
+  document.getElementById("pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
+  document.getElementById("pkce_code_verifier").value = localStorage.getItem("PKCE_code_challenge_verifier");
+  document.getElementById("pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+  recalculateAuthorizationRequestDescription();
+  return code_challenge
+}
+
+module.exports = {
+  OnSubmitForm,
+  OnSubmitTokenEndpointForm,
+  getParameterByName,
+  resetUI,
+  resetErrorDisplays,
+  writeValuesToLocalStorage,
+  loadValuesFromLocalStorage,
+  recalculateAuthorizationRequestDescription,
+  recalculateTokenRequestDescription,
+  recalculateRefreshRequestDescription,
+  generateUUID,
+  displayResourceCheck,
+  displayTokenResourceCheck,
+  recalculateAuthorizationErrorDescription,
+  recalculateTokenErrorDescription,
+  recalculateRefreshErrorDescription,
+  parseFragment,
+  displayOIDCArtifacts,
+  useRefreshTokens,
+  OnSubmitOIDCDiscoveryEndpointForm,
+  isUrl,
+  parseDiscoveryInfo,
+  buildDiscoveryInfoTable,
+  onSubmitPopulateFormsWithDiscoveryInformation,
+  onSubmitClearAllForms,
+  regenerateState,
+  regenerateNonce,
+  displayAuthzCustomParametersCheck,
+  generateCustomParametersListUI,
+  triggerAuthZEndpointCall,
+  onClickShowAuthzFieldSet,
+  onClickShowConfigFieldSet,
+  onClickClearLocalStorage,
+  usePKCERFC
+};
