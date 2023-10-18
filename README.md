@@ -10,7 +10,7 @@ This project currently supports the following specs:
 * [OpenID Connect Discovery v1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
 * [JWT RFC](https://tools.ietf.org/html/rfc7519)
 * [PKCE - RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)
-With the ability to add custom parameters to the Authorization Endpoint call and Token Endpoint call, numerous other protocols can be supported. We'll eventually get around to adding direct support.
+* With the ability to add custom parameters to the Authorization Endpoint call and Token Endpoint call, numerous other protocols can be supported. We'll eventually get around to adding direct support.
 
 It also supports a couple of proprietary IdP extensions as described below.
 # Supported OAuth2 Authorization Grants
