@@ -14,4 +14,4 @@ jobs:
          run: echo "BRANCH_NAME=${GITHUB_REF}"
        - uses: actions/checkout@v1
          with:
-           ref: ${GITHUB_REF}
+           ref: ${{ github.ref_name }}
