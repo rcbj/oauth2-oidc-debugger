@@ -10,6 +10,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+       - name: debug1
+         run: echo "BRANCH_NAME=${GITHUB_REF}"
        - uses: actions/checkout@v1
          with:
-           ref: $GITHUB_BASE_REF
+           ref: ${GITHUB_REF}
