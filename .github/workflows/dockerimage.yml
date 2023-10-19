@@ -1,0 +1,17 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+       - uses: actions/checkout@v4
+#         with:
+#           ref: ${{ github.ref_name }}
+       - name: build
+         run: CONFIG_FILE=./env/local.js docker-compose build
