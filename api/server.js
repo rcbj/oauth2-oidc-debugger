@@ -186,9 +186,23 @@ app.post('/token', (req, res) => {
       body: parameterString,
       strictSSL: sslValidate
     }, function(error, response, body){
-      console.log('Response from OAuth2 Token Endpoint: ' + body);
-      res.status(response.statusCode);
-      res.json(JSON.parse(body));
+      if ( typeof(error) != "undefined" || error == "null" ) {
+        console.log('Error from OAuth2 Token Endpoint: ' + error);
+      } else {
+        console.log('Response from OAuth2 Token Endpoint: ' + body);
+      }
+      if ( typeof(response) != "undefined" && typeof(response.statusCode) != "undefined" ) {
+        res.status(response.statusCode);
+      } else {
+        res.status(500);
+      }
+      if ( typeof(body) != "undefined") {
+        res.json(JSON.parse(body));
+      } else if (typeof(error) != "undefined") {
+        res.json(error);
+      } else {
+        res.json("{}");;
+      }
     });
   } catch (e) {
     console.log('An error occurred: ' + e);
