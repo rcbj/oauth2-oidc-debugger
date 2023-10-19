@@ -12,4 +12,4 @@ jobs:
     steps:
        - uses: actions/checkout@v1
          with:
-           ref: ${GITHUB_BASE_REF}
+           ref: $GITHUB_BASE_REF
