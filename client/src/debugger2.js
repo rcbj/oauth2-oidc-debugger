@@ -603,6 +603,8 @@ function writeValuesToLocalStorage()
       localStorage.setItem("noCheckToken", document.getElementById("noCheckToken").checked);
       localStorage.setItem("yesCheckOIDCArtifacts", document.getElementById("yesCheckOIDCArtifacts").checked);
       localStorage.setItem("noCheckOIDCArtifacts", document.getElementById("noCheckOIDCArtifacts").checked);
+      localStorage.setItem("yesCheck", document.getElementById("SSLValidate-yes").checked);
+      localStorage.setItem("noCheck", document.getElementById("SSLValidate-no").checked);
       localStorage.setItem("refresh_client_id", document.getElementById("refresh_client_id").value);
       localStorage.setItem("refresh_client_secret", document.getElementById("refresh_client_secret").value);
       localStorage.setItem("refresh_scope", document.getElementById("refresh_scope").value);
@@ -628,6 +630,8 @@ function writeValuesToLocalStorage()
       localStorage.setItem("PKCE_code_challenge",document.getElementById("pkce_code_challenge").value);
       localStorage.setItem("PKCE_code_challenge_method", document.getElementById("pkce_code_method").value);
       localStorage.setItem("PKCE_code_verifier", document.getElementById("pkce_code_verifier").value );
+      localStorage.setItem("usePKCE_yes", document.getElementById("usePKCE-yes").value);
+      localStorage.setItem("usePKCE_no", document.getElementById("usePKCE-no").value);
   }
 
   console.log("Leaving writeValuesToLocalStorage().");
@@ -648,29 +652,26 @@ function loadValuesFromLocalStorage()
   }
   document.getElementById("authorization_endpoint").value = localStorage.getItem("authorization_endpoint");
   document.getElementById("token_endpoint").value = localStorage.getItem("token_endpoint");
-//  document.getElementById("redirect_uri").value = localStorage.getItem("redirect_uri");
-//  document.getElementById("client_id").value = localStorage.getItem("client_id");
-//  document.getElementById("scope").value = localStorage.getItem("scope");
-//  document.getElementById("resource").value = localStorage.getItem("resource");
-  document.getElementById("token_client_id").value = localStorage.getItem("token_client_id");
-  document.getElementById("token_client_secret").value = localStorage.getItem("token_client_secret");
-  document.getElementById("token_redirect_uri").value = localStorage.getItem("token_redirect_uri");
+  document.getElementById("token_client_id").value = localStorage.getItem("client_id");
+  document.getElementById("token_client_secret").value = localStorage.getItem("client_secret");
+  document.getElementById("token_redirect_uri").value = localStorage.getItem("redirect_uri");
   document.getElementById("token_scope").value = localStorage.getItem("token_scope");
   document.getElementById("token_username").value = localStorage.getItem("token_username");
   document.getElementById("token_resource").value = localStorage.getItem("token_resource");
-//  document.getElementById("yesCheck").checked = localStorage.getItem("yesCheck");
-//  document.getElementById("noCheck").checked = localStorage.getItem("noCheck");
-  document.getElementById("yesCheckToken").checked = localStorage.getItem("yesCheckToken")? localStorage.getItem("yesCheckToken") : false;
-  document.getElementById("noCheckToken").checked = localStorage.getItem("noCheckToken")? localStorage.getItem("noCheckToken") : true;
-  document.getElementById("yesCheckOIDCArtifacts").checked = localStorage.getItem("yesCheckOIDCArtifacts");
-  document.getElementById("noCheckOIDCArtifacts").checked = localStorage.getItem("noCheckOIDCArtifacts");
+  document.getElementById("SSLValidate-yes").checked = getLSBooleanItem("yesCheck");
+  document.getElementById("SSLValidate-no").checked = getLSBooleanItem("noCheck");
+  document.getElementById("yesCheckToken").checked = getLSBooleanItem("yesCheckToken");
+  document.getElementById("noCheckToken").checked = getLSBooleanItem("noCheckToken");
+  document.getElementById("yesCheckOIDCArtifacts").checked = getLSBooleanItem("yesCheckOIDCArtifacts");
+  document.getElementById("noCheckOIDCArtifacts").checked = getLSBooleanItem("noCheckOIDCArtifacts");
+  document.getElementById("usePKCE-yes").checked = getLSBooleanItem("usePKCE_yes");
+  document.getElementById("usePKCE-no").checked = getLSBooleanItem("usePKCE_no");
   document.getElementById("refresh_refresh_token").value = localStorage.getItem("refresh_refresh_token");
   document.getElementById("refresh_client_id").value = localStorage.getItem("refresh_client_id");
   document.getElementById("refresh_scope").value = localStorage.getItem("refresh_scope");
   document.getElementById("refresh_client_secret").value = localStorage.getItem("refresh_client_secret");
-  document.getElementById("useRefreshToken-yes").checked = localStorage.getItem("useRefreshToken_yes");
-  document.getElementById("useRefreshToken-no").checked = localStorage.getItem("useRefreshToken_no");
-//  document.getElementById("oidc_discovery_endpoint").value = localStorage.getItem("oidc_discovery_endpoint");
+  document.getElementById("useRefreshToken-yes").checked = getLSBooleanItem("useRefreshToken_yes");
+  document.getElementById("useRefreshToken-no").checked = getLSBooleanItem("useRefreshToken_no");
   document.getElementById("oidc_userinfo_endpoint").value = localStorage.getItem("oidc_userinfo_endpoint");
   document.getElementById("jwks_endpoint").value = localStorage.getItem("jwks_endpoint");
   document.getElementById("customTokenParametersCheck-yes").checked = localStorage.getItem("customTokenParametersCheck-yes")? localStorage.getItem("customTokenParametersCheck-yes"): false;
@@ -689,11 +690,13 @@ function loadValuesFromLocalStorage()
       document.getElementById("customTokenParameterValue-" + i).value = localStorage.getItem("customTokenParameterValue-" + i);
     }
   }
-  document.getElementById("pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
-  document.getElementById("pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
-  document.getElementById("pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
 
-
+  if (document.getElementById("usePKCE-yes").checked) {
+    document.getElementById("pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
+    document.getElementById("pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
+    document.getElementById("pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+    usePKCERFC();
+  }
 
   var agt = document.getElementById("authorization_grant_type").value;
   var pathname = window.location.pathname;
@@ -1732,6 +1735,11 @@ function usePKCERFC()
   }
   recalculateTokenRequestDescription();
   console.log("Leaving usePKCERFC().");
+}
+
+function getLSBooleanItem(key)
+{
+  return localStorage.getItem(key) === 'true';
 }
 
 module.exports = {
