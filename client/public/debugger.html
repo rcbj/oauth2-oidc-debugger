@@ -93,7 +93,17 @@
               </div>
             </td>
             <td>
-              <select class="stored" id="authorization_grant_type" name="authorization_grant_type"><option value="authorization_grant">OAuth2 Authorization Code Grant</option><option value="implicit_grant">OAuth2 Implicit Grant</option><option value="resource_owner">OAuth2 Resource Owner Password Credential Grant</option><option value="client_credential">OAuth2 Client Credential</option><option value="oidc_authorization_code_flow">OIDC Authorization Code Flow(code)</option><option value="oidc_implicit_flow">OIDC Implicit Flow(id_token token)</option><option value="oidc_implicit_flow_id_token">OIDC Implicit Flow(id_token)</option><option value="oidc_hybrid_code_id_token">OIDC Hybrid(code id_token)</option><option value="oidc_hybrid_code_token">OIDC Hybrid(code token)</option><option value="oidc_hybrid_code_id_token_token">OIDC Hybrid(code id_token token)</option> 
+              <select class="stored" id="authorization_grant_type" name="authorization_grant_type"  >
+                <option value="authorization_grant">OAuth2 Authorization Code Grant</option>
+                <option value="implicit_grant">OAuth2 Implicit Grant</option>
+                <option value="resource_owner">OAuth2 Resource Owner Password Credential Grant</option>
+                <option value="client_credential">OAuth2 Client Credential</option>
+                <option value="oidc_authorization_code_flow" selected="selected">OIDC Authorization Code Flow(code)</option>
+                <option value="oidc_implicit_flow">OIDC Implicit Flow(id_token token)</option>
+                <option value="oidc_implicit_flow_id_token">OIDC Implicit Flow(id_token)</option>
+                <option value="oidc_hybrid_code_id_token">OIDC Hybrid(code id_token)</option>
+                <option value="oidc_hybrid_code_token">OIDC Hybrid(code token)</option>
+                <option value="oidc_hybrid_code_id_token_token">OIDC Hybrid(code id_token token)</option> 
               </select>
             </td>
           </tr>
@@ -139,8 +149,8 @@
               </div>
             </td>
             <td>Yes 
-              <input id="yesCheckOIDCArtifacts" name="yesno" onclick="debug.displayOIDCArtifacts();" type="radio" />No 
-              <input id="noCheckOIDCArtifacts" name="yesno" onclick="debug.displayOIDCArtifacts();" type="radio" />
+              <input checked="true" id="yesCheckOIDCArtifacts" name="yesno" onclick="debug.displayOIDCArtifacts();" type="radio" value="true" />No 
+              <input id="noCheckOIDCArtifacts" name="yesno" onclick="debug.displayOIDCArtifacts();" type="radio" value="false" />
             </td>
           </tr>
           <tr>
@@ -160,7 +170,7 @@
             </td>
             <td>Yes 
               <input checked="true" id="useRefreshToken-yes" name="useRefreshToken" onclick="debug.useRefreshTokens();" type="radio" value="true" />No 
-              <input checked="false" id="useRefreshToken-no" name="useRefreshToken" onclick="debug.useRefreshTokens();" type="radio" value="false" />
+              <input id="useRefreshToken-no" name="useRefreshToken" onclick="debug.useRefreshTokens();" type="radio" value="false" />
             </td>
           </tr>
           <tr>
@@ -170,7 +180,7 @@
             </td>
             <td>Yes
               <input checked="true" id="usePKCE-yes" name="usePKCE" onclick="debug.usePKCERFC();" type="radio" value="true" />No
-              <input checked="false" id="usePKCE-no" name="usePKCE" onclick="debug.usePKCERFC();" type="radio" value="false" />
+              <input id="usePKCE-no" name="usePKCE" onclick="debug.usePKCERFC();" type="radio" value="false" />
             </td>
           </tr>
         </tbody>
@@ -245,8 +255,8 @@
             </div>
           </td>
           <td>Yes 
-            <input id="yesCheck" name="yesno" onclick="debug.displayResourceCheck();" type="radio"/>No 
-            <input id="noCheck" name="yesno" onclick="debug.displayResourceCheck();" type="radio"/>
+            <input id="yesResourceCheck" name="yesno" onclick="debug.displayResourceCheck();" type="radio" value="true"/>No 
+            <input checked="false" id="noResourceCheck" name="yesno" onclick="debug.displayResourceCheck();" type="radio" value="false"/>
           </td>
         </tr>
         <tr id="authzResourceRow" style="visibility:collapse">
