@@ -4,13 +4,12 @@
 // Notes:
 //
 const jwt = require('jsonwebtoken');
-
-var displayOpenIDConnectArtifacts = false;
-var appconfig = require(process.env.CONFIG_FILE);
-
-function decodeJWT(jwt_) {
-  return jwt.decode(jwt_, {complete: true});
-}
+var initialized = false
+var userinfo_endpoint = "";
+var userinfo_scope = "";
+var userinfo_method = "";
+var userinfo_claims = "";
+var token_access_token = "";
 
 function OnSubmitTokenEndpointForm()
 {
@@ -37,33 +36,25 @@ function getParameterByName(name, url)
   return decodeURIComponent(results[2].replace(/\+/g, " "));
 }
 
-$(document).ready(function() {
-  console.log("Entering ready function().");
-
-  $(".btn_userinfo_endpoint").click(function() {
-      console.log("Entering UserInfo Call function.");
-      var formData = {
-      };
-      writeValuesToLocalStorage();
-      resetErrorDisplays();
-      var userinfoScope = document.getElementById("userinfo_scope").value
-      var queryString= '';
-      if(userinfoScope) {
-        queryString = 'scope=' + userinfoScope;
-      }
-      var userinfoClaims = document.getElementById("userinfo_claims").value;
-      if(userinfoClaims) {
-        queryString = 'claims=' + userinfoClaims;
-      }
-      var tmp1 = (document.getElementById("userinfo_method").value == 'GET')? '?' + queryString: '';
-      console.log('RCBJ0001: ' + document.getElementById("userinfo_userinfo_endpoint").value + tmp1);
+window.onload = function() 
+{
+  console.log("Entering window.onload() function.");
+  initLocalStorage();
+  loadValuesFromLocalStorage();
+  resetErrorDisplays();
+  var queryString= '';
+  if(userinfo_scope) {
+    queryString = 'scope=' + userinfo_scope;
+  }
+  if(userinfo_claims) {
+    queryString = 'claims=' + userinfo_claims;
+  }
   var userinfoEndpointCall = $.ajax({
-    type: document.getElementById("userinfo_method").value,
+    type: userinfo_method,
     crossdomain: true,
-    url: document.getElementById("userinfo_userinfo_endpoint").value + tmp1,
-    data: document.getElementById("userinfo_method").value == 'POST'? queryString: '',
+    url: userinfo_endpoint + "?" + queryString,
     headers: {
-      Authorization: 'Bearer ' + localStorage.getItem('token_access_token')
+      Authorization: 'Bearer ' + token_access_token
     },
     success: function(data, textStatus, request) {
       console.log('Entering ajax success function for Access Token call.');
@@ -92,10 +83,7 @@ $(document).ready(function() {
       // recalculateTokenErrorDescription(request);
     }
   });
-  return false;
-    });
-
-});
+}
 
 function resetUI(value)
 {
@@ -112,31 +100,29 @@ function writeValuesToLocalStorage()
 {
   console.log("Entering writeValuesToLocalStorage().");
   if (localStorage) {
-    localStorage.setItem('userinfo_method', document.getElementById("userinfo_method").value);
-    localStorage.setItem('userinfo_userinfo_endpoint', document.getElementById("userinfo_userinfo_endpoint").value);
   }
   console.log("Leaving writeValuesToLocalStorage().");
+}
+
+function initLocalStorage()
+{
+  if(localStorage && !initialized) {
+    localStorage.setItem("userinfo_method", "GET");
+    localStorage.setItem("userinfo_scope", "openid profile email");
+    localStorage.setItem("userinfo_claims", "tester");
+    initialized = true;
+  }
 }
 
 function loadValuesFromLocalStorage()
 {
   if(localStorage) {
-    document.getElementById("userinfo_userinfo_endpoint").value = localStorage.getItem("oidc_userinfo_endpoint");
+    userinfo_endpoint = localStorage.getItem("oidc_userinfo_endpoint");
+    userinfo_method = localStorage.getItem("userinfo_method");
+    userinfo_scope = localStorage.getItem("userinfo_scope");
+    userinfo_claims = localStorage.getItem("userinfo_claims");
+    token_access_token = localStorage.getItem("token_access_token");
   }
-}
-
-window.onload = function() {
-  console.log("Entering onload function.");
-
-  if (!appconfig) {
-    console.log('Failed to load appconfig.');
-  }
- 
-//  document.getElementById("customTokenParametersCheck-yes").addEventListener("onClick", recalculateTokenRequestDescription());
-//  document.getElementById("customTokenParametersCheck-no").addEventListener("onClick", recalculateTokenRequestDescription());
-
-  loadValuesFromLocalStorage();
-//  recalculateAuthorizationErrorDescription();
 }
 
 function regenerateState() {

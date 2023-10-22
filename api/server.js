@@ -95,7 +95,7 @@ app.post('/token', (req, res) => {
     var scope = body.scope || ""; //=openid+email+phone+profile
     var tokenEndpoint = body.token_endpoint; //=https%3A%2F%2Fblogpost1.auth.us-west-2.amazoncognito.com%2Foauth2%2Ftoken
     var sslValidate = body.sslValidate; //=true
-    var clientSecret = body.client_secret; //=tester
+    var clientSecret = encodeURIComponent(body.client_secret); //=tester
     var username = body.username || "";
     var password = body.password || "";
     var refreshToken = body.refresh_token || "";
@@ -126,9 +126,11 @@ app.post('/token', (req, res) => {
   	client_id: clientId,
   	code: code,
   	redirect_uri: redirectUri,
-        code_verifier: code_verifier
       };
-      if (typeof client_secret != "undefined") {
+      if (typeof code_verifier != "undefined") {
+        parameterObject.code_verifier = code_verifier
+      }
+      if (typeof clientSecret != "undefined") {
         parameterObject.client_secret = clientSecret;
       }
     } else if(grantType == "client_credentials") {
@@ -177,11 +179,15 @@ app.post('/token', (req, res) => {
                       parameterObject[key] +
                       "&";
     });
+    var headers = {
+      'content-type' : 'application/x-www-form-urlencoded'
+    }
+    if (typeof code_verifier != "undefined") {
+      headers.origin = uiUrl;
+    }
     parameterString = parameterString.substring(0, parameterString.length - 1);
     request.post({
-      headers: {'content-type' : 'application/x-www-form-urlencoded',
-                'origin' : uiUrl
-      },
+      headers: headers,
       url:    tokenEndpoint,
       body: parameterString,
       strictSSL: sslValidate

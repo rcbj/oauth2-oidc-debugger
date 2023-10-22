@@ -110,7 +110,7 @@ $(document).ready(function() {
           sslValidate: sslValidate
         };
       }
-      var yesCheck = document.getElementById("yesCheckToken").checked;
+      var yesCheck = document.getElementById("yesResourceCheckToken").checked;
       if(yesCheck) //add resource value to OAuth query string
       {
         var resource = document.getElementById("token_resource").value;
@@ -463,7 +463,6 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").hide();
-//      $("#nonce").show();
       document.getElementById("response_type").value = "id_token";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationErrorDescription();
@@ -483,14 +482,10 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
-//      $("#nonce").show();
-//      document.getElementById("response_type").value = "code";
       document.getElementById("token_grant_type").value = "authorization_code";
-//      document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
-//      document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
       document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
@@ -506,7 +501,6 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
-//      $("#nonce").show();
       document.getElementById("response_type").value = "code id_token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -530,7 +524,6 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
-//      $("#nonce").show();
       document.getElementById("response_type").value = "code token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -553,7 +546,6 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
-//      $("#nonce").show();
       document.getElementById("response_type").value = "code id_token token";
       document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
@@ -570,9 +562,8 @@ function resetUI(value)
       displayOpenIDConnectArtifacts = true;
     }
     resetErrorDisplays();
-    console.log('RCBJ0001');
-    document.getElementById("yesCheckToken").checked = false;
-    document.getElementById("noCheckToken").checked = true;
+    document.getElementById("yesResourceCheckToken").checked = false;
+    document.getElementById("noResourceCheckToken").checked = true;
     document.getElementById("customTokenParametersCheck-yes").checked = false;
     document.getElementById("customTokenParametersCheck-no").checked = true;
 
@@ -599,8 +590,8 @@ function writeValuesToLocalStorage()
       localStorage.setItem("token_scope", document.getElementById("token_scope").value);
       localStorage.setItem("authorization_grant_type", document.getElementById("authorization_grant_type").value);
       localStorage.setItem("token_resource", document.getElementById("token_resource").value);
-      localStorage.setItem("yesCheckToken", document.getElementById("yesCheckToken").checked);
-      localStorage.setItem("noCheckToken", document.getElementById("noCheckToken").checked);
+      localStorage.setItem("yesResourceCheckToken", document.getElementById("yesResourceCheckToken").checked);
+      localStorage.setItem("noResourceCheckToken", document.getElementById("noResourceCheckToken").checked);
       localStorage.setItem("yesCheckOIDCArtifacts", document.getElementById("yesCheckOIDCArtifacts").checked);
       localStorage.setItem("noCheckOIDCArtifacts", document.getElementById("noCheckOIDCArtifacts").checked);
       localStorage.setItem("yesCheck", document.getElementById("SSLValidate-yes").checked);
@@ -660,8 +651,8 @@ function loadValuesFromLocalStorage()
   document.getElementById("token_resource").value = localStorage.getItem("token_resource");
   document.getElementById("SSLValidate-yes").checked = getLSBooleanItem("yesCheck");
   document.getElementById("SSLValidate-no").checked = getLSBooleanItem("noCheck");
-  document.getElementById("yesCheckToken").checked = getLSBooleanItem("yesCheckToken");
-  document.getElementById("noCheckToken").checked = getLSBooleanItem("noCheckToken");
+  document.getElementById("yesResourceCheckToken").checked = getLSBooleanItem("yesResourceCheckToken");
+  document.getElementById("noResourceCheckToken").checked = getLSBooleanItem("noResourceCheckToken");
   document.getElementById("yesCheckOIDCArtifacts").checked = getLSBooleanItem("yesCheckOIDCArtifacts");
   document.getElementById("noCheckOIDCArtifacts").checked = getLSBooleanItem("noCheckOIDCArtifacts");
   document.getElementById("usePKCE-yes").checked = getLSBooleanItem("usePKCE_yes");
@@ -674,8 +665,8 @@ function loadValuesFromLocalStorage()
   document.getElementById("useRefreshToken-no").checked = getLSBooleanItem("useRefreshToken_no");
   document.getElementById("oidc_userinfo_endpoint").value = localStorage.getItem("oidc_userinfo_endpoint");
   document.getElementById("jwks_endpoint").value = localStorage.getItem("jwks_endpoint");
-  document.getElementById("customTokenParametersCheck-yes").checked = localStorage.getItem("customTokenParametersCheck-yes")? localStorage.getItem("customTokenParametersCheck-yes"): false;
-  document.getElementById("customTokenParametersCheck-no").checked = localStorage.getItem("customTokenParametersCheck-no")? localStorage.getItem("customTokenParametersCheck-no"): true;
+  document.getElementById("customTokenParametersCheck-yes").checked = getLSBooleanItem("customTokenParametersCheck-yes");
+  document.getElementById("customTokenParametersCheck-no").checked = getLSBooleanItem("customTokenParametersCheck-no");
   document.getElementById("tokenNumberCustomParameters").value = localStorage.getItem("tokenNumberCustomParameters")? localStorage.getItem("tokenNumberCustomParameters"): 1;
   currentRefreshToken = localStorage.getItem("refresh_refresh_token");
   if (document.getElementById("customTokenParametersCheck-yes").checked) {
@@ -859,7 +850,7 @@ function recalculateTokenRequestDescription()
   console.log("Entering recalculateTokenRequestDescription().");
   console.log("update request field");
   var ta1 = document.getElementById("display_token_request_form_textarea1");
-  var yesCheck = document.getElementById("yesCheckToken").checked;
+  var yesCheck = document.getElementById("yesResourceCheckToken").checked;
   var resourceComponent = "";
   if(yesCheck) //add resource value to OAuth query string
   {
@@ -933,7 +924,7 @@ function recalculateRefreshRequestDescription()
   console.log("Entering recalculateRefreshRequestDescription().");
   console.log("update request field");
   var ta1 = document.getElementById("display_refresh_request_form_textarea1");
-//  var yesCheck = document.getElementById("yesCheckToken").checked;
+//  var yesCheck = document.getElementById("yesResourceCheckToken").checked;
   var resourceComponent = "";
 //  if(yesCheck) //add resource value to OAuth query string
 //  {
@@ -1031,7 +1022,7 @@ window.onload = function() {
   recalculateTokenRequestDescription();
   recalculateRefreshRequestDescription();
 
-  var yesCheckedToken = document.getElementById("yesCheckToken").checked
+  var yesCheckedToken = document.getElementById("yesResourceCheckToken").checked
   if(yesCheckedToken)
   {
     document.getElementById("authzTokenResourceRow").style.visibility = '';
@@ -1101,8 +1092,8 @@ function displayResourceCheck()
 function displayTokenResourceCheck()
 {
   console.log("Entering displayTokenResourceCheck().");
-  var yesCheck = document.getElementById("yesCheckToken").checked;
-  var noCheck = document.getElementById("noCheckToken").checked;
+  var yesCheck = document.getElementById("yesResourceCheckToken").checked;
+  var noCheck = document.getElementById("noResourceCheckToken").checked;
   if( yesCheck) {
     document.getElementById("authzTokenResourceRow").style.visibility = '';
   } if(noCheck) {
@@ -1491,8 +1482,8 @@ function onSubmitClearAllForms() {
       localStorage.setItem("token_scope", "");
       localStorage.setItem("authorization_grant_type", "");
       localStorage.setItem("token_resource", "");
-      localStorage.setItem("yesCheckToken", true);
-      localStorage.setItem("noCheckToken", false);
+      localStorage.setItem("yesResourceCheckToken", true);
+      localStorage.setItem("noResourceCheckToken", false);
       localStorage.setItem("yesCheckOIDCArtifacts", true);
       localStorage.setItem("noCheckOIDCArtifacts", false);
       localStorage.setItem("refresh_client_id", "");
@@ -1513,8 +1504,8 @@ function onSubmitClearAllForms() {
   document.getElementById("token_scope").value = "";
   document.getElementById("authorization_grant_type").value = "";
   document.getElementById("token_resource").value = "";
-  document.getElementById("yesCheckToken").checked = true;
-  document.getElementById("noCheckToken").checked = false;
+  document.getElementById("yesResourceCheckToken").checked = true;
+  document.getElementById("noResourceCheckToken").checked = false;
   document.getElementById("yesCheckOIDCArtifacts").checked = true;
   document.getElementById("noCheckOIDCArtifacts").checked = false;
   document.getElementById("refresh_client_id").value = "";
@@ -1719,7 +1710,28 @@ function onClickShowConfigFieldSet(id) {
 }
 
 function initFields() {
-  
+  console.log("Entering initFields().");
+  var token_initialize = getLSBooleanItem("token_initialize");
+  if(!token_initialize) {
+    if (document.getElementById("yesResourceCheckToken")) {
+        document.getElementById("yesResourceCheckToken").checked = false;
+        localStorage.setItem("yesResourceCheckToken", false);
+    }
+    if (document.getElementById("noResourceCheckToken")) {
+        document.getElementById("noResourceCheckToken").checked = true;
+        localStorage.setItem("noResourceCheckToken", true);
+    }
+    if (document.getElementById("customTokenParametersCheck-yes")) {
+        document.getElementById("customTokenParametersCheck-yes").checked = false;
+        localStorage.setItem("customTokenParametersCheck-yes", false);
+    }
+    if (document.getElementById("customTokenParametersCheck-no")) {
+        document.getElementById("customTokenParametersCheck-no").checked = true;
+        localStorage.setItem("customTokenParametersCheck-no", true);
+    }
+    token_initialize = true;
+  }
+  console.log("Leaving initFields().");
 }
 
 function usePKCERFC()
