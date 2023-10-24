@@ -40,10 +40,77 @@
     </div>
 
     <div class="container">
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" type="text/javascript"/>
-<script type="text/javascript" src="/js/userinfo.js"/>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js" type="text/javascript"/></script>
+<script type="text/javascript" src="/js/userinfo.js"></script>
+
+   <legend>Configuration Parameters
+    </legend>
+    <form onsubmit="return false;"><input class="btn2" type="submit" name="config_expand_button" id="config_expand_button" value="Hide" onclick="return userinfo.onClickToggleConfigurationParameters('config_fieldset');"/></form>
+    <fieldset name="config_fieldset" id="config_fieldset" style="display: block;">
+    <form action="" id="endpoints" name="endpoints" onsubmit="return false;">
+      <table border="0">
+        <tbody>
+          <tr>
+            <td>
+              <div class="tooltip"><label>OIDC UserInfo Endpoint: </label><span class="tooltiptext">The OIDC UserInfo Endpoint.</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="userinfo_endpoint" name="userinfo_endpoint" type="text" max="150" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>OIDC UserInfo Method: </label><span class="tooltiptext">The OIDC UserInfo Endpoint Method (GET or POST).</span>
+              </div>
+            </td>
+            <td>
+              <select class="stored" id="userinfo_method" name="userinfo_method"  >
+                <option value="GET" selected="selected">GET</option>
+                <option value="POST">POST</option>
+              </select
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>OIDC UserInfo Scope: </label><span class="tooltiptext">The OIDC UserInfo Endpoint Scope.</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="userinfo_scope" name="userinfo_scope" type="text" max="150" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>OIDC UserInfo Claims: </label><span class="tooltiptext">The OIDC UserInfo Endpoint Claims.</span>
+              </div>
+            </td>
+            <td>
+              <textarea rows=10 cols=60 name="userinfo_claims" id="userinfo_claims"></textarea>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>OAuth2 Access Token: </label><span class="tooltiptext">The OAuth2 Access Token</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="token_access_token" name="token_access_token" type="text" max="150"/>
+            </td>
+          </tr>
+        <tr>
+          <td>
+            <input class="btn2" type="submit" value="Retrieve UserInfo" onclick="return userinfo.callUserInfoEndpoint();" />
+          </td>
+          <td>&nbsp;
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </form>
+  </fieldset>
+
 <p>This screen supports obtaining information from the OIDC UserInfo Endpoint.
-<p>If nothing is displayed, then the requested token retrieved from the endpoint is not JSON format.</p>
 <div class="userinfo_step" id="userinfo_step">
   <fieldset>
     <legend id="h2_title_2" name="h2_title_2">UserInfo Endpoint Results
@@ -61,7 +128,7 @@
             </div>
           </td>
           <td>
-            <textarea rows=6 cols=50 id="userinfo_output" name="userinfo_output">
+            <textarea rows=10 cols=75 id="userinfo_output" name="userinfo_output">
             </textarea>
           </td>
         </tr>
@@ -69,8 +136,6 @@
     </table>
   </fieldset>
 </div>
-
-    </div>
 
   <div class="navbar">
     <a href="#" class="active">Home</a>

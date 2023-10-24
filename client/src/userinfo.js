@@ -10,15 +10,7 @@ var userinfo_scope = "";
 var userinfo_method = "";
 var userinfo_claims = "";
 var token_access_token = "";
-
-function OnSubmitTokenEndpointForm()
-{
-  console.log("Entering OnSubmitTokenEndpointForm().");
-  //document.token_step.action = document.getElementById("token_endpoint").value;
-  document.token_step.action = "/token";
-  console.log("Leaving OnSubmitTokenEndpointForm().");
-  return true;
-}
+var query_string = "";
 
 function getParameterByName(name, url)
 {
@@ -42,17 +34,24 @@ window.onload = function()
   initLocalStorage();
   loadValuesFromLocalStorage();
   resetErrorDisplays();
-  var queryString= '';
+}
+
+function recalculateUserInfoURL()
+{
   if(userinfo_scope) {
-    queryString = 'scope=' + userinfo_scope;
+    query_string = 'scope=' + userinfo_scope;
   }
   if(userinfo_claims) {
-    queryString = 'claims=' + userinfo_claims;
+    query_string += '&claims=' + userinfo_claims;
   }
+}
+
+function callUserInfoEndpoint()
+{
   var userinfoEndpointCall = $.ajax({
     type: userinfo_method,
     crossdomain: true,
-    url: userinfo_endpoint + "?" + queryString,
+    url: userinfo_endpoint + "?" + query_string,
     headers: {
       Authorization: 'Bearer ' + token_access_token
     },
@@ -66,14 +65,10 @@ window.onload = function()
       var responseContentType = userinfoEndpointCall.getResponseHeader("Content-Type");
       if (responseContentType.includes('application/json')) {
         console.log('plaintext response detected, no signature, no encryption');
-        console.log('UserInfo Endpoint Response: ' + JSON.stringify(data));
-      } else if (responseContentType.includes('application/json')) {
-        console.log('signed or encrypted response detected as JWT');
-        console.log('jwt: ' + jwt);
-        const decodedJWT = decodeJWT(jwt);
-        console.log('decoded jwt: ' + JSON.stringify(decodedJWT));
-        document.getElementById('jwt_header').value = JSON.stringify(decodedJWT.header, null, 2);
-        document.getElementById('jwt_payload').value = JSON.stringify(decodedJWT.payload, null, 2);
+        console.log('UserInfo Endpoint Response: ' + JSON.stringify(data, null, 2));
+        document.getElementById("userinfo_output").value = JSON.stringify(data,null,2);
+      } else {
+        console.log('Unknown response format.');
       }
     },
     error: function (request, status, error) {
@@ -85,6 +80,33 @@ window.onload = function()
   });
 }
 
+$(".userinfo_endpoint").keypress(function() {
+  console.log("Entering keypress().");
+  localStorage.setItem("userinfo_endpoint", userinfo_endpoint);
+});
+
+$(".userinfo_method").keypress(function() {
+  console.log("Entering keypress()."); 
+  localStorage.setItem("userinfo_method", userinfo_method);
+});
+
+$(".userinfo_scope").keypress(function() {
+  console.log("Entering keypress().");
+  localStorage.setItem("userinfo_scope", userinfo_scope);
+  recalculateUserInfoURL();
+});
+
+$(".userinfo_claims").keypress(function() {
+  console.log("Entering keypress().");
+  localStorage.setItem("userinfo_claims", userinfo_claims);
+  recalculateUserInfoURL(); 
+});
+
+$(".token_access_token").keypress(function() {
+  console.log("Entering keypress().");
+  localStorage.setItem("token_access_token", token_access_token);
+});
+
 function resetUI(value)
 {
 }
@@ -92,7 +114,6 @@ function resetUI(value)
 function resetErrorDisplays()
 {
   console.log("Entering resetErrorDisplays().");
-//  $("#display_refresh_error_class").html("");
   console.log("Leaving resetErrorDisplays().");
 }
 
@@ -100,6 +121,11 @@ function writeValuesToLocalStorage()
 {
   console.log("Entering writeValuesToLocalStorage().");
   if (localStorage) {
+    localStorage.setItem("userinfo_endpoint", userinfo_endpoint);
+    localStorage.setItem("userinfo_method", userinfo_method);
+    localStorage.setItem("userinfo_scope", userinfo_scope);
+    localStorage.setItem("userinfo_claims", userinfo_claims);
+    localStorage.setItem("token_access_token", token_access_token);
   }
   console.log("Leaving writeValuesToLocalStorage().");
 }
@@ -108,8 +134,24 @@ function initLocalStorage()
 {
   if(localStorage && !initialized) {
     localStorage.setItem("userinfo_method", "GET");
-    localStorage.setItem("userinfo_scope", "openid profile email");
-    localStorage.setItem("userinfo_claims", "tester");
+    localStorage.setItem("userinfo_scope", "profile email address phone");
+    var default_claims = {
+     "userinfo":
+      {
+       "given_name": {"essential": true},
+       "nickname": null,
+       "email": {"essential": true},
+       "email_verified": {"essential": true},
+       "picture": null,
+       "http://example.info/claims/groups": null
+      },
+     "id_token":
+      {
+       "auth_time": {"essential": true},
+       "acr": {"values": ["urn:mace:incommon:iap:silver"] }
+      }
+    };
+    localStorage.setItem("userinfo_claims", JSON.stringify(default_claims, null, 2));
     initialized = true;
   }
 }
@@ -123,6 +165,12 @@ function loadValuesFromLocalStorage()
     userinfo_claims = localStorage.getItem("userinfo_claims");
     token_access_token = localStorage.getItem("token_access_token");
   }
+  // Set configuration fields
+  document.getElementById("userinfo_endpoint").value = userinfo_endpoint;
+  document.getElementById("userinfo_method").value = userinfo_method;
+  document.getElementById("userinfo_scope").value = userinfo_scope;
+  document.getElementById("userinfo_claims").value = userinfo_claims;
+  document.getElementById("token_access_token").value = token_access_token;
 }
 
 function regenerateState() {
@@ -130,12 +178,17 @@ function regenerateState() {
   localStorage.setItem('state', document.getElementById("state").value);
 }
 
-function OnSubmitUserInfoEndpointForm() {
-  return false;
+function onClickToggleConfigurationParameters() {
+    if(document.getElementById("config_fieldset").style.display == 'block') {
+       document.getElementById('config_fieldset').style.display = 'none'
+    } else {
+      document.getElementById('config_fieldset').style.display = 'block'
+    }
 }
 
+
 module.exports = {
-OnSubmitTokenEndpointForm,
-getParameterByName,
-OnSubmitUserInfoEndpointForm
+  getParameterByName,
+  callUserInfoEndpoint,
+  onClickToggleConfigurationParameters
 };
