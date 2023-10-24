@@ -20,9 +20,9 @@ function loadValuesFromLocalStorage()
   document.getElementById("jwks_endpoint").value = localStorage.getItem("jwks_endpoint");
 }
 
-function OnSubmitJWKSEndpointForm() {
-  console.log("Entering OnSubmitJWKSEndpointForm().");
-}
+//function OnSubmitJWKSEndpointForm() {
+//  console.log("Entering OnSubmitJWKSEndpointForm().");
+//}
 
 function OnSubmitJWKSEndpointForm()
 {
