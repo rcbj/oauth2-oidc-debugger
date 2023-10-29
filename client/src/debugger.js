@@ -1557,7 +1557,6 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
 
   document.getElementById("authorization_endpoint").value = authorizationEndpoint;
   document.getElementById("token_endpoint").value = tokenEndpoint;
-//  document.getElementById("token_scope").value = scopesSupported;
   document.getElementById("scope").value = scopesSupported;
   document.getElementById("oidc_userinfo_endpoint").value = userInfoEndpoint;
   document.getElementById("jwks_endpoint").value = jwksUri;

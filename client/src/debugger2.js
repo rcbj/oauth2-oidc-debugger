@@ -299,7 +299,8 @@ $(".refresh_btn").click(function() {
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          '<td><a href="/token_detail.html?type=refresh_id">ID Token</a></td>' +
+                                          '<td><P><a href="/token_detail.html?type=refresh_id">ID Token</a></P>' +
+                                          '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P></td>' +
                                           "<td><textarea rows=10 cols=60> name=refresh_id_token id=refresh_id_token>" + 
                                              data.id_token + 
                                             "</textarea>" +
@@ -1559,7 +1560,8 @@ function recreateTokenDisplay()
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          '<td><a href="/token_detail.html?type=id">ID Token</a></td>' +
+                                          '<td><P><a href="/token_detail.html?type=id">ID Token</a></P>' +
+                                          '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_id_token id=token_id_token>" + 
                                              localStorage.getItem("token_id_token") +
                                             "</textarea>" +
