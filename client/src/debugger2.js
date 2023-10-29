@@ -385,15 +385,15 @@ function resetUI(value)
       $("#step2").hide();
       $("#step3").show();
 //      $("#nonce").hide();
-      document.getElementById("response_type").value = "";
+//      document.getElementById("response_type").value = "";
       document.getElementById("token_grant_type").value = "client_credentials";
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       document.getElementById("h2_title_2").innerHTML = "Obtain Access Token";
-      $("#authorization_endpoint_result").html("");
-      $("#authorization_endpoint_id_token_result").html("");
+//      $("#authorization_endpoint_result").html("");
+//      $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
-      $("#display_authz_request_class").hide();
+//      $("#display_authz_request_class").hide();
       $("#display_token_request").show();
     }
     if( value == "resource_owner")
