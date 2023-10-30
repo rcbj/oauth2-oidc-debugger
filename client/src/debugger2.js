@@ -69,7 +69,7 @@ $(document).ready(function() {
       var password = document.getElementById("token_password").value;
       var scope = document.getElementById("token_scope").value;
       var sslValidate = "";
-      var code_verifier = document.getElementById("pkce_code_verifier").value;
+      var code_verifier = document.getElementById("token_pkce_code_verifier").value;
       if( document.getElementById("SSLValidate-yes").checked)
       {
         sslValidate = document.getElementById("SSLValidate-yes").value;
@@ -619,9 +619,9 @@ function writeValuesToLocalStorage()
           localStorage.setItem("customTokenParameterValue-" + i, document.getElementById("customTokenParameterValue-" + i).value);
         }
       }
-      localStorage.setItem("PKCE_code_challenge",document.getElementById("pkce_code_challenge").value);
-      localStorage.setItem("PKCE_code_challenge_method", document.getElementById("pkce_code_method").value);
-      localStorage.setItem("PKCE_code_verifier", document.getElementById("pkce_code_verifier").value );
+      localStorage.setItem("PKCE_code_challenge",document.getElementById("token_pkce_code_challenge").value);
+      localStorage.setItem("PKCE_code_challenge_method", document.getElementById("token_pkce_code_method").value);
+      localStorage.setItem("PKCE_code_verifier", document.getElementById("token_pkce_code_verifier").value );
       localStorage.setItem("usePKCE_yes", document.getElementById("usePKCE-yes").value);
       localStorage.setItem("usePKCE_no", document.getElementById("usePKCE-no").value);
   }
@@ -684,9 +684,9 @@ function loadValuesFromLocalStorage()
   }
 
   if (document.getElementById("usePKCE-yes").checked) {
-    document.getElementById("pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
-    document.getElementById("pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
-    document.getElementById("pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+    document.getElementById("token_pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
+    document.getElementById("token_pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
+    document.getElementById("token_pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
     usePKCERFC();
   }
 
@@ -890,7 +890,7 @@ function recalculateTokenRequestDescription()
                                                                       "redirect_uri=" + document.getElementById("token_redirect_uri").value + "&" +"\n" +
                                                                       "scope=" + document.getElementById("token_scope").value;
       if(usePKCE) {
-        document.getElementById("display_token_request_form_textarea1").value += "&\n" + "code_verifier=" + document.getElementById("pkce_code_verifier").value;
+        document.getElementById("display_token_request_form_textarea1").value += "&\n" + "code_verifier=" + document.getElementById("token_pkce_code_verifier").value;
       }
     } else if (grant_type == "client_credentials") {
       document.getElementById("display_token_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
@@ -1051,6 +1051,19 @@ window.onload = function() {
   } else {
     document.getElementById("tokenCustomParametersRow").style.visibility = 'collapse';
   }
+
+  if(usePKCE) {
+    console.log("Show PKCE Data fields.");
+    document.getElementById("token_pkce_code_challenge_row").style.visibility = '';
+    document.getElementById("token_pkce_code_verifier_row").style.visibility = '';
+    document.getElementById("token_pkce_code_method_row").style.visibility = '';
+  } else {
+    console.log("Hide PKCE Data fields.");
+    document.getElementById("token_pkce_code_challenge_row").style.visibility = 'collapse';
+    document.getElementById("token_pkce_code_verifier_row").style.visibility = 'collapse';
+    document.getElementById("token_pkce_code_method_row").style.visibility = 'collapse';
+  }
+
   displayTokenCustomParametersCheck();
 
   if(getParameterByName("redirectFromTokenDetail") == "true") {
@@ -1747,6 +1760,18 @@ function usePKCERFC()
   } else {
     usePKCE = false;
   }
+  if(usePKCE) {
+    console.log("Show PKCE Data fields.");
+    document.getElementById("token_pkce_code_challenge_row").style.visibility = '';
+    document.getElementById("token_pkce_code_verifier_row").style.visibility = '';
+    document.getElementById("token_pkce_code_method_row").style.visibility = '';
+  } else {
+    console.log("Hide PKCE Data fields.");
+    document.getElementById("token_pkce_code_challenge_row").style.visibility = 'collapse';
+    document.getElementById("token_pkce_code_verifier_row").style.visibility = 'collapse';
+    document.getElementById("token_pkce_code_method_row").style.visibility = 'collapse';
+  }
+
   recalculateTokenRequestDescription();
   console.log("Leaving usePKCERFC().");
 }

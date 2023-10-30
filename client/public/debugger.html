@@ -198,9 +198,6 @@
       <tbody>
         <div class="form-group">
           <input type="hidden" name="response_type" value="code" id="response_type" />
-          <input type="hidden" name="pkce_code_challenge" value="123456679" id="pkce_code_challenge" />
-          <input type="hidden" name="pkce_code_verifier" value="987654321" id="pkce_code_verifier" />
-          <input type="hidden" name="pkce_code_method" value="S256" id="pkce_code_method" />
         </div>
         <tr>
           <td>
@@ -294,6 +291,33 @@
               </div>
             </td>
           </tr>
+       <tr id="authz_pkce_code_challenge_row" style="visibility:collapse">
+          <td>
+            <div class="tooltip"><label>PKCE code_challenge</label><span class="tooltiptext">PKCE RFC code_challenge.</span>
+            </div>
+          </td>
+          <td>
+            <input type="text" name="authz_pkce_code_challenge" id="authz_pkce_code_challenge" />
+          </td>
+        </tr>
+        <tr id="authz_pkce_code_verifier_row" style="visibility:collapse">
+          <td>
+            <div class="tooltip"><label>PKCE code_verifier</label><span class="tooltiptext">PKCE RFC code_verifier.</span>
+            </div>
+          </td>
+          <td>
+            <input type="text" name="authz_pkce_code_verifier" id="authz_pkce_code_verifier" />
+          </td>
+        </tr>
+        <tr id="authz_pkce_code_method_row" style="visibility:collapse">
+          <td>
+            <div class="tooltip"><label>PKCE code_method</label><span class="tooltiptext">PKCE RFC code_method.</span>
+            </div>
+          </td>
+          <td>
+            <input type="text" name="authz_pkce_code_method" value="S256" id="authz_pkce_code_method" />
+          </td>
+        </tr>
          </tbody>
         </table>
       </form>

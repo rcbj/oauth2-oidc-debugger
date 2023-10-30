@@ -23,7 +23,6 @@ var initialized = false;
 function OnSubmitForm()
 {
   console.log("Entering OnSubmitForm().");
-//  document.auth_step.action = document.getElementById("authorization_endpoint").value;
   writeValuesToLocalStorage();
   recalculateAuthorizationRequestDescription();
   console.log("Leaving OnSubmitForm().");
@@ -103,8 +102,6 @@ $(document).ready(function() {
         displayOpenIDConnectArtifacts = true;
       }
 
-// var useRefreshTokenTester = true;
-// var usePKCE = true;
       var formData = {};
       if(grant_type == "authorization_code")
       {
@@ -378,18 +375,12 @@ function resetUI(value)
         document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       }
       $("#step2").hide();
-//      $("#step3").show();
       $("#nonce").hide();
       document.getElementById("response_type").value = "";
-//      document.getElementById("token_grant_type").value = "client_credentials";
-//      recalculateTokenRequestDescription();
-//      recalculateRefreshRequestDescription();
-//      document.getElementById("h2_title_2").innerHTML = "Obtain Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
       $("#display_authz_request_class").hide();
-//      $("#display_token_request").show();
       writeValuesToLocalStorage();     
       window.location.href = "/debugger2.html";
     }
@@ -409,7 +400,6 @@ function resetUI(value)
       document.getElementById("token_grant_type").value = "password";
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
-//      document.getElementById("h2_title_2").innerHTML = "Obtain Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
@@ -423,13 +413,11 @@ function resetUI(value)
       $("#step3").show();
       $("#nonce").hide();
       document.getElementById("response_type").value = "code";
-//      document.getElementById("token_grant_type").value = "authorization_code";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
-//      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
@@ -470,7 +458,6 @@ function resetUI(value)
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
-//      document.getElementById("token_grant_type").value = "";
       document.getElementById("h2_title_1").innerHTML = "Request Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
@@ -486,14 +473,12 @@ function resetUI(value)
       $("#step3").show();
       $("#nonce").show();
       document.getElementById("response_type").value = "code";
-//      document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
-//      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
@@ -508,14 +493,12 @@ function resetUI(value)
       $("#step3").show();
       $("#nonce").show();
       document.getElementById("response_type").value = "code id_token";
-//      document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
-//      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
@@ -531,14 +514,12 @@ function resetUI(value)
       $("#step3").show();
       $("#nonce").show();
       document.getElementById("response_type").value = "code token";
-//      document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
-//      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
@@ -553,14 +534,12 @@ function resetUI(value)
       $("#step3").show();
       $("#nonce").show();
       document.getElementById("response_type").value = "code id_token token";
-//      document.getElementById("token_grant_type").value = "authorization_code";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
-//      document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
@@ -702,9 +681,11 @@ function loadValuesFromLocalStorage()
   document.getElementById("authzcustomParametersCheck-no").checked = getLSBooleanItem("authzcustomParametersCheck-no");
   document.getElementById("authzNumberCustomParameters").value = localStorage.getItem("authzNumberCustomParameters")? localStorage.getItem("authzNumberCustomParameters") : 1;
 
-  document.getElementById("pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
-  document.getElementById("pkce_code_verifier").value = localStorage.getItem("PKCE_code_challenge_verifier");
-  document.getElementById("pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+  document.getElementById("authz_pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
+  document.getElementById("authz_pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
+  document.getElementById("authz_pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+
+  recalculateAuthorizationRequestDescription();
 
   if (document.getElementById("authzcustomParametersCheck-yes").checked) {
     generateCustomParametersListUI();
@@ -936,8 +917,8 @@ function recalculateAuthorizationRequestDescription()
          document.getElementById("display_authz_request_form_textarea1").value += "&\n" +  customParametersComponent + "\n";
        }
        if (usePKCE) {
-         document.getElementById("display_authz_request_form_textarea1").value += "&\n" + "code_challenge=" + document.getElementById("pkce_code_challenge").value  + "&\n" +
-                                                                                          "code_challenge_method=" + document.getElementById("pkce_code_method").value
+         document.getElementById("display_authz_request_form_textarea1").value += "&\n" + "code_challenge=" + document.getElementById("authz_pkce_code_challenge").value  + "&\n" +
+                                                                                          "code_challenge_method=" + document.getElementById("authz_pkce_code_method").value
        }
     } else if (	grant_type == "token" || 
 		grant_type == "id_token token" || 
@@ -977,12 +958,10 @@ function recalculateTokenRequestDescription()
   console.log("Entering recalculateTokenRequestDescription().");
   console.log("update request field");
   var ta1 = document.getElementById("display_token_request_form_textarea1");
-//  var yesCheck = document.getElementById("yesCheckToken").checked;
   var yesCheck = false;
   var resourceComponent = "";
   if(yesCheck) //add resource value to OAuth query string
   {
-//    var resource = document.getElementById("token_resource").value;
     if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
     {
       resourceComponent =  "&resource=" + resource;
@@ -1031,16 +1010,7 @@ function recalculateRefreshRequestDescription()
   console.log("Entering recalculateRefreshRequestDescription().");
   console.log("update request field");
   var ta1 = document.getElementById("display_refresh_request_form_textarea1");
-//  var yesCheck = document.getElementById("yesCheckToken").checked;
   var resourceComponent = "";
-//  if(yesCheck) //add resource value to OAuth query string
-//  {
-//    var resource = document.getElementById("token_resource").value;
-//    if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
-//    {
-//      resourceComponent =  "&resource=" + resource;
-//    }
-//  }
 
   if (ta1 != null)
   {
@@ -1150,6 +1120,25 @@ window.onload = function() {
     document.getElementById("authzCustomParametersRow").style.visibility = 'collapse';
   }
   displayAuthzCustomParametersCheck();
+  if(usePKCE) {
+    console.log("Show PKCE Data fields.");
+    document.getElementById("authz_pkce_code_challenge_row").style.visibility = '';
+    document.getElementById("authz_pkce_code_verifier_row").style.visibility = '';
+    document.getElementById("authz_pkce_code_method_row").style.visibility = '';
+  } else {
+    console.log("Hide PKCE Data fields.");
+    document.getElementById("authz_pkce_code_challenge_row").style.visibility = 'collapse';
+    document.getElementById("authz_pkce_code_verifier_row").style.visibility = 'collapse';
+    document.getElementById("authz_pkce_code_method_row").style.visibility = 'collapse';
+  }
+
+  if (usePKCE) {
+    document.getElementById("authz_pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
+    document.getElementById("authz_pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
+    document.getElementById("authz_pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+  }
+  recalculateAuthorizationRequestDescription();
+
   console.log("Leaving onload().");
 }
 
@@ -1274,7 +1263,6 @@ function recalculateAuthorizationErrorDescription()
 function recalculateTokenErrorDescription(data)
 {
   console.log("Entering recalculateTokenErrorDescription().");
-//  $("#display_token_error_class").show();
   var display_token_error_class_html = "<fieldset>" +
                                        "<legend>Token Endpoint Error</legend>" +
                                          "<form action=\"\" name=\"display_token_error_form\" id=\"display_token_error_form\">" +
@@ -1340,7 +1328,6 @@ function recalculateTokenErrorDescription(data)
 function recalculateRefreshErrorDescription(data)
 {
   console.log("Entering recalculateRefreshErrorDescription().");
-//  $("#display_token_error_class").show();
   var display_refresh_error_class = "<fieldset>" +
                                     "<legend>Token Endpoint (For Refresh) Error</legend>" +
                                        "<form action=\"\" name=\"display_refresh_error_form\" id=\"display_refresh_error_form\">" +
@@ -1433,6 +1420,20 @@ function usePKCERFC()
     usePKCE = true;
   } else {
     usePKCE = false;
+  }
+  if(usePKCE) {
+    console.log("Show PKCE Data fields.");
+    document.getElementById("authz_pkce_code_challenge_row").style.visibility = '';
+    document.getElementById("authz_pkce_code_verifier_row").style.visibility = '';
+    document.getElementById("authz_pkce_code_method_row").style.visibility = '';
+    document.getElementById("authz_pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
+    document.getElementById("authz_pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
+    document.getElementById("authz_pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+  } else {
+    console.log("Hide PKCE Data fields.");
+    document.getElementById("authz_pkce_code_challenge_row").style.visibility = 'collapse';
+    document.getElementById("authz_pkce_code_verifier_row").style.visibility = 'collapse';
+    document.getElementById("authz_pkce_code_method_row").style.visibility = 'collapse';
   }
   recalculateAuthorizationRequestDescription();
   console.log("Leaving usePKCERFC().");
@@ -1571,7 +1572,6 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   console.log('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
   return true;
 }
-// document.getElementById("step0").style.display = "none";
 
 // Reset all forms and clear local storage
 function onSubmitClearAllForms() {
@@ -1730,8 +1730,6 @@ function generateCustomParametersListUI()
     var authzNumberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);
     for(i = 0; i < authzNumberCustomParameters; i++)
     {
-//     localStorage.setItem("customParameterName-" + i, document.getElementById("customParameterName-" + i).value);
-//      localStorage.setItem("customParameterValue-" + i, document.getElementById("customParameterValue-" + i).value);
       document.getElementById("customParameterName-" + i).value = localStorage.getItem("customParameterName-" + i);
       document.getElementById("customParameterValue-" + i).value = localStorage.getItem("customParameterValue-" + i);
     }
@@ -1816,9 +1814,9 @@ function setPKCEValues()
   localStorage.setItem("PKCE_code_challenge", code_challenge);
   localStorage.setItem("PKCE_code_challenge_method", "S256");
   localStorage.setItem("PKCE_code_verifier", code_verifier );
-  document.getElementById("pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
-  document.getElementById("pkce_code_verifier").value = localStorage.getItem("PKCE_code_challenge_verifier");
-  document.getElementById("pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+  document.getElementById("authz_pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
+  document.getElementById("authz_pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
+  document.getElementById("authz_pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
   recalculateAuthorizationRequestDescription();
   return code_challenge
 }
