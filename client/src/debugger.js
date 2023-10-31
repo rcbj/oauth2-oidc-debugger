@@ -62,15 +62,15 @@ $(document).ready(function() {
     var value = $(this).val();
     resetUI(value);
     recalculateAuthorizationRequestDescription();
-    recalculateTokenRequestDescription();
-    recalculateRefreshRequestDescription();
+    if(value == "client_credential") {
+      writeValuesToLocalStorage();
+      window.location.href = "/debugger2.html";
+    }
     console.log("Leaving selection changed function().");
   });
   var value = $("#authorization_grant_type").value;
   resetUI(value);
   recalculateAuthorizationRequestDescription();
-  recalculateTokenRequestDescription();
-  recalculateRefreshRequestDescription();
 
   $(".btn1").click(function() {
       console.log("Entering token Submit button clicked function.");
@@ -382,7 +382,8 @@ function resetUI(value)
       $("#token_endpoint_result").html("");
       $("#display_authz_request_class").hide();
       writeValuesToLocalStorage();     
-      window.location.href = "/debugger2.html";
+      usePKCE = false;
+//      window.location.href = "/debugger2.html";
     }
     if( value == "resource_owner")
     {
@@ -1139,6 +1140,10 @@ window.onload = function() {
   }
   recalculateAuthorizationRequestDescription();
 
+  var type = document.getElementById("response_type").value;
+  if(type == "client_credential") {
+    window.location.href = "/debugger2.html";
+  }
   console.log("Leaving onload().");
 }
 

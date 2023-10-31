@@ -19,7 +19,6 @@ var usePKCE = false;
 function OnSubmitTokenEndpointForm()
 {
   console.log("Entering OnSubmitTokenEndpointForm().");
-  //document.token_step.action = document.getElementById("token_endpoint").value;
   document.token_step.action = "/token";
   console.log("Leaving OnSubmitTokenEndpointForm().");
   return true;
@@ -168,15 +167,20 @@ $(document).ready(function() {
                                             data.access_token + 
                                             "</textarea>" +
                                           "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
+                                        "</tr>";
+         if(typeof currentRefreshToken != "undefined" && 
+	    currentRefreshToken != "undefined" &&
+            currentRefreshToken != "null" &&
+            currentRefreshToken != null) {
+           token_endpoint_result_html +=  "<tr>" +
                                           '<td><a href="/token_detail.html?type=refresh">Refresh Token</a></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" + 
                                             currentRefreshToken +
                                             "</textarea>" +
                                           "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
+                                        "</tr>";
+         }
+         token_endpoint_result_html +=  "<tr>" +
                                           '<td><P><a href="/token_detail.html?type=id">ID Token</a><p>' +
                                           '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_id_token id=token_id_token>" + 
@@ -186,9 +190,9 @@ $(document).ready(function() {
                                         "</tr>" +
                                       "</table>" +
                                       "</fieldset>";
-                                     localStorage.setItem("token_access_token", data.access_token);
-                                     localStorage.setItem("token_refresh_token", data.refresh_token);
-                                     localStorage.setItem("token_id_token", data.id_token);
+         localStorage.setItem("token_access_token", data.access_token);
+         localStorage.setItem("token_refresh_token", data.refresh_token);
+         localStorage.setItem("token_id_token", data.id_token);
       } else {
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" +
@@ -199,18 +203,23 @@ $(document).ready(function() {
                                             data.access_token +
                                             "</textarea>" +
                                           "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
-                                          '<td>a href="/token_detail.html?type=access">Refresh Token</a></td>' +
+                                        "</tr>";
+         if(typeof currentRefreshToken != "undefined" && 
+            currentRefreshToken != "undefined" &&
+            currentRefreshToken != "null" &&
+            currentRefreshToken != null) {
+           token_endpoint_result_html += "<tr>" +
+                                          '<td><a href="/token_detail.html?type=access">Refresh Token</a></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" +
                                            currentRefreshToken +
                                             "</textarea>" +
                                           "</td>" +
-                                        "</tr>" +
-                                      "</table>" +
+                                        "</tr>";
+         }
+         token_endpoint_result_html += "</table>" +
                                       "</fieldset>";
-                                     localStorage.setItem("token_acess_token", data.access_token);
-                                     localStorage.setItem("token_refresh_token", data.refresh_token);
+         localStorage.setItem("token_access_token", data.access_token);
+         localStorage.setItem("token_refresh_token", data.refresh_token);
       }
       $("#token_endpoint_result").html(token_endpoint_result_html);
       document.getElementById("refresh_refresh_token").value = currentRefreshToken;
@@ -368,7 +377,6 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").hide();
-//      $("#nonce").show();
       document.getElementById("response_type").value = "token";
       document.getElementById("token_grant_type").value = "";
       document.getElementById("h2_title_1").innerHTML = "Request Access Token";
@@ -385,17 +393,15 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").hide();
       $("#step3").show();
-//      $("#nonce").hide();
-//      document.getElementById("response_type").value = "";
       document.getElementById("token_grant_type").value = "client_credentials";
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       document.getElementById("h2_title_2").innerHTML = "Obtain Access Token";
-//      $("#authorization_endpoint_result").html("");
-//      $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
-//      $("#display_authz_request_class").hide();
       $("#display_token_request").show();
+      document.getElementById("usePKCE-yes").checked = false;
+      document.getElementById("usePKCE-no").checked = true;
+      usePKCERFC();
     }
     if( value == "resource_owner")
     {
@@ -404,7 +410,6 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = '';
       $("#step2").hide();
       $("#step3").show();
-//      $("#nonce").hide();
       document.getElementById("response_type").value = "";
       document.getElementById("token_grant_type").value = "password";
       recalculateTokenRequestDescription();
@@ -423,13 +428,10 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").show();
-//      $("#nonce").hide();
-//      document.getElementById("response_type").value = "code";
       document.getElementById("token_grant_type").value = "authorization_code";
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
-//      document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
       document.getElementById("h2_title_2").innerHTML = "Exchange Authorization Code for Access Token";
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
@@ -444,7 +446,6 @@ function resetUI(value)
       document.getElementById("authzPasswordRow").style.visibility = 'collapse';
       $("#step2").show();
       $("#step3").hide();
-//      $("#nonce").show();
       document.getElementById("response_type").value = "id_token token";
       document.getElementById("scope").value = "openid profile";
       recalculateAuthorizationErrorDescription();
@@ -841,8 +842,6 @@ function loadValuesFromLocalStorage()
   {
     $("#display_authz_error_class").html("<fieldset><legend>Authorization Endpoint Error</legend><form action=\"\" name=\"display_authz_error_form\" id=\"display_authz_error_form\"><table><tr><td><label name=\"display_authz_error_form_label1\" value=\"\" id=\"display_authz_error_form_label1\">Error</label></td><td><textarea rows=\"10\" cols=\"100\" id=\"display_authz_error_form_textarea1\"></td></tr></table></textarea></form></fieldset>");
   }
-//  document.getElementById("state").value = generateUUID();
-//  document.getElementById("nonce_field").value = generateUUID();
   console.log("Leaving loadValuesFromLocalStorage().");
 }
 
@@ -892,7 +891,7 @@ function recalculateTokenRequestDescription()
       if(usePKCE) {
         document.getElementById("display_token_request_form_textarea1").value += "&\n" + "code_verifier=" + document.getElementById("token_pkce_code_verifier").value;
       }
-    } else if (grant_type == "client_credentials") {
+    } else if (grant_type == "client_credential") {
       document.getElementById("display_token_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
                                                                      "Message Body:\n" +
                                                                       "grant_type=" + document.getElementById("token_grant_type").value + "&" + "\n" +
@@ -925,16 +924,7 @@ function recalculateRefreshRequestDescription()
   console.log("Entering recalculateRefreshRequestDescription().");
   console.log("update request field");
   var ta1 = document.getElementById("display_refresh_request_form_textarea1");
-//  var yesCheck = document.getElementById("yesResourceCheckToken").checked;
   var resourceComponent = "";
-//  if(yesCheck) //add resource value to OAuth query string
-//  {
-//    var resource = document.getElementById("token_resource").value;
-//    if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
-//    {
-//      resourceComponent =  "&resource=" + resource;
-//    }
-//  }
 
   if (ta1 != null)
   {
@@ -1052,16 +1042,12 @@ window.onload = function() {
     document.getElementById("tokenCustomParametersRow").style.visibility = 'collapse';
   }
 
-  if(usePKCE) {
-    console.log("Show PKCE Data fields.");
-    document.getElementById("token_pkce_code_challenge_row").style.visibility = '';
-    document.getElementById("token_pkce_code_verifier_row").style.visibility = '';
-    document.getElementById("token_pkce_code_method_row").style.visibility = '';
-  } else {
-    console.log("Hide PKCE Data fields.");
-    document.getElementById("token_pkce_code_challenge_row").style.visibility = 'collapse';
-    document.getElementById("token_pkce_code_verifier_row").style.visibility = 'collapse';
-    document.getElementById("token_pkce_code_method_row").style.visibility = 'collapse';
+  var authzGrantType = localStorage.getItem("authorization_grant_type");
+  if (authzGrantType == "client_credential") {
+    usePKCE = false;
+    document.getElementById("usePKCE-yes").checked = false;
+    document.getElementById("usePKCE-no").checked = true;
+    usePKCERFC();
   }
 
   displayTokenCustomParametersCheck();
@@ -1195,7 +1181,6 @@ function recalculateAuthorizationErrorDescription()
 function recalculateTokenErrorDescription(data)
 {
   console.log("Entering recalculateTokenErrorDescription().");
-//  $("#display_token_error_class").show();
   var display_token_error_class_html = "<fieldset>" +
                                        "<legend>Token Endpoint Error</legend>" +
                                          "<form action=\"\" name=\"display_token_error_form\" id=\"display_token_error_form\">" +
@@ -1261,7 +1246,6 @@ function recalculateTokenErrorDescription(data)
 function recalculateRefreshErrorDescription(data)
 {
   console.log("Entering recalculateRefreshErrorDescription().");
-//  $("#display_token_error_class").show();
   var display_refresh_error_class = "<fieldset>" +
                                     "<legend>Token Endpoint (For Refresh) Error</legend>" +
                                        "<form action=\"\" name=\"display_refresh_error_form\" id=\"display_refresh_error_form\">" +
@@ -1478,7 +1462,6 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   console.log('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
   return true;
 }
-// document.getElementById("step0").style.display = "none";
 
 // Reset all forms and clear local storage
 function onSubmitClearAllForms() {
@@ -1506,7 +1489,6 @@ function onSubmitClearAllForms() {
       localStorage.setItem("useRefreshToken_yes", true);
       localStorage.setItem("useRefreshToken_no", false);
       localStorage.setItem("oidc_userinfo_endpoint", "");
-//      localStorage.setItem("oidc_discovery_endpoint", "");
       localStorage.setItem("jwks_endpoint", "");
   }
   document.getElementById("authorization_endpoint").value = "";
@@ -1527,7 +1509,7 @@ function onSubmitClearAllForms() {
   document.getElementById("refresh_scope").value = "";
   document.getElementById("useRefreshToken-yes").checked = true;
   document.getElementById("useRefreshToken-no").checked = false;
-//  document.getElementById("oidc_discovery_endpoint").value = "";
+  document.getElementById("oidc_discovery_endpoint").value = "";
   document.getElementById("client_id").value = "";
   document.getElementById("scope").value = "";
   document.getElementById("resource").value = "";
@@ -1555,6 +1537,7 @@ function recreateTokenDisplay()
       if(displayOpenIDConnectArtifacts == true)
       {
          // Display OAuth2/OIDC Artifacts
+         var refreshToken = localStorage.getItem("token_refresh_token");
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" + 
 				      "<table>" +
@@ -1564,15 +1547,17 @@ function recreateTokenDisplay()
                                             localStorage.getItem("token_access_token") + 
                                             "</textarea>" +
                                           "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
+                                        "</tr>";
+         if(typeof refreshToken != "undefined" && refreshToken != "undefined") {
+           token_endpoint_result_html += "<tr>" +
                                           '<td><a href="/token_detail.html?type=refresh">Refresh Token</a></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" + 
-                                            localStorage.getItem("token_refresh_token") + 
+                                            refreshToken +
                                             "</textarea>" +
                                           "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
+                                        "</tr>";
+         }
+         token_endpoint_result_html += "<tr>" +
                                           '<td><P><a href="/token_detail.html?type=id">ID Token</a></P>' +
                                           '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_id_token id=token_id_token>" + 
@@ -1592,15 +1577,17 @@ function recreateTokenDisplay()
                                             localStorage.getItem("token_access_token") +
                                             "</textarea>" +
                                           "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
-                                          '<td>a href="/token_detail.html?type=access">Refresh Token</a></td>' +
+                                        "</tr>";
+         if(typeof refreshToken != "undefined" && refreshToken != "undefined") {
+           token_endpoint_result_html += "<tr>" +
+                                          '<td><a href="/token_detail.html?type=access">Refresh Token</a></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" +
-                                            localStorage.getItem("token_refresh_token") +
+                                            refreshToken +
                                             "</textarea>" +
                                           "</td>" +
-                                        "</tr>" +
-                                      "</table>" +
+                                        "</tr>";
+        }
+        token_endpoint_result_html += "</table>" +
                                       "</fieldset>";
       }
       $("#token_endpoint_result").html(token_endpoint_result_html);
