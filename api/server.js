@@ -130,7 +130,7 @@ app.post('/token', (req, res) => {
       if (typeof code_verifier != "undefined") {
         parameterObject.code_verifier = code_verifier
       }
-      if (typeof clientSecret != "undefined") {
+      if (typeof clientSecret != "undefined" && clientSecret != "undefined") {
         parameterObject.client_secret = clientSecret;
       }
     } else if(grantType == "client_credentials") {
