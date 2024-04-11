@@ -42,15 +42,10 @@ function getParameterByName(name, url)
   console.log("Entering getParameterByName().");
   if (!url)
   {
-    url = window.location.href;
+    url = window.location.search;
   }
-  name = name.replace(/[\[\]]/g, "\\$&");
-  var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-      results = regex.exec(url);
-  if (!results) return null;
-  if (!results[2]) return "";
-  console.log("Entering getParameterByName().");
-  return decodeURIComponent(results[2].replace(/\+/g, " "));
+  var urlParams = new URLSearchParams(url);
+  return urlParams.get(name);
 }
 
 module.exports = {
