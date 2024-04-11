@@ -1,4 +1,4 @@
-FROM node:12
+FROM node:lts
 
 ARG CONFIG_FILE
 # Create app directory
