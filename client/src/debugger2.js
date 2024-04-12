@@ -742,7 +742,7 @@ function loadValuesFromLocalStorage()
                                                "</tr>" + 
                                              "</table>" +
                                              "</fieldset>";
-    $("#authorization_endpoint_result").html(authorization_endpoint_result_html);
+    $("#authorization_endpoint_result").html(DOMPurify.sanitize(authorization_endpoint_result_html));
   }
   if (  agt == "oidc_hybrid_code_id_token_token" &&
         pathname == "/debugger2.html") //retrieve access code and id_token that is returned from authorization endpoint.
