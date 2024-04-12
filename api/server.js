@@ -8,7 +8,7 @@
 const express = require('express');
 const expressLogging = require('express-logging');
 const logger = require('logops');
-const request = require('request');
+const axios = require('axios');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
@@ -186,28 +186,26 @@ app.post('/token', (req, res) => {
       headers.origin = uiUrl;
     }
     parameterString = parameterString.substring(0, parameterString.length - 1);
-    request.post({
+    axios({
+      method: 'post',
+      url: tokenEndpoint,
       headers: headers,
-      url:    tokenEndpoint,
-      body: parameterString,
-      strictSSL: sslValidate
-    }, function(error, response, body){
-      if ( typeof(error) != "undefined" || error == "null" ) {
-        console.log('Error from OAuth2 Token Endpoint: ' + error);
-      } else {
-        console.log('Response from OAuth2 Token Endpoint: ' + body);
-      }
-      if ( typeof(response) != "undefined" && typeof(response.statusCode) != "undefined" ) {
-        res.status(response.statusCode);
+      data: parameterString,
+      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: sslValidate })
+    })
+    .then(function (response) {
+      console.log('Response from OAuth2 Token Endpoint: ' + response.data);
+      res.status(response.status);
+      res.json(response.data);
+    })
+    .catch(function (error) {
+      console.log('Error from OAuth2 Token Endpoint: ' + error);
+      if (error.response) {
+        res.status(error.response.status);
+        res.json(error.response.data);
       } else {
         res.status(500);
-      }
-      if ( typeof(body) != "undefined") {
-        res.json(JSON.parse(body));
-      } else if (typeof(error) != "undefined") {
-        res.json(error);
-      } else {
-        res.json("{}");;
+        res.json(error.message);
       }
     });
   } catch (e) {

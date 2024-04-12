@@ -8,12 +8,12 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "axios": "^1.6.8",
+    "body-parser": "latest",
+    "cors": "latest",
     "express": "^4.19.2",
     "express-logging": "latest",
-    "request": "latest",
-    "body-parser": "latest",
-    "logops": "latest",
-    "cors": "latest",
-    "express-swagger-generator": "latest"
+    "express-swagger-generator": "latest",
+    "logops": "latest"
   }
 }
