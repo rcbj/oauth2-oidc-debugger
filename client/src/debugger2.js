@@ -1,7 +1,7 @@
 // File: debugger2_js.js
 // Author: Robert C. Broeckelmann Jr.
 // Date: 06/15/2017
-// Notes:
+// Notes: Uses DOMPurify to sanitize external params when rendered back to HTML
 //
 var displayOpenIDConnectArtifacts = false;
 var useRefreshTokenTester = false;
@@ -29,15 +29,10 @@ function getParameterByName(name, url)
   console.log("Entering getParameterByName().");
   if (!url)
   {
-    url = window.location.href;
+    url = window.location.search;
   }
-  name = name.replace(/[\[\]]/g, "\\$&");
-  var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-      results = regex.exec(url);
-  if (!results) return null;
-  if (!results[2]) return "";
-  console.log("Entering getParameterByName().");
-  return decodeURIComponent(results[2].replace(/\+/g, " "));
+  var urlParams = new URLSearchParams(url);
+  return urlParams.get(name);
 }
 
 $(document).ready(function() {
@@ -747,7 +742,7 @@ function loadValuesFromLocalStorage()
                                                "</tr>" + 
                                              "</table>" +
                                              "</fieldset>";
-    $("#authorization_endpoint_result").html(authorization_endpoint_result_html);
+    $("#authorization_endpoint_result").html(DOMPurify.sanitize(authorization_endpoint_result_html));
   }
   if (  agt == "oidc_hybrid_code_id_token_token" &&
         pathname == "/debugger2.html") //retrieve access code and id_token that is returned from authorization endpoint.
@@ -832,7 +827,7 @@ function loadValuesFromLocalStorage()
       }
     }
     console.log("id_token=" + id_token);
-    $("#authorization_endpoint_id_token_result").html("<fieldset><legend>Authorization Endpoint Results</legend><table><tr><td>id_token</td><td><textarea id=\"implicit_flow_id_token\" rows=5 cols=100>" + id_token + "</textarea></td></tr></table></fieldset>");
+    $("#authorization_endpoint_id_token_result").html("<fieldset><legend>Authorization Endpoint Results</legend><table><tr><td>id_token</td><td><textarea id=\"implicit_flow_id_token\" rows=5 cols=100>" + DOMPurify.sanitize(id_token) + "</textarea></td></tr></table></fieldset>");
   }
   var error = getParameterByName("error",window.location.href);
   var authzGrantType = document.getElementById("authorization_grant_type").value;
@@ -936,20 +931,20 @@ function recalculateRefreshRequestDescription()
           client_secret != null &&
           client_secret != "null")
       {
-        document.getElementById("display_refresh_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
+        document.getElementById("display_refresh_request_form_textarea1").value = DOMPurify.sanitize("POST " + document.getElementById("token_endpoint").value + "\n" +
                                                                       "Message Body:\n" +
                                                                       "grant_type=" + document.getElementById("refresh_grant_type").value + "&" + "\n" +
                                                                       "refresh_token=" + document.getElementById("refresh_refresh_token").value + "&" + "\n" +
                                                                       "client_id=" + document.getElementById("refresh_client_id").value + "&" + "\n" +
                                                                       "client_secret=" + document.getElementById("refresh_client_secret").value + "&" + "\n" +
-                                                                      "scope=" + document.getElementById("refresh_scope").value + "\n";
+                                                                      "scope=" + document.getElementById("refresh_scope").value + "\n");
       } else {
-        document.getElementById("display_refresh_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
+        document.getElementById("display_refresh_request_form_textarea1").value = DOMPurify.sanitize("POST " + document.getElementById("token_endpoint").value + "\n" +
                                                                       "Message Body:\n" +
                                                                       "grant_type=" + document.getElementById("refresh_grant_type").value + "&" + "\n" +
                                                                       "refresh_token=" + document.getElementById("refresh_refresh_token").value + "&" + "\n" +
                                                                       "client_id=" + document.getElementById("refresh_client_id").value + "&" + "\n" +
-                                                                      "scope=" + document.getElementById("refresh_scope").value + "\n";
+                                                                      "scope=" + document.getElementById("refresh_scope").value + "\n");
       }
     }
   }
@@ -976,12 +971,12 @@ window.onload = function() {
       console.log('State matches stored state.');
       var stateReportHTML = '<h1>State Report</h1>' +
                             '<P>' + 'State matches: state=' + state + '</P>';
-      $("#state-status").html(stateReportHTML);
+      $("#state-status").html(DOMPurify.sanitize(stateReportHTML));
     } else {
       console.log('State does not match: state=' + state + ', storedState=' + storedState);
       var stateReportHTML = '<h1>State Report</h1>' +
                             '<P>State does not match: state=' + state + ', storedState=' + storedState + '</P>';
-      $("#state-status").html(stateReportHTML);
+      $("#state-status").html(DOMPurify.sanitize(stateReportHTML));
     }
   }
  
@@ -996,7 +991,7 @@ window.onload = function() {
     var authzErrorReportHTML = '<h1>Authorization Endpoint Error Report</h1>' +
                                '<P>' + 'Error: ' + errorParam + '</P>' +
                                '<P>' + 'Error Description: ' +  errorDescriptionParam + '</P>';
-    $('#authz-error-report').html(authzErrorReportHTML);
+    $('#authz-error-report').html(DOMPurify.sanitize(authzErrorReportHTML));
     console.log('errorDescriptionParam=' + errorDescriptionParam + ', errorParam=' + errorParam); 
     return;
   }

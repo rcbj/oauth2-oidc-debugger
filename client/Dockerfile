@@ -1,4 +1,4 @@
-FROM node:12
+FROM node:lts
 
 ARG CONFIG_FILE
 # Create app directory
@@ -17,6 +17,7 @@ RUN npm install -g browserify
 
 # Bundle app source
 COPY public/ /usr/src/app/public/
+COPY dist/ /usr/src/app/public/dist/
 COPY env/ /usr/src/app/env/
 COPY server.js /usr/src/app
 COPY package.json /usr/src/app

@@ -43,15 +43,10 @@ function getParameterByName(name, url)
   console.log("Entering getParameterByName().");
   if (!url)
   {
-    url = window.location.href;
+    url = window.location.search;
   }
-  name = name.replace(/[\[\]]/g, "\\$&");
-  var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
-      results = regex.exec(url);
-  if (!results) return null;
-  if (!results[2]) return "";
-  console.log("Entering getParameterByName().");
-  return decodeURIComponent(results[2].replace(/\+/g, " "));
+  var urlParams = new URLSearchParams(url);
+  return urlParams.get(name);
 }
 
 $(document).ready(function() {
@@ -759,7 +754,7 @@ function loadValuesFromLocalStorage()
                                                "</tr>" + 
                                              "</table>" +
                                              "</fieldset>";
-    $("#authorization_endpoint_result").html(authorization_endpoint_result_html);
+    $("#authorization_endpoint_result").html(DOMPurify.sanitize(authorization_endpoint_result_html));
   }
   if (  agt == "oidc_hybrid_code_id_token_token" &&
         pathname == "/callback") //retrieve access code and id_token that is returned from authorization endpoint.
@@ -844,7 +839,7 @@ function loadValuesFromLocalStorage()
       }
     }
     console.log("id_token=" + id_token);
-    $("#authorization_endpoint_id_token_result").html("<fieldset><legend>Authorization Endpoint Results</legend><table><tr><td>id_token</td><td><textarea id=\"implicit_flow_id_token\" rows=5 cols=100>" + id_token + "</textarea></td></tr></table></fieldset>");
+    $("#authorization_endpoint_id_token_result").html(DOMPurify.sanitize("<fieldset><legend>Authorization Endpoint Results</legend><table><tr><td>id_token</td><td><textarea id=\"implicit_flow_id_token\" rows=5 cols=100>" + id_token + "</textarea></td></tr></table></fieldset>"));
   }
   var error = getParameterByName("error",window.location.href);
   var authzGrantType = document.getElementById("authorization_grant_type").value;
