@@ -1720,10 +1720,10 @@ function generateCustomParametersListUI()
         "<tr>" +
           "<td>Custom Parameter #" + i + "</td>" +
           "<td>" +
-            '<input class="stored" id="' + 'customParameterName-' + i + '" name="' + 'customParameterName-' + i + '" type="text" maxlength="32" size="32" />' +
+            '<input class="stored" id="' + 'customParameterName-' + i + '" name="' + 'customParameterName-' + i + '" type="text" maxlength="64" size="32" />' +
           "</td>" +
           "<td>" +
-            '<input class="stored" id="' + 'customParameterValue-' + i + '" name="' + 'customParameterValue-' + i + '" type="text" maxlength="32" size="32" />' +
+            '<input class="stored" id="' + 'customParameterValue-' + i + '" name="' + 'customParameterValue-' + i + '" type="text" maxlength="128" size="64" />' +
           "</td>" +
         "</tr>";
       }
