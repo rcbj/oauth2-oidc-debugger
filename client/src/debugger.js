@@ -945,7 +945,9 @@ function triggerAuthZEndpointCall()
   console.log("Entering triggerAuthZEndpointCall().");
   writeValuesToLocalStorage();
   recalculateAuthorizationRequestDescription();
-  window.location.href = document.getElementById("display_authz_request_form_textarea1").value.substring(4, document.getElementById("display_authz_request_form_textarea1").value.length).replace("\n","");
+  window.location.href = DOMPurify.sanitize(document.getElementById("display_authz_request_form_textarea1").value.substring(4, 
+    document.getElementById("display_authz_request_form_textarea1").value.length
+  ).replace("\n",""));
   console.log("Leaving triggerAuthZEndpointCall().");
 }
 
