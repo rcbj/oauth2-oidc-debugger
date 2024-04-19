@@ -388,7 +388,7 @@ $(".refresh_btn").click(function() {
 function resetUI(value)
 {
     console.log("Entering resetUI().");
-    document.getElementById("logout_post_redirect_uri") = appconfig.apiUrl;
+    document.getElementById("logout_post_redirect_uri").value = window.location.origin;
     if( value == "implicit_grant" )
     {
       $("#code").hide();
@@ -623,7 +623,7 @@ function writeValuesToLocalStorage()
       localStorage.setItem("refresh_client_id", document.getElementById("refresh_client_id").value);
       localStorage.setItem("refresh_client_secret", document.getElementById("refresh_client_secret").value);
       localStorage.setItem("refresh_scope", document.getElementById("refresh_scope").value);
-      localStorage.setItem("refresh_refresh_token", document.getElementById("refresh_refresh_token").vaalue);
+      localStorage.setItem("refresh_refresh_token", document.getElementById("refresh_refresh_token").value);
       localStorage.setItem("useRefreshToken_yes", document.getElementById("useRefreshToken-yes").checked);
       localStorage.setItem("useRefreshToken_no", document.getElementById("useRefreshToken-no").checked);
       localStorage.setItem("oidc_userinfo_endpoint", document.getElementById("oidc_userinfo_endpoint").value);
