@@ -65,7 +65,7 @@ $(document).ready(function() {
     var queryString = $.param(nameValuePairs);
 
     console.log(queryString); // Log the query string
-    var logoutUrl = $("#logout_end_session_endpoint").val() + "?" + queryString;
+    var logoutUrl = $("#logout_end_session_endpoint").val() + "?" + DOMPurify.sanitize(queryString);
 
     clearLocalStorage();
     window.location.href = logoutUrl;
