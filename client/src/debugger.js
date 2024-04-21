@@ -500,7 +500,9 @@ function resetUI(value)
       $("#token_endpoint_result").html("");
       $("#display_authz_request_class").show();
       $("#display_token_request").show();
-      document.getElementById("code").value = "";
+      if(document.getElementById("code")){
+        document.getElementById("code").value = "";
+      };
       displayOpenIDConnectArtifacts = true;
     }
     if( value == "oidc_hybrid_code_token")
@@ -585,10 +587,12 @@ function writeValuesToLocalStorage()
         var authzNumberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);
         for(i = 0; i < authzNumberCustomParameters; i++)
         {
-          console.log("Writing customParameterName-" + i + " as " + document.getElementById("customParameterName-" + i).value + "\n");
-          localStorage.setItem("customParameterName-" + i, document.getElementById("customParameterName-" + i).value);
-          console.log("Writing customParameterValue-" + i + " as " + document.getElementById("customParameterValue-" + i).value + "\n");
-          localStorage.setItem("customParameterValue-" + i, document.getElementById("customParameterValue-" + i).value);
+          if(document.getElementById("customParameterName-" + i)){
+            console.log("Writing customParameterName-" + i + " as " + document.getElementById("customParameterName-" + i).value + "\n");
+            localStorage.setItem("customParameterName-" + i, document.getElementById("customParameterName-" + i).value);
+            console.log("Writing customParameterValue-" + i + " as " + document.getElementById("customParameterValue-" + i).value + "\n");
+            localStorage.setItem("customParameterValue-" + i, document.getElementById("customParameterValue-" + i).value);
+          };
         }
       }
       setPKCEValues();
@@ -902,10 +906,11 @@ function recalculateAuthorizationRequestDescription()
     {
       document.getElementById("display_authz_request_form_textarea1").value = "GET " + document.getElementById("authorization_endpoint").value + "?" + "\n" +
                                                                       "state=" + document.getElementById("state").value + "&" + "\n" +
-  								      "response_type=" + document.getElementById("response_type").value + "&" + "\n" +
-  								      "client_id=" + document.getElementById("client_id").value + "&" + "\n" +
-                						      "redirect_uri=" + document.getElementById("redirect_uri").value + "&" +"\n" +
-								      "scope=" + document.getElementById("scope").value;
+                                                                      "nonce=" + document.getElementById("nonce_field").value + "&" + "\n" +
+                                                                      "response_type=" + document.getElementById("response_type").value + "&" + "\n" +
+                                                                      "client_id=" + document.getElementById("client_id").value + "&" + "\n" +
+                                                                      "redirect_uri=" + document.getElementById("redirect_uri").value + "&" +"\n" +
+                                                                      "scope=" + document.getElementById("scope").value;
        if ( resourceComponent.length > 0) {
          document.getElementById("display_authz_request_form_textarea1").value += "&\n" + resourceComponent + "\n";
        }
@@ -945,7 +950,9 @@ function triggerAuthZEndpointCall()
   console.log("Entering triggerAuthZEndpointCall().");
   writeValuesToLocalStorage();
   recalculateAuthorizationRequestDescription();
-  window.location.href = document.getElementById("display_authz_request_form_textarea1").value.substring(4, document.getElementById("display_authz_request_form_textarea1").value.length).replace("\n","");
+  window.location.href = DOMPurify.sanitize(document.getElementById("display_authz_request_form_textarea1").value.substring(4, 
+    document.getElementById("display_authz_request_form_textarea1").value.length
+  ).replace("\n",""));
   console.log("Leaving triggerAuthZEndpointCall().");
 }
 
@@ -1501,6 +1508,7 @@ function parseDiscoveryInfo(discoveryInfo) {
   var tokenEndpoint = discoveryInfo["token_endpoint"];
   var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
   var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
+  var endSessionEndpoint = discoveryInfo["end_session_endpoint"];
   console.log("authorizationEndpoint: " + authorizationEndpoint);
   console.log("idTokenSigningAlgValuesSupported: " + JSON.stringify(idTokenSigningAlgValuesSupported));
   console.log("issuer: " + issuer);
@@ -1511,6 +1519,7 @@ function parseDiscoveryInfo(discoveryInfo) {
   console.log("tokenEndpoint: " + tokenEndpoint);
   console.log("tokenEndpointAuthMethodsSupported: " + JSON.stringify(tokenEndpointAuthMethodsSupported));
   console.log("userInfoEndpoint: " + userInfoEndpoint);
+  console.log("endSessionEndpoint: " + endSessionEndpoint);
   console.log("Leaving parseDiscoveryInfo()."); 
 }
 
@@ -1555,6 +1564,7 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   var tokenEndpoint = discoveryInfo["token_endpoint"];
   var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
   var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
+  var endSessionEndpoint = discoveryInfo["end_session_endpoint"];
 
   document.getElementById("authorization_endpoint").value = authorizationEndpoint;
   document.getElementById("token_endpoint").value = tokenEndpoint;
@@ -1568,6 +1578,7 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
       localStorage.setItem("scope", scopesSupported);
       localStorage.setItem("token_scope", scopesSupported );
       localStorage.setItem("jwks_endpoint", jwksUri);
+      localStorage.setItem("end_session_endpoint", endSessionEndpoint);
   }
   console.log('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
   return true;
