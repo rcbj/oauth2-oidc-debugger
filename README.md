@@ -10,6 +10,7 @@ This project currently supports the following specs:
 * [OpenID Connect Discovery v1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
 * [JWT RFC](https://tools.ietf.org/html/rfc7519)
 * [PKCE - RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)
+* [OIDC Front-Channel Logout v1.0](https://openid.net/specs/openid-connect-frontchannel-1_0.html)
 * With the ability to add custom parameters to the Authorization Endpoint call and Token Endpoint call, numerous other protocols can be supported. We'll eventually get around to adding direct support.
 
 It also supports a couple of proprietary IdP extensions as described below.
@@ -43,7 +44,8 @@ So far, this tool has been tested with the following OAuth2 or OIDC implementati
 * Facebook (OAuth2)
 * Google+ (OAuth2)
 * KeyCloak (reported to work by third-parties, Red Hat SSO v7.1 is KeyCloak under the Red Hat banner, so it should work)
-* Okta (OIDC)
+* Okta (OIDC + OAuth2)
+* Auth0 (OIDC + OAuth2)
 
 # 3Scale Usage Notes
 The version of 3Scale SaaS + APICast only supports OAuth2; 3Scale can support the OIDC Authorization Code Flow since the response_type and grant_type values match OAuth2's Authorization Code Grant.  The other OIDC Authentication Flows are not supported by 3Scale OAuth2.  The latest version of 3Scale on-premise has OIDC support.  As of 12/3/2017, I haven't been able to test this yet.
@@ -171,6 +173,11 @@ Some caveats to keep in mind:
 * In the future, additional token formats may be added.
 * Although, many leading IdPs use JWT as the format for OAuth2 access tokens and refresh tokens. The spec does not require this.
 * Some IdPs intentionally use opaque tokens that have no deeper meaning than to be a randomly generated identifier that points back to session information stored on the IdP
+
+## OIDC Front-Channel Logout Spec Support
+If the Logout URL can be read from the OIDC Discovery Endpoint, it will be automatically populated; otherwise, you will need to manually copy in this URL.
+
+The associated refresh token should be invalidated at this point. The corresponding JWT tokens could still be validated unless you compare them against the Introspection Endpoint.
 
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
