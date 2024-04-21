@@ -10,7 +10,7 @@ This project currently supports the following specs:
 * [OpenID Connect Discovery v1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
 * [JWT RFC](https://tools.ietf.org/html/rfc7519)
 * [PKCE - RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)
-* [OIDC Front-Channel Logout v1.0](https://openid.net/specs/openid-connect-frontchannel-1_0.html)
+* [OIDC RP-Initiated Logout v1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html)
 * With the ability to add custom parameters to the Authorization Endpoint call and Token Endpoint call, numerous other protocols can be supported. We'll eventually get around to adding direct support.
 
 It also supports a couple of proprietary IdP extensions as described below.
@@ -174,7 +174,7 @@ Some caveats to keep in mind:
 * Although, many leading IdPs use JWT as the format for OAuth2 access tokens and refresh tokens. The spec does not require this.
 * Some IdPs intentionally use opaque tokens that have no deeper meaning than to be a randomly generated identifier that points back to session information stored on the IdP
 
-## OIDC Front-Channel Logout Spec Support
+## OIDC RP-Initiated Logout Spec Support
 If the Logout URL can be read from the OIDC Discovery Endpoint, it will be automatically populated; otherwise, you will need to manually copy in this URL.
 
 The associated refresh token should be invalidated at this point. The corresponding JWT tokens could still be validated unless you compare them against the Introspection Endpoint.
