@@ -172,6 +172,9 @@ $(document).ready(function() {
       if (data.refresh_token && data.refresh_token != 'undefined') {
         currentRefreshToken = data.refresh_token;
       }
+      if (data.id_token && data.id_token != 'undefined'){
+        $("#logout_id_token_hint").val(data.id_token);
+      }
       console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
       if(displayOpenIDConnectArtifacts == true)
       {
@@ -370,6 +373,7 @@ $(".refresh_btn").click(function() {
       localStorage.setItem("refresh_access_token", data.access_token );
       localStorage.setItem("refresh_refresh_token", currentRefreshToken );
       localStorage.setItem("refresh_id_token", data.id_token );
+      $("#logout_id_token_hint").val(data.id_token);
       recalculateRefreshRequestDescription();
     },
     error: function (request, status, error) {
