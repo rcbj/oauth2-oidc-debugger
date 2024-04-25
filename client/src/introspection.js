@@ -9,31 +9,34 @@ var introspection_endpoint = "";
 var token_access_token = "";
 var token_refresh_token = "";
 
-function getParameterByName(name, url)
-{
-  console.log("Entering getParameterByName().");
-  if (!url)
-  {
-    url = window.location.search;
-  }
-  var urlParams = new URLSearchParams(url);
-  return urlParams.get(name);
-}
-
 window.onload = function() 
 {
   console.log("Entering window.onload() function.");
-  loadValuesFromLocalStorage();
+  useAccessToken();
   resetErrorDisplays();
 }
 
 
 function callIntrospectionEndpoint()
 {
+  console.log("Introspect link clicked.");
+  token_access_token = document.getElementById("introspection_access_token").value;
+  var nameValuePairs = {};
+
+  $('#introspection_fieldset input.q').each(function() {
+    var className = $(this).attr('name');
+    var value = $(this).val();
+    if (value!=""){ 
+      nameValuePairs[className] = value;; 
+    }
+  });
+  console.log(nameValuePairs); // Log the name-value pairs
+
   var introspectEndpointCall = $.ajax({
     type: "POST",
     crossdomain: true,
-    url: introspection_endpoint + "?" + query_string,
+    url: introspection_endpoint,
+    data: nameValuePairs,
     headers: {
       Authorization: 'Bearer ' + token_access_token
     },
@@ -72,29 +75,42 @@ function resetErrorDisplays()
   console.log("Leaving resetErrorDisplays().");
 }
 
-function loadValuesFromLocalStorage()
-{
+$(document).ready(function() {
+  console.log("Entering ready function().");
+
+
+  $("#access_token_introspection_button").click(function() {
+    useAccessToken();
+  });
+  $("#refresh_token_introspection_button").click(function() {
+    useRefreshToken();
+  });
+  document.getElementById("introspection_token_type_hint").value  = 'access_token';
+  
+});
+
+function useAccessToken(){
   if(localStorage) {
     token_access_token = localStorage.getItem("token_access_token");
+  }
+  // Set configuration fields
+  document.getElementById("introspection_token_type_hint").value  = 'access_token';
+  document.getElementById("introspection_token").value = token_access_token;
+  document.getElementById("introspection_access_token").value = token_access_token;
+}
+
+function useRefreshToken(){
+  if(localStorage) {
     token_refresh_token = localStorage.getItem("token_refresh_token");
   }
   // Set configuration fields
-  document.getElementById("token_access_token").value = token_access_token;
-  document.getElementById("token_refresh_token").value = token_refresh_token;
-}
-
-
-function onClickToggleFieldset(name) {
-  if(document.getElementById(name).style.display == 'block') {
-      document.getElementById(name).style.display = 'none'
-  } else {
-    document.getElementById(name).style.display = 'block'
-  }
+  document.getElementById("introspection_token_type_hint").value  = 'refresh_token';
+  document.getElementById("introspection_token").value = token_refresh_token;
 }
 
 
 module.exports = {
-  getParameterByName,
   callIntrospectionEndpoint,
-  onClickToggleFieldset 
+  useRefreshToken,
+  useAccessToken 
 };

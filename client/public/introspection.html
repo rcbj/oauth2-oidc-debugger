@@ -43,11 +43,13 @@
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js" type="text/javascript"/></script>
   <script type="text/javascript" src="/js/introspection.js"></script>
 
-   <legend>Access Token Introspection</legend>
+   <legend>Token Introspection</legend>
   <form onsubmit="return false;">
-    <input class="btn2" type="submit" name="access_token_expand_button" id="access_token_expand_button" value="Show/Hide" onclick="return introspection.onClickToggleFieldset('access_token_fieldset');"/></form>
-    <fieldset name="access_token_fieldset" id="access_token_fieldset" style="display: block;">
-    <form action="" id="access_token" name="access_token" onsubmit="return false;">
+    <input class="btn2" type="submit" name="access_token_introspection_button" id="access_token_introspection_button" value="Access Token" />
+    <input class="btn2" type="submit" name="refresh_token_introspection_button" id="refresh_token_introspection_button" value="Refresh Token" />
+    </form>
+    <fieldset name="introspection_fieldset" id="introspection_fieldset" style="display: block;">
+    <form action="" id="introspection" name="introspection" onsubmit="return false;">
       <table border="0">
         <tbody>
           <tr>
@@ -61,11 +63,29 @@
           </tr>
           <tr>
             <td>
-              <div class="tooltip"><label>OAuth2 Access Token: </label><span class="tooltiptext">The OAuth2 Access Token</span>
+              <div class="tooltip"><label>OIDC Access Token</label><span class="tooltiptext">Used to authenticate the introspection request</span>
               </div>
             </td>
             <td>
-              <input class="stored" id="token_access_token" name="token_access_token" type="text" max="150"/>
+              <input class="stored" id="introspection_access_token" name="introspection_access_token" type="text" max="150" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Token to introspect: </label><span class="tooltiptext">Either the OAuth2 Access Token or a Refresh token</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored q" id="introspection_token" name="token" type="text" max="150"/>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Token Type Hint: </label><span class="tooltiptext">access_token or refresh_token</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored q" id="introspection_token_type_hint" name="token_type_hint" type="text" max="25"/>
             </td>
           </tr>
         <tr>
@@ -80,42 +100,7 @@
     </form>
   </fieldset>
 
-   <legend>Refresh Token Introspection</legend>
-  <form onsubmit="return false;">
-    <input class="btn2" type="submit" name="refresh_token_expand_button" id="refresh_token_expand_button" value="Show/Hide" onclick="return introspection.onClickToggleFieldset('refresh_token_fieldset');"/></form>
-    <fieldset name="refresh_token_fieldset" id="refresh_token_fieldset" style="display: none;">
-    <form action="" id="refresh_token" name="refresh_token" onsubmit="return false;">
-      <table border="0">
-        <tbody>
-          <tr>
-            <td>
-              <div class="tooltip"><label>OIDC Token Introspection Endpoint: </label><span class="tooltiptext">The OIDC Token Introspection Endpoint.</span>
-              </div>
-            </td>
-            <td>
-              <input class="stored" id="introspection_endpoint" name="introspection_endpoint" type="text" max="150" />
-            </td>
-          </tr>
-          <tr>
-            <td>
-              <div class="tooltip"><label>OAuth2 Refresh Token: </label><span class="tooltiptext">The OAuth2 Refresh Token</span>
-              </div>
-            </td>
-            <td>
-              <input class="stored" id="token_refresh_token" name="token_refresh_token" type="text" max="150"/>
-            </td>
-          </tr>
-        <tr>
-          <td>
-            <input class="btn2" type="submit" value="Perform introspection" onclick="return introspection.callIntrospectionEndpoint();" />
-          </td>
-          <td>&nbsp;
-          </td>
-        </tr>
-        </tbody>
-      </table>
-    </form>
-  </fieldset>
+
 
 <p>This screen supports obtaining information from the OIDC Introspection Endpoint.
 <div class="introspection_step" id="introspection_step">
