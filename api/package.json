@@ -16,5 +16,10 @@
     "express-swagger-generator": "^1.1.17",
     "logops": "latest",
     "validator": "^13.7.0"
+  },
+  "overrides": {
+    "express-swagger-generator": {
+      "validator": "~13.7.0"
+    }
   }
 }
