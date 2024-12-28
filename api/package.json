@@ -13,7 +13,8 @@
     "cors": "latest",
     "express": "^4.21.2",
     "express-logging": "latest",
-    "express-swagger-generator": "latest",
-    "logops": "latest"
+    "express-swagger-generator": "^1.1.17",
+    "logops": "latest",
+    "validator": "^13.7.0"
   }
 }
