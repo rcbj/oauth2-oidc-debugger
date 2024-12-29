@@ -367,6 +367,7 @@ $(".refresh_btn").click(function() {
                                       "</table>" +
                                       "</fieldset>";
       }
+      let sanitized_refresh_endpoint_result_html = DOMPurify.sanitize(refresh_endpoint_result_html);
       $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
       document.getElementById("refresh_refresh_token").value = currentRefreshToken;
       // Store new tokens in local storage
