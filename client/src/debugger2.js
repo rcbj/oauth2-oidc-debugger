@@ -65,7 +65,7 @@ $(document).ready(function() {
     var queryString = $.param(nameValuePairs);
 
     console.log(queryString); // Log the query string
-    var logoutUrl = $("#logout_end_session_endpoint").val() + "?" + DOMPurify.sanitize(queryString);
+    var logoutUrl = DOMPurify.sanitize($("#logout_end_session_endpoint").val()) + "?" + DOMPurify.sanitize(queryString);
 
     clearLocalStorage();
     window.location.href = logoutUrl;
@@ -242,7 +242,7 @@ $(document).ready(function() {
          localStorage.setItem("token_access_token", data.access_token);
          localStorage.setItem("token_refresh_token", data.refresh_token);
       }
-      $("#token_endpoint_result").html(token_endpoint_result_html);
+      $("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
       document.getElementById("refresh_refresh_token").value = currentRefreshToken;
       document.getElementById("step3").style = "visibility:collapse";
     },
