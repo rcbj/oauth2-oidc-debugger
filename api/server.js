@@ -182,9 +182,9 @@ app.post('/token', (req, res) => {
     var headers = {
       'content-type' : 'application/x-www-form-urlencoded'
     }
-    if (typeof code_verifier != "undefined") {
+//    if (typeof code_verifier != "undefined") {
       headers.origin = uiUrl;
-    }
+//    }
     parameterString = parameterString.substring(0, parameterString.length - 1);
     axios({
       method: 'post',

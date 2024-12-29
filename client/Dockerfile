@@ -30,6 +30,7 @@ RUN browserify src/debugger.js -o public/js/debugger.js --debug --standalone deb
 RUN browserify src/token_detail.js -o public/js/token_detail.js --debug --standalone token_detail
 RUN browserify src/debugger2.js -o public/js/debugger2.js --debug --standalone debugger2 -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ]
 RUN browserify src/userinfo.js -o public/js/userinfo.js --debug --standalone userinfo -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ]
+RUN browserify src/logout.js -o public/js/logout.js --debug --standalone logout -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ]
 #COPY src/debugger2_js.js public/js
 
 EXPOSE 3000

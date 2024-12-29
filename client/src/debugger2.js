@@ -136,7 +136,7 @@ $(document).ready(function() {
           formData.resource = resource
         }
       }
-      if(client_secret != "")
+      if(typeof client_secret != "undefined")
       {
         formData.client_secret = client_secret
       }
@@ -267,6 +267,9 @@ $(".refresh_btn").click(function() {
       var token_endpoint = document.getElementById("token_endpoint").value;
       var client_id = document.getElementById("refresh_client_id").value;
       var client_secret = document.getElementById("refresh_client_secret").value;
+      if (client_secret == "undefined") {
+        client_secret = "";
+      }
       var refresh_token = document.getElementById("refresh_refresh_token").value;
       var grant_type = document.getElementById("refresh_grant_type").value;
       var scope = document.getElementById("refresh_scope").value;
@@ -287,7 +290,7 @@ $(".refresh_btn").click(function() {
         token_endpoint: token_endpoint,
         sslValidate: sslValidate
       };
-      if(client_secret != "")
+      if(typeof client_secret != "undefined")
       {
         formData.client_secret = client_secret
       }
@@ -1650,53 +1653,20 @@ function generateCustomParametersListUI()
   recalculateTokenRequestDescription();
 }
 
-function onClickShowTokenFieldSet(id) {
-  console.log('Entering onClickShowTokenFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
-  if(id == 'authz_fieldset') {
-    if(document.getElementById(id).style.display == 'block') {
-       console.log('Hide ' + id + '.');
-       document.getElementById(id).style.display = 'none'
-       document.getElementById('token_expand_button').value='Expand';
-       document.getElementById('config_fieldset').style.display = 'block'
-       document.getElementById('config_expand_button').value='Collapse';
-       document.getElementById('oidc_fieldset').style.display = 'block'
-       document.getElementById('oidc_expand_button').value='Collapse';
-    } else {
-      console.log('Show ' + id + '.');
-      document.getElementById(id).style.display = 'block';
-      document.getElementById('authz_expand_button').value='Collapse';
-      document.getElementById('token_fieldset').style.display = 'none'
-      document.getElementById('config_expand_button').value='Expand';
-      document.getElementById('oidc_fieldset').style.display = 'none';
-      document.getElementById('oidc_expand_button').value='Expand';
-    }
-  } else {
-    if(document.getElementById(id).style.display == 'block') {
-      console.log('Hide ' + id + '.');
-      document.getElementById(id).style.display = 'none'
-    } else {
-      console.log('Show ' + id + '.');
-      document.getElementById(id).style.display = 'block';
-    }
-  }
-  console.log('Leaving onClickShowTokenFieldSet().');
-  return false;
-}
-
 function onClickShowConfigFieldSet(id) {
   console.log('Entering onClickShowConfigFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
   if(document.getElementById(id).style.display == 'block') {
-     document.getElementById('config_expand_button').value='Expand';
-  } else {
-    document.getElementById('config_expand_button').value='Hide';
-  }
-  if(document.getElementById(id).style.display == 'block') {
     console.log('Hide ' + id + '.');
     document.getElementById(id).style.display = 'none'
+    document.getElementById("oidc_expand_button").value='Expand';
   } else {
     console.log('Show ' + id + '.');
     document.getElementById(id).style.display = 'block';
+    document.getElementById("oidc_expand_button").value='Hide';
   }
+  document.getElementById("step0_expand_form").addEventListener("click", function(event) {
+    event.preventDefault();
+  });
   console.log('Leaving onClickShowConfigFieldSet().');
   return false;
 }
