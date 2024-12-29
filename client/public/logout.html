@@ -29,48 +29,23 @@
 </div>
 
     <div class="container">
+
+<script type="text/javascript" src="/js/logout.js">
 </script>
-<script type="text/javascript" src="/js/token_detail.js">
-</script>
-<p>This screen supports decoding tokens that are a JSON Web Token (JWT) format.
-<p>If nothing is displayed, then the requested token retrieved from the endpoint is not a JWT or not a valid JWT.</p>
-<p>In the future, additional token formats may be added.</p>
-<p>Although, many leading IdPs use JWT as the format for OAuth2 access tokens and refresh tokens. The spec does not require this.</p>
-<p>Some IdPs intentionally use opaque tokens that have no deeper meaning than to be a randomly generated identifier that points back to session information stored on the IdP</P>
-<div class="step3" id="step3">
-  <fieldset>
-    <legend id="h2_title_2" name="h2_title_2">Decoded Token
+<div class="step0" id="step0">
+ <fieldset>
+    <legend>Logout Status
     </legend>
-    <table>
-      <tbody>
-        <tr>
-          <td>
-            <a href="/debugger2.html?redirectFromTokenDetail=true">Return to debugger</a>
-        <tr>
-          <td>
-            <div class="tooltip"><label>JWT Header:</label><span class="tooltiptext">The decoded JWT Header.</span>
-            </div>
-          </td>
-          <td>
-            <textarea rows=6 cols=50 id="jwt_header" name="jwt_header">
-            </textarea>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div class="tooltip"><label>JWT Payload:</label><span class="tooltiptext">The decoded JWT Proposer.</span>
-            </div>
-          </td>
-          <td>
-            <textarea rows=30 cols=50 id="jwt_payload" name="jwt_payload">
-            </textarea>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+      <table border="0">
+          <tr>
+            <td><a href="/debugger.html">Return to debugger</a><td>
+          </tr>
+      </table>
+    <p>Logout successful</p>
+    <div class="jwks_info_table" id="jwks_info_table">&nbsp;
+    </div>
   </fieldset>
 </div>
-
     </div>
 
   <div class="navbar">
