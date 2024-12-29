@@ -46,13 +46,13 @@ function getParameterByName(name, url)
     url = window.location.search;
   }
   var urlParams = new URLSearchParams(url);
+  console.log("Leaving getParameterByName().");
   return urlParams.get(name);
 }
 
 $(document).ready(function() {
-  console.log("Entering ready function().");
-  var sel = $("#authorization_grant_type");
-  sel.change(function() {
+  console.log("Entering ready function.");
+  $("#authorization_grant_type").change(function() {
     console.log("Entering selection changed function().");
     var value = $(this).val();
     resetUI(value);
@@ -66,272 +66,7 @@ $(document).ready(function() {
   var value = $("#authorization_grant_type").value;
   resetUI(value);
   recalculateAuthorizationRequestDescription();
-
-  $(".btn1").click(function() {
-      console.log("Entering token Submit button clicked function.");
-      // validate and process form here
-      var token_endpoint = document.getElementById("token_endpoint").value;
-      var client_id = document.getElementById("token_client_id").value;
-      var client_secret = document.getElementById("token_client_secret").value;
-      var code = document.getElementById("code").value;
-      var grant_type = document.getElementById("token_grant_type").value;
-      var redirect_uri = document.getElementById("token_redirect_uri").value;
-      var username = document.getElementById("token_username").value;
-      var password = document.getElementById("token_password").value;
-      var scope = document.getElementById("token_scope").value;
-      var sslValidate = "";
-      if( document.getElementById("SSLValidate-yes").checked)
-      {
-        sslValidate = document.getElementById("SSLValidate-yes").value;
-      } else if (document.getElementById("SSLValidate-no").checked) {
-	sslValidate = document.getElementById("SSLValidate-no").value;
-      } else {
-        sslValidate = "true";
-      }
-      if( document.getElementById("yesCheckOIDCArtifacts").checked)
-      {
-        displayOpenIDConnectArtifacts = true
-      } else if (document.getElementById("noCheckOIDCArtifacts").checked) {
-        displayOpenIDConnectArtifacts = false
-      } else {
-        displayOpenIDConnectArtifacts = true;
-      }
-
-      var formData = {};
-      if(grant_type == "authorization_code")
-      {
-        formData = {
-          grant_type: grant_type,
-          client_id: client_id,
-          code: code,
-          redirect_uri: redirect_uri,
-          scope: scope,
-          token_endpoint: token_endpoint,
-          sslValidate: sslValidate
-        };
-      } else if( grant_type == "password") {
-        formData = {
-          grant_type: grant_type,
-          client_id: client_id,
-          username: username,
-          password: password,
-          code: code,
-          scope: scope,
-          token_endpoint: token_endpoint,
-          sslValidate: sslValidate
-        };
-      } else if( grant_type == "client_credentials") {
-        formData = {
-          grant_type: grant_type,
-          client_id: client_id,
-          scope: scope,
-          token_endpoint: token_endpoint,
-          sslValidate: sslValidate
-        };
-      }
-      var yesCheck = document.getElementById("yesCheckToken").checked;
-      if(yesCheck) //add resource value to OAuth query string
-      {
-        var resource = document.getElementById("token_resource").value;
-        if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
-        {
-          formData.resource = resource
-        }
-      }
-      if(client_secret != "")
-      {
-        formData.client_secret = client_secret
-      }
-      writeValuesToLocalStorage();
-      recalculateTokenRequestDescription();
-      recalculateRefreshRequestDescription();
-      resetErrorDisplays();
-  $.ajax({
-    type: "POST",
-    url: "/token",
-    data: formData,
-    success: function(data, textStatus, request) {
-      var token_endpoint_result_html = "";
-      console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
-      if(displayOpenIDConnectArtifacts == true)
-      {
-         token_endpoint_result_html = "<fieldset>" +
-                                      "<legend>Token Endpoint Results:</legend>" + 
-				      "<table>" +
-				        "<tr>" +
-                                          "<td>access_token</td>" + 
-                                          "<td><textarea rows=10 cols=100>" + 
-                                            data.access_token + 
-                                            "</textarea>" +
-                                          "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
-                                          "<td>refresh_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" + 
-                                            data.refresh_token + 
-                                            "</textarea>" +
-                                          "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
-                                          "<td>id_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" + 
-                                             data.id_token + 
-                                            "</textarea>" +
-                                          "</td>" +
-                                        "</tr>" +
-                                      "</table>" +
-                                      "</fieldset>";
-      } else {
-         token_endpoint_result_html = "<fieldset>" +
-                                      "<legend>Token Endpoint Results:</legend>" +
-                                      "<table>" +
-                                        "<tr>" +
-                                          "<td>access_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" +
-                                            data.access_token +
-                                            "</textarea>" +
-                                          "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
-                                          "<td>refresh_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" +
-                                            data.refresh_token +
-                                            "</textarea>" +
-                                          "</td>" +
-                                        "</tr>" +
-                                      "</table>" +
-                                      "</fieldset>";
-      }
-      $("#token_endpoint_result").html(token_endpoint_result_html);
-      document.getElementById("refresh_refresh_token").value = data.refresh_token;
-    },
-    error: function (request, status, error) {
-      console.log("request: " + JSON.stringify(request));
-      console.log("status: " + JSON.stringify(status));
-      console.log("error: " + JSON.stringify(error));
-      recalculateTokenErrorDescription(request);
-    }
-  });
-  return false;
-    });
-
-$(".refresh_btn").click(function() {
-      console.log("Entering refresh Submit button clicked function.");
-      // validate and process form here
-      var token_endpoint = document.getElementById("token_endpoint").value;
-      var client_id = document.getElementById("refresh_client_id").value;
-      var client_secret = document.getElementById("refresh_client_secret").value;
-      var refresh_token = document.getElementById("refresh_refresh_token").value;
-      var grant_type = document.getElementById("refresh_grant_type").value;
-      var scope = document.getElementById("refresh_scope").value;
-      var sslValidate = "";
-      if( document.getElementById("SSLValidate-yes").checked)
-      {
-        sslValidate = document.getElementById("SSLValidate-yes").value;
-      } else if (document.getElementById("SSLValidate-no").checked) {
-	sslValidate = document.getElementById("SSLValidate-no").value;
-      } else {
-        sslValidate = "true";
-      }
-      var formData = {
-        grant_type: grant_type,
-        client_id: client_id,
-        refresh_token: refresh_token,
-        scope: scope,
-        token_endpoint: token_endpoint,
-        sslValidate: sslValidate
-      };
-      if(client_secret != "")
-      {
-        formData.client_secret = client_secret
-      }
-      writeValuesToLocalStorage();
-      recalculateRefreshRequestDescription();
-      resetErrorDisplays();
-  $.ajax({
-    type: "POST",
-    url: "/token",
-    data: formData,
-    success: function(data, textStatus, request) {
-      var refresh_endpoint_result_html = "";
-      console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
-      var iteration = 1;
-      if( document.getElementById("refresh-token-results-iteration-count") != null)
-      {
-        iteration = parseInt(document.getElementById("refresh-token-results-iteration-count").value) + 1;
-      }
-      if(displayOpenIDConnectArtifacts == true)
-      {
-         refresh_endpoint_result_html = "<fieldset>" +
-                                      "<legend>Token Endpoint Results for Refresh Token Call:</legend>" + 
-				      "<table>" +
-				        "<tr>" +
-                                          "<td>access_token</td>" + 
-                                          "<td><textarea rows=10 cols=100>" + 
-                                            data.access_token + 
-                                            "</textarea>" +
-                                          "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
-                                          "<td>refresh_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" + 
-                                            data.refresh_token + 
-                                            "</textarea>" +
-                                          "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
-                                          "<td>id_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" + 
-                                             data.id_token + 
-                                            "</textarea>" +
-                                          "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
-					  "<td>iteration</td>" +
-					  "<td><input type=\"text\" value=\"" + iteration + "\" id=\"refresh-token-results-iteration-count\" name=\"refresh-token-results-iteration-count\"></td>" +
-                                        "</tr>" +
-                                      "</table>" +
-                                      "</fieldset>";
-      } else {
-         refresh_endpoint_result_html = "<fieldset>" +
-                                      "<legend>Token Endpoint Results for Refresh Token Call:</legend>" +
-                                      "<table>" +
-                                        "<tr>" +
-                                          "<td>access_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" +
-                                            data.access_token +
-                                            "</textarea>" +
-                                          "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
-                                          "<td>refresh_token</td>" +
-                                          "<td><textarea rows=10 cols=100>" +
-                                            data.refresh_token +
-                                            "</textarea>" +
-                                          "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
-                                          "<td>iteration</td>" +
-                                          "<td><input type=\"text\" value=\"" + iteration + "\" id=\"refresh-token-results-iteration-count\" name=\"refresh-token-results-iteration-count\"></td>" +
-                                        "</tr>" +
-                                      "</table>" +
-                                      "</fieldset>";
-      }
-      $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
-      document.getElementById("refresh_refresh_token").value = data.refresh_token;
-      recalculateRefreshRequestDescription();
-    },
-    error: function (request, status, error) {
-      console.log("request: " + JSON.stringify(request));
-      console.log("status: " + JSON.stringify(status));
-      console.log("error: " + JSON.stringify(error));
-      recalculateRefreshErrorDescription(request);
-    }
-  });
-  return false;
-    });
-    console.log("Leaving token submit button clicked function.");
-
+  console.log("Leaving ready function.");
 });
 
 function resetUI(value)
@@ -553,8 +288,6 @@ function resetErrorDisplays()
 {
   console.log("Entering resetErrorDisplays().");
   $("#display_authz_error_class").html("");
-  $("#display_token_error_class").html("");
-  $("#display_refresh_error_class").html("");
   console.log("Leaving resetErrorDisplays().");
 }
 
@@ -1373,6 +1106,7 @@ function recalculateRefreshErrorDescription(data)
 
 function parseFragment()
 {
+  console.log("Entering parseFragment().");
   console.log("hash=" + window.location.hash);
   var hash = window.location.hash.substr(1);
 
@@ -1381,6 +1115,7 @@ function parseFragment()
       result[parts[0]] = parts[1];
       return result;
   }, {});
+  console.log("Leaving parseFragment().");
   return result;
 }
 
@@ -1672,13 +1407,17 @@ function onSubmitClearAllForms() {
 }
 
 function regenerateState() {
+  console.log("Entering regenerateState().");
   document.getElementById("state").value = generateUUID();
   localStorage.setItem('state', document.getElementById("state").value);
+  console.log("Leaving regenerateState().");
 }
 
 function regenerateNonce() {
+  console.log("Entering regenerateNonce().");
   document.getElementById("nonce_field").value = generateUUID();
   localStorage.setItem('nonce_field', document.getElementById("nonce_field").value);
+  console.log("Leaving regenerateNonce().");
 }
 
 function displayAuthzCustomParametersCheck()
@@ -1706,6 +1445,7 @@ function displayAuthzCustomParametersCheck()
 
 function generateCustomParametersListUI()
 {
+  console.log("Entering generateCustomParametersListUI().");
   var customParametersListHTML = "" +
     "<legend>Custom Parameters" +
     "</legend>" +
@@ -1746,7 +1486,7 @@ function generateCustomParametersListUI()
     }
   }
   recalculateAuthorizationRequestDescription();
-
+  console.log("Leaving generateCustomParametersListUI().");
 }
 
 function onClickShowAuthzFieldSet(id) {
@@ -1773,9 +1513,11 @@ function onClickShowAuthzFieldSet(id) {
     if(document.getElementById(id).style.display == 'block') {
       console.log('Hide ' + id + '.');
       document.getElementById(id).style.display = 'none'
+      document.getElementById("oidc_expand_button").value='Expand';
     } else {
       console.log('Show ' + id + '.');
       document.getElementById(id).style.display = 'block';
+      document.getElementById("oidc_expand_button").value='Hide';
     }
   }
   console.log('Leaving onClickShowAuthzFieldSet().');
@@ -1802,22 +1544,27 @@ function onClickShowConfigFieldSet(id) {
 
 function onClickClearLocalStorage()
 {
+  console.log("Entering onClickClearLocalStorage().");
   if (localStorage) {
     localStorage.clear(); 
   }
   onSubmitClearAllForms();
+  console.log("Leaving onClickClearLocalStorage().");
   return false;
 }
 
 function generateCodeChallenge(codeVerifier) {
+  console.log("Entering generateCodeChallenge().");
   const crypto = require('crypto');
   const hash = crypto.createHash('sha256');
+  console.log("Leaving generateCodeChallenge().");
   return hash.update(codeVerifier).digest("base64").replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 }
 
 //function generatePKCECodeVerifier()
 function setPKCEValues()
 {
+  console.log("Entering setPKCEValues().");
   var code_verifier = Buffer.from(generateUUID() + generateUUID(),'binary').toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
   console.log("code_verifier: " + code_verifier);
   var code_challenge = generateCodeChallenge(code_verifier);
@@ -1829,6 +1576,7 @@ function setPKCEValues()
   document.getElementById("authz_pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
   document.getElementById("authz_pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
   recalculateAuthorizationRequestDescription();
+  console.log("leaving setPKCEValues().");
   return code_challenge
 }
 

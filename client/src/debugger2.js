@@ -244,7 +244,12 @@ $(document).ready(function() {
       }
       $("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
       document.getElementById("refresh_refresh_token").value = currentRefreshToken;
+      document.getElementById("refresh_client_id").value = localStorage.getItem("client_id");
+      document.getElementById("refresh_scope").value = localStorage.getItem("scope");
+      document.getElementById("refresh_client_secret").value = localStorage.getItem("client_secret");
       document.getElementById("step3").style = "visibility:collapse";
+      useRefreshTokens();
+      recalculateRefreshRequestDescription();
     },
     error: function (request, status, error) {
       console.log("request: " + JSON.stringify(request));
@@ -307,7 +312,7 @@ $(".refresh_btn").click(function() {
       console.log('data.refresh_token=' + data.refresh_token);
       if(data.refresh_token && data.refresh_token != 'undefined') {
         console.log('Setting new Refresh Token.');
-        currentRefreshToken = data.fresh_token;
+        currentRefreshToken = data.refresh_token;
       }
       if(displayOpenIDConnectArtifacts == true)
       {
@@ -331,7 +336,7 @@ $(".refresh_btn").click(function() {
                                         "<tr>" +
                                           '<td><P><a href="/token_detail.html?type=refresh_id">ID Token</a></P>' +
                                           '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P></td>' +
-                                          "<td><textarea rows=10 cols=60> name=refresh_id_token id=refresh_id_token>" + 
+                                          "<td><textarea rows=10 cols=60 name=refresh_id_token id=refresh_id_token>" + 
                                              data.id_token + 
                                             "</textarea>" +
                                           "</td>" +
@@ -367,7 +372,7 @@ $(".refresh_btn").click(function() {
                                       "</table>" +
                                       "</fieldset>";
       }
-      $("#refresh_endpoint_result").html(DOMPurify(refresh_endpoint_result_html));
+      $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
       document.getElementById("refresh_refresh_token").value = currentRefreshToken;
       // Store new tokens in local storage
       localStorage.setItem("refresh_access_token", data.access_token );
@@ -392,7 +397,7 @@ $(".refresh_btn").click(function() {
 function resetUI(value)
 {
     console.log("Entering resetUI().");
-    document.getElementById("logout_post_redirect_uri").value = window.location.origin;
+    document.getElementById("logout_post_redirect_uri").value = 'http://localhost:3000/logout.html';
     if( value == "implicit_grant" )
     {
       $("#code").hide();
@@ -518,6 +523,7 @@ function resetUI(value)
       $("#display_authz_request_class").show();
       $("#display_token_request").show();
       displayOpenIDConnectArtifacts = true;
+      useRefreshTokens();
     }
     if( value == "oidc_hybrid_code_id_token")
     {
@@ -1499,66 +1505,9 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
 
 function clearLocalStorage() {
   if (localStorage) {
-    localStorage.setItem("authorization_endpoint", "");
-    localStorage.setItem("token_endpoint", "");
-    localStorage.setItem("client_id", "");
-    localStorage.setItem("scope", "");
-    localStorage.setItem("resource", "");
-    localStorage.setItem("redirect_uri", "");
-    localStorage.setItem("token_client_id", "");
     localStorage.setItem("token_client_secret", "");
-    localStorage.setItem("token_redirect_uri", "");
-    localStorage.setItem("token_username", "");
-    localStorage.setItem("token_scope", "");
-    localStorage.setItem("authorization_grant_type", "");
-    localStorage.setItem("token_resource", "");
-    localStorage.setItem("yesResourceCheckToken", true);
-    localStorage.setItem("noResourceCheckToken", false);
-    localStorage.setItem("yesCheckOIDCArtifacts", true);
-    localStorage.setItem("noCheckOIDCArtifacts", false);
-    localStorage.setItem("refresh_client_id", "");
     localStorage.setItem("refresh_client_secret", "");
-    localStorage.setItem("refresh_scope", "");
-    localStorage.setItem("useRefreshToken_yes", true);
-    localStorage.setItem("useRefreshToken_no", false);
-    localStorage.setItem("oidc_userinfo_endpoint", "");
-    localStorage.setItem("jwks_endpoint", "");
-    localStorage.setItem("end_session_endpoint", "");
   }
-}
-
-// Reset all forms and clear local storage
-function onSubmitClearAllForms() {
-  clearLocalStorage();
-  document.getElementById("authorization_endpoint").value = "";
-  document.getElementById("token_endpoint").value = "";
-  document.getElementById("token_client_id").value = "";
-  document.getElementById("token_client_secret").value = "";
-  document.getElementById("token_redirect_uri").value = "";
-  document.getElementById("token_username").value = "";
-  document.getElementById("token_scope").value = "";
-  document.getElementById("authorization_grant_type").value = "";
-  document.getElementById("token_resource").value = "";
-  document.getElementById("yesResourceCheckToken").checked = true;
-  document.getElementById("noResourceCheckToken").checked = false;
-  document.getElementById("yesCheckOIDCArtifacts").checked = true;
-  document.getElementById("noCheckOIDCArtifacts").checked = false;
-  document.getElementById("refresh_client_id").value = "";
-  document.getElementById("refresh_client_secret").value = "";
-  document.getElementById("refresh_scope").value = "";
-  document.getElementById("useRefreshToken-yes").checked = true;
-  document.getElementById("useRefreshToken-no").checked = false;
-  document.getElementById("oidc_discovery_endpoint").value = "";
-  document.getElementById("client_id").value = "";
-  document.getElementById("scope").value = "";
-  document.getElementById("resource").value = "";
-  document.getElementById("redirect_uri").value = "";
-  document.getElementById("oidc_userinfo_endpoint").value = "";
-  document.getElementById("jwks_endpoint").value = "";
-  document.getElementById("end_session_endpoint").value = "";
-  document.getElementById("logout_client_id").value = "";
-
-  $("#discovery_info_table").html("");
 }
 
 function regenerateState() {
@@ -1832,7 +1781,6 @@ isUrl,
 parseDiscoveryInfo,
 buildDiscoveryInfoTable,
 onSubmitPopulateFormsWithDiscoveryInformation,
-onSubmitClearAllForms,
 regenerateState,
 regenerateNonce,
 recreateTokenDisplay,
