@@ -11,6 +11,7 @@
 var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var DOMPurify = require("dompurify");
+var $ = require("jquery");
 console.log("logLevel: " + appconfig.logLevel);
 var log = bunyan.createLogger({ name: 'debugger',
                                 level: appconfig.logLevel });
@@ -59,6 +60,8 @@ function getParameterByName(name, url)
 
 $(document).ready(function() {
   log.debug("Entering ready function.");
+  // Eliminating use of window.onload function.
+  onload();
   $("#authorization_grant_type").change(function() {
     log.debug("Entering selection changed function().");
     var value = $(this).val();
@@ -73,8 +76,29 @@ $(document).ready(function() {
   var value = $("#authorization_grant_type").value;
   resetUI(value);
   recalculateAuthorizationRequestDescription();
+  initializeUIPostDebuggerInitialization();
   log.debug("Leaving ready function.");
 });
+
+function initializeUIPostDebuggerInitialization()
+{
+  log.debug("Entering initializeUIPostDebuggerInitialization().");
+  var debuggerInitialized = false;
+  if (localStorage) {
+    debuggerInitialized = getLSBooleanItem("debugger_initialized");
+  }
+  log.debug("debugger_initialized: " + debuggerInitialized);
+  if (debuggerInitialized) {
+    log.debug("The debugger configuration has been initialized through Discovery.");
+    document.getElementById("oidc_fieldset").style.display = "none";
+    document.getElementById("oidc_expand_button").value = "Expand";
+    document.getElementById("config_fieldset").style.display = "none";
+    document.getElementById("config_expand_button").value = "Expand";
+    document.getElementById("authz_fieldset").style.display = "block";
+    document.getElementById("authz_expand_button").value = "Collapse";
+  }
+  log.debug("Leaving initializeUIPostDebuggerInitialization().");
+}
 
 function resetUI(value)
 {
@@ -789,7 +813,7 @@ function recalculateRefreshRequestDescription()
   log.debug("Leaving recalculateRefreshRequestDescription().");
 }
 
-window.onload = function() {
+function onload() {
   log.debug("Entering onload function.");
   $("#password-form-group1").hide();
   $("#password-form-group2").hide();
@@ -834,7 +858,6 @@ window.onload = function() {
       localStorage.setItem("authzcustomParametersCheck-no", document.getElementById("authzcustomParametersCheck-no").checked);
       localStorage.setItem("usePKCE-yes", document.getElementById("usePKCE-yes").checked );
       localStorage.setItem("usePKCE-no", document.getElementById("usePKCE-no").checked );
-
       log.debug("Leaving auth_step submit event listener function.");
     });
   }
@@ -960,7 +983,7 @@ $("#auth_step").submit(function () {
       })
       .prop("name", "");
 });
-    log.debug("Leaving auth_step submit function.");
+    log.debug("Registered auth_step submit function.");
 });
 
 function recalculateAuthorizationErrorDescription()
@@ -1325,6 +1348,7 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
       localStorage.setItem("token_scope", scopesSupported );
       localStorage.setItem("jwks_endpoint", jwksUri);
       localStorage.setItem("end_session_endpoint", endSessionEndpoint);
+      localStorage.setItem("debugger_initialized", true);
   }
   log.debug('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
   return true;

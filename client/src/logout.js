@@ -5,6 +5,7 @@
 //
 var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
+var $ = require("jquery");
 var log = bunyan.createLogger({ name: 'logout',
                                 level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());

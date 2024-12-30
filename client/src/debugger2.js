@@ -5,6 +5,7 @@
 var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var DOMPurify = require("dompurify");
+var $ = require("jquery");
 var log = bunyan.createLogger({ name: 'debugger2',
                                 level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
@@ -1664,16 +1665,19 @@ function generateCustomParametersListUI()
   recalculateTokenRequestDescription();
 }
 
-function onClickShowConfigFieldSet(id) {
-  log.debug('Entering onClickShowConfigFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
-  if(document.getElementById(id).style.display == 'block') {
-    log.debug('Hide ' + id + '.');
-    document.getElementById(id).style.display = 'none'
-    document.getElementById("config_expand_button").value='Expand';
+function onClickShowFieldSet(expand_button_id, field_set_id) {
+  log.debug('Entering onClickShowConfigFieldSet(). expand_button_id='
+    + expand_button_id + ', field_set_id=' + field_set_id
+    + ', fieldset.style.display=' + document.getElementById(field_set_id).style.display
+    + ', expand_button.value=' + document.getElementById(expand_button_id).value);
+  if(document.getElementById(field_set_id).style.display == 'block') {
+    log.debug('Hide ' + field_set_id + '.');
+    document.getElementById(field_set_id).style.display = 'none'
+    document.getElementById(expand_button_id).value='Expand';
   } else {
-    log.debug('Show ' + id + '.');
-    document.getElementById(id).style.display = 'block';
-    document.getElementById("config_expand_button").value='Hide';
+    log.debug('Show ' + field_set_id + '.');
+    document.getElementById(field_set_id).style.display = 'block';
+    document.getElementById(expand_button_id).value='Hide';
   }
   document.getElementById("step0_expand_form").addEventListener("click", function(event) {
     event.preventDefault();
@@ -1777,7 +1781,7 @@ regenerateNonce,
 recreateTokenDisplay,
 displayTokenCustomParametersCheck,
 generateCustomParametersListUI,
-onClickShowConfigFieldSet,
+onClickShowFieldSet,
 initFields,
 usePKCERFC,
 setPostAuthStyleCheckToken,
