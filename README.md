@@ -44,7 +44,7 @@ So far, this tool has been tested with the following OAuth2 or OIDC implementati
 * Ping Federate (OAuth2 + OIDC)
 * AWS Cognito (OAuth2 + OIDC)
 * Facebook (OAuth2)
-* Google+ (OAuth2)
+* Google STS (OAuth2 + OIDC)
 * KeyCloak (reported to work by third-parties, Red Hat SSO v7.1 is KeyCloak under the Red Hat banner, so it should work)
 * Okta (OIDC + OAuth2)
 * Auth0 (OIDC + OAuth2)
