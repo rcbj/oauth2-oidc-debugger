@@ -8,6 +8,13 @@
 //
 // This file is run through browserify and the output copied into the public/js directory.
 //
+var appconfig = require(process.env.CONFIG_FILE);
+var bunyan = require("bunyan");
+var DOMPurify = require("dompurify");
+console.log("logLevel: " + appconfig.logLevel);
+var log = bunyan.createLogger({ name: 'debugger',
+                                level: appconfig.logLevel });
+log.info("Log initialized. logLevel=" + log.level());
 var displayOpenIDConnectArtifacts = true;
 var useRefreshTokenTester = true;
 var usePKCE = true;
@@ -22,38 +29,38 @@ var initialized = false;
 
 function OnSubmitForm()
 {
-  console.log("Entering OnSubmitForm().");
+  log.debug("Entering OnSubmitForm().");
   writeValuesToLocalStorage();
   recalculateAuthorizationRequestDescription();
-  console.log("Leaving OnSubmitForm().");
+  log.debug("Leaving OnSubmitForm().");
   return true;
 }
 
 function OnSubmitTokenEndpointForm()
 {
-  console.log("Entering OnSubmitTokenEndpointForm().");
+  log.debug("Entering OnSubmitTokenEndpointForm().");
   //document.token_step.action = document.getElementById("token_endpoint").value;
   document.token_step.action = "/token";
-  console.log("Leaving OnSubmitTokenEndpointForm().");
+  log.debug("Leaving OnSubmitTokenEndpointForm().");
   return true;
 }
 
 function getParameterByName(name, url)
 {
-  console.log("Entering getParameterByName().");
+  log.debug("Entering getParameterByName().");
   if (!url)
   {
     url = window.location.search;
   }
   var urlParams = new URLSearchParams(url);
-  console.log("Leaving getParameterByName().");
+  log.debug("Leaving getParameterByName().");
   return urlParams.get(name);
 }
 
 $(document).ready(function() {
-  console.log("Entering ready function.");
+  log.debug("Entering ready function.");
   $("#authorization_grant_type").change(function() {
-    console.log("Entering selection changed function().");
+    log.debug("Entering selection changed function().");
     var value = $(this).val();
     resetUI(value);
     recalculateAuthorizationRequestDescription();
@@ -61,17 +68,17 @@ $(document).ready(function() {
       writeValuesToLocalStorage();
       window.location.href = "/debugger2.html";
     }
-    console.log("Leaving selection changed function().");
+    log.debug("Leaving selection changed function().");
   });
   var value = $("#authorization_grant_type").value;
   resetUI(value);
   recalculateAuthorizationRequestDescription();
-  console.log("Leaving ready function.");
+  log.debug("Leaving ready function.");
 });
 
 function resetUI(value)
 {
-    console.log("Entering resetUI().");
+    log.debug("Entering resetUI().");
     if( value == "implicit_grant" )
     {
       $("#code").hide();
@@ -281,19 +288,19 @@ function resetUI(value)
       displayOpenIDConnectArtifacts = true;
     }
     resetErrorDisplays();
-    console.log("Leaving resetUI().");
+    log.debug("Leaving resetUI().");
 }
 
 function resetErrorDisplays()
 {
-  console.log("Entering resetErrorDisplays().");
+  log.debug("Entering resetErrorDisplays().");
   $("#display_authz_error_class").html("");
-  console.log("Leaving resetErrorDisplays().");
+  log.debug("Leaving resetErrorDisplays().");
 }
 
 function writeValuesToLocalStorage()
 {
-  console.log("Entering writeValuesToLocalStorage().");
+  log.debug("Entering writeValuesToLocalStorage().");
   if (localStorage) {
       localStorage.setItem("authorization_grant_type", document.getElementById("authorization_grant_type").value);
       localStorage.setItem("yesCheck", document.getElementById("SSLValidate-yes").checked);
@@ -321,21 +328,21 @@ function writeValuesToLocalStorage()
         for(i = 0; i < authzNumberCustomParameters; i++)
         {
           if(document.getElementById("customParameterName-" + i)){
-            console.log("Writing customParameterName-" + i + " as " + document.getElementById("customParameterName-" + i).value + "\n");
+            log.debug("Writing customParameterName-" + i + " as " + document.getElementById("customParameterName-" + i).value + "\n");
             localStorage.setItem("customParameterName-" + i, document.getElementById("customParameterName-" + i).value);
-            console.log("Writing customParameterValue-" + i + " as " + document.getElementById("customParameterValue-" + i).value + "\n");
+            log.debug("Writing customParameterValue-" + i + " as " + document.getElementById("customParameterValue-" + i).value + "\n");
             localStorage.setItem("customParameterValue-" + i, document.getElementById("customParameterValue-" + i).value);
           };
         }
       }
       setPKCEValues();
   }
-  console.log("Leaving writeValuesToLocalStorage().");
+  log.debug("Leaving writeValuesToLocalStorage().");
 }
 
 function initValuesToLocalStorage()
 {
-  console.log("Entering initValuesToLocalStorage().");
+  log.debug("Entering initValuesToLocalStorage().");
   var initialized = getLSBooleanItem("initialized");
   if (localStorage && !initialized) {
       localStorage.setItem("authorization_grant_type", "oidc_authorization_code_flow");
@@ -365,9 +372,9 @@ function initValuesToLocalStorage()
         var authzNumberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);
         for(i = 0; i < authzNumberCustomParameters; i++)
         {
-          console.log("Writing customParameterName-" + i + " as " + "xyz" + "\n");
+          log.debug("Writing customParameterName-" + i + " as " + "xyz" + "\n");
           localStorage.setItem("customParameterName-" + i, "xyz");
-          console.log("Writing customParameterValue-" + i + " as " + "xyz" + "\n");
+          log.debug("Writing customParameterValue-" + i + " as " + "xyz" + "\n");
           localStorage.setItem("customParameterValue-" + i, "xyz");
         }
       }
@@ -375,14 +382,14 @@ function initValuesToLocalStorage()
       localStorage.setItem("initialized", "true");
       initialized = true;
   }
-  console.log("Leaving writeValuesToLocalStorage().");
+  log.debug("Leaving writeValuesToLocalStorage().");
 }
 
 function loadValuesFromLocalStorage()
 {
-  console.log("Entering loadValuesFromLocalStorage().");
+  log.debug("Entering loadValuesFromLocalStorage().");
   var authzGrantType = localStorage.getItem("authorization_grant_type");
-  console.log("authzGrantType=" + authzGrantType);
+  log.debug("authzGrantType=" + authzGrantType);
   if (authzGrantType == "" || typeof(authzGrantType) == "undefined" || authzGrantType == "null")
   {
     document.getElementById("authorization_grant_type").value = "authorization_grant"
@@ -426,9 +433,9 @@ function loadValuesFromLocalStorage()
     var authzNumberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);  
     for(i = 0; i < authzNumberCustomParameters; i++)
     {
-      console.log("Reading customParameterName-" + i + " as " + localStorage.getItem("customParameterName-" + i + "\n"));
+      log.debug("Reading customParameterName-" + i + " as " + localStorage.getItem("customParameterName-" + i + "\n"));
       document.getElementById("customParameterName-" + i).value = localStorage.getItem("customParameterName-" + i);
-      console.log("Reading customParameterValue-" + i + " as " + localStorage.getItem("customParameterValue-" + i + "\n"));
+      log.debug("Reading customParameterValue-" + i + " as " + localStorage.getItem("customParameterValue-" + i + "\n"));
       document.getElementById("customParameterValue-" + i).value = localStorage.getItem("customParameterValue-" + i);
     }
   }
@@ -437,25 +444,25 @@ function loadValuesFromLocalStorage()
   var agt = document.getElementById("authorization_grant_type").value;
 
   var pathname = window.location.pathname;
-  console.log("agt=" + agt);
-  console.log("pathname=" + pathname);
+  log.debug("agt=" + agt);
+  log.debug("pathname=" + pathname);
   if (  (agt ==  "authorization_grant" || 
          agt == "oidc_hybrid_code_id_token" || 
          agt == "oidc_hybrid_code_token" || 
          agt == "oidc_hybrid_code_id_token_token" ) &&
 	pathname == "/callback")
   {
-    console.log("Checking for code.  agt=" + agt + ", pathname=" + pathname);
-    console.log("fragement: " + parseFragment());
+    log.debug("Checking for code.  agt=" + agt + ", pathname=" + pathname);
+    log.debug("fragement: " + parseFragment());
     code = parseFragment()["code"];
     if(code == null || code == "null" || code == "" || typeof code == "undefined")
     {
       code = "NO_CODE_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
-    console.log("code=" + code);
+    log.debug("code=" + code);
     if(document.getElementById("code").value == "")
     {
-      console.log("code not yet set in next form. Doing so now.");
+      log.debug("code not yet set in next form. Doing so now.");
       document.getElementById("code").value = code;
     }
   }
@@ -464,21 +471,21 @@ function loadValuesFromLocalStorage()
 	pathname == "/callback") //retrieve access_token for implicit_grant for callback redirect response
   {
     var access_token = getParameterByName("access_token",window.location.href);
-    console.log("access_token=" + access_token);
+    log.debug("access_token=" + access_token);
     if(access_token == null || 
        access_token == "null" || 
        access_token == "" || 
        typeof access_token == "undefined")
     {
       //Check to see if passed in as local anchor (ADFS & Azure Active Directory do this)
-      console.log("fragement: " + parseFragment());
+      log.debug("fragement: " + parseFragment());
       access_token = parseFragment()["access_token"];
       if(access_token == null || access_token == "null" || access_token == "" || typeof access_token == "undefined")
       {
         access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
       }
     }
-    console.log("access_token=" + access_token);
+    log.debug("access_token=" + access_token);
     var authorization_endpoint_result_html = "<fieldset>" +
                                              "<legend>Authorization Endpoint Results:</legend>" +
                                              "<table>" + 
@@ -496,7 +503,7 @@ function loadValuesFromLocalStorage()
   if (  agt == "oidc_hybrid_code_id_token_token" &&
         pathname == "/callback") //retrieve access code and id_token that is returned from authorization endpoint.
   {
-    console.log("fragement: " + parseFragment());
+    log.debug("fragement: " + parseFragment());
     access_token = parseFragment()["access_token"];
     if(	access_token == null ||
 	access_token == "null" || 
@@ -505,8 +512,8 @@ function loadValuesFromLocalStorage()
     {
       access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
-    console.log("access_token=" + access_token);
-    console.log("fragement: " + parseFragment());
+    log.debug("access_token=" + access_token);
+    log.debug("fragement: " + parseFragment());
     id_token = parseFragment()["id_token"];
     if(	id_token == null ||
 	id_token == "null" ||
@@ -548,7 +555,7 @@ function loadValuesFromLocalStorage()
   if (  agt == "oidc_hybrid_code_token" &&
         pathname == "/callback") //retrieve access code that is returned from authorization endpoint.
   {
-    console.log("fragement: " + parseFragment());
+    log.debug("fragement: " + parseFragment());
     access_token = parseFragment()["access_token"];
     if(	access_token == null ||
 	access_token == "null" ||
@@ -557,25 +564,25 @@ function loadValuesFromLocalStorage()
     {
       access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
-    console.log("access_token=" + access_token);
+    log.debug("access_token=" + access_token);
     $("#authorization_endpoint_result").html("<fieldset><legend>Authorization Endpoint Results:</legend><table><tr><td>access_token</td><td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + access_token + "</textarea></td></tr></table></fieldset>");
   }
   if ( 	(agt == "oidc_implicit_flow" || agt == "oidc_implicit_flow_id_token" ||  agt == "oidc_hybrid_code_id_token") && 
 	pathname == "/callback") //retrieve access_token for implicit_grant for callback redirect response
   {
     var id_token = getParameterByName("id_token",window.location.href);
-    console.log("id_token=" + access_token);
+    log.debug("id_token=" + access_token);
     if(id_token == null || id_token == "null" || id_token == "" || typeof id_token == "undefined")
     {
       //Check to see if passed in as local anchor (ADFS & Azure Active Directory do this)
-      console.log("fragement: " + parseFragment());
+      log.debug("fragement: " + parseFragment());
       id_token = parseFragment()["id_token"];
       if(id_token == null || id_token == "null" || id_token == "" || typeof id_token == "undefined")
       {
         id_token = "NO_ID_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
       }
     }
-    console.log("id_token=" + id_token);
+    log.debug("id_token=" + id_token);
     $("#authorization_endpoint_id_token_result").html(DOMPurify.sanitize("<fieldset><legend>Authorization Endpoint Results</legend><table><tr><td>id_token</td><td><textarea id=\"implicit_flow_id_token\" rows=5 cols=100>" + id_token + "</textarea></td></tr></table></fieldset>"));
   }
   var error = getParameterByName("error",window.location.href);
@@ -591,17 +598,17 @@ function loadValuesFromLocalStorage()
   document.getElementById("nonce_field").value = generateUUID();
   localStorage.setItem('nonce_field', document.getElementById("nonce_field").value);
   recalculateAuthorizationRequestDescription();
-  console.log("Leaving loadValuesFromLocalStorage().");
+  log.debug("Leaving loadValuesFromLocalStorage().");
 }
 
 function recalculateAuthorizationRequestDescription()
 {
-  console.log("Entering recalculateAuthorizationRequestDescription().");
-  console.log("update request field");
+  log.debug("Entering recalculateAuthorizationRequestDescription().");
+  log.debug("update request field");
   var ta1 = document.getElementById("display_authz_request_form_textarea1");
-  console.log("ta1=" + ta1);
+  log.debug("ta1=" + ta1);
   var yesCheck = document.getElementById("yesResourceCheck").checked;
-  console.log("yesCheck=" + yesCheck);
+  log.debug("yesCheck=" + yesCheck);
   var resourceComponent = "";
   if(yesCheck) //add resource value to OAuth query string
   {
@@ -611,27 +618,31 @@ function recalculateAuthorizationRequestDescription()
       resourceComponent =  "&resource=" + resource;
     }
   }
-  console.log("resourceComponent=" + resourceComponent);
+  log.debug("resourceComponent=" + resourceComponent);
   var customParametersComponent = "";
   var authzcustomParametersCheck = document.getElementById("authzcustomParametersCheck-yes").checked;
-  console.log("authzcustomParametersCheck: " + authzcustomParametersCheck + ", type=" + typeof(authzcustomParametersCheck));
+  log.debug("authzcustomParametersCheck: " + authzcustomParametersCheck + ", type=" + typeof(authzcustomParametersCheck));
   if(authzcustomParametersCheck) {
     const numberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);
-    console.log('numberCustomParameters=' + numberCustomParameters);
+    log.debug('numberCustomParameters=' + numberCustomParameters);
     var i = 0;
     for(i = 0; i < numberCustomParameters; i++) 
     {
-       customParametersComponent = customParametersComponent +
-                                   document.getElementById("customParameterName-" + i).value +
-                                   '=' + document.getElementById("customParameterValue-" + i).value + "&" + "\n";
+         try {
+           customParametersComponent = customParametersComponent +
+                                       document.getElementById("customParameterName-" + i).value +
+                                       '=' + document.getElementById("customParameterValue-" + i).value + "&" + "\n";
+         } catch (e) {
+           log.error("Unable to read custom parameter. Skipping.");
+         }
     }
     customParametersComponent = customParametersComponent.substring(0,  customParametersComponent.length - 2);
-    console.log('customParametersComponent=' + customParametersComponent);
+    log.debug('customParametersComponent=' + customParametersComponent);
   }
   if (ta1 != null)
   {
     var grant_type = document.getElementById("response_type").value;
-    console.log("grant_type=" + grant_type);
+    log.debug("grant_type=" + grant_type);
     if( grant_type == "code" ||
 	grant_type == "code id_token" ||
 	grant_type == "code token" ||
@@ -674,25 +685,25 @@ function recalculateAuthorizationRequestDescription()
       document.getElementById("display_authz_request_form_textarea1").value = "UNKNOWN_GRANT_TYPE";
     }
   }
-  console.log('display_authz_request_form_textarea1=' + document.getElementById("display_authz_request_form_textarea1").value);
-  console.log("Leaving recalculateAuthorizationRequestDescription().");
+  log.debug('display_authz_request_form_textarea1=' + document.getElementById("display_authz_request_form_textarea1").value);
+  log.debug("Leaving recalculateAuthorizationRequestDescription().");
 }
 
 function triggerAuthZEndpointCall()
 {
-  console.log("Entering triggerAuthZEndpointCall().");
+  log.debug("Entering triggerAuthZEndpointCall().");
   writeValuesToLocalStorage();
   recalculateAuthorizationRequestDescription();
   window.location.href = DOMPurify.sanitize(document.getElementById("display_authz_request_form_textarea1").value.substring(4, 
     document.getElementById("display_authz_request_form_textarea1").value.length
   ).replace("\n",""));
-  console.log("Leaving triggerAuthZEndpointCall().");
+  log.debug("Leaving triggerAuthZEndpointCall().");
 }
 
 function recalculateTokenRequestDescription()
 {
-  console.log("Entering recalculateTokenRequestDescription().");
-  console.log("update request field");
+  log.debug("Entering recalculateTokenRequestDescription().");
+  log.debug("update request field");
   var ta1 = document.getElementById("display_token_request_form_textarea1");
   var yesCheck = false;
   var resourceComponent = "";
@@ -738,13 +749,13 @@ function recalculateTokenRequestDescription()
                                                                       resourceComponent +"\n";
     }
   }
-  console.log("Leaving recalculateTokenRequestDescription().");
+  log.debug("Leaving recalculateTokenRequestDescription().");
 }
 
 function recalculateRefreshRequestDescription()
 {
-  console.log("Entering recalculateRefreshRequestDescription().");
-  console.log("update request field");
+  log.debug("Entering recalculateRefreshRequestDescription().");
+  log.debug("update request field");
   var ta1 = document.getElementById("display_refresh_request_form_textarea1");
   var resourceComponent = "";
 
@@ -775,11 +786,11 @@ function recalculateRefreshRequestDescription()
       }
     }
   }
-  console.log("Leaving recalculateRefreshRequestDescription().");
+  log.debug("Leaving recalculateRefreshRequestDescription().");
 }
 
 window.onload = function() {
-  console.log("Entering onload function.");
+  log.debug("Entering onload function.");
   $("#password-form-group1").hide();
   $("#password-form-group2").hide();
 
@@ -807,7 +818,7 @@ window.onload = function() {
   if (localStorage) {
     // Add an event listener for form submissions
     document.getElementById("auth_step").addEventListener("submit", function() {
-      console.log("Entering auth_step submit event listner function.");
+      log.debug("Entering auth_step submit event listner function.");
       localStorage.setItem("client_id", document.getElementById("client_id").value);
       localStorage.setItem("scope", document.getElementById("scope").value);
       localStorage.setItem("authorization_endpoint", document.getElementById("authorization_endpoint").value);
@@ -824,7 +835,7 @@ window.onload = function() {
       localStorage.setItem("usePKCE-yes", document.getElementById("usePKCE-yes").checked );
       localStorage.setItem("usePKCE-no", document.getElementById("usePKCE-no").checked );
 
-      console.log("Leaving auth_step submit event listener function.");
+      log.debug("Leaving auth_step submit event listener function.");
     });
   }
   loadValuesFromLocalStorage();
@@ -857,12 +868,12 @@ window.onload = function() {
   }
   displayAuthzCustomParametersCheck();
   if(usePKCE) {
-    console.log("Show PKCE Data fields.");
+    log.debug("Show PKCE Data fields.");
     document.getElementById("authz_pkce_code_challenge_row").style.visibility = '';
     document.getElementById("authz_pkce_code_verifier_row").style.visibility = '';
     document.getElementById("authz_pkce_code_method_row").style.visibility = '';
   } else {
-    console.log("Hide PKCE Data fields.");
+    log.debug("Hide PKCE Data fields.");
     document.getElementById("authz_pkce_code_challenge_row").style.visibility = 'collapse';
     document.getElementById("authz_pkce_code_verifier_row").style.visibility = 'collapse';
     document.getElementById("authz_pkce_code_method_row").style.visibility = 'collapse';
@@ -879,16 +890,16 @@ window.onload = function() {
   if(type == "client_credential") {
     window.location.href = "/debugger2.html";
   }
-  console.log("Leaving onload().");
+  log.debug("Leaving onload().");
 }
 
 function generateUUID () { // Public Domain/MIT
-    console.log("Entering generateUUID().");
+    log.debug("Entering generateUUID().");
     var d = new Date().getTime();
     if (typeof performance !== "undefined" && typeof performance.now === "function"){
         d += performance.now(); //use high-precision timer if available
     }
-    console.log("Leaving generateUUID().");
+    log.debug("Leaving generateUUID().");
     return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
         var r = (d + Math.random() * 16) % 16 | 0;
         d = Math.floor(d / 16);
@@ -898,22 +909,22 @@ function generateUUID () { // Public Domain/MIT
 
 function displayResourceCheck()
 {
-  console.log("Entering displayResourceCheck().");
+  log.debug("Entering displayResourceCheck().");
   var yesCheck = document.getElementById("yesResourceCheck").checked;
   var noCheck = document.getElementById("noResourceCheck").checked;
-  console.log("yesCheck=" + yesCheck, "noCheck=" + noCheck);
+  log.debug("yesCheck=" + yesCheck, "noCheck=" + noCheck);
   if(yesCheck) {
     document.getElementById("authzResourceRow").style.visibility = '';
   } else if(noCheck) {
     document.getElementById("authzResourceRow").style.visibility = "collapse"
   }
   recalculateAuthorizationRequestDescription();
-  console.log("Leaving displayResourceCheck().");
+  log.debug("Leaving displayResourceCheck().");
 }
 
 function displayTokenResourceCheck()
 {
-  console.log("Entering displayTokenResourceCheck().");
+  log.debug("Entering displayTokenResourceCheck().");
   var yesCheck = document.getElementById("yesCheckToken").checked;
   var noCheck = document.getElementById("noCheckToken").checked;
   if( yesCheck) {
@@ -922,16 +933,16 @@ function displayTokenResourceCheck()
     document.getElementById("authzTokenResourceRow").style.visibility = 'collapse';
   }
   recalculateTokenRequestDescription();
-  console.log("Leaving displayTokenResourceCheck().");
+  log.debug("Leaving displayTokenResourceCheck().");
 }
 
 $(function() {
 $("#auth_step").submit(function () {
-    console.log("Entering auth_step submit function.");
+    log.debug("Entering auth_step submit function.");
     var resource = document.getElementById("resource").value;
     var yesCheck = document.getElementById("yesCheck").checked;
-    console.log("yesCheck=" + yesCheck);
-    console.log("resource=" + resource);
+    log.debug("yesCheck=" + yesCheck);
+    log.debug("resource=" + resource);
     if(yesCheck == false)
     {
       document.getElementById("resource").disabled = "disabled"; 
@@ -949,13 +960,13 @@ $("#auth_step").submit(function () {
       })
       .prop("name", "");
 });
-    console.log("Leaving auth_step submit function.");
+    log.debug("Leaving auth_step submit function.");
 });
 
 function recalculateAuthorizationErrorDescription()
 {
-  console.log("Entering recalculateAuthorizationErrorDescription().");
-  console.log("update error field");
+  log.debug("Entering recalculateAuthorizationErrorDescription().");
+  log.debug("update error field");
   var ta1 = document.getElementById("display_authz_error_form_textarea1");
   if (ta1 != null)
   {
@@ -966,7 +977,7 @@ function recalculateAuthorizationErrorDescription()
 	grant_type == "code id_token token")
     {
       var pathname = window.location.pathname;
-      console.log("pathname=" + pathname);
+      log.debug("pathname=" + pathname);
       if (pathname == "/callback")
       {
         var error = getParameterByName("error",window.location.href);
@@ -983,7 +994,7 @@ function recalculateAuthorizationErrorDescription()
 		grant_type == "id_token token") {
       //document.getElementById("display_authz_request_form_textarea1").value = "";
       var pathname = window.location.pathname;
-      console.log("pathname=" + pathname);
+      log.debug("pathname=" + pathname);
       if (pathname == "/callback")
       {
         var error = getParameterByName("error",window.location.href);
@@ -997,12 +1008,12 @@ function recalculateAuthorizationErrorDescription()
       }
     }
   }
-  console.log("Leaving recalculateAuthorizationErrorDescription().");
+  log.debug("Leaving recalculateAuthorizationErrorDescription().");
 }
 
 function recalculateTokenErrorDescription(data)
 {
-  console.log("Entering recalculateTokenErrorDescription().");
+  log.debug("Entering recalculateTokenErrorDescription().");
   var display_token_error_class_html = "<fieldset>" +
                                        "<legend>Token Endpoint Error</legend>" +
                                          "<form action=\"\" name=\"display_token_error_form\" id=\"display_token_error_form\">" +
@@ -1015,7 +1026,7 @@ function recalculateTokenErrorDescription(data)
                                          "</form>" +
                                        "</fieldset>";
   $("#display_token_error_class").html(display_token_error_class_html);
-  console.log("update error field");
+  log.debug("update error field");
   var ta1 = document.getElementById("display_token_error_form_textarea1");
   if (ta1 != null)
   {
@@ -1062,12 +1073,12 @@ function recalculateTokenErrorDescription(data)
                                                                             "error_description: " + responseObject.error_description +"\n";
     }
   }
-  console.log("Leaving recalculateTokenErrorDescription().");
+  log.debug("Leaving recalculateTokenErrorDescription().");
 }
 
 function recalculateRefreshErrorDescription(data)
 {
-  console.log("Entering recalculateRefreshErrorDescription().");
+  log.debug("Entering recalculateRefreshErrorDescription().");
   var display_refresh_error_class = "<fieldset>" +
                                     "<legend>Token Endpoint (For Refresh) Error</legend>" +
                                        "<form action=\"\" name=\"display_refresh_error_form\" id=\"display_refresh_error_form\">" +
@@ -1080,7 +1091,7 @@ function recalculateRefreshErrorDescription(data)
                                         "</form>" +
                                       "</fieldset>";
   $("#display_refresh_error_class").html(display_refresh_error_class);
-  console.log("update error field");
+  log.debug("update error field");
   var ta1 = document.getElementById("display_refresh_error_form_textarea1");
   if (ta1 != null)
   {
@@ -1101,13 +1112,13 @@ function recalculateRefreshErrorDescription(data)
 										"error_description: " + responseObject.error_description +"\n";
     }
   }
-  console.log("Leaving recalculateRefreshErrorDescription().");
+  log.debug("Leaving recalculateRefreshErrorDescription().");
 }
 
 function parseFragment()
 {
-  console.log("Entering parseFragment().");
-  console.log("hash=" + window.location.hash);
+  log.debug("Entering parseFragment().");
+  log.debug("hash=" + window.location.hash);
   var hash = window.location.hash.substr(1);
 
   var result = hash.split("&").reduce(function (result, item) {
@@ -1115,32 +1126,32 @@ function parseFragment()
       result[parts[0]] = parts[1];
       return result;
   }, {});
-  console.log("Leaving parseFragment().");
+  log.debug("Leaving parseFragment().");
   return result;
 }
 
 function displayOIDCArtifacts()
 {
-  console.log("Entering displayOIDCArtifacts().");
+  log.debug("Entering displayOIDCArtifacts().");
   var yesCheck = document.getElementById("yesCheckOIDCArtifacts").checked;
   var noCheck = document.getElementById("noCheckOIDCArtifacts").checked;
-  console.log("yesCheckOIDCArtifacts=" + yesCheck, "noCheckOIDCArtifacts=" + noCheck);
+  log.debug("yesCheckOIDCArtifacts=" + yesCheck, "noCheckOIDCArtifacts=" + noCheck);
   if(yesCheck) {
     displayOpenIDConnectArtifacts = true;
     
   } else if(noCheck) {
     displayOpenIDConnectArtifacts = false;
   }
-  console.log("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
-  console.log("Leaving displayOIDCArtifacts().");
+  log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
+  log.debug("Leaving displayOIDCArtifacts().");
 }
 
 function useRefreshTokens()
 {
-  console.log("Entering useRefreshToken().");
+  log.debug("Entering useRefreshToken().");
   var yesCheck = document.getElementById("useRefreshToken-yes").checked;
   var noCheck = document.getElementById("useRefreshToken-no").checked;
-  console.log("useRefreshToken-yes=" + yesCheck, "useRefreshToken-no=" + noCheck);
+  log.debug("useRefreshToken-yes=" + yesCheck, "useRefreshToken-no=" + noCheck);
   if(yesCheck) {
     useRefreshTokenTester = true;
     $("#step4").show();
@@ -1148,23 +1159,23 @@ function useRefreshTokens()
     useRefreshTokenTester = false;
     $("#step4").hide();
   }
-  console.log("useRefreshTokenTester=" + useRefreshTokenTester);
-  console.log("Leaving useRefreshTokens().");
+  log.debug("useRefreshTokenTester=" + useRefreshTokenTester);
+  log.debug("Leaving useRefreshTokens().");
 }
 
 function usePKCERFC()
 {
-  console.log("Entering usePKCERFC().");
+  log.debug("Entering usePKCERFC().");
   var yesCheck = document.getElementById("usePKCE-yes").checked;
   var noCheck = document.getElementById("usePKCE-no").checked;
-  console.log("usePKCE-yes=" + yesCheck, "useRefreshToken-no=" + noCheck);
+  log.debug("usePKCE-yes=" + yesCheck, "useRefreshToken-no=" + noCheck);
   if (yesCheck) {
     usePKCE = true;
   } else {
     usePKCE = false;
   }
   if(usePKCE) {
-    console.log("Show PKCE Data fields.");
+    log.debug("Show PKCE Data fields.");
     document.getElementById("authz_pkce_code_challenge_row").style.visibility = '';
     document.getElementById("authz_pkce_code_verifier_row").style.visibility = '';
     document.getElementById("authz_pkce_code_method_row").style.visibility = '';
@@ -1172,13 +1183,13 @@ function usePKCERFC()
     document.getElementById("authz_pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
     document.getElementById("authz_pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
   } else {
-    console.log("Hide PKCE Data fields.");
+    log.debug("Hide PKCE Data fields.");
     document.getElementById("authz_pkce_code_challenge_row").style.visibility = 'collapse';
     document.getElementById("authz_pkce_code_verifier_row").style.visibility = 'collapse';
     document.getElementById("authz_pkce_code_method_row").style.visibility = 'collapse';
   }
   recalculateAuthorizationRequestDescription();
-  console.log("Leaving usePKCERFC().");
+  log.debug("Leaving usePKCERFC().");
 }
 
 $("#tipText").hover(
@@ -1191,48 +1202,48 @@ $("#tipText").hover(
 
 function OnSubmitOIDCDiscoveryEndpointForm()
 {
-  console.log("Entering OnSubmitOIDCDiscoveryEndpointForm().");
+  log.debug("Entering OnSubmitOIDCDiscoveryEndpointForm().");
   writeValuesToLocalStorage();
   var oidcDiscoveryEndpoint = document.getElementById("oidc_discovery_endpoint").value;
-  console.log('URL: ' + oidcDiscoveryEndpoint);
+  log.debug('URL: ' + oidcDiscoveryEndpoint);
   if (isUrl(oidcDiscoveryEndpoint)) {
-    console.log('valid URL: ' + oidcDiscoveryEndpoint);
+    log.debug('valid URL: ' + oidcDiscoveryEndpoint);
     $.ajax({ type: 'GET',
              crossOrigin: true,
              url: oidcDiscoveryEndpoint,
              success: function(result) {
-               console.log("OIDC Discovery Endpoint Result: " + JSON.stringify(result));
+               log.debug("OIDC Discovery Endpoint Result: " + JSON.stringify(result));
                discoveryInfo = result;
                parseDiscoveryInfo(result);
                buildDiscoveryInfoTable(result);
              },
              error: function (request, status, error) {
-               console.log("request: " + JSON.stringify(request));
-               console.log("status: " + JSON.stringify(status));
-               console.log("error: " + JSON.stringify(error));
+               log.debug("request: " + JSON.stringify(request));
+               log.debug("status: " + JSON.stringify(status));
+               log.debug("error: " + JSON.stringify(error));
              }
            });
-    console.log("Leaving OnSubmitOIDCDiscoveryEndpointForm()");
+    log.debug("Leaving OnSubmitOIDCDiscoveryEndpointForm()");
     return false;
   } else {
-    console.log('Not a valid URL.');
-    console.log("Leaving OnSubmitOIDCDiscoveryEndpointForm()");
+    log.debug('Not a valid URL.');
+    log.debug("Leaving OnSubmitOIDCDiscoveryEndpointForm()");
     return false;
   }
 }
 
 function isUrl(url) {
-  console.log('Entering isUrl().');
+  log.debug('Entering isUrl().');
   try {
     return Boolean(new URL(url));
   } catch(e) {
-    console.log('An error occurred: ' + e.stack);
+    log.debug('An error occurred: ' + e.stack);
     return false;
   }
 }
 
 function parseDiscoveryInfo(discoveryInfo) {
-  console.log("Entering parseDiscoveryInfo().");
+  log.debug("Entering parseDiscoveryInfo().");
   var authorizationEndpoint = discoveryInfo["authorization_endpoint"];
   var idTokenSigningAlgValuesSupported = discoveryInfo["id_token_signing_alg_values_supported"];
   var issuer = discoveryInfo["issuer"];
@@ -1244,22 +1255,22 @@ function parseDiscoveryInfo(discoveryInfo) {
   var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
   var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
   var endSessionEndpoint = discoveryInfo["end_session_endpoint"];
-  console.log("authorizationEndpoint: " + authorizationEndpoint);
-  console.log("idTokenSigningAlgValuesSupported: " + JSON.stringify(idTokenSigningAlgValuesSupported));
-  console.log("issuer: " + issuer);
-  console.log("jwksUri: " + jwksUri);
-  console.log("responseTypesSupported: " + JSON.stringify(responseTypesSupported));
-  console.log("scopesSupported: " + JSON.stringify(scopesSupported));
-  console.log("subjectTypesSupported: " + JSON.stringify(subjectTypesSupported));
-  console.log("tokenEndpoint: " + tokenEndpoint);
-  console.log("tokenEndpointAuthMethodsSupported: " + JSON.stringify(tokenEndpointAuthMethodsSupported));
-  console.log("userInfoEndpoint: " + userInfoEndpoint);
-  console.log("endSessionEndpoint: " + endSessionEndpoint);
-  console.log("Leaving parseDiscoveryInfo()."); 
+  log.debug("authorizationEndpoint: " + authorizationEndpoint);
+  log.debug("idTokenSigningAlgValuesSupported: " + JSON.stringify(idTokenSigningAlgValuesSupported));
+  log.debug("issuer: " + issuer);
+  log.debug("jwksUri: " + jwksUri);
+  log.debug("responseTypesSupported: " + JSON.stringify(responseTypesSupported));
+  log.debug("scopesSupported: " + JSON.stringify(scopesSupported));
+  log.debug("subjectTypesSupported: " + JSON.stringify(subjectTypesSupported));
+  log.debug("tokenEndpoint: " + tokenEndpoint);
+  log.debug("tokenEndpointAuthMethodsSupported: " + JSON.stringify(tokenEndpointAuthMethodsSupported));
+  log.debug("userInfoEndpoint: " + userInfoEndpoint);
+  log.debug("endSessionEndpoint: " + endSessionEndpoint);
+  log.debug("Leaving parseDiscoveryInfo()."); 
 }
 
 function buildDiscoveryInfoTable(discoveryInfo) {
-  console.log("Entering buildDiscoveryInfoTable().");
+  log.debug("Entering buildDiscoveryInfoTable().");
   var discovery_info_table_html = "<table border='2' style='border:2px;'>" +
                                     "<tr>" +
                                       "<td><strong>Attribute</strong></td>" +
@@ -1288,7 +1299,7 @@ function buildDiscoveryInfoTable(discoveryInfo) {
 }
 
 function onSubmitPopulateFormsWithDiscoveryInformation() {
-  console.log('Entering OnSubmitPopulateFormsWithDiscoveryInformation().');
+  log.debug('Entering OnSubmitPopulateFormsWithDiscoveryInformation().');
   var authorizationEndpoint = discoveryInfo["authorization_endpoint"];
   var idTokenSigningAlgValuesSupported = discoveryInfo["id_token_signing_alg_values_supported"];
   var issuer = discoveryInfo["issuer"];
@@ -1307,7 +1318,7 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   document.getElementById("oidc_userinfo_endpoint").value = userInfoEndpoint;
   document.getElementById("jwks_endpoint").value = jwksUri;
   if (localStorage) {
-      console.log('Adding to local storage.');
+      log.debug('Adding to local storage.');
       localStorage.setItem("authorization_endpoint", authorizationEndpoint );
       localStorage.setItem("token_endpoint", tokenEndpoint );
       localStorage.setItem("scope", scopesSupported);
@@ -1315,13 +1326,13 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
       localStorage.setItem("jwks_endpoint", jwksUri);
       localStorage.setItem("end_session_endpoint", endSessionEndpoint);
   }
-  console.log('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
+  log.debug('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
   return true;
 }
 
 // Reset all forms and clear local storage
 function onSubmitClearAllForms() {
-  console.log("Entering onSubmitClearAllForms().");
+  log.debug("Entering onSubmitClearAllForms().");
   if (document.getElementById("authorization_endpoint")) {
     document.getElementById("authorization_endpoint").value = "";
   }
@@ -1403,29 +1414,29 @@ function onSubmitClearAllForms() {
   }
 
   $("#discovery_info_table").html("");
-  console.log("Leaving onSubmitClearAllForms().");
+  log.debug("Leaving onSubmitClearAllForms().");
 }
 
 function regenerateState() {
-  console.log("Entering regenerateState().");
+  log.debug("Entering regenerateState().");
   document.getElementById("state").value = generateUUID();
   localStorage.setItem('state', document.getElementById("state").value);
-  console.log("Leaving regenerateState().");
+  log.debug("Leaving regenerateState().");
 }
 
 function regenerateNonce() {
-  console.log("Entering regenerateNonce().");
+  log.debug("Entering regenerateNonce().");
   document.getElementById("nonce_field").value = generateUUID();
   localStorage.setItem('nonce_field', document.getElementById("nonce_field").value);
-  console.log("Leaving regenerateNonce().");
+  log.debug("Leaving regenerateNonce().");
 }
 
 function displayAuthzCustomParametersCheck()
 {
-  console.log("Entering displayAuthzCustomParametersCheck().");
+  log.debug("Entering displayAuthzCustomParametersCheck().");
   var yesCheck = document.getElementById("authzcustomParametersCheck-yes").checked;
   var noCheck = document.getElementById("authzcustomParametersCheck-no").checked;
-  console.log("customParamtersYesCheck=" + yesCheck, "customParamtersNoCheck=" + noCheck);
+  log.debug("customParamtersYesCheck=" + yesCheck, "customParamtersNoCheck=" + noCheck);
   if(yesCheck) {
     document.getElementById("authzCustomParametersRow").style.visibility = '';
     document.getElementById("authzcustomParametersCheck-no").checked = false;
@@ -1440,12 +1451,12 @@ function displayAuthzCustomParametersCheck()
     generateCustomParametersListUI();
   }
   recalculateAuthorizationRequestDescription();
-  console.log("Leaving displayAuthzCustomParametersCheck()");
+  log.debug("Leaving displayAuthzCustomParametersCheck()");
 }
 
 function generateCustomParametersListUI()
 {
-  console.log("Entering generateCustomParametersListUI().");
+  log.debug("Entering generateCustomParametersListUI().");
   var customParametersListHTML = "" +
     "<legend>Custom Parameters" +
     "</legend>" +
@@ -1486,14 +1497,14 @@ function generateCustomParametersListUI()
     }
   }
   recalculateAuthorizationRequestDescription();
-  console.log("Leaving generateCustomParametersListUI().");
+  log.debug("Leaving generateCustomParametersListUI().");
 }
 
 function onClickShowAuthzFieldSet(id) {
-  console.log('Entering onClickShowAuthzFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
+  log.debug('Entering onClickShowAuthzFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
   if(id == 'authz_fieldset') {
     if(document.getElementById(id).style.display == 'block') {
-       console.log('Hide ' + id + '.');
+       log.debug('Hide ' + id + '.');
        document.getElementById(id).style.display = 'none'
        document.getElementById('authz_expand_button').value='Expand';
        document.getElementById('config_fieldset').style.display = 'block'
@@ -1501,7 +1512,7 @@ function onClickShowAuthzFieldSet(id) {
        document.getElementById('oidc_fieldset').style.display = 'block'
        document.getElementById('oidc_expand_button').value='Collapse';
     } else {
-      console.log('Show ' + id + '.');
+      log.debug('Show ' + id + '.');
       document.getElementById(id).style.display = 'block';
       document.getElementById('authz_expand_button').value='Collapse';
       document.getElementById('config_fieldset').style.display = 'none'
@@ -1511,64 +1522,64 @@ function onClickShowAuthzFieldSet(id) {
     }
   } else {
     if(document.getElementById(id).style.display == 'block') {
-      console.log('Hide ' + id + '.');
+      log.debug('Hide ' + id + '.');
       document.getElementById(id).style.display = 'none'
       document.getElementById("oidc_expand_button").value='Expand';
     } else {
-      console.log('Show ' + id + '.');
+      log.debug('Show ' + id + '.');
       document.getElementById(id).style.display = 'block';
       document.getElementById("oidc_expand_button").value='Hide';
     }
   }
-  console.log('Leaving onClickShowAuthzFieldSet().');
+  log.debug('Leaving onClickShowAuthzFieldSet().');
   return false;
 }
 
 function onClickShowConfigFieldSet(id) {
-  console.log('Entering onClickShowConfigFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
+  log.debug('Entering onClickShowConfigFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
   if(document.getElementById(id).style.display == 'block') {
      document.getElementById('config_expand_button').value='Expand';
   } else {
     document.getElementById('config_expand_button').value='Hide';
   }
   if(document.getElementById(id).style.display == 'block') {
-    console.log('Hide ' + id + '.');
+    log.debug('Hide ' + id + '.');
     document.getElementById(id).style.display = 'none'
   } else {
-    console.log('Show ' + id + '.');
+    log.debug('Show ' + id + '.');
     document.getElementById(id).style.display = 'block';
   }
-  console.log('Leaving onClickShowConfigFieldSet().');
+  log.debug('Leaving onClickShowConfigFieldSet().');
   return false;
 }
 
 function onClickClearLocalStorage()
 {
-  console.log("Entering onClickClearLocalStorage().");
+  log.debug("Entering onClickClearLocalStorage().");
   if (localStorage) {
     localStorage.clear(); 
   }
   onSubmitClearAllForms();
-  console.log("Leaving onClickClearLocalStorage().");
+  log.debug("Leaving onClickClearLocalStorage().");
   return false;
 }
 
 function generateCodeChallenge(codeVerifier) {
-  console.log("Entering generateCodeChallenge().");
+  log.debug("Entering generateCodeChallenge().");
   const crypto = require('crypto');
   const hash = crypto.createHash('sha256');
-  console.log("Leaving generateCodeChallenge().");
+  log.debug("Leaving generateCodeChallenge().");
   return hash.update(codeVerifier).digest("base64").replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 }
 
 //function generatePKCECodeVerifier()
 function setPKCEValues()
 {
-  console.log("Entering setPKCEValues().");
+  log.debug("Entering setPKCEValues().");
   var code_verifier = Buffer.from(generateUUID() + generateUUID(),'binary').toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-  console.log("code_verifier: " + code_verifier);
+  log.debug("code_verifier: " + code_verifier);
   var code_challenge = generateCodeChallenge(code_verifier);
-  console.log("code_challenge: " + code_challenge);
+  log.debug("code_challenge: " + code_challenge);
   localStorage.setItem("PKCE_code_challenge", code_challenge);
   localStorage.setItem("PKCE_code_challenge_method", "S256");
   localStorage.setItem("PKCE_code_verifier", code_verifier );
@@ -1576,7 +1587,7 @@ function setPKCEValues()
   document.getElementById("authz_pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
   document.getElementById("authz_pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
   recalculateAuthorizationRequestDescription();
-  console.log("leaving setPKCEValues().");
+  log.debug("leaving setPKCEValues().");
   return code_challenge
 }
 

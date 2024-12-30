@@ -102,6 +102,7 @@ app.post('/token', (req, res) => {
     var resource = body.resource || "";
     var customParams = body.customParams || {}; 
     var code_verifier = body.code_verifier;
+    var auth_type = body.auth_type || true;
  
     console.log('grantType: ' + grantType);
     console.log('clientId: ' + clientId);
@@ -119,6 +120,7 @@ app.post('/token', (req, res) => {
       console.log(key + ':' + customParams[key]);
     });
     console.log("code_verifier: " + code_verifier);
+    console.log("auth_type: " + auth_type);
     var parameterObject = {};
     if(grantType == "authorization_code") {
       parameterObject = { 
@@ -126,6 +128,7 @@ app.post('/token', (req, res) => {
   	client_id: clientId,
   	code: code,
   	redirect_uri: redirectUri,
+        auth_type: auth_type
       };
       if (typeof code_verifier != "undefined") {
         parameterObject.code_verifier = code_verifier
@@ -135,9 +138,10 @@ app.post('/token', (req, res) => {
       }
     } else if(grantType == "client_credentials") {
        parameterObject =  {
-          grant_type: grantType,
+        grant_type: grantType,
   	client_id: clientId,
-  	client_secret: clientSecret
+  	client_secret: clientSecret,
+        auth_type: auth_type
        };
     } else if(grantType == "password") {
        parameterObject = {
@@ -152,7 +156,8 @@ app.post('/token', (req, res) => {
         grant_type: grantType,
         client_id: clientId,
         client_secret: clientSecret,
-        refresh_token: refreshToken
+        refresh_token: refreshToken,
+        auth_type: auth_type
       };
     }
 

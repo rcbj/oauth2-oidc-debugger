@@ -3,6 +3,11 @@
 // Date: 07/11/2020
 // Notes:
 //
+var appconfig = require(process.env.CONFIG_FILE);
+var bunyan = require("bunyan");
+var log = bunyan.createLogger({ name: 'userinfo',
+                                level: appconfig.logLevel });
+log.info("Log initialized. logLevel=" + log.level());
 const jwt = require('jsonwebtoken');
 var initialized = false
 var userinfo_endpoint = "";
@@ -14,35 +19,40 @@ var query_string = "";
 
 function getParameterByName(name, url)
 {
-  console.log("Entering getParameterByName().");
+  log.debug("Entering getParameterByName().");
   if (!url)
   {
     url = window.location.search;
   }
   var urlParams = new URLSearchParams(url);
+  log.debug("Leaving getParameterByName().");
   return urlParams.get(name);
 }
 
 window.onload = function() 
 {
-  console.log("Entering window.onload() function.");
+  log.debug("Entering window.onload() function.");
   initLocalStorage();
   loadValuesFromLocalStorage();
   resetErrorDisplays();
+  log.debug("Leaving window.onload() function.");
 }
 
 function recalculateUserInfoURL()
 {
+  log.debug("Entering recalculateUserInfoURL() function.");
   if(userinfo_scope) {
     query_string = 'scope=' + userinfo_scope;
   }
   if(userinfo_claims) {
     query_string += '&claims=' + userinfo_claims;
   }
+  log.debug("Leaving recalcualteUserInfoURL().");
 }
 
 function callUserInfoEndpoint()
 {
+  log.debug("Entering callUserInfoEndpoint().");
   var userinfoEndpointCall = $.ajax({
     type: userinfo_method,
     crossdomain: true,
@@ -51,70 +61,72 @@ function callUserInfoEndpoint()
       Authorization: 'Bearer ' + token_access_token
     },
     success: function(data, textStatus, request) {
-      console.log('Entering ajax success function for Access Token call.');
-      console.log('UserInfo textStatus: ' + JSON.stringify(textStatus));
-      console.log('UserInfo Endpoint Response: ' + JSON.stringify(data));
-      console.log('UserInfo request: ' + JSON.stringify(request));
-      console.log('UserInfo Response Content-Type: ' + userinfoEndpointCall.getResponseHeader("Content-Type"));
-      console.log('UserInfo Headers: ' + JSON.stringify(userinfoEndpointCall.getAllResponseHeaders()));
+      log.debug('Entering ajax success function for Access Token call.');
+      log.debug('UserInfo textStatus: ' + JSON.stringify(textStatus));
+      log.debug('UserInfo Endpoint Response: ' + JSON.stringify(data));
+      log.debug('UserInfo request: ' + JSON.stringify(request));
+      log.debug('UserInfo Response Content-Type: ' + userinfoEndpointCall.getResponseHeader("Content-Type"));
+      log.debug('UserInfo Headers: ' + JSON.stringify(userinfoEndpointCall.getAllResponseHeaders()));
       var responseContentType = userinfoEndpointCall.getResponseHeader("Content-Type");
       if (responseContentType.includes('application/json')) {
-        console.log('plaintext response detected, no signature, no encryption');
-        console.log('UserInfo Endpoint Response: ' + JSON.stringify(data, null, 2));
+        log.debug('plaintext response detected, no signature, no encryption');
+        log.debug('UserInfo Endpoint Response: ' + JSON.stringify(data, null, 2));
         document.getElementById("userinfo_output").value = JSON.stringify(data,null,2);
       } else {
-        console.log('Unknown response format.');
+        log.error('Unknown response format.');
       }
     },
     error: function (request, status, error) {
-      console.log("request: " + JSON.stringify(request));
-      console.log("status: " + JSON.stringify(status));
-      console.log("error: " + JSON.stringify(error));
+      log.debug("request: " + JSON.stringify(request));
+      log.debug("status: " + JSON.stringify(status));
+      log.debug("error: " + JSON.stringify(error));
       // recalculateTokenErrorDescription(request);
     }
   });
+  log.debug("Entering callUserInfoEndpoint().");
 }
 
 $(".userinfo_endpoint").keypress(function() {
-  console.log("Entering keypress().");
+  log.debug("Entering keypress().");
   localStorage.setItem("userinfo_endpoint", userinfo_endpoint);
 });
 
 $(".userinfo_method").keypress(function() {
-  console.log("Entering keypress()."); 
+  log.debug("Entering keypress()."); 
   localStorage.setItem("userinfo_method", userinfo_method);
 });
 
 $(".userinfo_scope").keypress(function() {
-  console.log("Entering keypress().");
+  log.debug("Entering keypress().");
   localStorage.setItem("userinfo_scope", userinfo_scope);
   recalculateUserInfoURL();
 });
 
 $(".userinfo_claims").keypress(function() {
-  console.log("Entering keypress().");
+  log.debug("Entering keypress().");
   localStorage.setItem("userinfo_claims", userinfo_claims);
   recalculateUserInfoURL(); 
 });
 
 $(".token_access_token").keypress(function() {
-  console.log("Entering keypress().");
+  log.debug("Entering keypress().");
   localStorage.setItem("token_access_token", token_access_token);
 });
 
 function resetUI(value)
 {
+  log.debug("Entering resetUI().");
 }
 
 function resetErrorDisplays()
 {
-  console.log("Entering resetErrorDisplays().");
-  console.log("Leaving resetErrorDisplays().");
+  log.debug("Entering resetErrorDisplays().");
+  log.debug("Leaving resetErrorDisplays().");
 }
 
 function writeValuesToLocalStorage()
 {
-  console.log("Entering writeValuesToLocalStorage().");
+  log.debug("Entering writeValuesToLocalStorage().");
   if (localStorage) {
     localStorage.setItem("userinfo_endpoint", userinfo_endpoint);
     localStorage.setItem("userinfo_method", userinfo_method);
@@ -122,11 +134,12 @@ function writeValuesToLocalStorage()
     localStorage.setItem("userinfo_claims", userinfo_claims);
     localStorage.setItem("token_access_token", token_access_token);
   }
-  console.log("Leaving writeValuesToLocalStorage().");
+  log.debug("Leaving writeValuesToLocalStorage().");
 }
 
 function initLocalStorage()
 {
+  log.debug("Entering initLocalStorage().");
   if(localStorage && !initialized) {
     localStorage.setItem("userinfo_method", "GET");
     localStorage.setItem("userinfo_scope", "profile email address phone");
@@ -149,10 +162,12 @@ function initLocalStorage()
     localStorage.setItem("userinfo_claims", JSON.stringify(default_claims, null, 2));
     initialized = true;
   }
+  log.debug("Leaving initLocalStorage().");
 }
 
 function loadValuesFromLocalStorage()
 {
+  log.debug("Entering loadValuesFromLocalStorage().");
   if(localStorage) {
     userinfo_endpoint = localStorage.getItem("oidc_userinfo_endpoint");
     userinfo_method = localStorage.getItem("userinfo_method");
@@ -166,21 +181,25 @@ function loadValuesFromLocalStorage()
   document.getElementById("userinfo_scope").value = userinfo_scope;
   document.getElementById("userinfo_claims").value = userinfo_claims;
   document.getElementById("token_access_token").value = token_access_token;
+  log.debug("Leaving loadValuesFromLocalStorage().");
 }
 
 function regenerateState() {
+  log.debug("Entering regenerateState().");
   document.getElementById("state").value = generateUUID();
   localStorage.setItem('state', document.getElementById("state").value);
+  log.debug("Leaving regenerateState().");
 }
 
 function onClickToggleConfigurationParameters() {
-    if(document.getElementById("config_fieldset").style.display == 'block') {
-       document.getElementById('config_fieldset').style.display = 'none'
-    } else {
-      document.getElementById('config_fieldset').style.display = 'block'
-    }
+  log.debug("Entering onClickToggleConfigurationParameters().");
+  if(document.getElementById("config_fieldset").style.display == 'block') {
+    document.getElementById('config_fieldset').style.display = 'none'
+  } else {
+    document.getElementById('config_fieldset').style.display = 'block'
+  }
+  log.debug("Leaving onClickToggleConfigurationParameters().");
 }
-
 
 module.exports = {
   getParameterByName,

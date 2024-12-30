@@ -9,8 +9,11 @@ const express = require('express');
 var appconfig = require(process.env.CONFIG_FILE);
 const expressLogging = require('express-logging');
 const logger = require('logops');
+var bunyan = require("bunyan");
+var log = bunyan.createLogger({ name: 'server', 
+                                logLevel: appconfig.logLevel });
 
-console.log('appconfig: ' + JSON.stringify(appconfig));
+log.info('appconfig: ' + JSON.stringify(appconfig));
 // Constants
 const PORT = appconfig.port || 3000;
 const HOST = appconfig.hostname || '0.0.0.0';
@@ -32,8 +35,8 @@ app.get('/callback', (req, res) => {
                  '&';
   });
   queryString = queryString.substring(0, queryString.length - 1);
-  console.log('host: ' + req.headers.host);
-  console.log('queryString: ' + queryString);
+  log.info('host: ' + req.headers.host);
+  log.info('queryString: ' + queryString);
   res.writeHead(302, {
     'Location': appconfig.uiUrl + '/debugger2.html' + '?' + queryString
   });
@@ -41,4 +44,4 @@ app.get('/callback', (req, res) => {
 });
 
 app.listen(PORT, HOST);
-console.log(`Running on http://${HOST}:${PORT}`);
+log.info(`Running on http://${HOST}:${PORT}`);

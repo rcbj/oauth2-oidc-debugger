@@ -16,6 +16,8 @@
     "logops": "latest",
     "pem-file": "latest",
     "@peculiar/asn1-pkcs8": "latest",
-    "envify": "latest"
+    "envify": "latest",
+    "bunyan": "latest",
+    "dompurify": "latest"
   }
 }

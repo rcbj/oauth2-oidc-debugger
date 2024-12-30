@@ -3,6 +3,11 @@
 // Date: 05/28/2020
 //Notes:
 //
+var appconfig = require(process.env.CONFIG_FILE);
+var bunyan = require("bunyan");
+var log = bunyan.createLogger({ name: 'jwks',
+                                level: appconfig.logLevel });
+log.info("Log initialized. logLevel=" + log.level());
 const jwkToPem = require('jwk-to-pem');
 const jwt = require('jsonwebtoken');
 const pemfile = require('pem-file');
@@ -10,72 +15,72 @@ const { Certificate } = require('@fidm/x509');
 const pkcs8 = require('@peculiar/asn1-pkcs8');
 
 window.onload = function() {
-  console.log("Entering onload function.");
+  log.debug("Entering onload function.");
   loadValuesFromLocalStorage();
 }
 
 function loadValuesFromLocalStorage()
 {
-  console.log("Entering loadValuesFromLocalStorage().");
+  log.debug("Entering loadValuesFromLocalStorage().");
   document.getElementById("jwks_endpoint").value = localStorage.getItem("jwks_endpoint");
 }
 
 //function OnSubmitJWKSEndpointForm() {
-//  console.log("Entering OnSubmitJWKSEndpointForm().");
+//  log.debug("Entering OnSubmitJWKSEndpointForm().");
 //}
 
 function OnSubmitJWKSEndpointForm()
 {
-  console.log("Entering OnSubmitJWKSEndpointForm().");
+  log.debug("Entering OnSubmitJWKSEndpointForm().");
 //  writeValuesToLocalStorage();
   var jwksEndpoint = document.getElementById("jwks_endpoint").value;
-  console.log('URL: ' + jwksEndpoint);
+  log.debug('URL: ' + jwksEndpoint);
   if (isUrl(jwksEndpoint)) {
-    console.log('valid URL: ' + jwksEndpoint);
+    log.debug('valid URL: ' + jwksEndpoint);
     $.ajax({ type: 'GET',
              crossOrigin: true,
              url: jwksEndpoint,
              success: function(result) {
-               console.log("JWKS Endpoint Result: " + JSON.stringify(result));
+               log.debug("JWKS Endpoint Result: " + JSON.stringify(result));
                jwksInfo = result;
                parseJWKSInfo(result);
                buildJWKSInfoTable(result);
              },
              error: function (request, status, error) {
-               console.log("request: " + JSON.stringify(request));
-               console.log("status: " + JSON.stringify(status));
-               console.log("error: " + JSON.stringify(error));
+               log.debug("request: " + JSON.stringify(request));
+               log.debug("status: " + JSON.stringify(status));
+               log.debug("error: " + JSON.stringify(error));
              }
            });
-    console.log("Leaving OnSubmitJWKSEndpointForm()");
+    log.debug("Leaving OnSubmitJWKSEndpointForm()");
     return false;
   } else {
-    console.log('Not a valid URL.');
-    console.log("Leaving OnSubmitJWKSEndpointForm()");
+    log.debug('Not a valid URL.');
+    log.debug("Leaving OnSubmitJWKSEndpointForm()");
     return false;
   }
 }
 
 function isUrl(url) {
-  console.log('Entering isUrl().');
+  log.debug('Entering isUrl().');
   try {
     return Boolean(new URL(url));
   } catch(e) {
-    console.log('An error occurred: ' + e.stack);
+    log.debug('An error occurred: ' + e.stack);
     return false;
   }
 }
 
 function parseJWKSInfo(discoveryInfo) {
-  console.log("Entering parseJWKSInfo().");
+  log.debug("Entering parseJWKSInfo().");
 }
 
 function buildJWKSInfoTable(discoveryInfo) {
-  console.log("Entering buildJWKSInfoTable().");
+  log.debug("Entering buildJWKSInfoTable().");
   var discovery_info_table_html = "";
    var i = 0;
    for( i = 0; i < discoveryInfo.keys.length; i++) {
-     console.log('iteration: ' + i);
+     log.debug('iteration: ' + i);
      discovery_info_table_html = discovery_info_table_html +
                                  "<fieldset><legend>Signer Certificate #" + i + "</legend>";
      discovery_info_table_html = discovery_info_table_html +
@@ -105,25 +110,25 @@ function buildJWKSInfoTable(discoveryInfo) {
                                 "</table></fieldset>";
 
      var pem = jwkToPem(discoveryInfo.keys[i]);
-     console.log('cert: ' + pem);
+     log.debug('cert: ' + pem);
      discovery_info_table_html = discovery_info_table_html +
                                  "<fieldset><legend>PEM Format</legend>" +
                                  '<textarea id="x509-' + i + '" name="x509-' + i + '" rows="10" cols="70" readonly="true">' + pem + '</textarea>' +
                                  "</fieldset>";
 
-//     console.log('decoded: ' + pemfile.decode(pem).toString());    
+//     log.debug('decoded: ' + pemfile.decode(pem).toString());    
 //     const cert = Certificate.fromPEM(pem);
     discovery_info_table_html = discovery_info_table_html +
                                 "</fieldset>";
 
      
   }
-  console.log('certData: ' + discovery_info_table_html);
+  log.debug('certData: ' + discovery_info_table_html);
   $("#jwks_info_table").html(discovery_info_table_html);
 }
 
 function onSubmitPopulateFormsWithDiscoveryInformation() {
-  console.log('Entering OnSubmitPopulateFormsWithDiscoveryInformation().');
+  log.debug('Entering OnSubmitPopulateFormsWithDiscoveryInformation().');
   var authorizationEndpoint = discoveryInfo["authorization_endpoint"];
   var idTokenSigningAlgValuesSupported = discoveryInfo["id_token_signing_alg_values_supported"];
   var issuer = discoveryInfo["issuer"];
@@ -142,14 +147,14 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   document.getElementById("oidc_userinfo_endpoint").value = userInfoEndpoint;
   document.getElementById("jwks_endpoint").value = jwksUri;
   if (localStorage) {
-      console.log('Adding to local storage.');
+      log.debug('Adding to local storage.');
       localStorage.setItem("authorization_endpoint", authorizationEndpoint );
       localStorage.setItem("token_endpoint", tokenEndpoint );
       localStorage.setItem("scope", scopesSupported);
       localStorage.setItem("token_scope", scopesSupported );
       localStorage.setItem("jwks_endpoint", jwksUri);
   }
-  console.log('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
+  log.debug('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
   return true;
 }
 // document.getElementById("step0").style.display = "none";

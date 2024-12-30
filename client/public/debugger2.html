@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
@@ -32,7 +33,6 @@
 
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js" type="text/javascript">
 </script>
-<script type="text/javascript" src="/dist/purify.min.js"></script>
 <script type="text/javascript" src="/js/debugger2.js"></script>
 
 <p>This is a simple Client to use with any <a href="https://medium.com/@robert.broeckelmann/saml2-vs-jwt-understanding-oauth2-4abde9e7ec8b">OAuth2</a> or <a href="https://medium.com/@robert.broeckelmann/understanding-openid-connect-series-37c93d25e92b">OpenID Connect</a> compliant identity provider..
@@ -42,10 +42,9 @@
 <div class="authz-error-report" id="authz-error-report"></div>
 
     <div class="step0" id="step0">
-<!--    <form id="step0_expand_form">
+    <form id="step0_expand_form">
       <input class="btn2" type="submit" name="config_expand_button" id="config_expand_button" value="Hide" onclick="return debugger2.onClickShowConfigFieldSet('config_fieldset');"/>
-      <input class="btn2" type="submit" name="config_expand_button" id="config_expand_button" value="Hide" onclick="return alert('Tester');"/>
-    </form> -->
+    </form>
     <fieldset id="config_fieldset" name="config_fieldset" style="display: block;">
     <legend>Configuration Parameters
         <div class="form-group">
@@ -182,6 +181,16 @@
           </td>
           <td>
             <input class="input" id="token_client_secret" name="client_secret" type="text" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Auth Style: </label><span class="tooltiptext">Authenticate application through post body parameters or authorization request header.</span>
+            </div>
+          </td>
+          <td>POST
+            <input id="postAuthStyleCheckToken" name="post-authstyle-yesno" onclick="debugger2.setPostAuthStyleCheckToken();" type="radio" />Header
+            <input id="headerAuthStyleCheckToken" name="header-authstyle-yesno" onclick="debugger2.setHeaderAuthStyleCheckToken();" type="radio" />
           </td>
         </tr>
         <tr>
