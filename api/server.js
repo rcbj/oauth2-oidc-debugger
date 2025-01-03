@@ -7,7 +7,7 @@
 
 const express = require('express');
 const expressLogging = require('express-logging');
-const logger = require('logops');
+const bunyan = require("bunyan");
 const axios = require('axios');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -15,7 +15,12 @@ const cors = require('cors');
 // Constants
 const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || '0.0.0.0';
+const LOG_LEVEL = process.env.LOG_LEVEL || 'debug';
 const uiUrl = 'http://localhost:3000';
+
+var log = bunyan.createLogger({ name: 'server',
+                                level: LOG_LEVEL });
+log.info("Log initialized. logLevel=" + log.level());
 
 const app = express();
 const expressSwagger = require('express-swagger-generator')(app);
@@ -85,10 +90,10 @@ app.get('/healthcheck', function (req, res) {
  */
 app.post('/token', (req, res) => {
   try {
-    console.log('Entering app.post for /token.');
+    log.info('Entering app.post for /token.');
     const body = req.body;
-    console.log('body: ' + JSON.stringify(body));
-    var grantType= body.grant_type;  //=authorization_code
+    log.debug('body: ' + JSON.stringify(body));
+    var grantType = body.grant_type;  //=authorization_code
     var clientId = body.client_id;  //=5qqbus6ukft6srjgqlijvk2465
     var code = body.code; //=2a795117-43d5-4d4c-bdd6-0fc9632c0594
     var redirectUri = body.redirect_uri; //=http%3A%2F%2Flocalhost%3A3000%2Fcallback
@@ -102,52 +107,54 @@ app.post('/token', (req, res) => {
     var resource = body.resource || "";
     var customParams = body.customParams || {}; 
     var code_verifier = body.code_verifier;
-    var auth_type = body.auth_type || true;
+    var auth_style = body.auth_style;
  
-    console.log('grantType: ' + grantType);
-    console.log('clientId: ' + clientId);
-    console.log('code: ' + code);
-    console.log('redirectUri: ' + redirectUri);
-    console.log('scope: ' + scope);
-    console.log('tokenEndpoint: ' + tokenEndpoint);
-    console.log('sslValidate: ' + sslValidate);
-    console.log('clientSecret: ' + clientSecret);
-    console.log('username: ' + username);
-    console.log('password: ' + password);
-    console.log('refreshToken: ' + refreshToken);
-    console.log('resource: ' + resource);
+    log.debug('grantType: ' + grantType);
+    log.debug('clientId: ' + clientId);
+    log.debug('code: ' + code);
+    log.debug('redirectUri: ' + redirectUri);
+    log.debug('scope: ' + scope);
+    log.debug('tokenEndpoint: ' + tokenEndpoint);
+    log.debug('sslValidate: ' + sslValidate);
+    log.debug('clientSecret: ' + clientSecret);
+    log.debug('username: ' + username);
+    log.debug('password: ' + password);
+    log.debug('refreshToken: ' + refreshToken);
+    log.debug('resource: ' + resource);
     Object.keys(customParams).forEach( (key) => {
-      console.log(key + ':' + customParams[key]);
+      log.debug(key + ':' + customParams[key]);
     });
-    console.log("code_verifier: " + code_verifier);
-    console.log("auth_type: " + auth_type);
+    log.debug("code_verifier: " + code_verifier);
+    log.debug("auth_style: " + auth_style);
     var parameterObject = {};
     if(grantType == "authorization_code") {
       parameterObject = { 
   	grant_type: grantType,
-  	client_id: clientId,
+        client_id: clientId,
   	code: code,
   	redirect_uri: redirectUri,
-        auth_type: auth_type
       };
       if (typeof code_verifier != "undefined") {
         parameterObject.code_verifier = code_verifier
       }
-      if (typeof clientSecret != "undefined" && clientSecret != "undefined") {
+      log.debug("clientSecret: " + clientSecret);
+      log.debug("auth_style: " + auth_style);
+      if (!!clientSecret && auth_style) {
         parameterObject.client_secret = clientSecret;
       }
     } else if(grantType == "client_credentials") {
        parameterObject =  {
-        grant_type: grantType,
-  	client_id: clientId,
-  	client_secret: clientSecret,
-        auth_type: auth_type
+         grant_type: grantType
        };
+       log.debug("clientSecret: " + clientSecret);
+       log.debug("auth_style: " + auth_style);
+       if ((typeof clientSecret != "undefined" && clientSecret != "undefined")
+          && auth_style) {
+         parameterObject.client_secret = clientSecret;
+       }
     } else if(grantType == "password") {
        parameterObject = {
   	grant_type: grantType,
-  	client_id: clientId,
-  	client_secret: clientSecret,
   	username: username,
   	password: password
        };
@@ -155,12 +162,18 @@ app.post('/token', (req, res) => {
       parameterObject = {
         grant_type: grantType,
         client_id: clientId,
-        client_secret: clientSecret,
         refresh_token: refreshToken,
-        auth_type: auth_type
       };
+      log.debug("clientSecret: " + clientSecret);
+      log.debug("auth_style: " + auth_style);
+      if ((typeof clientSecret != "undefined" && clientSecret != "undefined")
+         && auth_style) {
+        parameterObject.client_secret = clientSecret;
+      }
     }
-
+    if(auth_style) {
+        parameterObject.client_id = clientId;
+    }
     if(resource != "") {
       parameterObject.resource = resource;
     }
@@ -174,7 +187,7 @@ app.post('/token', (req, res) => {
         parameterObject[key] = customParams[key];
       });
     }
-    console.log("parameterObject: " + JSON.stringify(parameterObject));
+    log.debug("parameterObject: " + JSON.stringify(parameterObject));
   
     var parameterString = "";
     Object.keys(parameterObject).forEach( (key) => {
@@ -186,11 +199,21 @@ app.post('/token', (req, res) => {
     });
     var headers = {
       'content-type' : 'application/x-www-form-urlencoded'
-    }
-//    if (typeof code_verifier != "undefined") {
+    };
+    if ( typeof code_verifier != "undefined" ||
+         (grantType == "refresh_token" &&
+          !clientSecret)) {
       headers.origin = uiUrl;
-//    }
+    } 
+    if (!auth_style) {
+      // Put client_id + client_secret in Authorization header
+      headers.authorization = 'Basic ' + Buffer.from(clientId + ":" + clientSecret).toString('base64');
+    }
     parameterString = parameterString.substring(0, parameterString.length - 1);
+    log.debug("Making call to Token Endpoint.");
+    log.debug("POST " + tokenEndpoint);
+    log.debug("Headers: " + JSON.stringify(headers));
+    log.debug("Body: " + parameterString);
     axios({
       method: 'post',
       url: tokenEndpoint,
@@ -199,12 +222,16 @@ app.post('/token', (req, res) => {
       httpsAgent: new (require('https').Agent)({ rejectUnauthorized: sslValidate })
     })
     .then(function (response) {
-      console.log('Response from OAuth2 Token Endpoint: ' + response.data);
+      log.debug('Response from OAuth2 Token Endpoint: ' + JSON.stringify(response.data));
+      log.debug('Headers: ' + response.headers);
       res.status(response.status);
       res.json(response.data);
     })
     .catch(function (error) {
-      console.log('Error from OAuth2 Token Endpoint: ' + error);
+      log.error('Error from OAuth2 Token Endpoint: ' + error);
+      log.error("Error Status: " + error.response.status);
+      log.error("Error Response body: " + JSON.stringify(error.response.data));
+      log.error("Error Response headers: " + error.response.headers);
       if (error.response) {
         res.status(error.response.status);
         res.json(error.response.data);
@@ -214,7 +241,7 @@ app.post('/token', (req, res) => {
       }
     });
   } catch (e) {
-    console.log('An error occurred: ' + e);
+    log.error('An error occurred: ' + e);
     res.status(500);
     res.json({ "error": e });
   }
@@ -242,5 +269,5 @@ let options = {
 
 expressSwagger(options)
 app.listen(PORT, HOST);
-console.log(`Running on http://${HOST}:${PORT}`);
+log.info(`Running on http://${HOST}:${PORT}`);
 

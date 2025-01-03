@@ -3,11 +3,6 @@
 // Date: 06/15/2017
 // Notes:
 //
-// This file provides the interactive functionality needed for the first debugger screen which
-// has the authorization endpoint, general configuration, and OIDC Discovery Endpoint pantes.
-//
-// This file is run through browserify and the output copied into the public/js directory.
-//
 var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var DOMPurify = require("dompurify");
@@ -40,7 +35,6 @@ function OnSubmitForm()
 function OnSubmitTokenEndpointForm()
 {
   log.debug("Entering OnSubmitTokenEndpointForm().");
-  //document.token_step.action = document.getElementById("token_endpoint").value;
   document.token_step.action = "/token";
   log.debug("Leaving OnSubmitTokenEndpointForm().");
   return true;
@@ -73,8 +67,12 @@ $(document).ready(function() {
     }
     log.debug("Leaving selection changed function().");
   });
-  var value = $("#authorization_grant_type").value;
+  var value = $("#authorization_grant_type").val();
   resetUI(value);
+  if( value == "client_credential") {
+    writeValuesToLocalStorage();
+    window.location.href = "/debugger2.html";
+  }
   recalculateAuthorizationRequestDescription();
   initializeUIPostDebuggerInitialization();
   log.debug("Leaving ready function.");
@@ -414,58 +412,62 @@ function loadValuesFromLocalStorage()
   log.debug("Entering loadValuesFromLocalStorage().");
   var authzGrantType = localStorage.getItem("authorization_grant_type");
   log.debug("authzGrantType=" + authzGrantType);
-  if (authzGrantType == "" || typeof(authzGrantType) == "undefined" || authzGrantType == "null")
+  if ( authzGrantType == "" || 
+       typeof(authzGrantType) == "undefined" || 
+       authzGrantType == "null" ||
+       authzGrantType == "undefined")
   {
-    document.getElementById("authorization_grant_type").value = "authorization_grant"
+    $("#authorization_grant_type").val("oidc_authorization_code_flow");
     resetUI("authorization_grant");
   } else {
-    document.getElementById("authorization_grant_type").value = authzGrantType;
+    $("#authorization_grant_type").val(authzGrantType);
     resetUI(authzGrantType);
   }
-  document.getElementById("authorization_endpoint").value = localStorage.getItem("authorization_endpoint");
-  document.getElementById("token_endpoint").value = localStorage.getItem("token_endpoint");
-  document.getElementById("redirect_uri").value = localStorage.getItem("redirect_uri");
-  document.getElementById("client_id").value = localStorage.getItem("client_id");
-  document.getElementById("scope").value = localStorage.getItem("scope");
-  document.getElementById("resource").value = localStorage.getItem("resource");
-  document.getElementById("SSLValidate-yes").checked = getLSBooleanItem("yesCheck");
-  document.getElementById("SSLValidate-no").checked = getLSBooleanItem("noCheck");
-  document.getElementById("yesResourceCheck").checked = getLSBooleanItem("yesResourceCheck");
-  document.getElementById("noResourceCheck").checked = getLSBooleanItem("noResourceCheck");
-  document.getElementById("yesCheckOIDCArtifacts").checked = getLSBooleanItem("yesCheckOIDCArtifacts");
-  document.getElementById("noCheckOIDCArtifacts").checked = getLSBooleanItem("noCheckOIDCArtifacts");
-  document.getElementById("useRefreshToken-yes").checked = getLSBooleanItem("useRefreshToken_yes");
-  document.getElementById("useRefreshToken-no").checked = getLSBooleanItem("useRefreshToken_no");
-  document.getElementById("usePKCE-yes").checked = getLSBooleanItem("usePKCE_yes");
-  document.getElementById("usePKCE-no").checked = getLSBooleanItem("usePKCE_no");
-  document.getElementById("oidc_discovery_endpoint").value = localStorage.getItem("oidc_discovery_endpoint");
-  document.getElementById("oidc_userinfo_endpoint").value = localStorage.getItem("oidc_userinfo_endpoint");
-  document.getElementById("jwks_endpoint").value = localStorage.getItem("jwks_endpoint");
-  document.getElementById("authzcustomParametersCheck-yes").checked = getLSBooleanItem("authzcustomParametersCheck-yes");
-  document.getElementById("authzcustomParametersCheck-no").checked = getLSBooleanItem("authzcustomParametersCheck-no");
-  document.getElementById("authzNumberCustomParameters").value = localStorage.getItem("authzNumberCustomParameters")? localStorage.getItem("authzNumberCustomParameters") : 1;
+  console.log("RCBJ0001");
+  $("#authorization_endpoint").val(localStorage.getItem("authorization_endpoint"));
+  $("#token_endpoint").val(localStorage.getItem("token_endpoint"));
+  $("#redirect_uri").val(localStorage.getItem("redirect_uri"));
+  $("#client_id").val(localStorage.getItem("client_id"));
+  $("#scope").val(localStorage.getItem("scope"));
+  $("#resource").val(localStorage.getItem("resource"));
+  $("#SSLValidate-yes").prop("checked", getLSBooleanItem("yesCheck"));
+  $("#SSLValidate-no").prop("checked", getLSBooleanItem("noCheck"));
+  $("#yesResourceCheck").prop("checked", getLSBooleanItem("yesResourceCheck"));
+  $("#noResourceCheck").prop("checked", getLSBooleanItem("noResourceCheck"));
+  $("#yesCheckOIDCArtifacts").prop("checked", getLSBooleanItem("yesCheckOIDCArtifacts"));
+  $("#noCheckOIDCArtifacts").prop("checked", getLSBooleanItem("noCheckOIDCArtifacts"));
+  $("#useRefreshToken-yes").prop("checked", getLSBooleanItem("useRefreshToken_yes"));
+  $("#useRefreshToken-no").prop("checked", getLSBooleanItem("useRefreshToken_no"));
+  $("#usePKCE-yes").prop("checked", getLSBooleanItem("usePKCE_yes"));
+  $("#usePKCE-no").prop("checked", getLSBooleanItem("usePKCE_no"));
+  $("#oidc_discovery_endpoint").val(localStorage.getItem("oidc_discovery_endpoint"));
+  $("#oidc_userinfo_endpoint").val(localStorage.getItem("oidc_userinfo_endpoint"));
+  $("#jwks_endpoint").val(localStorage.getItem("jwks_endpoint"));
+  $("#authzcustomParametersCheck-yes").prop("checked", getLSBooleanItem("authzcustomParametersCheck-yes"));
+  $("#authzcustomParametersCheck-no").prop("checked", getLSBooleanItem("authzcustomParametersCheck-no"));
+  $("#authzNumberCustomParameters").val(localStorage.getItem("authzNumberCustomParameters")? localStorage.getItem("authzNumberCustomParameters") : 1);
 
-  document.getElementById("authz_pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
-  document.getElementById("authz_pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
-  document.getElementById("authz_pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+  $("#authz_pkce_code_challenge").val(localStorage.getItem("PKCE_code_challenge"));
+  $("#authz_pkce_code_verifier").val(localStorage.getItem("PKCE_code_verifier"));
+  $("#authz_pkce_code_method").val(localStorage.getItem("PKCE_code_challenge_method"));
 
   recalculateAuthorizationRequestDescription();
 
-  if (document.getElementById("authzcustomParametersCheck-yes").checked) {
+  if ($("#authzcustomParametersCheck-yes").is(":checked")) {
     generateCustomParametersListUI();
     var i = 0;
-    var authzNumberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);  
+    var authzNumberCustomParameters = parseInt($("#authzNumberCustomParameters").val());  
     for(i = 0; i < authzNumberCustomParameters; i++)
     {
       log.debug("Reading customParameterName-" + i + " as " + localStorage.getItem("customParameterName-" + i + "\n"));
-      document.getElementById("customParameterName-" + i).value = localStorage.getItem("customParameterName-" + i);
+      $("#customParameterName-" + i).val(localStorage.getItem("customParameterName-" + i));
       log.debug("Reading customParameterValue-" + i + " as " + localStorage.getItem("customParameterValue-" + i + "\n"));
-      document.getElementById("customParameterValue-" + i).value = localStorage.getItem("customParameterValue-" + i);
+      $("#customParameterValue-" + i).val(localStorage.getItem("customParameterValue-" + i));
     }
   }
   setPKCEValues();
-
-  var agt = document.getElementById("authorization_grant_type").value;
+  console.log("RCBJ0002");
+  var agt = $("#authorization_grant_type").val();
 
   var pathname = window.location.pathname;
   log.debug("agt=" + agt);
@@ -484,10 +486,10 @@ function loadValuesFromLocalStorage()
       code = "NO_CODE_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
     log.debug("code=" + code);
-    if(document.getElementById("code").value == "")
+    if($("#code").val() == "")
     {
       log.debug("code not yet set in next form. Doing so now.");
-      document.getElementById("code").value = code;
+      $("#code").val(code);
     }
   }
   if ( 	(agt == "implicit_grant" || 
@@ -573,7 +575,7 @@ function loadValuesFromLocalStorage()
                                     "</table>" +
                                     "</fieldset>";
     }
-    $("#authorization_endpoint_result").html(authz_endpoint_results_html);
+    $("#authorization_endpoint_result").html(DOMPurify.sanitize(authz_endpoint_results_html));
   }
 
   if (  agt == "oidc_hybrid_code_token" &&
@@ -589,7 +591,19 @@ function loadValuesFromLocalStorage()
       access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
     log.debug("access_token=" + access_token);
-    $("#authorization_endpoint_result").html("<fieldset><legend>Authorization Endpoint Results:</legend><table><tr><td>access_token</td><td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + access_token + "</textarea></td></tr></table></fieldset>");
+    $("#authorization_endpoint_result").html(DOMPurify.sanitize("<fieldset>"
+    + "<legend>Authorization Endpoint Results:</legend>"
+    + "<table>"
+    +   "<tr>"
+    +     "<td>access_token</td>"
+    +     "<td>"
+    +       "<textarea id='implicit_grant_access_token' rows=5 cols=100>"
+    +         access_token
+    +       "</textarea>"
+    +     "</td>"
+    +   "</tr>"
+    + "</table>"
+    + "</fieldset>"));
   }
   if ( 	(agt == "oidc_implicit_flow" || agt == "oidc_implicit_flow_id_token" ||  agt == "oidc_hybrid_code_id_token") && 
 	pathname == "/callback") //retrieve access_token for implicit_grant for callback redirect response
@@ -607,20 +621,48 @@ function loadValuesFromLocalStorage()
       }
     }
     log.debug("id_token=" + id_token);
-    $("#authorization_endpoint_id_token_result").html(DOMPurify.sanitize("<fieldset><legend>Authorization Endpoint Results</legend><table><tr><td>id_token</td><td><textarea id=\"implicit_flow_id_token\" rows=5 cols=100>" + id_token + "</textarea></td></tr></table></fieldset>"));
+    $("#authorization_endpoint_id_token_result").html(DOMPurify.sanitize("<fieldset>"
+      +  "<legend>Authorization Endpoint Results</legend>"
+      +  "<table>"
+      +      "<tr>"
+      +        "<td>id_token</td>"
+      +        "<td>" 
+      +          "<textarea id='implicit_flow_id_token' rows=5 cols=100>"
+      +            id_token
+      +          "</textarea>"
+      +        "</td>"
+      +      "</tr>"
+      +    "</table>"
+      +  "</fieldset>"));
   }
   var error = getParameterByName("error",window.location.href);
-  var authzGrantType = document.getElementById("authorization_grant_type").value;
+  var authzGrantType = $("#authorization_grant_type").val();
   if(	pathname == "/callback" && 
 	(authzGrantType == "authorization_grant" || authzGrantType == "implicit_grant" || authzGrantType == "oidc_hybrid_code_id_token") &&
 	(error != null && error != "null" && typeof error != "undefined" && error != ""))
   {
-    $("#display_authz_error_class").html("<fieldset><legend>Authorization Endpoint Error</legend><form action=\"\" name=\"display_authz_error_form\" id=\"display_authz_error_form\"><table><tr><td><label name=\"display_authz_error_form_label1\" value=\"\" id=\"display_authz_error_form_label1\">Error</label></td><td><textarea rows=\"10\" cols=\"100\" id=\"display_authz_error_form_textarea1\"></td></tr></table></textarea></form></fieldset>");
+    $("#display_authz_error_class").html(DOMPurify.sanitize("<fieldset>"
+       + "<legend>Authorization Endpoint Error</legend><form action=''"
+       + "name='display_authz_error_form'" 
+       + "id='display_authz_error_form'>"
+       + "<table>"
+       +   "<tr>"
+       +     "<td>"
+       +       "<label name='display_authz_error_form_label1'"
+       +         " value='' id='display_authz_error_form_label1'>Error</label>"
+       +     "</td>"
+       +     "<td>"
+       +       "<textarea rows='10' cols='100'"
+       +         " id='display_authz_error_form_textarea1'>"
+       +     "</td>"
+       +   "</tr>"
+       + "</table>"
+       + "</textarea></form></fieldset>"));
   }
-  document.getElementById("state").value = generateUUID();
-  localStorage.setItem('state', document.getElementById("state").value);
-  document.getElementById("nonce_field").value = generateUUID();
-  localStorage.setItem('nonce_field', document.getElementById("nonce_field").value);
+  $("#state").val(generateUUID());
+  localStorage.setItem('state', $("#state").val());
+  $("#nonce_field").val(generateUUID());
+  localStorage.setItem('nonce_field', $("#nonce_field").val());
   recalculateAuthorizationRequestDescription();
   log.debug("Leaving loadValuesFromLocalStorage().");
 }
