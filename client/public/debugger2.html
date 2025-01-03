@@ -160,7 +160,7 @@
             </div>
           </td>
           <td>
-            <input class="input" id="code" name="code" type="text" /><p>This is populated automatically.</p>
+            <input class="input" id="code" name="code" type="text" /><p>This is populated automatically when needed.</p>
           </td>
         </tr>
         <tr>
@@ -187,8 +187,8 @@
             </div>
           </td>
           <td>POST
-            <input id="postAuthStyleCheckToken" name="post-authstyle-yesno" onclick="debugger2.setPostAuthStyleCheckToken();" type="radio" />Header
-            <input id="headerAuthStyleCheckToken" name="header-authstyle-yesno" onclick="debugger2.setHeaderAuthStyleCheckToken();" type="radio" />
+            <input id="token_postAuthStyleCheckToken" name="token-post-authstyle-yesno" checked="true" onclick="debugger2.setPostAuthStyleCheckToken();" type="radio" />Header
+            <input id="token_headerAuthStyleCheckToken" name="token-header-authstyle-yesno" checked="false" onclick="debugger2.setHeaderAuthStyleCheckToken();" type="radio" />
           </td>
         </tr>
         <tr>
@@ -363,6 +363,16 @@
           </td>
           <td>
             <input class="input" id="refresh_client_secret" name="refresh_client_secret" type="text" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Auth Style: </label><span class="tooltiptext">Authenticate application through post body parameters or authorization request header.</span>
+            </div>
+          </td>
+          <td>POST
+            <input id="refresh_postAuthStyleCheckToken" name="refresh-post-authstyle-yesno" checked="true" onclick="debugger2.setPostAuthStyleRefreshToken();" type="radio" />Header
+            <input id="refresh_headerAuthStyleCheckToken" name="refresh-header-authstyle-yesno" checked="false" onclick="debugger2.setHeaderAuthStyleRefreshToken();" type="radio" />
           </td>
         </tr>
         <tr>
