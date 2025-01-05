@@ -35,11 +35,12 @@
 </script>
 <p>This is a simple Client to use with any <a href="https://medium.com/@robert.broeckelmann/saml2-vs-jwt-understanding-oauth2-4abde9e7ec8b">OAuth2</a> or <a href="https://medium.com/@robert.broeckelmann/understanding-openid-connect-series-37c93d25e92b">OpenID Connect</a> compliant identity provider..
 </p>
+<p>This page manages interaction with the OAuth2 Authorization Endpoint.</p>
 <div class="step0" id="step0">
     <legend>OpenID Connect Discovery Endpoint Information
     </legend>
     <form>
-      <input class="btn2" type="submit" name="oidc_expand_button" id="oidc_expand_button" value="Hide" onClick="return debug.onClickShowAuthzFieldSet('oidc_fieldset');"/>
+      <input class="btn2" type="submit" name="oidc_expand_button" id="oidc_expand_button" value="Hide" onClick="return debug.onClickShowGenericFieldSet('oidc_fieldset');"/>
     </form>
     <fieldset name="oidc_fieldset" id="oidc_fieldset" style="display: block;">
     <form action="" id="oidc_discovery_endpoint_form" name="oidc_discovery_endpoint_form" method="get" onsubmit="return false;" onclick="return debug.OnSubmitOIDCDiscoveryEndpointForm();">
@@ -81,7 +82,7 @@
 
     <legend>Configuration Parameters
     </legend>
-    <form><input class="btn2" type="submit" name="config_expand_button" id="config_expand_button" value="Hide" onclick="return debug.onClickShowConfigFieldSet('config_fieldset');"/></form>
+    <form><input class="btn2" type="submit" name="config_expand_button" id="config_expand_button" value="Hide" onclick="return debug.onClickShowGenericFieldSet('config_fieldset');"/></form>
     <fieldset name="config_fieldset" id="config_fieldset" style="display: block;">
     <form action="" id="endpoints" name="endpoints">
       <table border="0">
@@ -191,7 +192,7 @@
   <form name="auth_step" id="auth_step">
     <legend id="h2_title_1" name="">Request Authorization Code
     </legend>
-  <form><input class="btn2" name="authz_expand_button" id="authz_expand_button" type="submit" value="Expand" onclick="return debug.onClickShowAuthzFieldSet('authz_fieldset');"/></form>
+  <form><input class="btn2" name="authz_expand_button" id="authz_expand_button" type="submit" value="Expand" onclick="return debug.onClickShowGenericFieldSet('authz_fieldset');"/></form>
   <fieldset id="authz_fieldset" name="authz_fieldset" style="display: none;">
     <table>
       <tbody>
@@ -251,11 +252,11 @@
             </div>
           </td>
           <td>Yes 
-            <input id="yesResourceCheck" name="yesno" onclick="debug.displayResourceCheck();" type="radio" value="true"/>No 
+            <input checked="true" id="yesResourceCheck" name="yesno" onclick="debug.displayResourceCheck();" type="radio" value="true"/>No 
             <input checked="false" id="noResourceCheck" name="yesno" onclick="debug.displayResourceCheck();" type="radio" value="false"/>
           </td>
         </tr>
-        <tr id="authzResourceRow" style="visibility:collapse">
+        <tr id="authzResourceRow" style="">
           <td>
             <div class="tooltip"><label>Resource: </label><span class="tooltiptext">The resource parameter, together with scope, tells the Identity Provider what audience or scope is desired with the access token.</span>
             </div>
@@ -274,7 +275,7 @@
             <input id="authzcustomParametersCheck-no" name="authzcustomParametersCheck" onclick="debug.displayAuthzCustomParametersCheck();" type="radio" checked/>
           </td>
         </tr>
-        <tr id="authzCustomParametersRow" style="visibility:collapse">
+        <tr id="authzCustomParametersRow" style="">
           <td>
             <div class="tooltip"><label>How many custom parameters: </label><span class="tooltiptext">How many custom query parameters will this request have? No more than ten.</span>
             </div>

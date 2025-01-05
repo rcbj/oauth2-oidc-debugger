@@ -9,16 +9,16 @@
   },
   "dependencies": {
     "@fidm/x509": "^1.2.1",
+    "@peculiar/asn1-pkcs8": "latest",
+    "bunyan": "latest",
+    "dompurify": "latest",
+    "envify": "latest",
     "express": "^4.21.2",
     "express-logging": "latest",
+    "jquery": "^3.7.1",
     "jsonwebtoken": "latest",
     "jwk-to-pem": "latest",
     "logops": "latest",
-    "pem-file": "latest",
-    "@peculiar/asn1-pkcs8": "latest",
-    "envify": "latest",
-    "bunyan": "latest",
-    "dompurify": "latest",
-    "jquery": "latest"
+    "pem-file": "latest"
   }
 }

@@ -88,12 +88,12 @@ function initializeUIPostDebuggerInitialization()
   log.debug("debugger_initialized: " + debuggerInitialized);
   if (debuggerInitialized) {
     log.debug("The debugger configuration has been initialized through Discovery.");
-    document.getElementById("oidc_fieldset").style.display = "none";
-    document.getElementById("oidc_expand_button").value = "Expand";
-    document.getElementById("config_fieldset").style.display = "none";
-    document.getElementById("config_expand_button").value = "Expand";
-    document.getElementById("authz_fieldset").style.display = "block";
-    document.getElementById("authz_expand_button").value = "Collapse";
+    $("#oidc_fieldset").hide();
+    $("#oidc_expand_button").val("Expand");
+    $("#config_fieldset").hide();
+    $("#config_expand_button").val("Expand");
+    $("#authz_fieldset").show();
+    $("#authz_expand_button").val("Collapse");
   }
   log.debug("Leaving initializeUIPostDebuggerInitialization().");
 }
@@ -104,168 +104,88 @@ function resetUI(value)
     if( value == "implicit_grant" )
     {
       $("#code").hide();
-      if(document.getElementById("authzUsernameRow")) {
-        document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-      }
-      if(document.getElementById("authzPasswordRow")) {
-        document.getElementById("authzPasswordRow").style.visibility = 'collapse';
-      }
       $("#step2").show();
-      $("#step3").hide();
       $("#nonce").show();
-      document.getElementById("response_type").value = "token";
+      $("#response_type").val("token");
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
-      document.getElementById("token_grant_type").value = "";
-      document.getElementById("h2_title_1").innerHTML = "Request Access Token";
+      $("#token_grant_type").val("");
+      $("#h2_title_1").html("Request Access Token");
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
       $("#display_authz_request_class").show();
       $("#display_token_request").hide();
-    }
-    if( value == "client_credential")
-    {
-      $("#code").hide();
-      if(document.getElementById("authzUsernameRow")) {
-        document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-      }
-      if(document.getElementById("authzPasswordRow")) {
-        document.getElementById("authzPasswordRow").style.visibility = 'collapse';
-      }
-      $("#step2").hide();
-      $("#nonce").hide();
-      document.getElementById("response_type").value = "";
-      $("#authorization_endpoint_result").html("");
-      $("#authorization_endpoint_id_token_result").html("");
-      $("#token_endpoint_result").html("");
-      $("#display_authz_request_class").hide();
-      writeValuesToLocalStorage();     
-      usePKCE = false;
-//      window.location.href = "/debugger2.html";
-    }
-    if( value == "resource_owner")
-    {
-      $("#code").hide();
-      if(document.getElementById("authzUsernameRow")) {
-        document.getElementById("authzUsernameRow").style.visibility = '';
-      }
-      if(document.getElementById("authzPasswordRow")) {
-        document.getElementById("authzPasswordRow").style.visibility = '';
-      }
-      $("#step2").hide();
-      $("#step3").show();
-      $("#nonce").hide();
-      document.getElementById("response_type").value = "";
-      document.getElementById("token_grant_type").value = "password";
-      recalculateTokenRequestDescription();
-      recalculateRefreshRequestDescription();
-      $("#authorization_endpoint_result").html("");
-      $("#authorization_endpoint_id_token_result").html("");
-      $("#token_endpoint_result").html("");
-      $("#display_authz_request_class").hide();
-      $("#display_token_request").show();
     }
     if( value == "authorization_grant")
     {
       $("#code").show();
       $("#step2").show();
-      $("#step3").show();
       $("#nonce").hide();
-      document.getElementById("response_type").value = "code";
+      $("#response_type").val("code");
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
-      recalculateTokenRequestDescription();
-      recalculateRefreshRequestDescription();
-      document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
+      $("#h2_title_1").html("Request Authorization Code");
       $("#authorization_endpoint_result").html("");
-      $("#authorization_endpoint_id_token_result").html("");
-      $("#token_endpoint_result").html("");
       $("#display_authz_request_class").show();
-      $("#display_token_request").show();
     }
     if ( value == "oidc_implicit_flow")
     {
       $("#code").hide();
-      if(document.getElementById("authzUsernameRow")) {
-        document.getElementById("authzUsernameRow").style.visibility = 'collapse';
-      }
-      if(document.getElementById("authzPasswordRow")) {
-        document.getElementById("authzPasswordRow").style.visibility = 'collapse';
-      }
       $("#step2").show();
-      $("#step3").hide();
       $("#nonce").show();
-      document.getElementById("response_type").value = "id_token token";
-      document.getElementById("scope").value = "openid profile";
+      $("#response_type").val("id_token token");
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
-      document.getElementById("h2_title_1").innerHTML = "Request Access Token";
+      $("#h2_title_1").html("Request Access Token");
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
-      $("#token_endpoint_result").html("");
       $("#display_authz_request_class").show();
-      $("#display_token_request").hide();
       displayOpenIDConnectArtifacts = true;
     }
     if ( value == "oidc_implicit_flow_id_token")
     {
       $("#code").hide();
       $("#step2").show();
-      $("#step3").hide();
       $("#nonce").show();
-      document.getElementById("response_type").value = "id_token";
-      document.getElementById("scope").value = "openid profile";
+      $("#response_type").val("id_token");
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
-      document.getElementById("h2_title_1").innerHTML = "Request Access Token";
+      $("#h2_title_1").html("Request Access Token");
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
-      $("#token_endpoint_result").html("");
       $("#display_authz_request_class").show();
-      $("#display_token_request").hide();
       displayOpenIDConnectArtifacts = true;
     }
     if( value == "oidc_authorization_code_flow")
     {
       $("#code").show();
       $("#step2").show();
-      $("#step3").show();
       $("#nonce").show();
-      document.getElementById("response_type").value = "code";
-      document.getElementById("scope").value = "openid profile";
+      $("#response_type").val("code");
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
-      recalculateTokenRequestDescription();
-      recalculateRefreshRequestDescription();
-      document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
+      $("#h2_title_1").html("Request Authorization Code");
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
-      $("#token_endpoint_result").html("");
       $("#display_authz_request_class").show();
-      $("#display_token_request").show();
       displayOpenIDConnectArtifacts = true;
     }
     if( value == "oidc_hybrid_code_id_token")
     {
       $("#code").show();
       $("#step2").show();
-      $("#step3").show();
       $("#nonce").show();
-      document.getElementById("response_type").value = "code id_token";
-      document.getElementById("scope").value = "openid profile";
+      $("#response_type").val("code id_token");
+      $("#scope").val("openid profile");
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
-      recalculateTokenRequestDescription();
-      recalculateRefreshRequestDescription();
-      document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
+      $("#h2_title_1").html("Request Authorization Code");
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
-      $("#token_endpoint_result").html("");
       $("#display_authz_request_class").show();
-      $("#display_token_request").show();
-      if(document.getElementById("code")){
-        document.getElementById("code").value = "";
+      if($("#code")){
+        $("#code").val("");
       };
       displayOpenIDConnectArtifacts = true;
     }
@@ -273,40 +193,29 @@ function resetUI(value)
     {
       $("#code").show();
       $("#step2").show();
-      $("#step3").show();
       $("#nonce").show();
-      document.getElementById("response_type").value = "code token";
-      document.getElementById("scope").value = "openid profile";
+      $("#response_type").val("code token");
+      $("#scope").val("openid profile");
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
-      recalculateTokenRequestDescription();
-      recalculateRefreshRequestDescription();
-      document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
+      $("#h2_title_1").html("Request Authorization Code");
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
-      $("#token_endpoint_result").html("");
       $("#display_authz_request_class").show();
-      $("#display_token_request").show();
       displayOpenIDConnectArtifacts = true;
     }
     if( value == "oidc_hybrid_code_id_token_token")
     {
       $("#code").show();
       $("#step2").show();
-      $("#step3").show();
       $("#nonce").show();
-      document.getElementById("response_type").value = "code id_token token";
-      document.getElementById("scope").value = "openid profile";
+      $("#response_type").val("code id_token token");
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
-      recalculateTokenRequestDescription();
-      recalculateRefreshRequestDescription();
-      document.getElementById("h2_title_1").innerHTML = "Request Authorization Code";
+      $("#h2_title_1").html("Request Authorization Code");
       $("#authorization_endpoint_result").html("");
       $("#authorization_endpoint_id_token_result").html("");
-      $("#token_endpoint_result").html("");
       $("#display_authz_request_class").show();
-      $("#display_token_request").show();
       displayOpenIDConnectArtifacts = true;
     }
     resetErrorDisplays();
@@ -324,36 +233,36 @@ function writeValuesToLocalStorage()
 {
   log.debug("Entering writeValuesToLocalStorage().");
   if (localStorage) {
-      localStorage.setItem("authorization_grant_type", document.getElementById("authorization_grant_type").value);
-      localStorage.setItem("yesCheck", document.getElementById("SSLValidate-yes").checked);
-      localStorage.setItem("noCheck", document.getElementById("SSLValidate-no").checked);
-      localStorage.setItem("yesResourceCheck", document.getElementById("yesResourceCheck").checked);
-      localStorage.setItem("noResourceCheck", document.getElementById("noResourceCheck").checked);
-      localStorage.setItem("yesCheckOIDCArtifacts", document.getElementById("yesCheckOIDCArtifacts").checked);
-      localStorage.setItem("noCheckOIDCArtifacts", document.getElementById("noCheckOIDCArtifacts").checked);
-      localStorage.setItem("useRefreshToken_yes", document.getElementById("useRefreshToken-yes").checked);
-      localStorage.setItem("usePKCE_yes", document.getElementById("usePKCE-yes").checked);
-      localStorage.setItem("client_id", document.getElementById("client_id").value);
-      localStorage.setItem("redirect_uri", document.getElementById("redirect_uri").value);
-      localStorage.setItem("scope", document.getElementById("scope").value);
-      localStorage.setItem("useRefreshToken_no", document.getElementById("useRefreshToken-no").checked);
-      localStorage.setItem("usePKCE_no", document.getElementById("usePKCE-no").checked);
-      localStorage.setItem("oidc_discovery_endpoint", document.getElementById("oidc_discovery_endpoint").value);
-      localStorage.setItem("oidc_userinfo_endpoint", document.getElementById("oidc_userinfo_endpoint").value);
-      localStorage.setItem("jwks_endpoint", document.getElementById("jwks_endpoint").value);
-      localStorage.setItem("authzcustomParametersCheck-yes", document.getElementById("authzcustomParametersCheck-yes").checked);
-      localStorage.setItem("authzcustomParametersCheck-no", document.getElementById("authzcustomParametersCheck-no").checked);
-      localStorage.setItem("authzNumberCustomParameters", document.getElementById("authzNumberCustomParameters").value);
-      if (document.getElementById("authzcustomParametersCheck-yes").checked) {
+      localStorage.setItem("authorization_grant_type", $("#authorization_grant_type").val());
+      localStorage.setItem("yesCheck", $("#SSLValidate-yes").is(":checked"));
+      localStorage.setItem("noCheck", $("#SSLValidate-no").is(":checked"));
+      localStorage.setItem("yesResourceCheck", $("#yesResourceCheck").is(":checked"));
+      localStorage.setItem("noResourceCheck", $("#noResourceCheck").is(":checked"));
+      localStorage.setItem("yesCheckOIDCArtifacts", $("#yesCheckOIDCArtifacts").is(":checked"));
+      localStorage.setItem("noCheckOIDCArtifacts", $("#noCheckOIDCArtifacts").is(":checked"));
+      localStorage.setItem("useRefreshToken_yes", $("#useRefreshToken-yes").is(":checked"));
+      localStorage.setItem("usePKCE_yes", $("#usePKCE-yes").is(":checked"));
+      localStorage.setItem("client_id", $("#client_id").val());
+      localStorage.setItem("redirect_uri", $("#redirect_uri").val());
+      localStorage.setItem("scope", $("#scope").val());
+      localStorage.setItem("useRefreshToken_no", $("#useRefreshToken-no").is(":checked"));
+      localStorage.setItem("usePKCE_no", $("#usePKCE-no").is(":checked"));
+      localStorage.setItem("oidc_discovery_endpoint", $("#oidc_discovery_endpoint").val());
+      localStorage.setItem("oidc_userinfo_endpoint", $("#oidc_userinfo_endpoint").val());
+      localStorage.setItem("jwks_endpoint", $("#jwks_endpoint").val());
+      localStorage.setItem("authzcustomParametersCheck-yes", $("#authzcustomParametersCheck-yes").is(":checked"));
+      localStorage.setItem("authzcustomParametersCheck-no", $("#authzcustomParametersCheck-no").is(":checked"));
+      localStorage.setItem("authzNumberCustomParameters", $("#authzNumberCustomParameters").val());
+      if ( $("#authzcustomParametersCheck-yes").is(":checked")) {
         var i = 0;
-        var authzNumberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);
+        var authzNumberCustomParameters = parseInt($("#authzNumberCustomParameters").val());
         for(i = 0; i < authzNumberCustomParameters; i++)
         {
-          if(document.getElementById("customParameterName-" + i)){
-            log.debug("Writing customParameterName-" + i + " as " + document.getElementById("customParameterName-" + i).value + "\n");
-            localStorage.setItem("customParameterName-" + i, document.getElementById("customParameterName-" + i).value);
-            log.debug("Writing customParameterValue-" + i + " as " + document.getElementById("customParameterValue-" + i).value + "\n");
-            localStorage.setItem("customParameterValue-" + i, document.getElementById("customParameterValue-" + i).value);
+          if($("#customParameterName-" + i)){
+            log.debug("Writing customParameterName-" + i + " as " + $("#customParameterName-" + i).val() + "\n");
+            localStorage.setItem("customParameterName-" + i, $("#customParameterName-" + i).val());
+            log.debug("Writing customParameterValue-" + i + " as " + $("#customParameterValue-" + i).val() + "\n");
+            localStorage.setItem("customParameterValue-" + i, $("#customParameterValue-" + i).val());
           };
         }
       }
@@ -389,9 +298,9 @@ function initValuesToLocalStorage()
       localStorage.setItem("authzcustomParametersCheck-yes", false);
       localStorage.setItem("authzcustomParametersCheck-no", true);
       localStorage.setItem("authzNumberCustomParameters", 1);
-      if (document.getElementById("authzcustomParametersCheck-yes").checked) {
+      if ($("#authzcustomParametersCheck-yes").is(":checked")) {
         var i = 0;
-        var authzNumberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);
+        var authzNumberCustomParameters = parseInt($("#authzNumberCustomParameters").val());
         for(i = 0; i < authzNumberCustomParameters; i++)
         {
           log.debug("Writing customParameterName-" + i + " as " + "xyz" + "\n");
@@ -423,7 +332,6 @@ function loadValuesFromLocalStorage()
     $("#authorization_grant_type").val(authzGrantType);
     resetUI(authzGrantType);
   }
-  console.log("RCBJ0001");
   $("#authorization_endpoint").val(localStorage.getItem("authorization_endpoint"));
   $("#token_endpoint").val(localStorage.getItem("token_endpoint"));
   $("#redirect_uri").val(localStorage.getItem("redirect_uri"));
@@ -466,7 +374,6 @@ function loadValuesFromLocalStorage()
     }
   }
   setPKCEValues();
-  console.log("RCBJ0002");
   var agt = $("#authorization_grant_type").val();
 
   var pathname = window.location.pathname;
@@ -671,14 +578,14 @@ function recalculateAuthorizationRequestDescription()
 {
   log.debug("Entering recalculateAuthorizationRequestDescription().");
   log.debug("update request field");
-  var ta1 = document.getElementById("display_authz_request_form_textarea1");
-  log.debug("ta1=" + ta1);
-  var yesCheck = document.getElementById("yesResourceCheck").checked;
+  var ta1 =$("#display_authz_request_form_textarea1");
+  log.debug("ta1=" + JSON.stringify(ta1));
+  var yesCheck = $("#yesResourceCheck").is(":checked");
   log.debug("yesCheck=" + yesCheck);
   var resourceComponent = "";
   if(yesCheck) //add resource value to OAuth query string
   {
-    var resource = document.getElementById("resource").value;
+    var resource = $("#resource").val();
     if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
     {
       resourceComponent =  "&resource=" + resource;
@@ -686,18 +593,18 @@ function recalculateAuthorizationRequestDescription()
   }
   log.debug("resourceComponent=" + resourceComponent);
   var customParametersComponent = "";
-  var authzcustomParametersCheck = document.getElementById("authzcustomParametersCheck-yes").checked;
+  var authzcustomParametersCheck = $("#authzcustomParametersCheck-yes").is(":checked");
   log.debug("authzcustomParametersCheck: " + authzcustomParametersCheck + ", type=" + typeof(authzcustomParametersCheck));
   if(authzcustomParametersCheck) {
-    const numberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);
+    const numberCustomParameters = parseInt($("#authzNumberCustomParameters").val());
     log.debug('numberCustomParameters=' + numberCustomParameters);
     var i = 0;
     for(i = 0; i < numberCustomParameters; i++) 
     {
          try {
            customParametersComponent = customParametersComponent +
-                                       document.getElementById("customParameterName-" + i).value +
-                                       '=' + document.getElementById("customParameterValue-" + i).value + "&" + "\n";
+                                       $("#customParameterName-" + i).val() +
+                                       '=' + $("#customParameterValue-" + i).val() + "&" + "\n";
          } catch (e) {
            log.error("Unable to read custom parameter. Skipping.");
          }
@@ -707,51 +614,51 @@ function recalculateAuthorizationRequestDescription()
   }
   if (ta1 != null)
   {
-    var grant_type = document.getElementById("response_type").value;
+    var grant_type = $("#response_type").val();
     log.debug("grant_type=" + grant_type);
     if( grant_type == "code" ||
 	grant_type == "code id_token" ||
 	grant_type == "code token" ||
 	grant_type == "code id_token token")
     {
-      document.getElementById("display_authz_request_form_textarea1").value = "GET " + document.getElementById("authorization_endpoint").value + "?" + "\n" +
-                                                                      "state=" + document.getElementById("state").value + "&" + "\n" +
-                                                                      "nonce=" + document.getElementById("nonce_field").value + "&" + "\n" +
-                                                                      "response_type=" + document.getElementById("response_type").value + "&" + "\n" +
-                                                                      "client_id=" + document.getElementById("client_id").value + "&" + "\n" +
-                                                                      "redirect_uri=" + document.getElementById("redirect_uri").value + "&" +"\n" +
-                                                                      "scope=" + document.getElementById("scope").value;
+      $("#display_authz_request_form_textarea1").val(                  "GET " + $("#authorization_endpoint").val() + "?" + "\n" +
+                                                                      "state=" + $("#state").val() + "&" + "\n" +
+                                                                      "nonce=" + $("#nonce_field").val() + "&" + "\n" +
+                                                                      "response_type=" + $("#response_type").val() + "&" + "\n" +
+                                                                      "client_id=" + $("#client_id").val() + "&" + "\n" +
+                                                                      "redirect_uri=" + $("#redirect_uri").val() + "&" +"\n" +
+                                                                      "scope=" + $("#scope").val());
        if ( resourceComponent.length > 0) {
-         document.getElementById("display_authz_request_form_textarea1").value += "&\n" + resourceComponent + "\n";
+         $("#display_authz_request_form_textarea1").val( $("#display_authz_request_form_textarea1").val() + "&\n" + resourceComponent + "\n");
        }
        if (customParametersComponent.length > 0) {
-         document.getElementById("display_authz_request_form_textarea1").value += "&\n" +  customParametersComponent + "\n";
+         $("#display_authz_request_form_textarea1").val( $("#display_authz_request_form_textarea1").val() + "&\n" +  customParametersComponent + "\n");
        }
        if (usePKCE) {
-         document.getElementById("display_authz_request_form_textarea1").value += "&\n" + "code_challenge=" + document.getElementById("authz_pkce_code_challenge").value  + "&\n" +
-                                                                                          "code_challenge_method=" + document.getElementById("authz_pkce_code_method").value
+         $("#display_authz_request_form_textarea1").val( $("#display_authz_request_form_textarea1").val() + "&\n" + "code_challenge=" + $("#authz_pkce_code_challenge").val()  + "&\n" +
+                                                                                          "code_challenge_method=" + $("#authz_pkce_code_method").val());
        }
     } else if (	grant_type == "token" || 
 		grant_type == "id_token token" || 
 		grant_type == "id_token") {
-      document.getElementById("display_authz_request_form_textarea1").value = "GET " + document.getElementById("authorization_endpoint").value + "?" + "\n" +
-                                                                      "state=" + document.getElementById("state").value + "&" + "\n" +
-                                                                      "nonce=" + document.getElementById("nonce_field").value + "&" + "\n" +
-                                                                      "response_type=" + document.getElementById("response_type").value + "&" + "\n" +
-                                                                      "client_id=" + document.getElementById("client_id").value + "&" + "\n" +
-                                                                      "redirect_uri=" + document.getElementById("redirect_uri").value + "&" +"\n" +
-                                                                      "scope=" + document.getElementById("scope").value;
+      $("#display_authz_request_form_textarea1").val( 		      "GET " + $("#authorization_endpoint").val() + "?" + "\n" +
+                                                                      "state=" + $("#state").val() + "&" + "\n" +
+                                                                      "nonce=" + $("#nonce_field").val() + "&" + "\n" +
+                                                                      "response_type=" + $("#response_type").val() + "&" + "\n" +
+                                                                      "client_id=" + $("#client_id").val() + "&" + "\n" +
+                                                                      "redirect_uri=" + $("#redirect_uri").val() + "&" +"\n" +
+                                                                      "scope=" + $("#scope").val());
       if ( resourceComponent.length > 0) {
-        document.getElementById("display_authz_request_form_textarea1").value += "&" + resourceComponent + "\n";
+        $("#display_authz_request_form_textarea1").val( $("#display_authz_request_form_textarea1").val() + "&" + resourceComponent + "\n");
       }
       if (customParametersComponent.length > 0) {
-        document.getElementById("display_authz_request_form_textarea1").value += "&" +  customParametersComponent + "\n";
+        $("#display_authz_request_form_textarea1").val( $("#display_authz_request_form_textarea1").val() + "&" +  customParametersComponent + "\n");
       }
     } else {
-      document.getElementById("display_authz_request_form_textarea1").value = "UNKNOWN_GRANT_TYPE";
+      $("#display_authz_request_form_textarea1").val("UNKNOWN_GRANT_TYPE");
     }
   }
-  log.debug('display_authz_request_form_textarea1=' + document.getElementById("display_authz_request_form_textarea1").value);
+  log.debug('display_authz_request_form_textarea1=' + $("#display_authz_request_form_textarea1").val());
   log.debug("Leaving recalculateAuthorizationRequestDescription().");
 }
 
@@ -760,99 +667,10 @@ function triggerAuthZEndpointCall()
   log.debug("Entering triggerAuthZEndpointCall().");
   writeValuesToLocalStorage();
   recalculateAuthorizationRequestDescription();
-  window.location.href = DOMPurify.sanitize(document.getElementById("display_authz_request_form_textarea1").value.substring(4, 
-    document.getElementById("display_authz_request_form_textarea1").value.length
+  window.location.href = DOMPurify.sanitize($("#display_authz_request_form_textarea1").val().substring(4, 
+    $("#display_authz_request_form_textarea1").val().length
   ).replace("\n",""));
   log.debug("Leaving triggerAuthZEndpointCall().");
-}
-
-function recalculateTokenRequestDescription()
-{
-  log.debug("Entering recalculateTokenRequestDescription().");
-  log.debug("update request field");
-  var ta1 = document.getElementById("display_token_request_form_textarea1");
-  var yesCheck = false;
-  var resourceComponent = "";
-  if(yesCheck) //add resource value to OAuth query string
-  {
-    if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
-    {
-      resourceComponent =  "&resource=" + resource;
-    }
-  }
-
-  if (ta1 != null)
-  {
-    var grant_type = document.getElementById("token_grant_type").value;
-    if( grant_type == "authorization_code")
-    {
-      document.getElementById("display_token_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
-								      "Message Body:\n" +
-                                                                      "grant_type=" + document.getElementById("token_grant_type").value + "&" + "\n" +
-                                                                      "code=" + document.getElementById("code").value + "&" + "\n" +
-                                                                      "client_id=" + document.getElementById("token_client_id").value + "&" + "\n" +
-                                                                      "redirect_uri=" + document.getElementById("token_redirect_uri").value + "&" +"\n" +
-                                                                      "scope=" + document.getElementById("token_scope").value + "\n" + 
-                                                           	      resourceComponent + "\n";
-    } else if (grant_type == "client_credentials") {
-      document.getElementById("display_token_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
-                                                                     "Message Body:\n" +
-                                                                      "grant_type=" + document.getElementById("token_grant_type").value + "&" + "\n" +
-                                                                      "client_id=" + document.getElementById("token_client_id").value + "&" + "\n" +
-                                                                      "client_secret=" + document.getElementById("token_client_secret").value + "&" + "\n" +
-                                                                      "redirect_uri=" + document.getElementById("token_redirect_uri").value + "&" +"\n" +
-                                                                      "scope=" + document.getElementById("token_scope").value + "\n" +
-                                                                      resourceComponent + "\n";
-    } else if (grant_type == "password") {
-      document.getElementById("display_token_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
-                                                                      "Message Body:\n" +
-                                                                      "grant_type=" + document.getElementById("token_grant_type").value + "&" + "\n" +
-                                                                      "client_id=" + document.getElementById("token_client_id").value + "&" + "\n" +
-                                                                      "client_secret=" + document.getElementById("token_client_secret").value + "&" + "\n" +
-                                                                      "username=" + document.getElementById("token_username").value + "&" + "\n" +
-                                                                      "password=" + document.getElementById("token_password").value + "&" + "\n" +
-                                                                      "scope=" + document.getElementById("token_scope").value + "\n" +
-                                                                      resourceComponent +"\n";
-    }
-  }
-  log.debug("Leaving recalculateTokenRequestDescription().");
-}
-
-function recalculateRefreshRequestDescription()
-{
-  log.debug("Entering recalculateRefreshRequestDescription().");
-  log.debug("update request field");
-  var ta1 = document.getElementById("display_refresh_request_form_textarea1");
-  var resourceComponent = "";
-
-  if (ta1 != null)
-  {
-    var grant_type = document.getElementById("refresh_grant_type").value;
-    if( grant_type == "refresh_token")
-    {
-      var client_secret = document.getElementById("refresh_client_secret").value;
-      if( client_secret != "" &&
-          client_secret != null &&
-          client_secret != "null")
-      {
-        document.getElementById("display_refresh_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
-                                                                      "Message Body:\n" +
-                                                                      "grant_type=" + document.getElementById("refresh_grant_type").value + "&" + "\n" +
-                                                                      "refresh_token=" + document.getElementById("refresh_refresh_token").value + "&" + "\n" +
-                                                                      "client_id=" + document.getElementById("refresh_client_id").value + "&" + "\n" +
-                                                                      "client_secret=" + document.getElementById("refresh_client_secret").value + "&" + "\n" +
-                                                                      "scope=" + document.getElementById("refresh_scope").value + "\n";
-      } else {
-        document.getElementById("display_refresh_request_form_textarea1").value = "POST " + document.getElementById("token_endpoint").value + "\n" +
-                                                                      "Message Body:\n" +
-                                                                      "grant_type=" + document.getElementById("refresh_grant_type").value + "&" + "\n" +
-                                                                      "refresh_token=" + document.getElementById("refresh_refresh_token").value + "&" + "\n" +
-                                                                      "client_id=" + document.getElementById("refresh_client_id").value + "&" + "\n" +
-                                                                      "scope=" + document.getElementById("refresh_scope").value + "\n";
-      }
-    }
-  }
-  log.debug("Leaving recalculateRefreshRequestDescription().");
 }
 
 function onload() {
@@ -860,22 +678,22 @@ function onload() {
   $("#password-form-group1").hide();
   $("#password-form-group2").hide();
 
-  document.getElementById("authorization_endpoint").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("state").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("nonce_field").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("response_type").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("client_id").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("redirect_uri").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("scope").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("resource").addEventListener("onkeypress", recalculateAuthorizationRequestDescription());
-  document.getElementById("yesResourceCheck").addEventListener("onClick", recalculateAuthorizationRequestDescription());
-  document.getElementById("noResourceCheck").addEventListener("onClick", recalculateAuthorizationRequestDescription());
-  document.getElementById("yesCheckOIDCArtifacts").addEventListener("onClick", recalculateAuthorizationRequestDescription());
-  document.getElementById("noCheckOIDCArtifacts").addEventListener("onClick", recalculateAuthorizationRequestDescription());
-  document.getElementById("authzcustomParametersCheck-yes").addEventListener("onClick", recalculateAuthorizationRequestDescription());
-  document.getElementById("authzcustomParametersCheck-no").addEventListener("onClick", recalculateAuthorizationRequestDescription());
-  document.getElementById("usePKCE-yes").addEventListener("onClick", usePKCERFC());
-  document.getElementById("usePKCE-no").addEventListener("onClick", usePKCERFC());
+  $("#authorization_endpoint").on("keypress", recalculateAuthorizationRequestDescription);
+  $("#state").on("keypress", recalculateAuthorizationRequestDescription);
+  $("#nonce_field").on("keypress", recalculateAuthorizationRequestDescription);
+  $("#response_type").on("keypress", recalculateAuthorizationRequestDescription);
+  $("#client_id").on("keypress", recalculateAuthorizationRequestDescription);
+  $("#redirect_uri").on("keypress", recalculateAuthorizationRequestDescription);
+  $("#scope").on("keypress", recalculateAuthorizationRequestDescription);
+  $("#resource").on("keypress", recalculateAuthorizationRequestDescription);
+  $("#yesResourceCheck").on("click", recalculateAuthorizationRequestDescription);
+  $("#noResourceCheck").on("click", recalculateAuthorizationRequestDescription);
+  $("#yesCheckOIDCArtifacts").on("click", recalculateAuthorizationRequestDescription);
+  $("#noCheckOIDCArtifacts").on("click", recalculateAuthorizationRequestDescription);
+  $("#authzcustomParametersCheck-yes").on("click", recalculateAuthorizationRequestDescription);
+  $("#authzcustomParametersCheck-no").on("click", recalculateAuthorizationRequestDescription);
+  $("#usePKCE-yes").on("click", usePKCERFC);
+  $("#usePKCE-no").on("click", usePKCERFC);
 
   // Set initial values in case this is the first time the page was hit
   onSubmitClearAllForms(); 
@@ -883,23 +701,23 @@ function onload() {
 
   if (localStorage) {
     // Add an event listener for form submissions
-    document.getElementById("auth_step").addEventListener("submit", function() {
+    $("#auth_step").on("submit", function() {
       log.debug("Entering auth_step submit event listner function.");
-      localStorage.setItem("client_id", document.getElementById("client_id").value);
-      localStorage.setItem("scope", document.getElementById("scope").value);
-      localStorage.setItem("authorization_endpoint", document.getElementById("authorization_endpoint").value);
-      localStorage.setItem("token_endpoint", document.getElementById("token_endpoint").value);
-      localStorage.setItem("redirect_uri", document.getElementById("redirect_uri").value);
-      localStorage.setItem("authorization_grant_type", document.getElementById("authorization_grant_type").value);
-      localStorage.setItem("resource", document.getElementById("resource").value);
-      localStorage.setItem("yesCheck", document.getElementById("yesCheck").checked);
-      localStorage.setItem("noCheck", document.getElementById("noCheck").checked);
-      localStorage.setItem("yesCheckOIDCArtifacts", document.getElementById("yesCheckOIDCArtifacts").checked);
-      localStorage.setItem("noCheckOIDCArtifacts", document.getElementById("noCheckOIDCArtifacts").checked);
-      localStorage.setItem("authzcustomParametersCheck-yes", document.getElementById("authzcustomParametersCheck-yes").checked);
-      localStorage.setItem("authzcustomParametersCheck-no", document.getElementById("authzcustomParametersCheck-no").checked);
-      localStorage.setItem("usePKCE-yes", document.getElementById("usePKCE-yes").checked );
-      localStorage.setItem("usePKCE-no", document.getElementById("usePKCE-no").checked );
+      localStorage.setItem("client_id", $("#client_id").val());
+      localStorage.setItem("scope", $("#scope").val());
+      localStorage.setItem("authorization_endpoint", $("#authorization_endpoint").val());
+      localStorage.setItem("token_endpoint", $("#token_endpoint").val());
+      localStorage.setItem("redirect_uri", $("#redirect_uri").val());
+      localStorage.setItem("authorization_grant_type", $("#authorization_grant_type").val());
+      localStorage.setItem("resource", $("#resource").val());
+      localStorage.setItem("yesCheck", $("#yesCheck").is(":checked"));
+      localStorage.setItem("noCheck", $("#noCheck").is(":checked"));
+      localStorage.setItem("yesCheckOIDCArtifacts", $("#yesCheckOIDCArtifacts").is(":checked"));
+      localStorage.setItem("noCheckOIDCArtifacts", $("#noCheckOIDCArtifacts").is(":checked"));
+      localStorage.setItem("authzcustomParametersCheck-yes", $("#authzcustomParametersCheck-yes").is(":checked"));
+      localStorage.setItem("authzcustomParametersCheck-no", $("#authzcustomParametersCheck-no").is(":checked"));
+      localStorage.setItem("usePKCE-yes", $("#usePKCE-yes").is(":checked"));
+      localStorage.setItem("usePKCE-no", $("#usePKCE-no").is(":checked"));
       log.debug("Leaving auth_step submit event listener function.");
     });
   }
@@ -907,51 +725,48 @@ function onload() {
   generateCustomParametersListUI
   recalculateAuthorizationRequestDescription();
   recalculateAuthorizationErrorDescription();
-  recalculateTokenRequestDescription();
-  recalculateRefreshRequestDescription();
-  var yesChecked = document.getElementById("yesResourceCheck").checked;
-  if(yesChecked)
+  if($("#yesResourceCheck").is(":checked"))
   {
-    document.getElementById("authzResourceRow").style.visibility = '';
+    $("#authzResourceRow").show();
   } else {
-    document.getElementById("authzResourceRow").style.visibility = 'collapse';
+    $("#authzResourceRow").hide();
   }
-  if( document.getElementById("useRefreshToken-yes").checked)
+  if($("#useRefreshToken-yes").is(":checked"))
   {
-    useRefreshTokenTester = document.getElementById("useRefreshToken-yes").value;
-  } else if (document.getElementById("useRefreshToken-no").checked) {
-    useRefreshTokenTester = document.getElementById("useRefreshToken-no").value;
+    useRefreshTokenTester = $("#useRefreshToken-yes").val();
+  } else if ($("#useRefreshToken-no").is(":checked")) {
+    useRefreshTokenTester = $("#useRefreshToken-no").val();
   } else {
     useRefreshTokenTester = true;
   }
-  var authzcustomParametersCheck = document.getElementById("authzcustomParametersCheck-yes").checked;
+  var authzcustomParametersCheck = $("#authzcustomParametersCheck-yes").is(":checked");
   if(authzcustomParametersCheck)
   {
-    document.getElementById("authzCustomParametersRow").style.visibility = '';
+    $("#authzCustomParametersRow").show();
   } else {
-    document.getElementById("authzCustomParametersRow").style.visibility = 'collapse';
+    $("#authzCustomParametersRow").hide();
   }
   displayAuthzCustomParametersCheck();
   if(usePKCE) {
     log.debug("Show PKCE Data fields.");
-    document.getElementById("authz_pkce_code_challenge_row").style.visibility = '';
-    document.getElementById("authz_pkce_code_verifier_row").style.visibility = '';
-    document.getElementById("authz_pkce_code_method_row").style.visibility = '';
+    $("#authz_pkce_code_challenge_row").show();
+    $("#authz_pkce_code_verifier_row").show();
+    $("#authz_pkce_code_method_row").show();
   } else {
     log.debug("Hide PKCE Data fields.");
-    document.getElementById("authz_pkce_code_challenge_row").style.visibility = 'collapse';
-    document.getElementById("authz_pkce_code_verifier_row").style.visibility = 'collapse';
-    document.getElementById("authz_pkce_code_method_row").style.visibility = 'collapse';
+    $("#authz_pkce_code_challenge_row").hide();
+    $("#authz_pkce_code_verifier_row").hide();
+    $("#authz_pkce_code_method_row").hide();
   }
 
   if (usePKCE) {
-    document.getElementById("authz_pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
-    document.getElementById("authz_pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
-    document.getElementById("authz_pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+    $("#authz_pkce_code_challenge").val(localStorage.getItem("PKCE_code_challenge"));
+    $("#authz_pkce_code_verifier").val(localStorage.getItem("PKCE_code_verifier"));
+    $("#authz_pkce_code_method").val(localStorage.getItem("PKCE_code_challenge_method"));
   }
   recalculateAuthorizationRequestDescription();
 
-  var type = document.getElementById("response_type").value;
+  var type = $("#response_type").val();
   if(type == "client_credential") {
     window.location.href = "/debugger2.html";
   }
@@ -975,48 +790,33 @@ function generateUUID () { // Public Domain/MIT
 function displayResourceCheck()
 {
   log.debug("Entering displayResourceCheck().");
-  var yesCheck = document.getElementById("yesResourceCheck").checked;
-  var noCheck = document.getElementById("noResourceCheck").checked;
-  log.debug("yesCheck=" + yesCheck, "noCheck=" + noCheck);
-  if(yesCheck) {
-    document.getElementById("authzResourceRow").style.visibility = '';
-  } else if(noCheck) {
-    document.getElementById("authzResourceRow").style.visibility = "collapse"
+  if($("#yesResourceCheck").is(":checked")) {
+    log.debug("Showing authzResourceRow.");
+    $("#authzResourceRow").show();
+  } else if($("#noResourceCheck").is(":checked")) {
+    log.debug("Hiding authzResourceRow.");
+    $("#authzResourceRow").hide();
   }
   recalculateAuthorizationRequestDescription();
   log.debug("Leaving displayResourceCheck().");
 }
 
-function displayTokenResourceCheck()
-{
-  log.debug("Entering displayTokenResourceCheck().");
-  var yesCheck = document.getElementById("yesCheckToken").checked;
-  var noCheck = document.getElementById("noCheckToken").checked;
-  if( yesCheck) {
-    document.getElementById("authzTokenResourceRow").style.visibility = '';
-  } if(noCheck) {
-    document.getElementById("authzTokenResourceRow").style.visibility = 'collapse';
-  }
-  recalculateTokenRequestDescription();
-  log.debug("Leaving displayTokenResourceCheck().");
-}
-
 $(function() {
 $("#auth_step").submit(function () {
     log.debug("Entering auth_step submit function.");
-    var resource = document.getElementById("resource").value;
-    var yesCheck = document.getElementById("yesCheck").checked;
+    var resource = $("#resource").val();
+    var yesCheck = $("#yesCheck").is(":checked");
     log.debug("yesCheck=" + yesCheck);
     log.debug("resource=" + resource);
     if(yesCheck == false)
     {
-      document.getElementById("resource").disabled = "disabled"; 
-      document.getElementById("yesCheck").disabled = "disabled";
-      document.getElementById("noCheck").disabled = "disabled";
+      $("#resource").prop("disabled", true);
+      $("#yesCheck").prop("disabled", true);
+      $("#noCheck").prop("disabled", true);
     } else {
-      document.getElementById("resource").removeAttribute("disabled");
-      document.getElementById("yesCheck").removeAttribute("disabled");
-      document.getElementById("noCheck").removeAttribute("disabled");
+      $("#resource").prop("disabled", false);
+      $("#yesCheck").prop("disabled", false);
+      $("#noCheck").prop("disabled", false);
     }
     $(this)
       .find("input[name]")
@@ -1032,10 +832,10 @@ function recalculateAuthorizationErrorDescription()
 {
   log.debug("Entering recalculateAuthorizationErrorDescription().");
   log.debug("update error field");
-  var ta1 = document.getElementById("display_authz_error_form_textarea1");
+  var ta1 = $("#display_authz_error_form_textarea1");
   if (ta1 != null)
   {
-    var grant_type = document.getElementById("response_type").value;
+    var grant_type = $("#response_type").val();
     if( grant_type == "code" ||
         grant_type == "code id_token" ||
 	grant_type == "code token" ||
@@ -1049,10 +849,10 @@ function recalculateAuthorizationErrorDescription()
         var error_description = getParameterByName("error_description",window.location.href);
         var error_uri = getParameterByName("error_uri",window.location.href);
         var state = getParameterByName("state", window.location.href);
-        document.getElementById("display_authz_error_form_textarea1").value = "error: " + error + "\n" +
+        $("#display_authz_error_form_textarea1").val(                          "error: " + error + "\n" +
                                                                               "error_description: " + error_description + "\n" +
                                                                               "error_uri: " + error_uri + "\n" +
-                                                                              "state: " + state + "\n";
+                                                                              "state: " + state + "\n");
       }
     } else if (	grant_type == "token" || 
 		grant_type == "id_token" ||
@@ -1066,10 +866,10 @@ function recalculateAuthorizationErrorDescription()
         var error_description = getParameterByName("error_description",window.location.href);
         var error_uri = getParameterByName("error_uri",window.location.href);
         var state = getParameterByName("state",window.location.href);
-        document.getElementById("display_authz_error_form_textarea1").value = "error: " + error + "\n" +
+        $("#display_authz_error_form_textarea1").val(                          "error: " + error + "\n" +
                                                                               "error_description: " + error_description + "\n" +
                                                                               "error_uri: " + error_uri + "\n" +
-                                                                              "state: " + state + "\n";
+                                                                              "state: " + state + "\n");
       }
     }
   }
@@ -1092,10 +892,10 @@ function recalculateTokenErrorDescription(data)
                                        "</fieldset>";
   $("#display_token_error_class").html(display_token_error_class_html);
   log.debug("update error field");
-  var ta1 = document.getElementById("display_token_error_form_textarea1");
+  var ta1 = $("#display_token_error_form_textarea1");
   if (ta1 != null)
   {
-    var grant_type = document.getElementById("token_grant_type").value;
+    var grant_type = $("#token_grant_type").val();
     if( grant_type == "authorization_code")
     {
       var status = data.status;
@@ -1103,39 +903,39 @@ function recalculateTokenErrorDescription(data)
       var readyState = data.readyState;
       var responseText = data.responseText;
       var responseObject = JSON.parse(responseText);
-      document.getElementById("display_token_error_form_textarea1").value = "status: " + status + "\n" +
+      $("#display_token_error_form_textarea1").val(                             "status: " + status + "\n" +
 										"statusText: " + statusText + "\n" +
 										"readyState: " + readyState + "\n" +
 										"responseText: " + responseText +"\n" +
 										"OAuth2 Response Error Details:" + "\n" +
 										"error: " + responseObject.error + "\n" +
-										"error_description: " + responseObject.error_description +"\n";
+										"error_description: " + responseObject.error_description +"\n");
     } else if (grant_type == "client_credentials") {
       var status = data.status;
       var statusText = data.statusText;
       var readyState = data.readyState;
       var responseText = data.responseText;
       var responseObject = JSON.parse(responseText);
-      document.getElementById("display_token_error_form_textarea1").value = "status: " + status + "\n" +
+      $("#display_token_error_form_textarea1").val(                         "status: " + status + "\n" +
                                                                             "statusText: " + statusText + "\n" +
                                                                             "readyState: " + readyState + "\n" +
                                                                             "responseText: " + responseText +"\n" +
                                                                             "OAuth2 Response Error Details:" + "\n" +
                                                                             "error: " + responseObject.error + "\n" +
-                                                                            "error_description: " + responseObject.error_description +"\n";
+                                                                            "error_description: " + responseObject.error_description +"\n");
     } else if (grant_type == "password") {
       var status = data.status;
       var statusText = data.statusText;
       var readyState = data.readyState;
       var responseText = data.responseText;
       var responseObject = JSON.parse(responseText);
-      document.getElementById("display_token_error_form_textarea1").value = "status: " + status + "\n" +
+      $("#display_token_error_form_textarea1").val(                         "status: " + status + "\n" +
                                                                             "statusText: " + statusText + "\n" +
                                                                             "readyState: " + readyState + "\n" +
                                                                             "responseText: " + responseText +"\n" +
                                                                             "OAuth2 Response Error Details:" + "\n" +
                                                                             "error: " + responseObject.error + "\n" +
-                                                                            "error_description: " + responseObject.error_description +"\n";
+                                                                            "error_description: " + responseObject.error_description +"\n");
     }
   }
   log.debug("Leaving recalculateTokenErrorDescription().");
@@ -1157,10 +957,10 @@ function recalculateRefreshErrorDescription(data)
                                       "</fieldset>";
   $("#display_refresh_error_class").html(display_refresh_error_class);
   log.debug("update error field");
-  var ta1 = document.getElementById("display_refresh_error_form_textarea1");
+  var ta1 = $("#display_refresh_error_form_textarea1");
   if (ta1 != null)
   {
-    var grant_type = document.getElementById("refresh_grant_type").value;
+    var grant_type = $("#refresh_grant_type").val();
     if( grant_type == "refresh_token")
     {
       var status = data.status;
@@ -1168,13 +968,13 @@ function recalculateRefreshErrorDescription(data)
       var readyState = data.readyState;
       var responseText = data.responseText;
       var responseObject = JSON.parse(responseText);
-      document.getElementById("display_refresh_error_form_textarea1").value = "status: " + status + "\n" +
+      $("#display_refresh_error_form_textarea1").val(                           "status: " + status + "\n" +
 										"statusText: " + statusText + "\n" +
 										"readyState: " + readyState + "\n" +
 										"responseText: " + responseText +"\n" +
 										"OAuth2 Response Error Details:" + "\n" +
 										"error: " + responseObject.error + "\n" +
-										"error_description: " + responseObject.error_description +"\n";
+										"error_description: " + responseObject.error_description +"\n");
     }
   }
   log.debug("Leaving recalculateRefreshErrorDescription().");
@@ -1198,8 +998,8 @@ function parseFragment()
 function displayOIDCArtifacts()
 {
   log.debug("Entering displayOIDCArtifacts().");
-  var yesCheck = document.getElementById("yesCheckOIDCArtifacts").checked;
-  var noCheck = document.getElementById("noCheckOIDCArtifacts").checked;
+  var yesCheck = $("#yesCheckOIDCArtifacts").is(":checked");
+  var noCheck = $("#noCheckOIDCArtifacts").is(":checked");
   log.debug("yesCheckOIDCArtifacts=" + yesCheck, "noCheckOIDCArtifacts=" + noCheck);
   if(yesCheck) {
     displayOpenIDConnectArtifacts = true;
@@ -1214,8 +1014,8 @@ function displayOIDCArtifacts()
 function useRefreshTokens()
 {
   log.debug("Entering useRefreshToken().");
-  var yesCheck = document.getElementById("useRefreshToken-yes").checked;
-  var noCheck = document.getElementById("useRefreshToken-no").checked;
+  var yesCheck = $("#useRefreshToken-yes").is(":checked");
+  var noCheck = $("#useRefreshToken-no").is(":checked");
   log.debug("useRefreshToken-yes=" + yesCheck, "useRefreshToken-no=" + noCheck);
   if(yesCheck) {
     useRefreshTokenTester = true;
@@ -1231,8 +1031,8 @@ function useRefreshTokens()
 function usePKCERFC()
 {
   log.debug("Entering usePKCERFC().");
-  var yesCheck = document.getElementById("usePKCE-yes").checked;
-  var noCheck = document.getElementById("usePKCE-no").checked;
+  var yesCheck = $("#usePKCE-yes").is(":checked");
+  var noCheck = $("#usePKCE-no").is(":checked");
   log.debug("usePKCE-yes=" + yesCheck, "useRefreshToken-no=" + noCheck);
   if (yesCheck) {
     usePKCE = true;
@@ -1241,17 +1041,17 @@ function usePKCERFC()
   }
   if(usePKCE) {
     log.debug("Show PKCE Data fields.");
-    document.getElementById("authz_pkce_code_challenge_row").style.visibility = '';
-    document.getElementById("authz_pkce_code_verifier_row").style.visibility = '';
-    document.getElementById("authz_pkce_code_method_row").style.visibility = '';
-    document.getElementById("authz_pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
-    document.getElementById("authz_pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
-    document.getElementById("authz_pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+    $("#authz_pkce_code_challenge_row").show();
+    $("#authz_pkce_code_verifier_row").show();
+    $("#authz_pkce_code_method_row").show();
+    $("#authz_pkce_code_challenge").val(localStorage.getItem("PKCE_code_challenge"));
+    $("#authz_pkce_code_verifier").val(localStorage.getItem("PKCE_code_verifier"));
+    $("#authz_pkce_code_method").val(localStorage.getItem("PKCE_code_challenge_method"));
   } else {
     log.debug("Hide PKCE Data fields.");
-    document.getElementById("authz_pkce_code_challenge_row").style.visibility = 'collapse';
-    document.getElementById("authz_pkce_code_verifier_row").style.visibility = 'collapse';
-    document.getElementById("authz_pkce_code_method_row").style.visibility = 'collapse';
+    $("#authz_pkce_code_challenge_row").hide();
+    $("#authz_pkce_code_verifier_row").hide();
+    $("#authz_pkce_code_method_row").hide();
   }
   recalculateAuthorizationRequestDescription();
   log.debug("Leaving usePKCERFC().");
@@ -1269,7 +1069,7 @@ function OnSubmitOIDCDiscoveryEndpointForm()
 {
   log.debug("Entering OnSubmitOIDCDiscoveryEndpointForm().");
   writeValuesToLocalStorage();
-  var oidcDiscoveryEndpoint = document.getElementById("oidc_discovery_endpoint").value;
+  var oidcDiscoveryEndpoint = $("#oidc_discovery_endpoint").val();
   log.debug('URL: ' + oidcDiscoveryEndpoint);
   if (isUrl(oidcDiscoveryEndpoint)) {
     log.debug('valid URL: ' + oidcDiscoveryEndpoint);
@@ -1320,6 +1120,7 @@ function parseDiscoveryInfo(discoveryInfo) {
   var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
   var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
   var endSessionEndpoint = discoveryInfo["end_session_endpoint"];
+
   log.debug("authorizationEndpoint: " + authorizationEndpoint);
   log.debug("idTokenSigningAlgValuesSupported: " + JSON.stringify(idTokenSigningAlgValuesSupported));
   log.debug("issuer: " + issuer);
@@ -1377,11 +1178,11 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
   var endSessionEndpoint = discoveryInfo["end_session_endpoint"];
 
-  document.getElementById("authorization_endpoint").value = authorizationEndpoint;
-  document.getElementById("token_endpoint").value = tokenEndpoint;
-  document.getElementById("scope").value = scopesSupported;
-  document.getElementById("oidc_userinfo_endpoint").value = userInfoEndpoint;
-  document.getElementById("jwks_endpoint").value = jwksUri;
+  $("#authorization_endpoint").val(authorizationEndpoint);
+  $("#token_endpoint").val(tokenEndpoint);
+  $("#scope").val(scopesSupported);
+  $("#oidc_userinfo_endpoint").val(userInfoEndpoint);
+  $("#jwks_endpoint").val(jwksUri);
   if (localStorage) {
       log.debug('Adding to local storage.');
       localStorage.setItem("authorization_endpoint", authorizationEndpoint );
@@ -1399,122 +1200,118 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
 // Reset all forms and clear local storage
 function onSubmitClearAllForms() {
   log.debug("Entering onSubmitClearAllForms().");
-  if (document.getElementById("authorization_endpoint")) {
-    document.getElementById("authorization_endpoint").value = "";
+  if ($("#authorization_endpoint")) {
+    $("#authorization_endpoint").val("");
   }
-  if ( document.getElementById("token_endpoint")) {
-     document.getElementById("token_endpoint").value = "";
+  if ( $("#token_endpoint")) {
+     $("#token_endpoint").val("");
   }
-  if (document.getElementById("authorization_grant_type")) {
-    document.getElementById("authorization_grant_type").value = "oidc_authorization_code_flow";
+  if ( $("#authorization_grant_type")) {
+    $("#authorization_grant_type").val("oidc_authorization_code_flow");
   }
-  if (document.getElementById("token_resource")) {
-    document.getElementById("token_resource").value = "";
+  if ( $("#token_resource")) {
+    $("#token_resource").val("");
   }
-  if (document.getElementById("SSLValidate-yes")) {
-    document.getElementById("SSLValidate-yes").checked = true;
+  if ( $("#SSLValidate-yes")) {
+    $("#SSLValidate-yes").prop("checked", true);
   }
-  if (document.getElementById("SSLValidate-no")) {
-    document.getElementById("SSLValidate-no").checked = false;
+  if ( $("#SSLValidate-no")) {
+    $("#SSLValidate-no").prop("checked", false);
   }
-  if (document.getElementById("yesCheckOIDCArtifacts")) {
-    document.getElementById("yesCheckOIDCArtifacts").checked = true;
+  if ( $("#yesCheckOIDCArtifacts")) {
+    $("#yesCheckOIDCArtifacts").prop("checked", true);
   }
-  if (document.getElementById("noCheckOIDCArtifacts")) {
-    document.getElementById("noCheckOIDCArtifacts").checked = false;
+  if ( $("#noCheckOIDCArtifacts")) {
+    $("#noCheckOIDCArtifacts").prop("checked", false);
   }
-  if (document.getElementById("useRefreshToken-yes")) {
-    document.getElementById("useRefreshToken-yes").checked = true;
+  if ( $("#useRefreshToken-yes")) {
+    $("#useRefreshToken-yes").prop("checked", true);
   }
-  if (document.getElementById("useRefreshToken-no")) {
-    document.getElementById("useRefreshToken-no").checked = false;
+  if ( $("#useRefreshToken-no")) {
+    $("#useRefreshToken-no").prop("checked", false);
   }
-  if (document.getElementById("usePKCE-yes")) {
-    document.getElementById("usePKCE-yes").checked = true;
+  if ( $("#usePKCE-yes")) {
+    $("#usePKCE-yes").prop("checked", true);
   }
-  if (document.getElementById("usePKCE-no")) {
-    document.getElementById("usePKCE-no").checked = false;
-  }
-
-  if (document.getElementById("refresh_client_id")) {
-    document.getElementById("refresh_client_id").value = "";
-  }
-  if (document.getElementById("refresh_client_secret")) {
-    document.getElementById("refresh_client_secret").value = "";
-  }
-  if (document.getElementById("refresh_scope")) {
-    document.getElementById("refresh_scope").value = "";
-  }
-  if (document.getElementById("useRefreshToken-yes")) {
-    document.getElementById("useRefreshToken-yes").checked = true;
-  }
-  if (document.getElementById("useRefreshToken-no")) {
-    document.getElementById("useRefreshToken-no").checked = false;
-  }
-  if (document.getElementById("authzcustomParametersCheck-yes")) {
-    document.getElementById("authzcustomParametersCheck-yes").checked = true;
-  }
-  if (document.getElementById("authzcustomParametersCheck-no")) {
-    document.getElementById("authzcustomParametersCheck-no").checked = false;
-  }
-  if (document.getElementById("oidc_discovery_endpoint")) {
-    document.getElementById("oidc_discovery_endpoint").value = "";
-  }
-  if (document.getElementById("client_id")) {
-    document.getElementById("client_id").value = "";
-  }
-  if (document.getElementById("scope")) {
-    document.getElementById("scope").value = "";
-  }
-  if (document.getElementById("resource")) {
-    document.getElementById("resource").value = "";
-  }
-  if (document.getElementById("redirect_uri")) {
-    document.getElementById("redirect_uri").value = "";
-  }
-  if (document.getElementById("oidc_userinfo_endpoint")) {
-    document.getElementById("oidc_userinfo_endpoint").value = "";
-  }
-  if (document.getElementById("jwks_endpoint")) {
-    document.getElementById("jwks_endpoint").value = "";
+  if ( $("#usePKCE-no")) {
+    $("#usePKCE-no").prop("checked", false);
   }
 
-  $("#discovery_info_table").html("");
+  if ( $("#refresh_client_id")) {
+    $("#refresh_client_id").val("");
+  }
+  if ( $("#refresh_client_secret")) {
+    $("#refresh_client_secret").val("");
+  }
+  if ( $("#refresh_scope")) {
+    $("#refresh_scope").val("");
+  }
+  if ( $("#useRefreshToken-yes")) {
+    $("#useRefreshToken-yes").prop("checked", true);
+  }
+  if ( $("#useRefreshToken-no")) {
+    $("#useRefreshToken-no").prop("checked", false);
+  }
+  if ( $("#authzcustomParametersCheck-yes")) {
+    $("#authzcustomParametersCheck-yes").prop("checked", true);
+  }
+  if ( $("#authzcustomParametersCheck-no")) {
+    $("#authzcustomParametersCheck-no").prop("checked", false);
+  }
+  if ( $("#oidc_discovery_endpoint")) {
+    $("#oidc_discovery_endpoint").val("");
+  }
+  if ( $("#client_id")) {
+    $("#client_id").val("");
+  }
+  if ( $("#scope")) {
+    $("#scope").val("");
+  }
+  if ( $("#resource")) {
+    $("#resource").val("");
+  }
+  if ( $("#redirect_uri")) {
+    $("#redirect_uri").val("");
+  }
+  if ( $("#oidc_userinfo_endpoint")) {
+    $("#oidc_userinfo_endpoint").val("");
+  }
+  if ( $("#jwks_endpoint")) {
+    $("#jwks_endpoint").val("");
+  }
+  if ( $("#discovery_info_table") ) {
+    $("#discovery_info_table").html("");
+  }
   log.debug("Leaving onSubmitClearAllForms().");
 }
 
 function regenerateState() {
   log.debug("Entering regenerateState().");
-  document.getElementById("state").value = generateUUID();
-  localStorage.setItem('state', document.getElementById("state").value);
+  $("#state").val(generateUUID());
+  localStorage.setItem('state', $("#state").val());
   log.debug("Leaving regenerateState().");
 }
 
 function regenerateNonce() {
   log.debug("Entering regenerateNonce().");
-  document.getElementById("nonce_field").value = generateUUID();
-  localStorage.setItem('nonce_field', document.getElementById("nonce_field").value);
+  $("#nonce_field").val(generateUUID());
+  localStorage.setItem('nonce_field', $("#nonce_field").val());
   log.debug("Leaving regenerateNonce().");
 }
 
 function displayAuthzCustomParametersCheck()
 {
   log.debug("Entering displayAuthzCustomParametersCheck().");
-  var yesCheck = document.getElementById("authzcustomParametersCheck-yes").checked;
-  var noCheck = document.getElementById("authzcustomParametersCheck-no").checked;
-  log.debug("customParamtersYesCheck=" + yesCheck, "customParamtersNoCheck=" + noCheck);
-  if(yesCheck) {
-    document.getElementById("authzCustomParametersRow").style.visibility = '';
-    document.getElementById("authzcustomParametersCheck-no").checked = false;
-    document.getElementById("authzcustomParametersCheck-yes").checked = true;
-  } else if(noCheck) {
-    document.getElementById("authzCustomParametersRow").style.visibility = "collapse"
-    document.getElementById("authzcustomParametersCheck-yes").checked = false;
-    document.getElementById("authzcustomParametersCheck-no").checked = true;
-    $("#authz_custom_parameter_list").html("");
-  }
-  if (yesCheck) {
+  if($("#authzcustomParametersCheck-yes").is(":checked")) {
+    $("#authzCustomParametersRow").show();
+    $("#authzcustomParametersCheck-no").prop("checked", false);
+    $("#authzcustomParametersCheck-yes").prop("checked", true);
     generateCustomParametersListUI();
+  } else if($("#authzcustomParametersCheck-no").is(":checked")) {
+    $("#authzCustomParametersRow").hide();
+    $("#authzcustomParametersCheck-yes").prop("checked", false);
+    $("#authzcustomParametersCheck-no").prop("checked", true);
+    $("#authz_custom_parameter_list").html("");
   }
   recalculateAuthorizationRequestDescription();
   log.debug("Leaving displayAuthzCustomParametersCheck()");
@@ -1533,7 +1330,7 @@ function generateCustomParametersListUI()
         "<th>Value</th>" +
       "</tr>";
       var i = 0;
-      var j = parseInt(document.getElementById("authzNumberCustomParameters").value);
+      var j = parseInt($("#authzNumberCustomParameters").val());
       if (j > 10) {
         j = 10; // no more than ten
       }
@@ -1553,13 +1350,13 @@ function generateCustomParametersListUI()
       customParametersListHTML = customParametersListHTML +
         "</table>";
       $("#authz_custom_parameter_list").html(customParametersListHTML); 
-  if (document.getElementById("authzcustomParametersCheck-yes").checked) {
+  if ( $("#authzcustomParametersCheck-yes").is(":checked")) {
     var i = 0;
-    var authzNumberCustomParameters = parseInt(document.getElementById("authzNumberCustomParameters").value);
+    var authzNumberCustomParameters = parseInt($("#authzNumberCustomParameters").val());
     for(i = 0; i < authzNumberCustomParameters; i++)
     {
-      document.getElementById("customParameterName-" + i).value = localStorage.getItem("customParameterName-" + i);
-      document.getElementById("customParameterValue-" + i).value = localStorage.getItem("customParameterValue-" + i);
+      $("#customParameterName-" + i).val(localStorage.getItem("customParameterName-" + i));
+      $("#customParameterValue-" + i).val(localStorage.getItem("customParameterValue-" + i));
     }
   }
   recalculateAuthorizationRequestDescription();
@@ -1567,55 +1364,53 @@ function generateCustomParametersListUI()
 }
 
 function onClickShowAuthzFieldSet(id) {
-  log.debug('Entering onClickShowAuthzFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
-  if(id == 'authz_fieldset') {
-    if(document.getElementById(id).style.display == 'block') {
+  log.debug("Entering onClickShowAuthzFieldSet(). id=" + id + ". display=" + $("#" + id).css("display"));
+  if(id == "authz_fieldset") {
+    if($("#" + id).css("display") == 'block') {
        log.debug('Hide ' + id + '.');
-       document.getElementById(id).style.display = 'none'
-       document.getElementById('authz_expand_button').value='Expand';
-       document.getElementById('config_fieldset').style.display = 'block'
-       document.getElementById('config_expand_button').value='Collapse';
-       document.getElementById('oidc_fieldset').style.display = 'block'
-       document.getElementById('oidc_expand_button').value='Collapse';
+       $("#" + id).hide();
+       $('#authz_expand_button').val("Expand");
+       $('#config_fieldset').show();
+       $('#config_expand_button').val("Collapse");
+       $('#oidc_fieldset').show();
+       $('#oidc_expand_button').val("Collapse");
     } else {
       log.debug('Show ' + id + '.');
-      document.getElementById(id).style.display = 'block';
-      document.getElementById('authz_expand_button').value='Collapse';
-      document.getElementById('config_fieldset').style.display = 'none'
-      document.getElementById('config_expand_button').value='Expand';
-      document.getElementById('oidc_fieldset').style.display = 'none';
-      document.getElementById('oidc_expand_button').value='Expand';
+      $("#" + id).show();
+      $("#authz_expand_button").val("Collapse");
+      $('#config_fieldset').hide();
+      $("#config_expand_button").val("Expand");
+      $('#oidc_fieldset').hide();
+      $('#oidc_expand_button').val("Expand");
     }
   } else {
-    if(document.getElementById(id).style.display == 'block') {
+    if($("#" + id).css("display") == 'block') {
       log.debug('Hide ' + id + '.');
-      document.getElementById(id).style.display = 'none'
-      document.getElementById("oidc_expand_button").value='Expand';
+      $("#" + id).hide();
+      $("#oidc_expand_button").val("Expand");
     } else {
       log.debug('Show ' + id + '.');
-      document.getElementById(id).style.display = 'block';
-      document.getElementById("oidc_expand_button").value='Hide';
+      $("#" + id).show();
+      $("#oidc_expand_button").val("Hide");
     }
   }
   log.debug('Leaving onClickShowAuthzFieldSet().');
   return false;
 }
 
-function onClickShowConfigFieldSet(id) {
-  log.debug('Entering onClickShowConfigFieldSet(). id=' + id + ', style.display=' + document.getElementById(id).style.display);
-  if(document.getElementById(id).style.display == 'block') {
-     document.getElementById('config_expand_button').value='Expand';
+function onClickShowGenericFieldSet(id) {
+  log.debug('Entering onClickShowConfigFieldSet(). id=' 
+            + id + ', style.display='
+            + $("#" + id).css("display"));
+  var jid = "#" + id;
+  if($(jid).css("display") == 'block') {
+    $(jid).val("Expand");
+    $(jid).hide();
   } else {
-    document.getElementById('config_expand_button').value='Hide';
+    $(jid).val('Hide');
+    $(jid).show();
   }
-  if(document.getElementById(id).style.display == 'block') {
-    log.debug('Hide ' + id + '.');
-    document.getElementById(id).style.display = 'none'
-  } else {
-    log.debug('Show ' + id + '.');
-    document.getElementById(id).style.display = 'block';
-  }
-  log.debug('Leaving onClickShowConfigFieldSet().');
+  log.debug('Leaving onClickShowGenericFieldSet().');
   return false;
 }
 
@@ -1649,9 +1444,9 @@ function setPKCEValues()
   localStorage.setItem("PKCE_code_challenge", code_challenge);
   localStorage.setItem("PKCE_code_challenge_method", "S256");
   localStorage.setItem("PKCE_code_verifier", code_verifier );
-  document.getElementById("authz_pkce_code_challenge").value = localStorage.getItem("PKCE_code_challenge");
-  document.getElementById("authz_pkce_code_verifier").value = localStorage.getItem("PKCE_code_verifier");
-  document.getElementById("authz_pkce_code_method").value =  localStorage.getItem("PKCE_code_challenge_method");
+  $("#authz_pkce_code_challenge").val(localStorage.getItem("PKCE_code_challenge"));
+  $("#authz_pkce_code_verifier").val(localStorage.getItem("PKCE_code_verifier"));
+  $("#authz_pkce_code_method").val(localStorage.getItem("PKCE_code_challenge_method"));
   recalculateAuthorizationRequestDescription();
   log.debug("leaving setPKCEValues().");
   return code_challenge
@@ -1671,14 +1466,9 @@ module.exports = {
   writeValuesToLocalStorage,
   loadValuesFromLocalStorage,
   recalculateAuthorizationRequestDescription,
-  recalculateTokenRequestDescription,
-  recalculateRefreshRequestDescription,
   generateUUID,
   displayResourceCheck,
-  displayTokenResourceCheck,
   recalculateAuthorizationErrorDescription,
-  recalculateTokenErrorDescription,
-  recalculateRefreshErrorDescription,
   parseFragment,
   displayOIDCArtifacts,
   useRefreshTokens,
@@ -1694,7 +1484,7 @@ module.exports = {
   generateCustomParametersListUI,
   triggerAuthZEndpointCall,
   onClickShowAuthzFieldSet,
-  onClickShowConfigFieldSet,
+  onClickShowGenericFieldSet,
   onClickClearLocalStorage,
   usePKCERFC
 };
