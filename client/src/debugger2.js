@@ -637,14 +637,6 @@ function resetUI(value)
     document.getElementById("refresh_postAuthStyleCheckToken").checked = true;
     document.getElementById("refresh_headerAuthStyleCheckToken").checked = false;
 
-    // Clear all token values.
-    localStorage.setItem("token_access_token", "");
-    localStorage.setItem("token_id_token", "");
-    localStorage.setItem("token_refresh_token", "");
-    localStorage.setItem("refresh_access_token", "");
-    localStorage.setItem("refresh_id_token", "");
-    localStorage.setItem("refresh_refresh_token", "");
-    
     log.debug("Leaving resetUI().");
 }
 
@@ -689,10 +681,8 @@ function writeValuesToLocalStorage()
       localStorage.setItem("tokenNumberCustomParameters", document.getElementById("tokenNumberCustomParameters").value);
       if (document.getElementById("token_postAuthStyleCheckToken").checked ||
          document.getElementById("refresh_postAuthStyleCheckToken").checked) {
-        console.log("RCBJ0100");
         localStorage.setItem("token_post_auth_style", true);
       } else {
-        console.log("RCBJ0101");
         localStorage.setItem("token_post_auth_style", false);
       }
       if (document.getElementById("customTokenParametersCheck-yes").checked) {
@@ -759,11 +749,9 @@ function loadValuesFromLocalStorage()
   document.getElementById("customTokenParametersCheck-no").checked = getLSBooleanItem("customTokenParametersCheck-no");
   document.getElementById("tokenNumberCustomParameters").value = localStorage.getItem("tokenNumberCustomParameters")? localStorage.getItem("tokenNumberCustomParameters"): 1;
   if (getLSBooleanItem("token_post_auth_style")) {
-    console.log("RCBJ0102");
     document.getElementById("token_postAuthStyleCheckToken").checked = true
     document.getElementById("token_headerAuthStyleCheckToken").checked = false;
   } else {
-    console.log("RCBJ0103");
     document.getElementById("refresh_postAuthStyleCheckToken").checked = false;
     document.getElementById("refresh_headerAuthStyleCheckToken").checked = true;
   }
@@ -1155,6 +1143,15 @@ function onload() {
     log.debug('Detected redirect back from token detail page.');
     $("#step3").hide();
     recreateTokenDisplay();
+    $("#logout_id_token_hint").val(localStorage.getItem("token_id_token")); //RCBJ
+  } else {
+    // Clear all token values.
+    localStorage.setItem("token_access_token", "");
+    localStorage.setItem("token_id_token", "");
+    localStorage.setItem("token_refresh_token", "");
+    localStorage.setItem("refresh_access_token", "");
+    localStorage.setItem("refresh_id_token", "");
+    localStorage.setItem("refresh_refresh_token", "");
   }
   log.debug("Leaving onload().");
 }
@@ -1753,19 +1750,15 @@ function initFields() {
         localStorage.setItem("customTokenParametersCheck-no", true);
     }
     if (document.getElementById("token_postAuthStyleCheckToken")) {
-        console.log("RCBJ0104");
         document.getElementById("token_postAuthStyleCheckToken").checked = true;
     }
     if (document.getElementById("token_headerAuthStyleCheckToken")) {
-        console.log("RCBJ0105");
         document.getElementById("token_headerAuthStyleCheckToken").checked = false;
     }
     if (document.getElementById("refresh_postAuthStyleCheckToken")) {
-        console.log("RCBJ0106");
         document.getElementById("refresh_postAuthStyleCheckToken").checked = true;
     }
     if (document.getElementById("refresh_headerAuthStyleCheckToken")) {
-        console.log("RCBJ0107");
         document.getElementById("refresh_headerAuthStyleCheckToken").checked = false;
     }
     localStorage.setItem("refresh_post_auth_style", true);
