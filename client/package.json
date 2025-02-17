@@ -19,6 +19,7 @@
     "envify": "latest",
     "bunyan": "latest",
     "dompurify": "latest",
-    "jquery": "latest"
+    "jquery": "latest",
+    "jwks": "latest"
   }
 }
