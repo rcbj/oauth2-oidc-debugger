@@ -1143,7 +1143,7 @@ function onload() {
     log.debug('Detected redirect back from token detail page.');
     $("#step3").hide();
     recreateTokenDisplay();
-    $("#logout_id_token_hint").val(localStorage.getItem("token_id_token")); //RCBJ
+    $("#logout_id_token_hint").val(localStorage.getItem("token_id_token"));
   } else {
     // Clear all token values.
     localStorage.setItem("token_access_token", "");
