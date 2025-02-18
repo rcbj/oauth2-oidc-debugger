@@ -197,7 +197,9 @@ function resetUI(value)
       $("#step3").hide();
       $("#nonce").show();
       document.getElementById("response_type").value = "id_token token";
-      document.getElementById("scope").value = "openid profile";
+      if($("scope").val() == "") {
+        $("scope").val("openid profile");
+      }
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Access Token";
@@ -215,7 +217,9 @@ function resetUI(value)
       $("#step3").hide();
       $("#nonce").show();
       document.getElementById("response_type").value = "id_token";
-      document.getElementById("scope").value = "openid profile";
+      if($("scope").val() == "") {
+        $("scope").val("openid profile");
+      }
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       document.getElementById("h2_title_1").innerHTML = "Request Access Token";
@@ -233,7 +237,9 @@ function resetUI(value)
       $("#step3").show();
       $("#nonce").show();
       document.getElementById("response_type").value = "code";
-      document.getElementById("scope").value = "openid profile";
+      if($("scope").val() == "") {
+        $("scope").val("openid profile");
+      }
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
@@ -253,7 +259,9 @@ function resetUI(value)
       $("#step3").show();
       $("#nonce").show();
       document.getElementById("response_type").value = "code id_token";
-      document.getElementById("scope").value = "openid profile";
+      if($("scope").val() == "") {
+        $("scope").val("openid profile");
+      }
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
@@ -276,7 +284,9 @@ function resetUI(value)
       $("#step3").show();
       $("#nonce").show();
       document.getElementById("response_type").value = "code token";
-      document.getElementById("scope").value = "openid profile";
+      if($("scope").val() == "") {
+        $("scope").val("openid profile");
+      }
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
@@ -296,7 +306,9 @@ function resetUI(value)
       $("#step3").show();
       $("#nonce").show();
       document.getElementById("response_type").value = "code id_token token";
-      document.getElementById("scope").value = "openid profile";
+      if($("scope").val() == "") {
+        $("scope").val("openid profile");
+      }
       recalculateAuthorizationRequestDescription();
       recalculateAuthorizationErrorDescription();
       recalculateTokenRequestDescription();
