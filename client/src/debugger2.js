@@ -475,14 +475,6 @@ function resetUI(value)
     $("#refresh_postAuthStyleCheckToken").prop("checked", true);
     $("#refresh_headerAuthStyleCheckToken").prop("checked", false);
 
-    // Clear all token values.
-    localStorage.setItem("token_access_token", "");
-    localStorage.setItem("token_id_token", "");
-    localStorage.setItem("token_refresh_token", "");
-    localStorage.setItem("refresh_access_token", "");
-    localStorage.setItem("refresh_id_token", "");
-    localStorage.setItem("refresh_refresh_token", "");
-    
     log.debug("Leaving resetUI().");
 }
 
@@ -989,6 +981,15 @@ function onload() {
     log.debug('Detected redirect back from token detail page.');
     $("#step3").hide();
     recreateTokenDisplay();
+    $("#logout_id_token_hint").val(localStorage.getItem("token_id_token"));
+  } else {
+    // Clear all token values.
+    localStorage.setItem("token_access_token", "");
+    localStorage.setItem("token_id_token", "");
+    localStorage.setItem("token_refresh_token", "");
+    localStorage.setItem("refresh_access_token", "");
+    localStorage.setItem("refresh_id_token", "");
+    localStorage.setItem("refresh_refresh_token", "");
   }
   log.debug("Leaving onload().");
 }
@@ -1269,38 +1270,6 @@ $("#tipText").hover(
        $("#tooltip").hide();
   });
 
-function OnSubmitOIDCDiscoveryEndpointForm()
-{
-  log.debug("Entering OnSubmitOIDCDiscoveryEndpointForm().");
-  writeValuesToLocalStorage();
-  var oidcDiscoveryEndpoint = $("#oidc_discovery_endpoint").val();
-  log.debug('URL: ' + oidcDiscoveryEndpoint);
-  if (isUrl(oidcDiscoveryEndpoint)) {
-    log.debug('valid URL: ' + oidcDiscoveryEndpoint);
-    $.ajax({ type: 'GET',
-             crossOrigin: true,
-             url: oidcDiscoveryEndpoint,
-             success: function(result) {
-               log.debug("OIDC Discovery Endpoint Result: " + JSON.stringify(result));
-               discoveryInfo = result;
-               parseDiscoveryInfo(result);
-               buildDiscoveryInfoTable(result);
-             },
-             error: function (request, status, error) {
-               log.debug("request: " + JSON.stringify(request));
-               log.debug("status: " + JSON.stringify(status));
-               log.debug("error: " + JSON.stringify(error));
-             }
-           });
-    log.debug("Leaving OnSubmitOIDCDiscoveryEndpointForm()");
-    return false;
-  } else {
-    log.debug('Not a valid URL.');
-    log.debug("Leaving OnSubmitOIDCDiscoveryEndpointForm()");
-    return false;
-  }
-}
-
 function isUrl(url) {
   log.debug('Entering isUrl().');
   try {
@@ -1309,93 +1278,6 @@ function isUrl(url) {
     log.debug('An error occurred: ' + e.stack);
     return false;
   }
-}
-
-function parseDiscoveryInfo(discoveryInfo) {
-  log.debug("Entering parseDiscoveryInfo().");
-  var authorizationEndpoint = discoveryInfo["authorization_endpoint"];
-  var idTokenSigningAlgValuesSupported = discoveryInfo["id_token_signing_alg_values_supported"];
-  var issuer = discoveryInfo["issuer"];
-  var jwksUri = discoveryInfo["jwks_uri"];
-  var responseTypesSupported = discoveryInfo["response_types_supported"];
-  var scopesSupported = discoveryInfo["scopes_supported"];
-  var subjectTypesSupported = discoveryInfo["subject_types_supported"];
-  var tokenEndpoint = discoveryInfo["token_endpoint"];
-  var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
-  var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
-  log.debug("authorizationEndpoint: " + authorizationEndpoint);
-  log.debug("idTokenSigningAlgValuesSupported: " + JSON.stringify(idTokenSigningAlgValuesSupported));
-  log.debug("issuer: " + issuer);
-  log.debug("jwksUri: " + jwksUri);
-  log.debug("responseTypesSupported: " + JSON.stringify(responseTypesSupported));
-  log.debug("scopesSupported: " + JSON.stringify(scopesSupported));
-  log.debug("subjectTypesSupported: " + JSON.stringify(subjectTypesSupported));
-  log.debug("tokenEndpoint: " + tokenEndpoint);
-  log.debug("tokenEndpointAuthMethodsSupported: " + JSON.stringify(tokenEndpointAuthMethodsSupported));
-  log.debug("userInfoEndpoint: " + userInfoEndpoint);
-  log.debug("Leaving parseDiscoveryInfo()."); 
-}
-
-function buildDiscoveryInfoTable(discoveryInfo) {
-  log.debug("Entering buildDiscoveryInfoTable().");
-  var discovery_info_table_html = "<table border='2' style='border:2px;'>" +
-                                    "<tr>" +
-                                      "<td><strong>Attribute</strong></td>" +
-                                      "<td><strong>Value</strong></td>" +
-                                    "</tr>";
-   Object.keys(discoveryInfo).forEach( (key) => {
-     discovery_info_table_html = discovery_info_table_html +
-                                 "<tr>" +
-                                   "<td>" + key + "</td>" +
-                                   "<td>" + discoveryInfo[key] + "</td>" +
-                                 "</tr>";
-   });
-
-   discovery_info_table_html = discovery_info_table_html +
-                              "</table>";
-
-   var discovery_info_meta_data_html = '<table>' +
-                                       '<form>' +
-                                         '<td>' +
-                                           '<input class="btn_oidc_populate_meta_data" type="button" value="Populate Meta Data" onclick="return onSubmitPopulateFormsWithDiscoveryInformation();"/>' +
-                                         '</td>' +
-                                       '</form>' +
-                                       '</table>';
-  $("#discovery_info_meta_data_populate").html(DOMPurify.sanitize(discovery_info_meta_data_html));
-  $("#discovery_info_table").html(DOMPurify.sanitize(discovery_info_table_html));
-}
-
-function onSubmitPopulateFormsWithDiscoveryInformation() {
-  log.debug('Entering OnSubmitPopulateFormsWithDiscoveryInformation().');
-  var authorizationEndpoint = discoveryInfo["authorization_endpoint"];
-  var idTokenSigningAlgValuesSupported = discoveryInfo["id_token_signing_alg_values_supported"];
-  var issuer = discoveryInfo["issuer"];
-  var jwksUri = discoveryInfo["jwks_uri"];
-  var responseTypesSupported = discoveryInfo["response_types_supported"];
-  var scopesSupported = discoveryInfo["scopes_supported"].toString().replace(/,/g, " ");
-  var subjectTypesSupported = discoveryInfo["subject_types_supported"];
-  var tokenEndpoint = discoveryInfo["token_endpoint"];
-  var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
-  var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
-  var endSessionEndpoint = discoveryInfo["end_session_endpoint"];
-
-  $("#authorization_endpoint").val(authorizationEndpoint);
-  $("#token_endpoint").val(tokenEndpoint);
-  $("#token_scope").val(scopesSupported);
-  $("#scope").val(scopesSupported);
-  $("#oidc_userinfo_endpoint").val(userInfoEndpoint);
-  $("#jwks_endpoint").val(jwksUri);
-  if (localStorage) {
-      log.debug('Adding to local storage.');
-      localStorage.setItem("authorization_endpoint", authorizationEndpoint );
-      localStorage.setItem("token_endpoint", tokenEndpoint );
-      localStorage.setItem("scope", scopesSupported);
-      localStorage.setItem("token_scope", scopesSupported );
-      localStorage.setItem("jwks_endpoint", jwksUri);
-      localStorage.setItem("end_session_endpoint", endSessionEndpoint);
-  }
-  log.debug('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
-  return true;
 }
 
 function clearLocalStorage() {
@@ -1688,11 +1570,7 @@ module.exports = {
   parseFragment,
   displayOIDCArtifacts,
   useRefreshTokens,
-  OnSubmitOIDCDiscoveryEndpointForm,
   isUrl,
-  parseDiscoveryInfo,
-  buildDiscoveryInfoTable,
-  onSubmitPopulateFormsWithDiscoveryInformation,
   regenerateState,
   regenerateNonce,
   recreateTokenDisplay,

@@ -19,6 +19,12 @@
     "jsonwebtoken": "latest",
     "jwk-to-pem": "latest",
     "logops": "latest",
-    "pem-file": "latest"
+    "pem-file": "latest",
+    "@peculiar/asn1-pkcs8": "latest",
+    "envify": "latest",
+    "bunyan": "latest",
+    "dompurify": "latest",
+    "jquery": "latest",
+    "jwks": "latest"
   }
 }

@@ -7,6 +7,7 @@ This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I cr
 This project currently supports the following specs:
 * [OAuth2 - RFC 6749](https://tools.ietf.org/html/rfc6749)
 * [OAuth2 Refresh Token Support](https://www.rfc-editor.org/rfc/rfc6749#section-6)
+* [OAuth2 application authentication with client_id and client_secret via POST body or Basic Auth (rather than client cert or dsig).](https://www.rfc-editor.org/rfc/rfc6749#section-2.3.1)
 * [OpenID Connect Core 1](https://openid.net/specs/openid-connect-core-1_0.html)
 * [OpenID Connect Discovery v1.0](https://openid.net/specs/openid-connect-discovery-1_0.html)
 * [JWT RFC](https://tools.ietf.org/html/rfc7519)
@@ -43,7 +44,7 @@ So far, this tool has been tested with the following OAuth2 or OIDC implementati
 * Ping Federate (OAuth2 + OIDC)
 * AWS Cognito (OAuth2 + OIDC)
 * Facebook (OAuth2)
-* Google+ (OAuth2)
+* Google STS (OAuth2 + OIDC)
 * KeyCloak (reported to work by third-parties, Red Hat SSO v7.1 is KeyCloak under the Red Hat banner, so it should work)
 * Okta (OIDC + OAuth2)
 * Auth0 (OIDC + OAuth2)
