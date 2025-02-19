@@ -427,11 +427,11 @@ function resetUI(value)
     if( value == "client_credential")
     {
       $("#code").hide();
-      $("#authzUsernameRow").style.visibility = 'collapse';
-      $("#authzPasswordRow").style.visibility = 'collapse';
+      $("#authzUsernameRow").hide();
+      $("#authzPasswordRow").hide();
       $("#step2").hide();
       $("#step3").show();
-      $("#token_grant_type").value = "client_credentials";
+      $("#token_grant_type").val("client_credentials");
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       $("#h2_title_2").innerHTML = "Obtain Access Token";
@@ -440,6 +440,11 @@ function resetUI(value)
       $("#usePKCE-yes").prop("checked", false);
       $("#usePKCE-no").prop("checked", true);
       usePKCERFC();
+      $("#step5").hide();
+      $("#useRefreshToken-yes").prop("checked", false);
+      $("#useRefreshToken-no").prop("checked", true);
+      displayOpenIDConnectArtifacts = false;
+      useRefreshTokenTester = false;
     }
     if( value == "resource_owner")
     {
@@ -449,7 +454,7 @@ function resetUI(value)
       $("#step2").hide();
       $("#step3").show();
       $("#response_type").val("");
-      $("#token_grant_type").value("password");
+      $("#token_grant_type").val("password");
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
       $("#h2_title_2").html("Obtain Access Token");
@@ -469,6 +474,7 @@ function resetUI(value)
     $("#refresh_postAuthStyleCheckToken").prop("checked", true);
     $("#refresh_headerAuthStyleCheckToken").prop("checked", false);
 
+    recalculateTokenRequestDescription();
     log.debug("Leaving resetUI().");
 }
 
@@ -811,7 +817,7 @@ function recalculateTokenRequestDescription()
       if(usePKCE) {
         $("#display_token_request_form_textarea1").val( $("#display_token_request_form_textarea1").val() +"&\n" + "code_verifier=" + $("#token_pkce_code_verifier").val());
       }
-    } else if (grant_type == "client_credential") {
+    } else if (grant_type == "client_credentials") {
       $("#display_token_request_form_textarea1").val(		      "POST " + $("#token_endpoint").val() + "\n" +
                                                                       "Message Body:\n" +
                                                                       "grant_type=" + $("#token_grant_type").val() + "&" + "\n" +
