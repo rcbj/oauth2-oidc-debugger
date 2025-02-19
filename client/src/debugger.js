@@ -14,12 +14,6 @@ log.info("Log initialized. logLevel=" + log.level());
 var displayOpenIDConnectArtifacts = true;
 var useRefreshTokenTester = true;
 var usePKCE = true;
-var displayStep0 = true;
-var displayStep1 = true;
-var displayStep2 = true;
-var displayStep3 = true;
-var displayStep4 = true;
-var displayStep5 = true;
 var discoveryInfo = {};
 var initialized = false;
 
@@ -1373,6 +1367,8 @@ function generateCustomParametersListUI()
     {
       $("#customParameterName-" + i).val(localStorage.getItem("customParameterName-" + i));
       $("#customParameterValue-" + i).val(localStorage.getItem("customParameterValue-" + i));
+      $("#customParameterName-" + i).on("keypress", recalculateAuthorizationRequestDescription);
+      $("#customParameterValue-" + i).on("keypress", recalculateAuthorizationRequestDescription);
     }
   }
   recalculateAuthorizationRequestDescription();

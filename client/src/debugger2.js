@@ -9,17 +9,11 @@ const $ = require("jquery");
 const log = bunyan.createLogger({ name: 'debugger2',
                                 level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
-var displayOpenIDConnectArtifacts = false;
-var useRefreshTokenTester = false;
-var displayStep0 = true;
-var displayStep1 = true;
-var displayStep2 = true;
-var displayStep3 = true;
-var displayStep4 = true;
-var displayStep5 = true;
+var displayOpenIDConnectArtifacts = true;
+var useRefreshTokenTester = true;
 var discoveryInfo = {};
 var currentRefreshToken = '';
-var usePKCE = false;
+var usePKCE = true;
 
 function OnSubmitTokenEndpointForm()
 {
@@ -330,7 +324,7 @@ $(".refresh_btn").click(function() {
       var refresh_endpoint_result_html = "";
       log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
       var iteration = 1;
-      if( $("#refresh-token-results-iteration-count") != null)
+      if(!!$("#refresh-token-results-iteration-count").val())
       {
         iteration = parseInt($("#refresh-token-results-iteration-count").val()) + 1;
       }
@@ -805,7 +799,7 @@ function recalculateTokenRequestDescription()
   if (ta1 != null)
   {
     var grant_type = $("#token_grant_type").val();
-    if( grant_type == "authorization_code")
+    if(grant_type == "authorization_code")
     {
       $("#display_token_request_form_textarea1").val(                 "POST " + $("#token_endpoint").val() + "\n" +
 								      "Message Body:\n" +
@@ -1234,12 +1228,13 @@ function displayOIDCArtifacts()
   log.debug("Entering displayOIDCArtifacts().");
   var yesCheck = $("#yesCheckOIDCArtifacts").is(":checked");
   var noCheck = $("#noCheckOIDCArtifacts").is("checked");
-  log.debug("yesCheckOIDCArtifacts=" + yesCheck, "noCheckOIDCArtifacts=" + noCheck);
+  log.debug("yesCheckOIDCArtifacts=" + yesCheck + ", noCheckOIDCArtifacts=" + noCheck + ", typeof=" + typeof(yesCheck));
   if(yesCheck) {
     displayOpenIDConnectArtifacts = true;
-    
   } else if(noCheck) {
     displayOpenIDConnectArtifacts = false;
+  } else {
+    displayOpenIDConnectArtifacts = true;
   }
   log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
   log.debug("Leaving displayOIDCArtifacts().");
@@ -1422,6 +1417,9 @@ function generateCustomParametersListUI()
     {
       $("#customTokenParameterName-" + i).val(localStorage.getItem("customTokenParameterName-" + i));
       $("#customTokenParameterValue-" + i).val(localStorage.getItem("customTokenParameterValue-" + i));
+      $("#customTokenParameterName-" + i).on("keypress", recalculateTokenRequestDescription);
+      $("#customTokenParameterValue-" + i).on("keypress", recalculateTokenRequestDescription);
+
     }
   }
   recalculateTokenRequestDescription();
