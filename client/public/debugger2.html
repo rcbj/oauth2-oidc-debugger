@@ -35,7 +35,7 @@
 
 <p>This is a simple Client to use with any <a href="https://medium.com/@robert.broeckelmann/saml2-vs-jwt-understanding-oauth2-4abde9e7ec8b">OAuth2</a> or <a href="https://medium.com/@robert.broeckelmann/understanding-openid-connect-series-37c93d25e92b">OpenID Connect</a> compliant identity provider..
 </p>
-
+<p>This page manages interaction with the OAuth2 Token Endpoint.</p>
 <div class="state-status" id="state-status"></div>
 <div class="authz-error-report" id="authz-error-report"></div>
 
@@ -55,7 +55,17 @@
               </div>
             </td>
             <td>
-              <select class="stored" id="authorization_grant_type" name="authorization_grant_type"><option value="authorization_grant">OAuth2 Authorization Code Grant</option><option value="implicit_grant">OAuth2 Implicit Grant</option><option value="resource_owner">OAuth2 Resource Owner Password Credential Grant</option><option value="client_credential">OAuth2 Client Credential</option><option value="oidc_authorization_code_flow">OIDC Authorization Code Flow(code)</option><option value="oidc_implicit_flow">OIDC Implicit Flow(id_token token)</option><option value="oidc_implicit_flow_id_token">OIDC Implicit Flow(id_token)</option><option value="oidc_hybrid_code_id_token">OIDC Hybrid(code id_token)</option><option value="oidc_hybrid_code_token">OIDC Hybrid(code token)</option><option value="oidc_hybrid_code_id_token_token">OIDC Hybrid(code id_token token)</option> 
+              <select class="stored" id="authorization_grant_type" name="authorization_grant_type">
+                <option value="authorization_grant">OAuth2 Authorization Code Grant</option>
+                <option value="implicit_grant">OAuth2 Implicit Grant</option>
+                <option value="resource_owner">OAuth2 Resource Owner Password Credential Grant</option>
+                <option value="client_credential">OAuth2 Client Credential</option>
+                <option value="oidc_authorization_code_flow">OIDC Authorization Code Flow(code)</option>
+                <option value="oidc_implicit_flow">OIDC Implicit Flow(id_token token)</option>
+                <option value="oidc_implicit_flow_id_token">OIDC Implicit Flow(id_token)</option>
+                <option value="oidc_hybrid_code_id_token">OIDC Hybrid(code id_token)</option>
+                <option value="oidc_hybrid_code_token">OIDC Hybrid(code token)</option>
+                <option value="oidc_hybrid_code_id_token_token">OIDC Hybrid(code id_token token)</option> 
               </select>
             </td>
           </tr>
@@ -237,7 +247,7 @@
             <input id="noResourceCheckToken" name="token-yesno" onclick="debugger2.displayTokenResourceCheck();" type="radio" />
           </td>
         </tr>
-        <tr id="authzTokenResourceRow" style="visibility:collapse">
+        <tr id="authzTokenResourceRow" style="">
           <td>
             <div class="tooltip"><label>Resource: </label><span class="tooltiptext">Does the identity provider require a resource parameter?</span>
             </div>
@@ -246,31 +256,31 @@
             <input class="stored" id="token_resource" name="token_resource" type="text" />
           </td>
         </tr>
-        <tr id="token_pkce_code_challenge_row" style="visibility:collapse">
+        <tr id="token_pkce_code_challenge_row" style="">
           <td>
             <div class="tooltip"><label>PKCE code_challenge</label><span class="tooltiptext">PKCE RFC code_challenge.</span>
             </div>
           </td>
           <td>
-            <input type="text" name="token_pkce_code_challenge" value="123456679" id="token_pkce_code_challenge" />
+            <input type="text" name="token_pkce_code_challenge" value="123456679" id="token_pkce_code_challenge" /> (Included in request sent to Authorization Endpoint.)
           </td>
         </tr>
-        <tr id="token_pkce_code_verifier_row" style="visibility:collapse">
+        <tr id="token_pkce_code_verifier_row" style="">
           <td>
             <div class="tooltip"><label>PKCE code_verifier</label><span class="tooltiptext">PKCE RFC code_verifier.</span>
             </div>
           </td>
           <td>
-            <input type="text" name="token_pkce_code_verifier" value="987654321" id="token_pkce_code_verifier" />
+            <input type="text" name="token_pkce_code_verifier" value="987654321" id="token_pkce_code_verifier" /> (Included in request sent to Token Endpoint.)
           </td>
         </tr>
-        <tr id="token_pkce_code_method_row" style="visibility:collapse">
+        <tr id="token_pkce_code_method_row" style="">
           <td>
             <div class="tooltip"><label>PKCE code_method</label><span class="tooltiptext">PKCE RFC code_method.</span>
             </div>
           </td>
           <td>
-            <input type="text" name="token_pkce_code_method" value="S256" id="token_pkce_code_method" />
+            <input type="text" name="token_pkce_code_method" value="S256" id="token_pkce_code_method" /> (Included in request sent to Authorization Endpoint.)
           </td>
         </tr>
         <tr>
