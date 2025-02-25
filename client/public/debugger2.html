@@ -203,6 +203,16 @@
         </tr>
         <tr>
           <td>
+            <div class="tooltip"><label>Initiate Token Endpoint Call From front or backend.: </label><span class="tooltiptext">The debugger can initiate a Token Endpoint call from either the frontend (browser) or from the backend API component. Certain IdPs make stringent assumptions about CORS and how calls will be originated. Especially concerning the Origin request header, which cannot be controlled from the browser.</span>
+            </div>
+          </td>
+          <td>Front
+            <input id="token_initiateFromFrontEnd" name="token-initiateFromFrontEnd" checked="true" onclick="debugger2.setInitiateFromEnd();" type="radio" />Back
+            <input id="token_initiateFromBackEnd" name="token-initiateFromFrontEnd" checked="false" onclick="debugger2.setInitiateFromEnd();" type="radio" />
+          </td>
+        </tr>
+        <tr>
+          <td>
             <div class="tooltip"><label>Redirect URL: </label><span class="tooltiptext">The redirect URI registered with the Identity Provider. Using the default configuration, this value should be http://localhost:3000/callback</span>
             </div>
           </td>

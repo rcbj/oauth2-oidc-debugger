@@ -612,8 +612,8 @@ function loadValuesFromLocalStorage()
     $("#token_pkce_code_challenge").val(localStorage.getItem("PKCE_code_challenge"));
     $("#token_pkce_code_verifier").val(localStorage.getItem("PKCE_code_verifier"));
     $("#token_pkce_code_method").val(localStorage.getItem("PKCE_code_challenge_method"));
-    usePKCERFC();
   }
+  usePKCERFC();
 
   var agt = $("#authorization_grant_type").val();
   var pathname = window.location.pathname;
@@ -739,7 +739,17 @@ function loadValuesFromLocalStorage()
       access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
     log.debug("access_token=" + access_token);
-    $("#authorization_endpoint_result").html(DOMPurify.sanitize("<fieldset><legend>Authorization Endpoint Results:</legend><table><tr><td>access_token</td><td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + access_token + "</textarea></td></tr></table></fieldset>"));
+    $("#authorization_endpoint_result").html(DOMPurify.sanitize("<fieldset>" +
+                                                                "  <legend>Authorization Endpoint Results:</legend>" +
+                                                                "  <table>" +
+                                                                "    <tr>" +
+                                                                "      <td>access_token</td>" +
+                                                                "      <td>" +
+                                                                "        <textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea>" +
+                                                                "      </td>" +
+                                                                "    </tr>" +
+                                                                "  </table>" +
+                                                                "</fieldset>"));
   }
   if ( 	(agt == "oidc_implicit_flow" || agt == "oidc_implicit_flow_id_token" ||  agt == "oidc_hybrid_code_id_token") && 
 	pathname == "/debugger2.html") //retrieve access_token for implicit_grant for callback redirect response
@@ -758,7 +768,17 @@ function loadValuesFromLocalStorage()
     }
     log.debug("id_token=" + id_token);
     $("#logout_id_token_hint").val(id_token);
-    $("#authorization_endpoint_id_token_result").html(DOMPurify.sanitize("<fieldset><legend>Authorization Endpoint Results</legend><table><tr><td>id_token</td><td><textarea id=\"implicit_flow_id_token\" rows=5 cols=100>" + DOMPurify.sanitize(id_token) + "</textarea></td></tr></table></fieldset>"));
+    $("#authorization_endpoint_id_token_result").html(DOMPurify.sanitize("<fieldset>" +
+                                                                         "  <legend>Authorization Endpoint Results</legend>" +
+                                                                         "  <table>" +
+                                                                         "    <tr>" +
+                                                                         "      <td>id_token</td>" +
+                                                                         "      <td>" +
+                                                                         "        <textarea id='implicit_flow_id_token' rows=5 cols=100>" + DOMPurify.sanitize(id_token) + "</textarea>" +
+                                                                         "      </td>" +
+                                                                         "    </tr>" +
+                                                                         "  </table>" +
+                                                                         "</fieldset>"));
   }
   var error = getParameterByName("error",window.location.href);
   var authzGrantType = $("#authorization_grant_type").val();
@@ -1494,7 +1514,6 @@ function initFields() {
 function usePKCERFC()
 {
   log.debug("Entering usePKCERFC().");
-  var usePKCE = true;
   if ($("#usePKCE-yes").is(":checked")) {
     usePKCE = true;
   } else {
