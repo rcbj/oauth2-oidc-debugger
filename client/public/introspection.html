@@ -41,7 +41,7 @@
         <tbody>
           <tr>
             <td>
-              <div class="tooltip"><label>OIDC Token Introspection Endpoint: </label><span class="tooltiptext">The OIDC Token Introspection Endpoint.</span>
+              <div class="tooltip"><label>OIDC Introspection Endpoint: </label><span class="tooltiptext">The OIDC Introspection Endpoint.</span>
               </div>
             </td>
             <td>
@@ -50,7 +50,7 @@
           </tr>
           <tr>
             <td>
-              <div class="tooltip"><label>OIDC Token Introspection Token: </label><span class="tooltiptext">The OIDC Token Introspection Endpoint Token.</span>
+              <div class="tooltip"><label>OIDC Introspection Token: </label><span class="tooltiptext">The OIDC Introspection Token.</span>
               </div>
             </td>
             <td>
@@ -59,12 +59,13 @@
           </tr>
           <tr>
             <td>
-              <div class="tooltip"><label>OIDC Token Introspection Token Type Hint: </label><span class="tooltiptext">The OIDC Token Introspection Endpoint Token Type Hint (access_token or refresh_token).</span>
+              <div class="tooltip"><label>OIDC Introspection Token Type Hint: </label><span class="tooltiptext">The OIDC Introspection Token Type Hint (access_token or refresh_token).</span>
               </div>
             </td>
             <td>
               <select class="stored" id="introspection_token_type_hint" name="introspection_token_type_hint"  >
-                <option value="access_token" selected="selected">access_token</option>
+                <option value="" selected="selected"></option>
+                <option value="access_token">access_token</option>
                 <option value="refresh_token">refresh_token</option>
               </select>
             </td>
@@ -90,10 +91,10 @@
     </form>
   </fieldset>
 
-<p>This screen supports obtaining information from the OIDC Token Introspection Endpoint.
+<p>This screen supports obtaining information from the OIDC Introspection Endpoint.
 <div class="introspection_step" id="introspection_step">
   <fieldset>
-    <legend id="h2_title_2" name="h2_title_2">Token Introspection Endpoint Results
+    <legend id="h2_title_2" name="h2_title_2">Introspection Endpoint Results
     </legend>
     <table>
       <tbody>
@@ -104,7 +105,7 @@
         </tr>
         <tr>
           <td>
-            <div class="tooltip"><label>Token Introspection Output:</label><span class="tooltiptext">Token Introspection Output.</span>
+            <div class="tooltip"><label>Introspection Output:</label><span class="tooltiptext">Introspection Output.</span>
             </div>
           </td>
           <td>

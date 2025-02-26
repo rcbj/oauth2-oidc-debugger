@@ -193,7 +193,8 @@ $(document).ready(function() {
                                       "<legend>Token Endpoint Results:</legend>" + 
 				      "<table>" +
 				        "<tr>" +
-                                          '<td><a href="/token_detail.html?type=access">Access Token</a></td>' + 
+                                          '<td><P><a href="/token_detail.html?type=access">Access Token</a></P>' +
+                                          '<P style="font-size:50%;"><a href="/introspection.html">Introspect Token</a></P></td>' + 
                                           "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
                                             data.access_token + 
                                             "</textarea>" +
@@ -201,7 +202,8 @@ $(document).ready(function() {
                                         "</tr>";
         if(currentRefreshToken) {
            token_endpoint_result_html +=  "<tr>" +
-                                          '<td><a href="/token_detail.html?type=refresh">Refresh Token</a></td>' +
+                                          '<td><P><a href="/token_detail.html?type=refresh">Refresh Token</a></P>' +
+                                          '<P style="font-size:50%;"><a href="/introspection.html">Introspect Token</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" + 
                                             currentRefreshToken +
                                             "</textarea>" +
@@ -209,7 +211,7 @@ $(document).ready(function() {
                                         "</tr>";
          }
          token_endpoint_result_html +=  "<tr>" +
-                                          '<td><P><a href="/token_detail.html?type=id">ID Token</a><p>' +
+                                          '<td><P><a href="/token_detail.html?type=id">ID Token</a></P>' +
                                           '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_id_token id=token_id_token>" + 
                                              data.id_token + 
@@ -339,14 +341,16 @@ $(".refresh_btn").click(function() {
                                       "<legend>Token Endpoint Results for Refresh Token Call:</legend>" + 
 				      "<table>" +
 				        "<tr>" +
-                                          '<td><a href="/token_detail.html?type=refresh_access">Access Token</a></td>' +
+                                          '<td><P><a href="/token_detail.html?type=refresh_access">Access Token</a></P>' +
+                                          '<P style="font-size:50%;"><a href="/introspection.html">Introspect Token</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=refresh_access_token id=refresh_access_token>" + 
                                             data.access_token + 
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          '<td><a href="/token_detail.html?type=refresh_refesh">Refresh Token</a></td>' +
+                                          '<td><P><a href="/token_detail.html?type=refresh_refesh">Refresh Token</a></P>' +
+                                          '<P style="font-size:50%;"><a href="/introspection.html">Introspect Token</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=refresh_refresh_token id=refresh_refresh_token>" + 
                                             currentRefreshToken +
                                             "</textarea>" +
@@ -559,6 +563,7 @@ function loadValuesFromLocalStorage()
   }
   $("#authorization_endpoint").val(localStorage.getItem("authorization_endpoint"));
   $("#token_endpoint").val(localStorage.getItem("token_endpoint"));
+  $("#introspection_endpoint").val(localStorage.getItem("introspection_endpoint"));
   $("#token_client_id").val(localStorage.getItem("client_id"));
   $("#token_client_secret").val(localStorage.getItem("client_secret"));
   $("#token_redirect_uri").val(localStorage.getItem("redirect_uri"));
@@ -1330,7 +1335,8 @@ function recreateTokenDisplay()
                                       "<legend>Token Endpoint Results:</legend>" + 
 				      "<table>" +
 				        "<tr>" +
-                                          '<td><a href="/token_detail.html?type=access">Access Token</a></td>' + 
+                                          '<td><P><a href="/token_detail.html?type=access">Access Token</a></P>' +
+                                          '<P style="font-size:50%;"><a href="/introspection.html">Introspect Token</a></P></td>' + 
                                           "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
                                             localStorage.getItem("token_access_token") + 
                                             "</textarea>" +
@@ -1338,7 +1344,8 @@ function recreateTokenDisplay()
                                         "</tr>";
          if(typeof refreshToken != "undefined" && refreshToken != "undefined") {
            token_endpoint_result_html += "<tr>" +
-                                          '<td><a href="/token_detail.html?type=refresh">Refresh Token</a></td>' +
+                                          '<td><P><a href="/token_detail.html?type=refresh">Refresh Token</a></P>' +
+                                          '<P style="font-size:50%;"><a href="/introspection.html">Introspect Token</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" + 
                                             refreshToken +
                                             "</textarea>" +
