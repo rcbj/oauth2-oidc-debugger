@@ -151,6 +151,12 @@ function loadValuesFromLocalStorage()
     } else if (type == 'refresh') {
       introspection_token = localStorage.getItem("token_refresh_token");
       introspection_token_type_hint = "refresh_token";
+    } else if (type == 'refresh_access') {
+      introspection_token = localStorage.getItem("refresh_access_token");
+      introspection_token_type_hint = "access_token";
+    } else if (type == 'refresh_refresh') {
+      introspection_token = localStorage.getItem("refresh_refresh_token");
+      introspection_token_type_hint = "refresh_token";
     } else {
       log.error('Unknown token type encountered.');
     }
