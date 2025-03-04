@@ -96,12 +96,28 @@ $(".introspection_token_type_hint").keypress(function() {
 
 $(".client_id").keypress(function() {
   log.debug("Entering keypress().");
-  localStorage.setItem("token_client_id", client_id);
+
+  const type = getParameterByName('type');
+  if (type == 'access' || type == 'refresh') {
+    localStorage.setItem("token_client_id", client_id);
+  } else if (type == 'refresh_access' || type == 'refresh_refresh') {
+    localStorage.setItem("refresh_client_id", client_id);
+  } else {
+    log.error('Unknown token type encountered.');
+  }
 });
 
 $(".client_secret").keypress(function() {
   log.debug("Entering keypress().");
-  localStorage.setItem("token_client_secret", client_secret);
+
+  const type = getParameterByName('type');
+  if (type == 'access' || type == 'refresh') {
+    localStorage.setItem("token_client_secret", client_secret);
+  } else if (type == 'refresh_access' || type == 'refresh_refresh') {
+    localStorage.setItem("refresh_client_secret", client_secret);
+  } else {
+    log.error('Unknown token type encountered.');
+  }
 });
 
 function resetUI(value)
@@ -122,8 +138,18 @@ function writeValuesToLocalStorage()
     localStorage.setItem("introspection_endpoint", introspection_endpoint);
     localStorage.setItem("introspection_token", introspection_token);
     localStorage.setItem("introspection_token_type_hint", introspection_token_type_hint);
-    localStorage.setItem("token_client_id", client_id);
-    localStorage.setItem("token_client_secret", client_secret);
+    
+    const type = getParameterByName('type');
+    if (type == 'access' || type == 'refresh') {
+      localStorage.setItem("token_client_id", client_id);
+      localStorage.setItem("token_client_secret", client_secret);
+    } else if (type == 'refresh_access' || type == 'refresh_refresh') {
+      localStorage.setItem("refresh_client_id", client_id);
+      localStorage.setItem("refresh_client_secret", client_secret);
+    } else {
+      log.error('Unknown token type encountered.');
+    }
+    
   }
   log.debug("Leaving writeValuesToLocalStorage().");
 }
@@ -148,21 +174,28 @@ function loadValuesFromLocalStorage()
     if (type == 'access') {
       introspection_token = localStorage.getItem("token_access_token");
       introspection_token_type_hint = "access_token";
+      client_id = localStorage.getItem("token_client_id");
+      client_secret = localStorage.getItem("token_client_secret");
     } else if (type == 'refresh') {
       introspection_token = localStorage.getItem("token_refresh_token");
       introspection_token_type_hint = "refresh_token";
+      client_id = localStorage.getItem("token_client_id");
+      client_secret = localStorage.getItem("token_client_secret");
     } else if (type == 'refresh_access') {
       introspection_token = localStorage.getItem("refresh_access_token");
       introspection_token_type_hint = "access_token";
+      client_id = localStorage.getItem("refresh_client_id");
+      client_secret = localStorage.getItem("refresh_client_secret");
     } else if (type == 'refresh_refresh') {
       introspection_token = localStorage.getItem("refresh_refresh_token");
       introspection_token_type_hint = "refresh_token";
+      client_id = localStorage.getItem("refresh_client_id");
+      client_secret = localStorage.getItem("refresh_client_secret");
     } else {
       log.error('Unknown token type encountered.');
     }
 
-    client_id = localStorage.getItem("token_client_id");
-    client_secret = localStorage.getItem("token_client_secret");
+    
   }
   // Set configuration fields
   document.getElementById("introspection_endpoint").value = introspection_endpoint;
