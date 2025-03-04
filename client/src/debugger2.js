@@ -194,7 +194,7 @@ $(document).ready(function() {
 				      "<table>" +
 				        "<tr>" +
                                           '<td><P><a href="/token_detail.html?type=access">Access Token</a></P>' +
-                                          '<P style="font-size:50%;"><a href="/introspection.html">Introspect Token</a></P></td>' + 
+                                          '<P style="font-size:50%;"><a href="/introspection.html?type=access">Introspect Token</a></P></td>' + 
                                           "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
                                             data.access_token + 
                                             "</textarea>" +
@@ -203,7 +203,7 @@ $(document).ready(function() {
         if(currentRefreshToken) {
            token_endpoint_result_html +=  "<tr>" +
                                           '<td><P><a href="/token_detail.html?type=refresh">Refresh Token</a></P>' +
-                                          '<P style="font-size:50%;"><a href="/introspection.html">Introspect Token</a></P></td>' +
+                                          '<P style="font-size:50%;"><a href="/introspection.html?type=refresh">Introspect Token</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" + 
                                             currentRefreshToken +
                                             "</textarea>" +
@@ -342,7 +342,7 @@ $(".refresh_btn").click(function() {
 				      "<table>" +
 				        "<tr>" +
                                           '<td><P><a href="/token_detail.html?type=refresh_access">Access Token</a></P>' +
-                                          '<P style="font-size:50%;"><a href="/introspection.html">Introspect Token</a></P></td>' +
+                                          '<P style="font-size:50%;"><a href="/introspection.html?type=access">Introspect Token</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=refresh_access_token id=refresh_access_token>" + 
                                             data.access_token + 
                                             "</textarea>" +
@@ -350,7 +350,7 @@ $(".refresh_btn").click(function() {
                                         "</tr>" +
                                         "<tr>" +
                                           '<td><P><a href="/token_detail.html?type=refresh_refesh">Refresh Token</a></P>' +
-                                          '<P style="font-size:50%;"><a href="/introspection.html">Introspect Token</a></P></td>' +
+                                          '<P style="font-size:50%;"><a href="/introspection.html?type=refresh">Introspect Token</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=refresh_refresh_token id=refresh_refresh_token>" + 
                                             currentRefreshToken +
                                             "</textarea>" +
@@ -1336,7 +1336,7 @@ function recreateTokenDisplay()
 				      "<table>" +
 				        "<tr>" +
                                           '<td><P><a href="/token_detail.html?type=access">Access Token</a></P>' +
-                                          '<P style="font-size:50%;"><a href="/introspection.html">Introspect Token</a></P></td>' + 
+                                          '<P style="font-size:50%;"><a href="/introspection.html?type=access">Introspect Token</a></P></td>' + 
                                           "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
                                             localStorage.getItem("token_access_token") + 
                                             "</textarea>" +
@@ -1345,7 +1345,7 @@ function recreateTokenDisplay()
          if(typeof refreshToken != "undefined" && refreshToken != "undefined") {
            token_endpoint_result_html += "<tr>" +
                                           '<td><P><a href="/token_detail.html?type=refresh">Refresh Token</a></P>' +
-                                          '<P style="font-size:50%;"><a href="/introspection.html">Introspect Token</a></P></td>' +
+                                          '<P style="font-size:50%;"><a href="/introspection.html?type=refresh">Introspect Token</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" + 
                                             refreshToken +
                                             "</textarea>" +

@@ -12,11 +12,10 @@ log.info("Log initialized. logLevel=" + log.level());
 const jwt = require('jsonwebtoken');
 var initialized = false
 var introspection_endpoint = "";
-var userinfo_scope = "";
-var userinfo_method = "";
-var userinfo_claims = "";
-var token_access_token = "";
-var query_string = "";
+var introspection_token = "";
+var introspection_token_type_hint = "";
+var client_id = "";
+var client_secret = "";
 
 function getParameterByName(name, url)
 {
@@ -39,40 +38,33 @@ window.onload = function()
   log.debug("Leaving window.onload() function.");
 }
 
-function recalculateUserInfoURL()
+function callIntrospectionEndpoint()
 {
-  log.debug("Entering recalculateUserInfoURL() function.");
-  if(userinfo_scope) {
-    query_string = 'scope=' + userinfo_scope;
-  }
-  if(userinfo_claims) {
-    query_string += '&claims=' + userinfo_claims;
-  }
-  log.debug("Leaving recalcualteUserInfoURL().");
-}
-
-function callUserInfoEndpoint()
-{
-  log.debug("Entering callUserInfoEndpoint().");
-  var userinfoEndpointCall = $.ajax({
-    type: userinfo_method,
-    crossdomain: true,
-    url: userinfo_endpoint + "?" + query_string,
+  log.debug("Entering callIntrospectionEndpoint().");
+  var introspectionEndpointCall = $.ajax({
+    type: "POST",
+    url: introspection_endpoint,
+    crossDomain: true,
     headers: {
-      Authorization: 'Bearer ' + token_access_token
+      "Authorization": "Basic " + btoa(client_id + ":" + client_secret),
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    data: {
+      token: introspection_token,
+      token_type_hint: introspection_token_type_hint
     },
     success: function(data, textStatus, request) {
       log.debug('Entering ajax success function for Access Token call.');
-      log.debug('UserInfo textStatus: ' + JSON.stringify(textStatus));
-      log.debug('UserInfo Endpoint Response: ' + JSON.stringify(data));
-      log.debug('UserInfo request: ' + JSON.stringify(request));
-      log.debug('UserInfo Response Content-Type: ' + userinfoEndpointCall.getResponseHeader("Content-Type"));
-      log.debug('UserInfo Headers: ' + JSON.stringify(userinfoEndpointCall.getAllResponseHeaders()));
-      var responseContentType = userinfoEndpointCall.getResponseHeader("Content-Type");
+      log.debug('Introspection textStatus: ' + JSON.stringify(textStatus));
+      log.debug('Introspection Endpoint Response: ' + JSON.stringify(data));
+      log.debug('Introspection request: ' + JSON.stringify(request));
+      log.debug('Introspection Response Content-Type: ' + introspectionEndpointCall.getResponseHeader("Content-Type"));
+      log.debug('Introspection Headers: ' + JSON.stringify(introspectionEndpointCall.getAllResponseHeaders()));
+      var responseContentType = introspectionEndpointCall.getResponseHeader("Content-Type");
       if (responseContentType.includes('application/json')) {
         log.debug('plaintext response detected, no signature, no encryption');
-        log.debug('UserInfo Endpoint Response: ' + JSON.stringify(data, null, 2));
-        document.getElementById("userinfo_output").value = JSON.stringify(data,null,2);
+        log.debug('Introspection Endpoint Response: ' + JSON.stringify(data, null, 2));
+        document.getElementById("introspection_output").value = JSON.stringify(data,null,2);
       } else {
         log.error('Unknown response format.');
       }
@@ -84,34 +76,32 @@ function callUserInfoEndpoint()
       // recalculateTokenErrorDescription(request);
     }
   });
-  log.debug("Entering callUserInfoEndpoint().");
+  log.debug("Entering callIntrospectionEndpoint().");
 }
 
-$(".userinfo_endpoint").keypress(function() {
+$(".introspection_endpoint").keypress(function() {
   log.debug("Entering keypress().");
-  localStorage.setItem("userinfo_endpoint", userinfo_endpoint);
+  localStorage.setItem("introspection_endpoint", introspection_endpoint);
 });
 
-$(".userinfo_method").keypress(function() {
+$(".introspection_token").keypress(function() {
   log.debug("Entering keypress()."); 
-  localStorage.setItem("userinfo_method", userinfo_method);
+  localStorage.setItem("introspection_token", introspection_token);
 });
 
-$(".userinfo_scope").keypress(function() {
+$(".introspection_token_type_hint").keypress(function() {
   log.debug("Entering keypress().");
-  localStorage.setItem("userinfo_scope", userinfo_scope);
-  recalculateUserInfoURL();
+  localStorage.setItem("introspection_token_type_hint", introspection_token_type_hint);
 });
 
-$(".userinfo_claims").keypress(function() {
+$(".client_id").keypress(function() {
   log.debug("Entering keypress().");
-  localStorage.setItem("userinfo_claims", userinfo_claims);
-  recalculateUserInfoURL(); 
+  localStorage.setItem("token_client_id", client_id);
 });
 
-$(".token_access_token").keypress(function() {
+$(".client_secret").keypress(function() {
   log.debug("Entering keypress().");
-  localStorage.setItem("token_access_token", token_access_token);
+  localStorage.setItem("token_client_secret", client_secret);
 });
 
 function resetUI(value)
@@ -129,11 +119,11 @@ function writeValuesToLocalStorage()
 {
   log.debug("Entering writeValuesToLocalStorage().");
   if (localStorage) {
-    localStorage.setItem("userinfo_endpoint", userinfo_endpoint);
-    localStorage.setItem("userinfo_method", userinfo_method);
-    localStorage.setItem("userinfo_scope", userinfo_scope);
-    localStorage.setItem("userinfo_claims", userinfo_claims);
-    localStorage.setItem("token_access_token", token_access_token);
+    localStorage.setItem("introspection_endpoint", introspection_endpoint);
+    localStorage.setItem("introspection_token", introspection_token);
+    localStorage.setItem("introspection_token_type_hint", introspection_token_type_hint);
+    localStorage.setItem("token_client_id", client_id);
+    localStorage.setItem("token_client_secret", client_secret);
   }
   log.debug("Leaving writeValuesToLocalStorage().");
 }
@@ -142,25 +132,7 @@ function initLocalStorage()
 {
   log.debug("Entering initLocalStorage().");
   if(localStorage && !initialized) {
-    localStorage.setItem("userinfo_method", "GET");
-    localStorage.setItem("userinfo_scope", "profile email address phone");
-    var default_claims = {
-     "userinfo":
-      {
-       "given_name": {"essential": true},
-       "nickname": null,
-       "email": {"essential": true},
-       "email_verified": {"essential": true},
-       "picture": null,
-       "http://example.info/claims/groups": null
-      },
-     "id_token":
-      {
-       "auth_time": {"essential": true},
-       "acr": {"values": ["urn:mace:incommon:iap:silver"] }
-      }
-    };
-    localStorage.setItem("userinfo_claims", JSON.stringify(default_claims, null, 2));
+    localStorage.setItem("introspection_token_type_hint", "");
     initialized = true;
   }
   log.debug("Leaving initLocalStorage().");
@@ -170,18 +142,28 @@ function loadValuesFromLocalStorage()
 {
   log.debug("Entering loadValuesFromLocalStorage().");
   if(localStorage) {
-    userinfo_endpoint = localStorage.getItem("oidc_userinfo_endpoint");
-    userinfo_method = localStorage.getItem("userinfo_method");
-    userinfo_scope = localStorage.getItem("userinfo_scope");
-    userinfo_claims = localStorage.getItem("userinfo_claims");
-    token_access_token = localStorage.getItem("token_access_token");
+    introspection_endpoint = localStorage.getItem("introspection_endpoint");
+
+    const type = getParameterByName('type');
+    if (type == 'access') {
+      introspection_token = localStorage.getItem("token_access_token");
+      introspection_token_type_hint = "access_token";
+    } else if (type == 'refresh') {
+      introspection_token = localStorage.getItem("token_refresh_token");
+      introspection_token_type_hint = "refresh_token";
+    } else {
+      log.error('Unknown token type encountered.');
+    }
+
+    client_id = localStorage.getItem("token_client_id");
+    client_secret = localStorage.getItem("token_client_secret");
   }
   // Set configuration fields
-  document.getElementById("userinfo_endpoint").value = userinfo_endpoint;
-  document.getElementById("userinfo_method").value = userinfo_method;
-  document.getElementById("userinfo_scope").value = userinfo_scope;
-  document.getElementById("userinfo_claims").value = userinfo_claims;
-  document.getElementById("token_access_token").value = token_access_token;
+  document.getElementById("introspection_endpoint").value = introspection_endpoint;
+  document.getElementById("introspection_token").value = introspection_token;
+  document.getElementById("introspection_token_type_hint").value = introspection_token_type_hint;
+  document.getElementById("client_id").value = client_id;
+  document.getElementById("client_secret").value = client_secret;
   log.debug("Leaving loadValuesFromLocalStorage().");
 }
 
@@ -204,6 +186,6 @@ function onClickToggleConfigurationParameters() {
 
 module.exports = {
   getParameterByName,
-  callUserInfoEndpoint,
+  callIntrospectionEndpoint,
   onClickToggleConfigurationParameters
 };

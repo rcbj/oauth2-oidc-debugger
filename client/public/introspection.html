@@ -72,16 +72,25 @@
           </tr>
           <tr>
             <td>
-              <div class="tooltip"><label>OAuth2 Access Token: </label><span class="tooltiptext">The OAuth2 Access Token</span>
+              <div class="tooltip"><label>OAuth2 Client ID: </label><span class="tooltiptext">The OAuth2 Client ID</span>
               </div>
             </td>
             <td>
-              <input class="stored" id="token_access_token" name="token_access_token" type="text" max="150"/>
+              <input class="stored" id="client_id" name="client_id" type="text" max="150"/>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>OAuth2 Client Secret: </label><span class="tooltiptext">The OAuth2 Client Secret</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="client_secret" name="client_secret" type="text" max="150"/>
             </td>
           </tr>
         <tr>
           <td>
-            <input class="btn2" type="submit" value="Introspect Token" onclick="return introspection.callTokenIntrospectionEndpoint();" />
+            <input class="btn2" type="submit" value="Introspect Token" onclick="return introspection.callIntrospectionEndpoint();" />
           </td>
           <td>&nbsp;
           </td>
