@@ -349,7 +349,7 @@ $(".refresh_btn").click(function() {
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          '<td><P><a href="/token_detail.html?type=refresh_refesh">Refresh Token</a></P>' +
+                                          '<td><P><a href="/token_detail.html?type=refresh_refresh">Refresh Token</a></P>' +
                                           '<P style="font-size:50%;"><a href="/introspection.html?type=refresh_refresh">Introspect Token</a></P></td>' +
                                           "<td><textarea rows=10 cols=60 name=refresh_refresh_token id=refresh_refresh_token>" + 
                                             currentRefreshToken +
