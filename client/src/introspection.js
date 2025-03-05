@@ -1,4 +1,4 @@
-// File: userinfo.js
+// File: introspection.js
 // Author: Robert C. Broeckelmann Jr.
 // Date: 07/11/2020
 // Notes:
@@ -10,7 +10,6 @@ var log = bunyan.createLogger({ name: 'introspection',
                                 level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
 const jwt = require('jsonwebtoken');
-var initialized = false
 var introspection_endpoint = "";
 var introspection_token = "";
 var introspection_token_type_hint = "";
@@ -29,18 +28,13 @@ function getParameterByName(name, url)
   return urlParams.get(name);
 }
 
-window.onload = function() 
-{
-  log.debug("Entering window.onload() function.");
-  initLocalStorage();
-  loadValuesFromLocalStorage();
-  resetErrorDisplays();
-  log.debug("Leaving window.onload() function.");
-}
-
 function callIntrospectionEndpoint()
 {
   log.debug("Entering callIntrospectionEndpoint().");
+
+  client_id = document.getElementById("client_id").value;
+  client_secret = document.getElementById("client_secret").value;
+
   var introspectionEndpointCall = $.ajax({
     type: "POST",
     url: introspection_endpoint,
@@ -76,92 +70,8 @@ function callIntrospectionEndpoint()
       // recalculateTokenErrorDescription(request);
     }
   });
+  writeValuesToLocalStorage();
   log.debug("Entering callIntrospectionEndpoint().");
-}
-
-$(".introspection_endpoint").keypress(function() {
-  log.debug("Entering keypress().");
-  localStorage.setItem("introspection_endpoint", introspection_endpoint);
-});
-
-$(".introspection_token").keypress(function() {
-  log.debug("Entering keypress()."); 
-  localStorage.setItem("introspection_token", introspection_token);
-});
-
-$(".introspection_token_type_hint").keypress(function() {
-  log.debug("Entering keypress().");
-  localStorage.setItem("introspection_token_type_hint", introspection_token_type_hint);
-});
-
-$(".client_id").keypress(function() {
-  log.debug("Entering keypress().");
-
-  const type = getParameterByName('type');
-  if (type == 'access' || type == 'refresh') {
-    localStorage.setItem("token_client_id", client_id);
-  } else if (type == 'refresh_access' || type == 'refresh_refresh') {
-    localStorage.setItem("refresh_client_id", client_id);
-  } else {
-    log.error('Unknown token type encountered.');
-  }
-});
-
-$(".client_secret").keypress(function() {
-  log.debug("Entering keypress().");
-
-  const type = getParameterByName('type');
-  if (type == 'access' || type == 'refresh') {
-    localStorage.setItem("token_client_secret", client_secret);
-  } else if (type == 'refresh_access' || type == 'refresh_refresh') {
-    localStorage.setItem("refresh_client_secret", client_secret);
-  } else {
-    log.error('Unknown token type encountered.');
-  }
-});
-
-function resetUI(value)
-{
-  log.debug("Entering resetUI().");
-}
-
-function resetErrorDisplays()
-{
-  log.debug("Entering resetErrorDisplays().");
-  log.debug("Leaving resetErrorDisplays().");
-}
-
-function writeValuesToLocalStorage()
-{
-  log.debug("Entering writeValuesToLocalStorage().");
-  if (localStorage) {
-    localStorage.setItem("introspection_endpoint", introspection_endpoint);
-    localStorage.setItem("introspection_token", introspection_token);
-    localStorage.setItem("introspection_token_type_hint", introspection_token_type_hint);
-    
-    const type = getParameterByName('type');
-    if (type == 'access' || type == 'refresh') {
-      localStorage.setItem("token_client_id", client_id);
-      localStorage.setItem("token_client_secret", client_secret);
-    } else if (type == 'refresh_access' || type == 'refresh_refresh') {
-      localStorage.setItem("refresh_client_id", client_id);
-      localStorage.setItem("refresh_client_secret", client_secret);
-    } else {
-      log.error('Unknown token type encountered.');
-    }
-    
-  }
-  log.debug("Leaving writeValuesToLocalStorage().");
-}
-
-function initLocalStorage()
-{
-  log.debug("Entering initLocalStorage().");
-  if(localStorage && !initialized) {
-    localStorage.setItem("introspection_token_type_hint", "");
-    initialized = true;
-  }
-  log.debug("Leaving initLocalStorage().");
 }
 
 function loadValuesFromLocalStorage()
@@ -174,43 +84,34 @@ function loadValuesFromLocalStorage()
     if (type == 'access') {
       introspection_token = localStorage.getItem("token_access_token");
       introspection_token_type_hint = "access_token";
-      client_id = localStorage.getItem("token_client_id");
-      client_secret = localStorage.getItem("token_client_secret");
     } else if (type == 'refresh') {
       introspection_token = localStorage.getItem("token_refresh_token");
       introspection_token_type_hint = "refresh_token";
-      client_id = localStorage.getItem("token_client_id");
-      client_secret = localStorage.getItem("token_client_secret");
     } else if (type == 'refresh_access') {
       introspection_token = localStorage.getItem("refresh_access_token");
       introspection_token_type_hint = "access_token";
-      client_id = localStorage.getItem("refresh_client_id");
-      client_secret = localStorage.getItem("refresh_client_secret");
     } else if (type == 'refresh_refresh') {
       introspection_token = localStorage.getItem("refresh_refresh_token");
       introspection_token_type_hint = "refresh_token";
-      client_id = localStorage.getItem("refresh_client_id");
-      client_secret = localStorage.getItem("refresh_client_secret");
     } else {
       log.error('Unknown token type encountered.');
     }
-
-    
   }
   // Set configuration fields
   document.getElementById("introspection_endpoint").value = introspection_endpoint;
   document.getElementById("introspection_token").value = introspection_token;
   document.getElementById("introspection_token_type_hint").value = introspection_token_type_hint;
-  document.getElementById("client_id").value = client_id;
-  document.getElementById("client_secret").value = client_secret;
   log.debug("Leaving loadValuesFromLocalStorage().");
 }
 
-function regenerateState() {
-  log.debug("Entering regenerateState().");
-  document.getElementById("state").value = generateUUID();
-  localStorage.setItem('state', document.getElementById("state").value);
-  log.debug("Leaving regenerateState().");
+function writeValuesToLocalStorage()
+{
+  log.debug("Entering writeValuesToLocalStorage().");
+  if (localStorage) {
+    localStorage.setItem("introspection_endpoint", introspection_endpoint);
+    localStorage.setItem("introspection_client_id", client_id)
+  }
+  log.debug("Leaving writeValuesToLocalStorage().");
 }
 
 function onClickToggleConfigurationParameters() {
@@ -223,8 +124,14 @@ function onClickToggleConfigurationParameters() {
   log.debug("Leaving onClickToggleConfigurationParameters().");
 }
 
+window.onload = function() 
+{
+  log.debug("Entering window.onload() function.");
+  loadValuesFromLocalStorage();
+  log.debug("Leaving window.onload() function.");
+}
+
 module.exports = {
-  getParameterByName,
   callIntrospectionEndpoint,
   onClickToggleConfigurationParameters
 };
