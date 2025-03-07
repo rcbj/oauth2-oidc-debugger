@@ -13,8 +13,8 @@ const jwt = require('jsonwebtoken');
 var introspection_endpoint = "";
 var introspection_token = "";
 var introspection_token_type_hint = "";
-var client_id = "";
-var client_secret = "";
+var introspection_client_id = "";
+var introspection_client_secret = "";
 
 function getParameterByName(name, url)
 {
@@ -32,15 +32,15 @@ function callIntrospectionEndpoint()
 {
   log.debug("Entering callIntrospectionEndpoint().");
 
-  client_id = document.getElementById("client_id").value;
-  client_secret = document.getElementById("client_secret").value;
+  introspection_client_id = document.getElementById("introspection_client_id").value;
+  introspection_client_secret = document.getElementById("introspection_client_secret").value;
 
   var introspectionEndpointCall = $.ajax({
     type: "POST",
     url: introspection_endpoint,
     crossDomain: true,
     headers: {
-      "Authorization": "Basic " + btoa(client_id + ":" + client_secret),
+      "Authorization": "Basic " + btoa(introspection_client_id + ":" + introspection_client_secret),
       "Content-Type": "application/x-www-form-urlencoded"
     },
     data: {
@@ -97,10 +97,14 @@ function loadValuesFromLocalStorage()
       log.error('Unknown token type encountered.');
     }
   }
+
+  introspection_client_id = localStorage.getItem("introspection_client_id");
+
   // Set configuration fields
   document.getElementById("introspection_endpoint").value = introspection_endpoint;
   document.getElementById("introspection_token").value = introspection_token;
   document.getElementById("introspection_token_type_hint").value = introspection_token_type_hint;
+  document.getElementById("introspection_client_id").value = introspection_client_id;
   log.debug("Leaving loadValuesFromLocalStorage().");
 }
 
@@ -109,7 +113,7 @@ function writeValuesToLocalStorage()
   log.debug("Entering writeValuesToLocalStorage().");
   if (localStorage) {
     localStorage.setItem("introspection_endpoint", introspection_endpoint);
-    localStorage.setItem("introspection_client_id", client_id)
+    localStorage.setItem("introspection_client_id", introspection_client_id)
   }
   log.debug("Leaving writeValuesToLocalStorage().");
 }

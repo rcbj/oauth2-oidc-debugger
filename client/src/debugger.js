@@ -345,7 +345,15 @@ function loadValuesFromLocalStorage()
   }
   $("#authorization_endpoint").val(localStorage.getItem("authorization_endpoint"));
   $("#token_endpoint").val(localStorage.getItem("token_endpoint"));
-  $("#introspection_endpoint").val(localStorage.getItem("introspection_endpoint"));
+
+  if (localStorage.getItem("introspection_endpoint")) {
+    $("#introspection_endpoint").val(localStorage.getItem("introspection_endpoint"));
+    $("#introspection_endpoint").closest('tr').show();
+  } else {
+    $("#introspection_endpoint").val("");
+    $("#introspection_endpoint").closest('tr').hide();
+  }
+
   $("#redirect_uri").val(localStorage.getItem("redirect_uri"));
   $("#client_id").val(localStorage.getItem("client_id"));
   $("#scope").val(localStorage.getItem("scope"));
@@ -719,7 +727,13 @@ function onload() {
       localStorage.setItem("scope", $("#scope").val());
       localStorage.setItem("authorization_endpoint", $("#authorization_endpoint").val());
       localStorage.setItem("token_endpoint", $("#token_endpoint").val());
-      localStorage.setItem("introspection_endpoint", $("#introspection_endpoint").val());
+
+      if ($("#introspection_endpoint").val()) {
+        localStorage.setItem("introspection_endpoint", $("#introspection_endpoint").val());
+      } else {
+        localStorage.setItem("introspection_endpoint", "")
+      }
+
       localStorage.setItem("redirect_uri", $("#redirect_uri").val());
       localStorage.setItem("authorization_grant_type", $("#authorization_grant_type").val());
       localStorage.setItem("resource", $("#resource").val());
@@ -1196,7 +1210,15 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
 
   $("#authorization_endpoint").val(authorizationEndpoint);
   $("#token_endpoint").val(tokenEndpoint);
-  $("#introspection_endpoint").val(introspectionEndpoint);
+
+  if (introspectionEndpoint) {
+    $("#introspection_endpoint").val(introspectionEndpoint);
+    $("#introspection_endpoint").closest('tr').show();
+  } else {
+    $("#introspection_endpoint").val("");
+    $("#introspection_endpoint").closest('tr').hide();
+  }
+
   $("#scope").val(scopesSupported);
   $("#oidc_userinfo_endpoint").val(userInfoEndpoint);
   $("#jwks_endpoint").val(jwksUri);
@@ -1204,7 +1226,13 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
       log.debug('Adding to local storage.');
       localStorage.setItem("authorization_endpoint", authorizationEndpoint );
       localStorage.setItem("token_endpoint", tokenEndpoint );
-      localStorage.setItem("introspection_endpoint", introspectionEndpoint );
+
+      if (introspectionEndpoint) {
+        localStorage.setItem("introspection_endpoint", introspectionEndpoint );
+      } else {
+        localStorage.setItem("introspection_endpoint", "" );
+      }
+
       localStorage.setItem("scope", scopesSupported);
       localStorage.setItem("token_scope", scopesSupported );
       localStorage.setItem("jwks_endpoint", jwksUri);
