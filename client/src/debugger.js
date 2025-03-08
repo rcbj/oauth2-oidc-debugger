@@ -289,6 +289,7 @@ function initValuesToLocalStorage()
       localStorage.setItem("authorization_grant_type", "oidc_authorization_code_flow");
       localStorage.setItem("authorization_endpoint", "https://localhost/oauth2/authorization");
       localStorage.setItem("token_endpoint","https://localhost/oauth2/token");
+      localStorage.setItem("introspection_endpoint","https://localhost/oauth2/token/introspect");
       localStorage.setItem("yesResourceCheck", false);
       localStorage.setItem("noResourceCheck", true);
       localStorage.setItem("yesCheck", true);
@@ -344,6 +345,15 @@ function loadValuesFromLocalStorage()
   }
   $("#authorization_endpoint").val(localStorage.getItem("authorization_endpoint"));
   $("#token_endpoint").val(localStorage.getItem("token_endpoint"));
+
+  if (localStorage.getItem("introspection_endpoint")) {
+    $("#introspection_endpoint").val(localStorage.getItem("introspection_endpoint"));
+    $("#introspection_endpoint").closest('tr').show();
+  } else {
+    $("#introspection_endpoint").val("");
+    $("#introspection_endpoint").closest('tr').hide();
+  }
+
   $("#redirect_uri").val(localStorage.getItem("redirect_uri"));
   $("#client_id").val(localStorage.getItem("client_id"));
   $("#scope").val(localStorage.getItem("scope"));
@@ -717,6 +727,13 @@ function onload() {
       localStorage.setItem("scope", $("#scope").val());
       localStorage.setItem("authorization_endpoint", $("#authorization_endpoint").val());
       localStorage.setItem("token_endpoint", $("#token_endpoint").val());
+
+      if ($("#introspection_endpoint").val()) {
+        localStorage.setItem("introspection_endpoint", $("#introspection_endpoint").val());
+      } else {
+        localStorage.setItem("introspection_endpoint", "")
+      }
+
       localStorage.setItem("redirect_uri", $("#redirect_uri").val());
       localStorage.setItem("authorization_grant_type", $("#authorization_grant_type").val());
       localStorage.setItem("resource", $("#resource").val());
@@ -1128,6 +1145,7 @@ function parseDiscoveryInfo(discoveryInfo) {
   var subjectTypesSupported = discoveryInfo["subject_types_supported"];
   var tokenEndpoint = discoveryInfo["token_endpoint"];
   var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
+  var introspectionEndpoint = discoveryInfo["introspection_endpoint"];
   var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
   var endSessionEndpoint = discoveryInfo["end_session_endpoint"];
 
@@ -1140,6 +1158,7 @@ function parseDiscoveryInfo(discoveryInfo) {
   log.debug("subjectTypesSupported: " + JSON.stringify(subjectTypesSupported));
   log.debug("tokenEndpoint: " + tokenEndpoint);
   log.debug("tokenEndpointAuthMethodsSupported: " + JSON.stringify(tokenEndpointAuthMethodsSupported));
+  log.debug("introspectionEndpoint: " + introspectionEndpoint);
   log.debug("userInfoEndpoint: " + userInfoEndpoint);
   log.debug("endSessionEndpoint: " + endSessionEndpoint);
   log.debug("Leaving parseDiscoveryInfo()."); 
@@ -1185,11 +1204,21 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   var subjectTypesSupported = discoveryInfo["subject_types_supported"];
   var tokenEndpoint = discoveryInfo["token_endpoint"];
   var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
+  var introspectionEndpoint = discoveryInfo["introspection_endpoint"];
   var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
   var endSessionEndpoint = discoveryInfo["end_session_endpoint"];
 
   $("#authorization_endpoint").val(authorizationEndpoint);
   $("#token_endpoint").val(tokenEndpoint);
+
+  if (introspectionEndpoint) {
+    $("#introspection_endpoint").val(introspectionEndpoint);
+    $("#introspection_endpoint").closest('tr').show();
+  } else {
+    $("#introspection_endpoint").val("");
+    $("#introspection_endpoint").closest('tr').hide();
+  }
+
   $("#scope").val(scopesSupported);
   $("#oidc_userinfo_endpoint").val(userInfoEndpoint);
   $("#jwks_endpoint").val(jwksUri);
@@ -1197,6 +1226,13 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
       log.debug('Adding to local storage.');
       localStorage.setItem("authorization_endpoint", authorizationEndpoint );
       localStorage.setItem("token_endpoint", tokenEndpoint );
+
+      if (introspectionEndpoint) {
+        localStorage.setItem("introspection_endpoint", introspectionEndpoint );
+      } else {
+        localStorage.setItem("introspection_endpoint", "" );
+      }
+
       localStorage.setItem("scope", scopesSupported);
       localStorage.setItem("token_scope", scopesSupported );
       localStorage.setItem("jwks_endpoint", jwksUri);
@@ -1215,6 +1251,9 @@ function onSubmitClearAllForms() {
   }
   if ( $("#token_endpoint")) {
      $("#token_endpoint").val("");
+  }
+  if ( $("#introspection_endpoint")) {
+    $("#introspection_endpoint").val("");
   }
   if ( $("#authorization_grant_type")) {
     $("#authorization_grant_type").val("oidc_authorization_code_flow");
