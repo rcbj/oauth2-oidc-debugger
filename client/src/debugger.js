@@ -774,23 +774,9 @@ function onload() {
     $("#authzCustomParametersRow").hide();
   }
   displayAuthzCustomParametersCheck();
-  if(usePKCE) {
-    log.debug("Show PKCE Data fields.");
-    $("#authz_pkce_code_challenge_row").show();
-    $("#authz_pkce_code_verifier_row").show();
-    $("#authz_pkce_code_method_row").show();
-  } else {
-    log.debug("Hide PKCE Data fields.");
-    $("#authz_pkce_code_challenge_row").hide();
-    $("#authz_pkce_code_verifier_row").hide();
-    $("#authz_pkce_code_method_row").hide();
-  }
 
-  if (usePKCE) {
-    $("#authz_pkce_code_challenge").val(localStorage.getItem("PKCE_code_challenge"));
-    $("#authz_pkce_code_verifier").val(localStorage.getItem("PKCE_code_verifier"));
-    $("#authz_pkce_code_method").val(localStorage.getItem("PKCE_code_challenge_method"));
-  }
+  usePKCERFC();
+  
   recalculateAuthorizationRequestDescription();
 
   var type = $("#response_type").val();
