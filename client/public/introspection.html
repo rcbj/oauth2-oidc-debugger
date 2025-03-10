@@ -63,10 +63,22 @@
               </div>
             </td>
             <td>
-              <select class="stored" id="introspection_token_type_hint" name="introspection_token_type_hint"  >
+              <select class="stored" id="introspection_token_type_hint" name="introspection_token_type_hint">
                 <option value="" selected="selected"></option>
                 <option value="access_token">access_token</option>
                 <option value="refresh_token">refresh_token</option>
+              </select>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>OAuth2 Authentication Type: </label><span class="tooltiptext">The OAuth2 Authentication Type (Basic Auth or Bearer Token).</span>
+              </div>
+            </td>
+            <td>
+              <select class="stored" id="introspection_authentication_type" name="introspection_authentication_type">
+                <option value="basic_auth" selected="selected">Basic Auth</option>
+                <option value="bearer_token">Bearer Token</option>
               </select>
             </td>
           </tr>
@@ -86,6 +98,15 @@
             </td>
             <td>
               <input class="stored" id="introspection_client_secret" name="introspection_client_secret" type="text" max="150"/>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>OAuth2 Bearer Token: </label><span class="tooltiptext">The OAuth2 Bearer Token</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="introspection_bearer_token" name="introspection_bearer_token" type="text" max="150"/>
             </td>
           </tr>
         <tr>
