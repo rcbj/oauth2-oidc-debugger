@@ -6,18 +6,10 @@
 var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var $ = require("jquery");
-var log = bunyan.createLogger({ name: 'introspection',
-                                level: appconfig.logLevel });
+var log = bunyan.createLogger({name: 'introspection', level: appconfig.logLevel});
 log.info("Log initialized. logLevel=" + log.level());
-const jwt = require('jsonwebtoken');
-var introspection_endpoint = "";
-var introspection_token = "";
-var introspection_token_type_hint = "";
-var introspection_client_id = "";
-var introspection_client_secret = "";
 
-function getParameterByName(name, url)
-{
+function getParameterByName(name, url) {
   log.debug("Entering getParameterByName().");
   if (!url)
   {
@@ -28,24 +20,30 @@ function getParameterByName(name, url)
   return urlParams.get(name);
 }
 
-function callIntrospectionEndpoint()
-{
+function callIntrospectionEndpoint() {
   log.debug("Entering callIntrospectionEndpoint().");
 
-  introspection_client_id = document.getElementById("introspection_client_id").value;
-  introspection_client_secret = document.getElementById("introspection_client_secret").value;
+  var introspection_endpoint = document.getElementById("introspection_endpoint").value;
+  var introspection_token = document.getElementById("introspection_token").value;
+  var introspection_token_type_hint = document.getElementById("introspection_token_type_hint").value;
+  var introspection_authentication_type = document.getElementById("introspection_authentication_type").value;
+  var introspection_client_id = document.getElementById("introspection_client_id").value;
+  var introspection_client_secret = document.getElementById("introspection_client_secret").value;
+  var introspection_bearer_token = document.getElementById("introspection_bearer_token").value;
 
   var introspectionEndpointCall = $.ajax({
     type: "POST",
     url: introspection_endpoint,
     crossDomain: true,
     headers: {
-      "Authorization": "Basic " + btoa(introspection_client_id + ":" + introspection_client_secret),
+      "Authorization": introspection_authentication_type == "basic_auth" ? 
+        "Basic " + btoa(introspection_client_id + ":" + introspection_client_secret) : 
+        "Bearer " + introspection_bearer_token,
       "Content-Type": "application/x-www-form-urlencoded"
     },
     data: {
       token: introspection_token,
-      token_type_hint: introspection_token_type_hint
+      token_type_hint: introspection_token_type_hint != "" ? introspection_token_type_hint : undefined
     },
     success: function(data, textStatus, request) {
       log.debug('Entering ajax success function for Access Token call.');
@@ -67,53 +65,47 @@ function callIntrospectionEndpoint()
       log.debug("request: " + JSON.stringify(request));
       log.debug("status: " + JSON.stringify(status));
       log.debug("error: " + JSON.stringify(error));
-      // recalculateTokenErrorDescription(request);
     }
   });
+
   writeValuesToLocalStorage();
   log.debug("Entering callIntrospectionEndpoint().");
 }
 
-function loadValuesFromLocalStorage()
-{
+function loadValuesFromLocalStorage() {
   log.debug("Entering loadValuesFromLocalStorage().");
   if(localStorage) {
-    introspection_endpoint = localStorage.getItem("introspection_endpoint");
+    document.getElementById("introspection_endpoint").value = localStorage.getItem("introspection_endpoint");
 
     const type = getParameterByName('type');
     if (type == 'access') {
-      introspection_token = localStorage.getItem("token_access_token");
-      introspection_token_type_hint = "access_token";
+      document.getElementById("introspection_token").value = localStorage.getItem("token_access_token");
+      document.getElementById("introspection_token_type_hint").value = "access_token";
     } else if (type == 'refresh') {
-      introspection_token = localStorage.getItem("token_refresh_token");
-      introspection_token_type_hint = "refresh_token";
+      document.getElementById("introspection_token").value = localStorage.getItem("token_refresh_token");
+      document.getElementById("introspection_token_type_hint").value = "refresh_token";
     } else if (type == 'refresh_access') {
-      introspection_token = localStorage.getItem("refresh_access_token");
-      introspection_token_type_hint = "access_token";
+      document.getElementById("introspection_token").value = localStorage.getItem("refresh_access_token");
+      document.getElementById("introspection_token_type_hint").value = "access_token";
     } else if (type == 'refresh_refresh') {
-      introspection_token = localStorage.getItem("refresh_refresh_token");
-      introspection_token_type_hint = "refresh_token";
+      document.getElementById("introspection_token").value = localStorage.getItem("refresh_refresh_token");
+      document.getElementById("introspection_token_type_hint").value = "refresh_token";
     } else {
       log.error('Unknown token type encountered.');
     }
   }
 
-  introspection_client_id = localStorage.getItem("introspection_client_id");
-
-  // Set configuration fields
-  document.getElementById("introspection_endpoint").value = introspection_endpoint;
-  document.getElementById("introspection_token").value = introspection_token;
-  document.getElementById("introspection_token_type_hint").value = introspection_token_type_hint;
-  document.getElementById("introspection_client_id").value = introspection_client_id;
+  document.getElementById("introspection_client_id").value = localStorage.getItem("introspection_client_id");
+  document.getElementById("introspection_bearer_token").value = localStorage.getItem("introspection_bearer_token");
   log.debug("Leaving loadValuesFromLocalStorage().");
 }
 
-function writeValuesToLocalStorage()
-{
+function writeValuesToLocalStorage() {
   log.debug("Entering writeValuesToLocalStorage().");
   if (localStorage) {
-    localStorage.setItem("introspection_endpoint", introspection_endpoint);
-    localStorage.setItem("introspection_client_id", introspection_client_id)
+    localStorage.setItem("introspection_endpoint", document.getElementById("introspection_endpoint").value);
+    localStorage.setItem("introspection_client_id", document.getElementById("introspection_client_id").value);
+    localStorage.setItem("introspection_bearer_token", document.getElementById("introspection_bearer_token").value);
   }
   log.debug("Leaving writeValuesToLocalStorage().");
 }
@@ -128,10 +120,24 @@ function onClickToggleConfigurationParameters() {
   log.debug("Leaving onClickToggleConfigurationParameters().");
 }
 
-window.onload = function() 
-{
+$(document).on("change", "#introspection_authentication_type", function() {
+  if (this.value == "basic_auth") {
+    $("#introspection_client_id").closest('tr').show();
+    $("#introspection_client_secret").closest('tr').show();
+    $("#introspection_bearer_token").closest('tr').hide();
+  } else if (this.value == "bearer_token") {
+    $("#introspection_client_id").closest('tr').hide();
+    $("#introspection_client_secret").closest('tr').hide();
+    $("#introspection_bearer_token").closest('tr').show();
+  } else {
+    log.error('Unknown authentication type encountered.');
+  }
+});
+
+window.onload = function() {
   log.debug("Entering window.onload() function.");
   loadValuesFromLocalStorage();
+  $("#introspection_authentication_type").trigger("change");
   log.debug("Leaving window.onload() function.");
 }
 
