@@ -13,7 +13,7 @@ This project currently supports the following specs:
 * [JWT RFC](https://tools.ietf.org/html/rfc7519)
 * [PKCE - RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)
 * [OIDC RP-Initiated Logout v1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html)
-* [OAuth2 Token Introspection Endpoint](https://www.rfc-editor.org/rfc/rfc7662) -- client_credentials (basic auth) or bearer token [RFC6750](https://www.rfc-editor.org/rfc/rfc6750) authentication.
+* [OAuth2 Token Introspection Endpoint (RFC7662)](https://www.rfc-editor.org/rfc/rfc7662) -- client_credentials (basic auth) or bearer token [RFC6750](https://www.rfc-editor.org/rfc/rfc6750) authentication.
 * With the ability to add custom parameters to the Authorization Endpoint call and Token Endpoint call, numerous other protocols can be supported. We'll eventually get around to adding direct support.
 
 It also supports a couple of proprietary IdP extensions as described below.
