@@ -67,6 +67,45 @@
             </textarea>
           </td>
         </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Verification Type: </label><span class="tooltiptext">The JWT Verification Type.</span>
+            </div>
+          </td>
+          <td>
+            <select class="stored" id="jwt_verification_type" name="jwt_verification_type">
+              <option value="hmac" selected="selected">HMAC Secret</option>
+              <option value="x509">X.509 Certificate (PEM)</option>
+              <option value="jwks">JWKS (Static JSON)</option>
+              <option value="jwks_url">JWKS URL</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>JWT Verification Key/URL:</label><span class="tooltiptext">The JWT Verification Key/URL.</span>
+            </div>
+          </td>
+          <td>
+            <textarea rows=6 cols=50 id="jwt_verification_key" name="jwt_verification_key"></textarea>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <input class="btn2" type="submit" value="Verify Signature" onclick="return token_detail.verifyJWT();" />
+          </td>
+          <td>&nbsp;
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Verification Output:</label><span class="tooltiptext">Verification Output.</span>
+            </div>
+          </td>
+          <td>
+            <textarea rows=6 cols=50 id="jwt_verification_output" name="jwt_verification_output"></textarea>
+          </td>
+        </tr>
       </tbody>
     </table>
   </fieldset>
