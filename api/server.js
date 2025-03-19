@@ -229,15 +229,23 @@ app.post('/token', (req, res) => {
     })
     .catch(function (error) {
       log.error('Error from OAuth2 Token Endpoint: ' + error);
-      log.error("Error Status: " + error.response.status);
-      log.error("Error Response body: " + JSON.stringify(error.response.data));
-      log.error("Error Response headers: " + error.response.headers);
-      if (error.response) {
-        res.status(error.response.status);
-        res.json(error.response.data);
-      } else {
-        res.status(500);
-        res.json(error.message);
+      if(!!error.response) {
+        if(!!error.response.status) {
+          log.error("Error Status: " + error.response.status);
+        }
+        if(!!error.response.data) {
+          log.error("Error Response body: " + JSON.stringify(error.response.data));
+        }
+        if(!!error.response.headers) {
+          log.error("Error Response headers: " + error.response.headers);
+        }
+        if (!!error.response) {
+          res.status(error.response.status);
+          res.json(error.response.data);
+        } else {
+          res.status(500);
+          res.json(error.message);
+        }
       }
     });
   } catch (e) {
