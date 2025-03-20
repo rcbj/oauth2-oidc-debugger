@@ -195,6 +195,12 @@ async function importJWK(jwk, hashAlgo) {
   );
 }
 
+$(document).on("change", "#jwt_verification_type", function() {
+  if (this.value == "jwks_url") {
+    document.getElementById('jwt_verification_key').value = localStorage.getItem("jwks_endpoint");
+  }
+});
+
 window.onload = function() {
   log.debug("Entering onload function.");
   const type = getParameterByName('type');
