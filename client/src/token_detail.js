@@ -58,11 +58,13 @@ async function verifyJWT() {
     if (jwt_verification_type === 'hmac') {
       isValid = await verifyHMAC(jwt_, jwt_verification_key, header.alg);
     } else if (jwt_verification_type === 'x509') {
-      isValid = await verifyRSJWT(jwt_, jwt_verification_key, header.alg);
+      isValid = await verifyX509(jwt_, jwt_verification_key, header.alg);
     } else if (jwt_verification_type === 'jwks') {
-      isValid = await verifyWithJWKS(jwt_, JSON.parse(jwt_verification_key));
+      isValid = await verifyJWKS(jwt_, JSON.parse(jwt_verification_key));
     } else if (jwt_verification_type === 'jwks_url') {
-      isValid = await verifyWithJWKS(jwt_, await fetchJWKS(jwt_verification_key));
+      const response = await fetch(jwt_verification_key);
+      if (!response.ok) throw new Error('Failed to fetch JWKS.');
+      isValid = await verifyJWKS(jwt_, await response.json());
     } else {
       throw new Error('Unsupported verification method.');
     }
@@ -75,24 +77,35 @@ async function verifyJWT() {
 
 function atobUrl(input) {
   input = input.replace(/-/g, '+').replace(/_/g, '/');
-  const pad = input.length % 4 ? '='.repeat(4 - (input.length % 4)) : '';
+  const pad = '==='.slice(0, (4 - input.length % 4) % 4);
   return atob(input + pad);
 }
 
 function base64UrlToUint8Array(base64UrlString) {
   const binary = atobUrl(base64UrlString);
-  const len = binary.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
+
   return bytes;
 }
 
-async function verifyHMAC(jwt, secret, alg = 'HS256') {
+function pemToArrayBuffer(pem) {
+  const binary = atob(pem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, ''));
+  const buffer = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    buffer[i] = binary.charCodeAt(i);
+  }
+  
+  return buffer.buffer;
+}
+
+async function verifyHMAC(jwt_, secret, alg = 'HS256') {
   const encoder = new TextEncoder();
-  const algoMap = { HS256: 'SHA-256', HS384: 'SHA-384', HS512: 'SHA-512' };
-  const algo = algoMap[alg];
+  const algo = { HS256: 'SHA-256', HS384: 'SHA-384', HS512: 'SHA-512' }[alg];
   if (!algo) throw new Error('Unsupported HMAC algorithm: ' + alg);
 
   const key = await crypto.subtle.importKey(
@@ -102,97 +115,53 @@ async function verifyHMAC(jwt, secret, alg = 'HS256') {
     false,
     ['verify']
   );
-
-  const data = encoder.encode(jwt.split('.').slice(0, 2).join('.'));
-  const signature = base64UrlToUint8Array(jwt.split('.')[2]);
+  const data = encoder.encode(jwt_.split('.').slice(0, 2).join('.'));
+  const signature = base64UrlToUint8Array(jwt_.split('.')[2]);
 
   return await crypto.subtle.verify('HMAC', key, signature, data);
 }
 
-async function verifyRSJWT(jwt, pem, alg = 'RS256') {
-  const algoMap = {
-    RS256: 'SHA-256',
-    RS384: 'SHA-384',
-    RS512: 'SHA-512'
-  };
-  const algo = algoMap[alg];
+async function verifyX509(jwt_, pem, alg = 'RS256') {
+  const encoder = new TextEncoder();
+  const algo = { RS256: 'SHA-256', RS384: 'SHA-384', RS512: 'SHA-512' }[alg];
   if (!algo) throw new Error('Unsupported RSA algorithm: ' + alg);
 
-  const keyData = pemToArrayBuffer(pem);
   const key = await crypto.subtle.importKey(
     'spki',
-    keyData,
+    pemToArrayBuffer(pem),
     { name: 'RSASSA-PKCS1-v1_5', hash: { name: algo } },
     false,
     ['verify']
   );
-
-  const encoder = new TextEncoder();
-  const data = encoder.encode(jwt.split('.').slice(0, 2).join('.'));
-  const signature = base64UrlToUint8Array(jwt.split('.')[2]);
+  const data = encoder.encode(jwt_.split('.').slice(0, 2).join('.'));
+  const signature = base64UrlToUint8Array(jwt_.split('.')[2]);
 
   return await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, signature, data);
 }
 
-function pemToArrayBuffer(pem) {
-  const b64Lines = pem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
-  const binary = atob(b64Lines);
-  const len = binary.length;
-  const buffer = new ArrayBuffer(len);
-  const view = new Uint8Array(buffer);
-  for (let i = 0; i < len; i++) {
-    view[i] = binary.charCodeAt(i);
-  }
-  return buffer;
-}
+async function verifyJWKS(jwt_, jwks) {
+  const header = JSON.parse(atobUrl(jwt_.split('.')[0]));
+  if (!header.kid) throw new Error('No "kid" found in JWT header.');
 
-async function verifyWithJWKS(jwt, jwks) {
-  const header = JSON.parse(atobUrl(jwt.split('.')[0]));
-  const kid = header.kid;
-  if (!kid) throw new Error('No "kid" found in JWT header.');
-
-  const jwk = jwks.keys.find(k => k.kid === kid);
+  const jwk = jwks.keys.find(k => k.kid === header.kid);
   if (!jwk) throw new Error('Matching "kid" not found in JWKS.');
+  if (jwk.kty !== 'RSA') throw new Error('Only RSA keys are supported.');
 
-  const algoMap = {
-    RS256: 'SHA-256',
-    RS384: 'SHA-384',
-    RS512: 'SHA-512'
-  };
-
-  const algo = algoMap[header.alg];
+  const encoder = new TextEncoder();
+  const algo = { RS256: 'SHA-256', RS384: 'SHA-384', RS512: 'SHA-512' }[header.alg];
   if (!algo) throw new Error('Unsupported algorithm: ' + header.alg);
 
-  const key = await importJWK(jwk, algo);
-  const encoder = new TextEncoder();
-  const data = encoder.encode(jwt.split('.').slice(0, 2).join('.'));
-  const signature = base64UrlToUint8Array(jwt.split('.')[2]);
-
-  return await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, signature, data);
-}
-
-async function fetchJWKS(url) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Failed to fetch JWKS.');
-  return await response.json();
-}
-
-async function importJWK(jwk, hashAlgo) {
-  if (jwk.kty !== 'RSA') throw new Error('Only RSA keys are supported in this example.');
-
-  const publicKey = {
-    kty: jwk.kty,
-    n: jwk.n,
-    e: jwk.e
-  };
-
-  return await crypto.subtle.importKey(
+  const key = await crypto.subtle.importKey(
     'jwk',
-    publicKey,
-    { name: 'RSASSA-PKCS1-v1_5', hash: { name: hashAlgo } },
+    { kty: jwk.kty, n: jwk.n, e: jwk.e },
+    { name: 'RSASSA-PKCS1-v1_5', hash: { name: algo } },
     false,
     ['verify']
   );
+  const data = encoder.encode(jwt_.split('.').slice(0, 2).join('.'));
+  const signature = base64UrlToUint8Array(jwt_.split('.')[2]);
+
+  return await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, signature, data);
 }
 
 $(document).on("change", "#jwt_verification_type", function() {
