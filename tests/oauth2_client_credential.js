@@ -63,11 +63,19 @@ async function getAccessToken(driver, client_id, client_secret, scope) {
 }
 
 async function verifyAccessToken(access_token, client_id, scope) {
-  let decoded_access_token = jwt.decode(access_token, { complete: true });
+  async function compareScopes(scope1, scope2) {
+    scope1 = scope1.split(" ");
+    scope2 = scope2.split(" ");
 
-  assert.notStrictEqual(decoded_access_token, null, "Cannot decode access token. Request result: " + access_token.match(/responseText: (.*)/)[1]);
+    return scope2.every(element => scope1.includes(element));
+  }
+
+  let decoded_access_token = jwt.decode(access_token, { complete: true });
+  let response_text = access_token.match(/responseText: (.*)/);
+
+  assert.notStrictEqual(decoded_access_token, null, "Cannot decode access token. Request result: " + (response_text ? response_text[1] : "no response text"));
   assert.strictEqual(decoded_access_token.payload.client_id, client_id, "Access token client ID does not match client ID.");
-  assert.strictEqual(decoded_access_token.payload.scope, scope, "Access token scope does not match scope.");
+  assert.strictEqual(await compareScopes(decoded_access_token.payload.scope, scope), true, "Access token scope does not match scope.");
 }
 
 async function test() {

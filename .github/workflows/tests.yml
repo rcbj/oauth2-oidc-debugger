@@ -1,0 +1,17 @@
+name: Selenium Tests
+
+on:
+  push:
+    branches: [ master, feature/issue-67 ]
+  pull_request:
+    branches: [ master, feature/issue-67 ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start Keycloak & debugger
+        run: CONFIG_FILE=./env/local.js docker compose up -d --build
