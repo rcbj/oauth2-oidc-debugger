@@ -1,5 +1,6 @@
 const { Builder, By, until } = require("selenium-webdriver");
 const { Select } = require('selenium-webdriver/lib/select');
+const chrome = require("selenium-webdriver/chrome");
 const jwt = require("jsonwebtoken");
 const assert = require("assert");
 
@@ -79,7 +80,12 @@ async function verifyAccessToken(access_token, client_id, scope) {
 }
 
 async function test() {
-  const driver = await new Builder().forBrowser("chrome").build();
+  const options = new chrome.Options();
+  options.addArguments("--headless");
+  options.addArguments("--no-sandbox");
+  //options.addArguments("--disable-gpu");
+  //options.addArguments("--disable-dev-shm-usage");
+  const driver = await new Builder().forBrowser("chrome").setChromeOptions(options).build();
 
   try {
     const discovery_endpoint = process.env.DISCOVERY_ENDPOINT;
