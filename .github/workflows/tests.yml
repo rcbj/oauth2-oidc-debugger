@@ -47,7 +47,7 @@ jobs:
 
           # Test client credentials flow
           DISCOVERY_ENDPOINT=${{ steps.configure.outputs.CLIENT_CREDENTIALS_DISCOVERY_ENDPOINT }} \
-          #CLIENT_ID=${{ steps.configure.outputs.CLIENT_CREDENTIALS_CLIENT_ID }} \
+          CLIENT_ID=${{ steps.configure.outputs.CLIENT_CREDENTIALS_CLIENT_ID }} \
           CLIENT_SECRET=${{ steps.configure.outputs.CLIENT_CREDENTIALS_CLIENT_SECRET }} \
           SCOPE=${{ steps.configure.outputs.CLIENT_CREDENTIALS_SCOPE }} \
           node oauth2_client_credentials.js
