@@ -31,7 +31,7 @@ jobs:
           KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_SECRET=$(curl "http://localhost:8080/admin/realms/debugger-testing/clients?clientId=client-credentials" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[0].secret')
           KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_ID=$(curl "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[] | select(.name=="client-credentials-scope") | .id')
           KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_NAME=$(curl "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[] | select(.name=="client-credentials-scope") | .name')
-          #curl -X PUT "http://localhost:8080/admin/realms/debugger-testing/clients/$KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_ID/optional-client-scopes/$KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_ID" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN"
+          curl -X PUT "http://localhost:8080/admin/realms/debugger-testing/clients/$KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_ID/optional-client-scopes/$KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_ID" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN"
 
           # Share variables to next steps
           echo "CLIENT_CREDENTIALS_DISCOVERY_ENDPOINT=http://localhost:8080/realms/debugger-testing/.well-known/openid-configuration" >> $GITHUB_OUTPUT
