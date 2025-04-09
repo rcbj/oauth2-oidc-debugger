@@ -142,6 +142,15 @@ For the other grants and flows, similar steps to the above are used.
 
 See the blog [posts](https://medium.com/@robert.broeckelmann/red-hat-sso-and-3scale-series-d904f2127702) for more information.
 
+## Running tests
+* sudo CONFIG_FILE=./env/local.js docker compose -f docker-compose-with-keycloak.yml up -d --build
+* cd tests && npm install
+* DISCOVERY_ENDPOINT=<KEYCLOAK_DISCOVERY_ENDPOINT> \\\
+  CLIENT_ID=<KEYCLOAK_CLIENT_ID> \\\
+  CLIENT_SECRET=<KEYCLOAK_CLIENT_SECRET> \\\
+  SCOPE=<KEYCLOAK_SCOPE> \\\
+  node oauth2_client_credentials.js
+
 ## Prerequisites
 
 To run this project you will need to install docker.
