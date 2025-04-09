@@ -11,9 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
+        id: checkout
         uses: actions/checkout@v4
 
       - name: Start & configure Keycloak and debugger
+        id: configure
         run: |
           # Start Docker containers
           CONFIG_FILE=./env/local.js docker compose -f docker-compose-with-keycloak.yml up -d --build
@@ -31,14 +33,21 @@ jobs:
           KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_NAME=$(curl "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[] | select(.name=="client-credentials-scope") | .name')
           curl -X PUT "http://localhost:8080/admin/realms/debugger-testing/clients/$KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_ID/optional-client-scopes/$KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_ID" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN"
 
-      - name: Run tests
+          # Share variables to next steps
+          echo "CLIENT_CREDENTIALS_DISCOVERY_ENDPOINT=http://localhost:8080/realms/debugger-testing/.well-known/openid-configuration" >> $GITHUB_OUTPUT
+          echo "CLIENT_CREDENTIALS_CLIENT_ID=$(echo $KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_CLIENTID)" >> $GITHUB_OUTPUT
+          echo "CLIENT_CREDENTIALS_CLIENT_SECRET=$(echo $KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_SECRET)" >> $GITHUB_OUTPUT
+          echo "CLIENT_CREDENTIALS_SCOPE=$(echo $KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_NAME)" >> $GITHUB_OUTPUT
+
+      - name: Test client credentials flow
+        id: test_client_credentials
         run: |
           # Install dependencies
           cd tests && npm install
 
           # Test client credentials flow
-          DISCOVERY_ENDPOINT="http://localhost:8080/realms/debugger-testing/.well-known/openid-configuration" \
-          CLIENT_ID=$(echo $KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_CLIENTID) \
-          CLIENT_SECRET=$(echo $KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_SECRET) \
-          SCOPE=$(echo $KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_NAME) \
+          DISCOVERY_ENDPOINT=${{ steps.configure.outputs.CLIENT_CREDENTIALS_DISCOVERY_ENDPOINT }} \
+          CLIENT_ID=${{ steps.configure.outputs.CLIENT_CREDENTIALS_CLIENT_ID }} \
+          CLIENT_SECRET=${{ steps.configure.outputs.CLIENT_CREDENTIALS_CLIENT_SECRET }} \
+          SCOPE=${{ steps.configure.outputs.CLIENT_CREDENTIALS_SCOPE }} \
           node oauth2_client_credentials.js
