@@ -100,8 +100,10 @@ async function test() {
     await populateMetadata(driver, discovery_endpoint);
     let access_token = await getAccessToken(driver, client_id, client_secret, scope);
     await verifyAccessToken(access_token, client_id, scope);
+    console.log("Test completed successfully.")
   } catch (error) {
     console.log(error.message);
+    process.exit(1);
   } finally {
     await driver.quit();
   }
