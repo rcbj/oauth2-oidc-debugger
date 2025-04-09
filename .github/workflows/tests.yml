@@ -41,4 +41,4 @@ jobs:
           CLIENT_ID=$(echo $KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_CLIENTID) \
           CLIENT_SECRET=$(echo $KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_SECRET) \
           SCOPE=$(echo $KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_NAME) \
-          node tests/oauth2_client_credentials.js
+          node oauth2_client_credentials.js
