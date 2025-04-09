@@ -83,8 +83,6 @@ async function test() {
   const options = new chrome.Options();
   options.addArguments("--headless");
   options.addArguments("--no-sandbox");
-  //options.addArguments("--disable-gpu");
-  //options.addArguments("--disable-dev-shm-usage");
   const driver = await new Builder().forBrowser("chrome").setChromeOptions(options).build();
 
   try {
