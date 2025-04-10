@@ -2,9 +2,9 @@ name: Selenium Tests
 
 on:
   push:
-    branches: [ master, feature/issue-67 ]
+    branches: [ master ]
   pull_request:
-    branches: [ master, feature/issue-67 ]
+    branches: [ master ]
 
 jobs:
   test:
