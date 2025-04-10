@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2",
+    "selenium-webdriver": "^4.30.0"
+  }
+}
