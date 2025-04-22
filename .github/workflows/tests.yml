@@ -17,37 +17,59 @@ jobs:
       - name: Start & configure Keycloak and debugger
         id: configure
         run: |
+          # Install testing dependencies
+          npm install --prefix tests
+
           # Start Docker containers
           CONFIG_FILE=./env/local.js docker compose -f docker-compose-with-keycloak.yml up -d --build
           sleep 30
 
-          # Configure client credentials flow
+          # Configure Keycloak
           KEYCLOAK_ACCESS_TOKEN=$(curl -X POST "http://localhost:8080/realms/master/protocol/openid-connect/token" -H "Content-Type: application/x-www-form-urlencoded" -d "client_id=admin-cli" -d "username=keycloak" -d "password=keycloak" -d "grant_type=password" | jq -r '.access_token')
           curl -X POST "http://localhost:8080/admin/realms" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"realm": "debugger-testing", "enabled": true}'
-          curl -X POST "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"name": "client-credentials-scope", "protocol": "openid-connect", "attributes": {"display.on.consent.screen": "false", "include.in.token.scope": "true"}}'
-          curl -X POST "http://localhost:8080/admin/realms/debugger-testing/clients" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"clientId": "client-credentials", "protocol": "openid-connect", "publicClient": false, "serviceAccountsEnabled": true, "authorizationServicesEnabled": false, "standardFlowEnabled": false, "directAccessGrantsEnabled": false, "clientAuthenticatorType": "client-secret"}'
-          KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_ID=$(curl "http://localhost:8080/admin/realms/debugger-testing/clients?clientId=client-credentials" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[0].id')
-          KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_CLIENTID=$(curl "http://localhost:8080/admin/realms/debugger-testing/clients?clientId=client-credentials" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[0].clientId')
-          KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_SECRET=$(curl "http://localhost:8080/admin/realms/debugger-testing/clients?clientId=client-credentials" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[0].secret')
-          KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_ID=$(curl "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[] | select(.name=="client-credentials-scope") | .id')
-          KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_NAME=$(curl "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[] | select(.name=="client-credentials-scope") | .name')
-          curl -X PUT "http://localhost:8080/admin/realms/debugger-testing/clients/$KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_ID/optional-client-scopes/$KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_ID" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN"
+          
+          for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE
+          do
+            FLOW_NAME=$(echo $FLOW_VARIABLE | tr '[:upper:]' '[:lower:]' | tr '_' '-')
 
-          # Share variables to next steps
-          echo "CLIENT_CREDENTIALS_DISCOVERY_ENDPOINT=http://localhost:8080/realms/debugger-testing/.well-known/openid-configuration" >> $GITHUB_OUTPUT
-          echo "CLIENT_CREDENTIALS_CLIENT_ID=$(echo $KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_CLIENTID)" >> $GITHUB_OUTPUT
-          echo "CLIENT_CREDENTIALS_CLIENT_SECRET=$(echo $KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_SECRET)" >> $GITHUB_OUTPUT
-          echo "CLIENT_CREDENTIALS_SCOPE=$(echo $KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_NAME)" >> $GITHUB_OUTPUT
+            KEYCLOAK_ACCESS_TOKEN=$(curl -X POST "http://localhost:8080/realms/master/protocol/openid-connect/token" -H "Content-Type: application/x-www-form-urlencoded" -d "client_id=admin-cli" -d "username=keycloak" -d "password=keycloak" -d "grant_type=password" | jq -r '.access_token')
+            curl -X POST "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"name": "$FLOW_NAME-scope", "protocol": "openid-connect", "attributes": {"display.on.consent.screen": "false", "include.in.token.scope": "true"}}'
+            case "$FLOW_VARIABLE" in
+              CLIENT_CREDENTIALS)
+                curl -X POST "http://localhost:8080/admin/realms/debugger-testing/clients" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"clientId": "$FLOW_NAME", "protocol": "openid-connect", "publicClient": false, "serviceAccountsEnabled": true, "authorizationServicesEnabled": false, "standardFlowEnabled": false, "directAccessGrantsEnabled": false, "clientAuthenticatorType": "client-secret"}'
+                ;;
+              AUTHORIZATION_CODE)
+                curl -X POST "http://localhost:8080/admin/realms/debugger-testing/clients" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"clientId": "$FLOW_NAME", "protocol": "openid-connect", "publicClient": false, "serviceAccountsEnabled": false, "authorizationServicesEnabled": false, "standardFlowEnabled": true, "directAccessGrantsEnabled": false, "clientAuthenticatorType": "client-secret", "frontchannelLogout": true, "redirectUris": ["http://localhost:3000/callback"], "webOrigins": ["/*", "http://localhost:3000/*"], "attributes": {"frontchannel.logout.url": "http://localhost:3000/logout"}}'
+                ;;
+            esac
+
+            KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_CLIENT_ID=$(curl "http://localhost:8080/admin/realms/debugger-testing/clients?clientId=$FLOW_NAME" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[0].id')
+            KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_CLIENT_CLIENTID=$(curl "http://localhost:8080/admin/realms/debugger-testing/clients?clientId=$FLOW_NAME" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[0].clientId')
+            KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_CLIENT_SECRET=$(curl "http://localhost:8080/admin/realms/debugger-testing/clients?clientId=$FLOW_NAME" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[0].secret')
+            KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_SCOPE_ID=$(curl "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[] | select(.name=="$FLOW_NAME-scope") | .id')
+            KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_SCOPE_NAME=$(curl "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[] | select(.name=="$FLOW_NAME-scope") | .name')
+            curl -X PUT "http://localhost:8080/admin/realms/debugger-testing/clients/$KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_CLIENT_ID/optional-client-scopes/$KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_SCOPE_ID" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN"
+
+            echo "$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_DISCOVERY_ENDPOINT=http://localhost:8080/realms/debugger-testing/.well-known/openid-configuration" >> $GITHUB_OUTPUT
+            echo "$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_CLIENT_ID=$(echo $KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_CLIENT_CLIENTID)" >> $GITHUB_OUTPUT
+            echo "$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_CLIENT_SECRET=$(echo $KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_CLIENT_SECRET)" >> $GITHUB_OUTPUT
+            echo "$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_SCOPE=$(echo $KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_SCOPE_NAME)" >> $GITHUB_OUTPUT
+          done
 
       - name: Test client credentials flow
         id: test_client_credentials
         run: |
-          # Install dependencies
-          cd tests && npm install
-
-          # Test client credentials flow
           DISCOVERY_ENDPOINT=${{ steps.configure.outputs.CLIENT_CREDENTIALS_DISCOVERY_ENDPOINT }} \
           CLIENT_ID=${{ steps.configure.outputs.CLIENT_CREDENTIALS_CLIENT_ID }} \
           CLIENT_SECRET=${{ steps.configure.outputs.CLIENT_CREDENTIALS_CLIENT_SECRET }} \
           SCOPE=${{ steps.configure.outputs.CLIENT_CREDENTIALS_SCOPE }} \
-          node oauth2_client_credentials.js
+          node tests/oauth2_client_credentials.js
+
+      - name: Test authorization code flow
+        id: test_authorization_code
+        run: |
+          DISCOVERY_ENDPOINT=${{ steps.configure.outputs.AUTHORIZATION_CODE_DISCOVERY_ENDPOINT }} \
+          CLIENT_ID=${{ steps.configure.outputs.AUTHORIZATION_CODE_CLIENT_ID }} \
+          CLIENT_SECRET=${{ steps.configure.outputs.AUTHORIZATION_CODE_CLIENT_SECRET }} \
+          SCOPE=${{ steps.configure.outputs.AUTHORIZATION_CODE_SCOPE }} \
+          node tests/oauth2_authorization_code.js
