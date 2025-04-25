@@ -25,21 +25,70 @@ async function populateMetadata(driver, discovery_endpoint) {
   await driver.findElement(btn_oidc_populate_meta_data).click();
 }
 
-async function getAccessToken(driver, client_id, client_secret, scope) {
+async function getAccessToken(driver, client_id, client_secret, scope, pkce_enabled) {
   authorization_grant_type = By.id("authorization_grant_type");
+  usePKCE_yes = By.id("usePKCE-yes");
+  usePKCE_no = By.id("usePKCE-no");
+  authz_expand_button = By.id("authz_expand_button");
+  client_id_ = By.id("client_id");
+  scope_ = By.id("scope");
   token_client_id = By.id("token_client_id");
   token_client_secret = By.id("token_client_secret");
   token_scope = By.id("token_scope");
+  btn_authorize = By.css("input[type=\"submit\"][value=\"Authorize\"]");
+  keycloak_username = By.id("username");
+  keycloak_password = By.id("password");
+  keycloak_kc_login = By.id("kc-login");
   btn1 = By.className("btn1");
   token_access_token = By.id("token_access_token");
   display_token_error_form_textarea1 = By.id("display_token_error_form_textarea1");
 
   // Select client credential login type
-  await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OAuth2 Client Credential');
+  await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OIDC Authorization Code Flow(code)');
+  await driver.wait(until.elementLocated(usePKCE_yes), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(usePKCE_yes)), 10000);
+  await driver.wait(until.elementLocated(usePKCE_no), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(usePKCE_no)), 10000);
+
+  if (pkce_enabled) {
+    await driver.findElement(usePKCE_yes).click();
+  } else {
+    await driver.findElement(usePKCE_no).click();
+  }
+
+  await driver.wait(until.elementLocated(authz_expand_button), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(authz_expand_button)), 10000);
+  await driver.findElement(authz_expand_button).click();
+  await driver.wait(until.elementLocated(client_id_), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(client_id_)), 10000);
+
+  // Submit credentials
+  await driver.findElement(client_id_).clear();
+  await driver.findElement(client_id_).sendKeys(client_id);
+  await driver.findElement(scope_).clear();
+  await driver.findElement(scope_).sendKeys(scope);
+  await driver.findElement(btn_authorize).click();
+
+  // Login to Keycloak
+  try {
+    await driver.wait(until.elementLocated(keycloak_username), 10000);
+    await driver.wait(until.elementIsVisible(driver.findElement(keycloak_username)), 10000);
+  } catch (error) {
+    authz_error_report = await driver.findElement(By.id("authz-error-report"));
+    authz_error_report_paragraphs = await authz_error_report.findElements(By.css("p"));
+    throw new Error(await authz_error_report_paragraphs[authz_error_report_paragraphs.length - 1].getText());
+  }
+
+  await driver.findElement(keycloak_username).clear();
+  await driver.findElement(keycloak_username).sendKeys(client_id);
+  await driver.findElement(keycloak_password).clear();
+  await driver.findElement(keycloak_password).sendKeys(client_id);
+  await driver.findElement(keycloak_kc_login).click();
+
+  // Submit credentials (again)
   await driver.wait(until.elementLocated(token_client_id), 10000);
   await driver.wait(until.elementIsVisible(driver.findElement(token_client_id)), 10000);
 
-  // Submit credentials
   await driver.findElement(token_client_id).clear();
   await driver.findElement(token_client_id).sendKeys(client_id);
   await driver.findElement(token_client_secret).clear();
@@ -90,15 +139,26 @@ async function test() {
     const client_id = process.env.CLIENT_ID;
     const client_secret = process.env.CLIENT_SECRET;
     const scope = process.env.SCOPE;
+    let pkce_enabled = process.env.PKCE_ENABLED
 
     assert(discovery_endpoint, "DISCOVERY_ENDPOINT environment variable is not set.");
     assert(client_id, "CLIENT_ID environment variable is not set.");
     assert(client_secret, "CLIENT_SECRET environment variable is not set.");
     assert(scope, "SCOPE environment variable is not set.");
+    assert(pkce_enabled, "PKCE_ENABLED environment variable is not set.");
+
+    if (pkce_enabled === "true") {
+      pkce_enabled = true;
+    } else if (pkce_enabled === "false") {
+      pkce_enabled = false;
+    } else {
+      console.log("PKCE_ENABLED must be true or false.");
+      process.exit(1);
+    }
 
     await driver.get("http://localhost:3000");
     await populateMetadata(driver, discovery_endpoint);
-    let access_token = await getAccessToken(driver, client_id, client_secret, scope);
+    let access_token = await getAccessToken(driver, client_id, client_secret, scope, pkce_enabled);
     await verifyAccessToken(access_token, client_id, scope);
     console.log("Test completed successfully.")
   } catch (error) {
