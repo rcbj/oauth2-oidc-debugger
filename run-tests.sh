@@ -11,7 +11,7 @@ sleep 30
 KEYCLOAK_ACCESS_TOKEN=$(curl -X POST "http://localhost:8080/realms/master/protocol/openid-connect/token" -H "Content-Type: application/x-www-form-urlencoded" -d "client_id=admin-cli" -d "username=keycloak" -d "password=keycloak" -d "grant_type=password" | jq -r '.access_token')
 curl -X POST "http://localhost:8080/admin/realms" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"realm": "debugger-testing", "enabled": true}'
 
-for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_PRIVATE AUTHORIZATION_CODE_PUBLIC
+for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_CONFIDENTIAL AUTHORIZATION_CODE_PUBLIC
 do
     FLOW_NAME=$(echo $FLOW_VARIABLE | tr '[:upper:]' '[:lower:]' | tr '_' '-')
 
@@ -21,7 +21,7 @@ do
         CLIENT_CREDENTIALS)
             curl -X POST "http://localhost:8080/admin/realms/debugger-testing/clients" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"clientId": "'$FLOW_NAME'", "protocol": "openid-connect", "publicClient": false, "serviceAccountsEnabled": true, "authorizationServicesEnabled": false, "standardFlowEnabled": false, "directAccessGrantsEnabled": false, "clientAuthenticatorType": "client-secret"}'
             ;;
-        AUTHORIZATION_CODE_PRIVATE)
+        AUTHORIZATION_CODE_CONFIDENTIAL)
             curl -X POST "http://localhost:8080/admin/realms/debugger-testing/clients" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"clientId": "'$FLOW_NAME'", "protocol": "openid-connect", "publicClient": false, "serviceAccountsEnabled": false, "authorizationServicesEnabled": false, "standardFlowEnabled": true, "directAccessGrantsEnabled": false, "clientAuthenticatorType": "client-secret", "frontchannelLogout": true, "redirectUris": ["http://localhost:3000/callback"], "webOrigins": ["/*", "http://localhost:3000/*"], "attributes": {"frontchannel.logout.url": "http://localhost:3000/logout"}}'
             ;;
         AUTHORIZATION_CODE_PUBLIC)
@@ -47,19 +47,21 @@ SCOPE=$KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_NAME \
 node tests/oauth2_client_credentials.js
 
 # Test authorization code flow
-## Private client with PKCE
+## Confidential client with PKCE
 DISCOVERY_ENDPOINT="http://localhost:8080/realms/debugger-testing/.well-known/openid-configuration" \
-CLIENT_ID=$KEYCLOAK_AUTHORIZATION_CODE_PRIVATE_CLIENT_CLIENTID \
-CLIENT_SECRET=$KEYCLOAK_AUTHORIZATION_CODE_PRIVATE_CLIENT_SECRET \
-SCOPE=$KEYCLOAK_AUTHORIZATION_CODE_PRIVATE_SCOPE_NAME \
+CLIENT_ID=$KEYCLOAK_AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_CLIENTID \
+CLIENT_SECRET=$KEYCLOAK_AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET \
+SCOPE=$KEYCLOAK_AUTHORIZATION_CODE_CONFIDENTIAL_SCOPE_NAME \
+USER=$KEYCLOAK_AUTHORIZATION_CODE_CONFIDENTIAL_USER_ID \
 PKCE_ENABLED=true \
 node tests/oauth2_authorization_code.js
 
-## Private client without PKCE
+## Confidential client without PKCE
 DISCOVERY_ENDPOINT="http://localhost:8080/realms/debugger-testing/.well-known/openid-configuration" \
-CLIENT_ID=$KEYCLOAK_AUTHORIZATION_CODE_PRIVATE_CLIENT_CLIENTID \
-CLIENT_SECRET=$KEYCLOAK_AUTHORIZATION_CODE_PRIVATE_CLIENT_SECRET \
-SCOPE=$KEYCLOAK_AUTHORIZATION_CODE_PRIVATE_SCOPE_NAME \
+CLIENT_ID=$KEYCLOAK_AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_CLIENTID \
+CLIENT_SECRET=$KEYCLOAK_AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET \
+SCOPE=$KEYCLOAK_AUTHORIZATION_CODE_CONFIDENTIAL_SCOPE_NAME \
+USER=$KEYCLOAK_AUTHORIZATION_CODE_CONFIDENTIAL_USER_ID \
 PKCE_ENABLED=false \
 node tests/oauth2_authorization_code.js
 
@@ -68,6 +70,7 @@ DISCOVERY_ENDPOINT="http://localhost:8080/realms/debugger-testing/.well-known/op
 CLIENT_ID=$KEYCLOAK_AUTHORIZATION_CODE_PUBLIC_CLIENT_CLIENTID \
 CLIENT_SECRET=$KEYCLOAK_AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET \
 SCOPE=$KEYCLOAK_AUTHORIZATION_CODE_PUBLIC_SCOPE_NAME \
+USER=$KEYCLOAK_AUTHORIZATION_CODE_PUBLIC_USER_ID \
 PKCE_ENABLED=true \
 node tests/oauth2_authorization_code.js
 
@@ -76,5 +79,6 @@ DISCOVERY_ENDPOINT="http://localhost:8080/realms/debugger-testing/.well-known/op
 CLIENT_ID=$KEYCLOAK_AUTHORIZATION_CODE_PUBLIC_CLIENT_CLIENTID \
 CLIENT_SECRET=$KEYCLOAK_AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET \
 SCOPE=$KEYCLOAK_AUTHORIZATION_CODE_PUBLIC_SCOPE_NAME \
+USER=$KEYCLOAK_AUTHORIZATION_CODE_PUBLIC_USER_ID \
 PKCE_ENABLED=false \
 node tests/oauth2_authorization_code.js

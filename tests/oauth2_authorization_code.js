@@ -112,7 +112,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   return await driver.findElement(visibleAccessTokenElement).getAttribute("value");
 }
 
-async function verifyAccessToken(access_token, client_id, scope) {
+async function verifyAccessToken(access_token, client_id, scope, user) {
   async function compareScopes(scope1, scope2) {
     scope1 = scope1.split(" ");
     scope2 = scope2.split(" ");
@@ -124,8 +124,12 @@ async function verifyAccessToken(access_token, client_id, scope) {
   let response_text = access_token.match(/responseText: (.*)/);
 
   assert.notStrictEqual(decoded_access_token, null, "Cannot decode access token. Request result: " + (response_text ? response_text[1] : "no response text"));
-  assert.strictEqual(decoded_access_token.payload.client_id, client_id, "Access token client ID does not match client ID.");
+  assert.strictEqual(decoded_access_token.payload.azp, client_id, "Access token AZP does not match client ID.");
   assert.strictEqual(await compareScopes(decoded_access_token.payload.scope, scope), true, "Access token scope does not match scope.");
+  assert.strictEqual(decoded_access_token.payload.sub, user, "Access token SUB does not match user ID.");
+  assert.strictEqual(decoded_access_token.payload.given_name, client_id, "Access token given_name does not match.");
+  assert.strictEqual(decoded_access_token.payload.family_name, client_id, "Access token family_name does not match.");
+  assert.strictEqual(decoded_access_token.payload.email, `${client_id}@iyasec.io`, "Access token email does not match.");
 }
 
 async function test() {
@@ -139,12 +143,14 @@ async function test() {
     const client_id = process.env.CLIENT_ID;
     const client_secret = process.env.CLIENT_SECRET;
     const scope = process.env.SCOPE;
+    const user = process.env.USER;
     let pkce_enabled = process.env.PKCE_ENABLED
 
     assert(discovery_endpoint, "DISCOVERY_ENDPOINT environment variable is not set.");
     assert(client_id, "CLIENT_ID environment variable is not set.");
     assert(client_secret, "CLIENT_SECRET environment variable is not set.");
     assert(scope, "SCOPE environment variable is not set.");
+    assert(user, "USER environment variable is not set.");
     assert(pkce_enabled, "PKCE_ENABLED environment variable is not set.");
 
     if (pkce_enabled === "true") {
@@ -159,7 +165,7 @@ async function test() {
     await driver.get("http://localhost:3000");
     await populateMetadata(driver, discovery_endpoint);
     let access_token = await getAccessToken(driver, client_id, client_secret, scope, pkce_enabled);
-    await verifyAccessToken(access_token, client_id, scope);
+    await verifyAccessToken(access_token, client_id, scope, user);
     console.log("Test completed successfully.")
   } catch (error) {
     console.log(error.message);

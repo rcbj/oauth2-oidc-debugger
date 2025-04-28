@@ -28,7 +28,7 @@ jobs:
           KEYCLOAK_ACCESS_TOKEN=$(curl -X POST "http://localhost:8080/realms/master/protocol/openid-connect/token" -H "Content-Type: application/x-www-form-urlencoded" -d "client_id=admin-cli" -d "username=keycloak" -d "password=keycloak" -d "grant_type=password" | jq -r '.access_token')
           curl -X POST "http://localhost:8080/admin/realms" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"realm": "debugger-testing", "enabled": true}'
           
-          for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_PRIVATE AUTHORIZATION_CODE_PUBLIC
+          for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_CONFIDENTIAL AUTHORIZATION_CODE_PUBLIC
           do
               FLOW_NAME=$(echo $FLOW_VARIABLE | tr '[:upper:]' '[:lower:]' | tr '_' '-')
 
@@ -38,7 +38,7 @@ jobs:
                   CLIENT_CREDENTIALS)
                       curl -X POST "http://localhost:8080/admin/realms/debugger-testing/clients" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"clientId": "'$FLOW_NAME'", "protocol": "openid-connect", "publicClient": false, "serviceAccountsEnabled": true, "authorizationServicesEnabled": false, "standardFlowEnabled": false, "directAccessGrantsEnabled": false, "clientAuthenticatorType": "client-secret"}'
                       ;;
-                  AUTHORIZATION_CODE_PRIVATE)
+                  AUTHORIZATION_CODE_CONFIDENTIAL)
                       curl -X POST "http://localhost:8080/admin/realms/debugger-testing/clients" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"clientId": "'$FLOW_NAME'", "protocol": "openid-connect", "publicClient": false, "serviceAccountsEnabled": false, "authorizationServicesEnabled": false, "standardFlowEnabled": true, "directAccessGrantsEnabled": false, "clientAuthenticatorType": "client-secret", "frontchannelLogout": true, "redirectUris": ["http://localhost:3000/callback"], "webOrigins": ["/*", "http://localhost:3000/*"], "attributes": {"frontchannel.logout.url": "http://localhost:3000/logout"}}'
                       ;;
                   AUTHORIZATION_CODE_PUBLIC)
@@ -59,6 +59,7 @@ jobs:
               echo "$(echo $FLOW_VARIABLE)_CLIENT_ID=$(echo $KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_CLIENT_CLIENTID)" >> $GITHUB_OUTPUT
               echo "$(echo $FLOW_VARIABLE)_CLIENT_SECRET=$(echo $KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_CLIENT_SECRET)" >> $GITHUB_OUTPUT
               echo "$(echo $FLOW_VARIABLE)_SCOPE=$(echo $KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_SCOPE_NAME)" >> $GITHUB_OUTPUT
+              echo "$(echo $FLOW_VARIABLE)_USER=$(echo $KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_USER_ID)" >> $GITHUB_OUTPUT
           done
 
       - name: Test client credentials flow
@@ -73,19 +74,21 @@ jobs:
       - name: Test authorization code flow
         id: test_authorization_code
         run: |
-          # Private client with PKCE
-          DISCOVERY_ENDPOINT=${{ steps.configure.outputs.AUTHORIZATION_CODE_PRIVATE_DISCOVERY_ENDPOINT }} \
-          CLIENT_ID=${{ steps.configure.outputs.AUTHORIZATION_CODE_PRIVATE_CLIENT_ID }} \
-          CLIENT_SECRET=${{ steps.configure.outputs.AUTHORIZATION_CODE_PRIVATE_CLIENT_SECRET }} \
-          SCOPE=${{ steps.configure.outputs.AUTHORIZATION_CODE_PRIVATE_SCOPE }} \
+          # Confidential client with PKCE
+          DISCOVERY_ENDPOINT=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_DISCOVERY_ENDPOINT }} \
+          CLIENT_ID=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID }} \
+          CLIENT_SECRET=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET }} \
+          SCOPE=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_SCOPE }} \
+          USER=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_USER }} \
           PKCE_ENABLED=true \
           node tests/oauth2_authorization_code.js
 
-          # Private client without PKCE
-          DISCOVERY_ENDPOINT=${{ steps.configure.outputs.AUTHORIZATION_CODE_PRIVATE_DISCOVERY_ENDPOINT }} \
-          CLIENT_ID=${{ steps.configure.outputs.AUTHORIZATION_CODE_PRIVATE_CLIENT_ID }} \
-          CLIENT_SECRET=${{ steps.configure.outputs.AUTHORIZATION_CODE_PRIVATE_CLIENT_SECRET }} \
-          SCOPE=${{ steps.configure.outputs.AUTHORIZATION_CODE_PRIVATE_SCOPE }} \
+          # Confidential client without PKCE
+          DISCOVERY_ENDPOINT=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_DISCOVERY_ENDPOINT }} \
+          CLIENT_ID=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID }} \
+          CLIENT_SECRET=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET }} \
+          SCOPE=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_SCOPE }} \
+          USER=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_USER }} \
           PKCE_ENABLED=false \
           node tests/oauth2_authorization_code.js
 
@@ -94,6 +97,7 @@ jobs:
           CLIENT_ID=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_CLIENT_ID }} \
           CLIENT_SECRET=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET }} \
           SCOPE=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_SCOPE }} \
+          USER=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_USER }} \
           PKCE_ENABLED=true \
           node tests/oauth2_authorization_code.js
 
@@ -102,5 +106,6 @@ jobs:
           CLIENT_ID=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_CLIENT_ID }} \
           CLIENT_SECRET=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET }} \
           SCOPE=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_SCOPE }} \
+          USER=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_USER }} \
           PKCE_ENABLED=false \
           node tests/oauth2_authorization_code.js
