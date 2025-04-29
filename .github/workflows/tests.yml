@@ -63,6 +63,9 @@ jobs:
               echo "$(echo $FLOW_VARIABLE)_USER=$(echo $KEYCLOAK_$(TMP=$(echo $FLOW_VARIABLE);echo ${!TMP})_USER_ID)" >> $GITHUB_OUTPUT
           done
 
+          echo $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+
       - name: Test client credentials flow
         id: test_client_credentials
         shell: bash
