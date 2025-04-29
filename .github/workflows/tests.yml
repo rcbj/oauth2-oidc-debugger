@@ -62,8 +62,6 @@ jobs:
               echo "${FLOW_VARIABLE}_USER=${USER_ID}" >> $GITHUB_OUTPUT
           done
 
-          cat $GITHUB_OUTPUT
-
       - name: Test client credentials flow
         id: test_client_credentials
         run: |
@@ -76,38 +74,23 @@ jobs:
       - name: Test authorization code flow
         id: test_authorization_code
         run: |
-          # Confidential client with PKCE
-          DISCOVERY_ENDPOINT=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_DISCOVERY_ENDPOINT }} \
-          CLIENT_ID=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID }} \
-          CLIENT_SECRET=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET }} \
-          SCOPE=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_SCOPE }} \
-          USER=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_USER }} \
-          PKCE_ENABLED=true \
-          node tests/oauth2_authorization_code.js
+          for PKCE_ENABLED in true false
+          do
+              # Confidential client
+              DISCOVERY_ENDPOINT=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_DISCOVERY_ENDPOINT }} \
+              CLIENT_ID=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID }} \
+              CLIENT_SECRET=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET }} \
+              SCOPE=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_SCOPE }} \
+              USER=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_USER }} \
+              PKCE_ENABLED=${PKCE_ENABLED} \
+              node tests/oauth2_authorization_code.js
 
-          # Confidential client without PKCE
-          DISCOVERY_ENDPOINT=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_DISCOVERY_ENDPOINT }} \
-          CLIENT_ID=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID }} \
-          CLIENT_SECRET=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET }} \
-          SCOPE=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_SCOPE }} \
-          USER=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_USER }} \
-          PKCE_ENABLED=false \
-          node tests/oauth2_authorization_code.js
-
-          # Public client with PKCE
-          DISCOVERY_ENDPOINT=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT }} \
-          CLIENT_ID=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_CLIENT_ID }} \
-          CLIENT_SECRET=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET }} \
-          SCOPE=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_SCOPE }} \
-          USER=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_USER }} \
-          PKCE_ENABLED=true \
-          node tests/oauth2_authorization_code.js
-
-          # Public client without PKCE
-          DISCOVERY_ENDPOINT=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT }} \
-          CLIENT_ID=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_CLIENT_ID }} \
-          CLIENT_SECRET=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET }} \
-          SCOPE=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_SCOPE }} \
-          USER=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_USER }} \
-          PKCE_ENABLED=false \
-          node tests/oauth2_authorization_code.js
+              # Public client
+              DISCOVERY_ENDPOINT=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT }} \
+              CLIENT_ID=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_CLIENT_ID }} \
+              CLIENT_SECRET=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET }} \
+              SCOPE=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_SCOPE }} \
+              USER=${{ steps.configure.outputs.AUTHORIZATION_CODE_PUBLIC_USER }} \
+              PKCE_ENABLED=${PKCE_ENABLED} \
+              node tests/oauth2_authorization_code.js
+          done
