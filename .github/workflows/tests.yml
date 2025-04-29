@@ -16,6 +16,7 @@ jobs:
 
       - name: Start & configure Keycloak and debugger
         id: configure
+        shell: bash
         run: |
           # Install testing dependencies
           npm install --prefix tests
@@ -64,6 +65,7 @@ jobs:
 
       - name: Test client credentials flow
         id: test_client_credentials
+        shell: bash
         run: |
           DISCOVERY_ENDPOINT=${{ steps.configure.outputs.CLIENT_CREDENTIALS_DISCOVERY_ENDPOINT }} \
           CLIENT_ID=${{ steps.configure.outputs.CLIENT_CREDENTIALS_CLIENT_ID }} \
@@ -73,6 +75,7 @@ jobs:
 
       - name: Test authorization code flow
         id: test_authorization_code
+        shell: bash
         run: |
           # Confidential client with PKCE
           DISCOVERY_ENDPOINT=${{ steps.configure.outputs.AUTHORIZATION_CODE_CONFIDENTIAL_DISCOVERY_ENDPOINT }} \
