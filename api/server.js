@@ -11,6 +11,11 @@ const bunyan = require("bunyan");
 const axios = require('axios');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const appconfig = require(process.env.CONFIG_FILE);
+
+if (!appconfig) {
+  log.debug('Failed to load appconfig.');
+}
 
 // Constants
 const PORT = process.env.PORT || 4000;
@@ -197,6 +202,13 @@ app.post('/token', (req, res) => {
                       parameterObject[key] +
                       "&";
     });
+
+    if (tokenEndpoint != appconfig.apiUrl) {
+      log.error('Invalid token endpoint: ' + tokenEndpoint);
+      res.status(400)
+      res.json({ error: 'Invalid token endpoint' });
+    }
+
     var headers = {
       'content-type' : 'application/x-www-form-urlencoded'
     };
@@ -278,4 +290,3 @@ let options = {
 expressSwagger(options)
 app.listen(PORT, HOST);
 log.info(`Running on http://${HOST}:${PORT}`);
-
