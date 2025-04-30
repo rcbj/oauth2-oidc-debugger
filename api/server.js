@@ -198,12 +198,6 @@ app.post('/token', (req, res) => {
                       "&";
     });
 
-    if (!tokenEndpoint.includes(`${HOST}:${PORT}`)) {
-      log.error('Invalid token endpoint: ' + tokenEndpoint);
-      res.status(400)
-      res.json({ error: 'Invalid token endpoint' });
-    }
-
     var headers = {
       'content-type' : 'application/x-www-form-urlencoded'
     };
