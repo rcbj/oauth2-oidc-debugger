@@ -197,6 +197,7 @@ app.post('/token', (req, res) => {
                       parameterObject[key] +
                       "&";
     });
+
     var headers = {
       'content-type' : 'application/x-www-form-urlencoded'
     };
@@ -278,4 +279,3 @@ let options = {
 expressSwagger(options)
 app.listen(PORT, HOST);
 log.info(`Running on http://${HOST}:${PORT}`);
-
