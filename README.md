@@ -265,7 +265,7 @@ Thanks to the following:
 7. In the newly opened tab from the identity provider, enter "Username" and "Password", then click "Sign In"
 ![alt text](docs/images/image-14.png)
 8. On successful login, you will be redirected back to the debugger page
-9. In "Exchange Authorization Code for Access Token", enter "Client ID", "Client Secret" (only if client is confidential, otherwise leave empty) and "Scope", then click "Get Token"
+9. In "Exchange Authorization Code for Access Token", enter "Client ID", "Client Secret" (only if client is confidential) and "Scope", then click "Get Token"
 ![alt text](docs/images/image-6.png)
 10. If successful, the debugger will return "Access token", "Refresh Token" and optionally "ID Token". You can view additional information for each of the tokens if you click on their links (1). You can also introspect the access and refresh token using the identity provider introspection endpoint (2). For ID tokens, you can also decode their userinfo data
 ![alt text](docs/images/image-15.png)
