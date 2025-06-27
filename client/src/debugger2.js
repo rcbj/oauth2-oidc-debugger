@@ -193,30 +193,45 @@ $(document).ready(function() {
                                       "<legend>Token Endpoint Results:</legend>" + 
 				      "<table>" +
 				        "<tr>" +
-                                          '<td><P><a href="/token_detail.html?type=access">Access Token</a></P>' +
-                                          '<P style="font-size:50%;"><a href="/introspection.html?type=access">Introspect Token</a></P>' + 
-                                          "</td><td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
-                                            data.access_token + 
-                                            "</textarea>" +
+                                          '<td>' +
+                                              '<P><a href="/token_detail.html?type=access">Access Token</a></P>' +
+                                              '<P style="font-size:50%;"><a href="/introspection.html?type=access">Introspect Token</a></P>' + 
+                                              '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                              ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
+                                          "</td>" +
+                                          "<td>" +
+                                             "<textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
+                                               data.access_token + 
+                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>";
         if(currentRefreshToken) {
-           token_endpoint_result_html +=  "<tr>" +
-                                          '<td><P><a href="/token_detail.html?type=refresh">Refresh Token</a></P>' +
-                                          '<P style="font-size:50%;"><a href="/introspection.html?type=refresh">Introspect Token</a></P>' +
-                                          "</td><td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" + 
-                                            currentRefreshToken +
-                                            "</textarea>" +
+           token_endpoint_result_html +=  '<tr>' +
+                                          '<td>' +
+                                              '<P><a href="/token_detail.html?type=refresh">Refresh Token</a></P>' +
+                                              '<P style="font-size:50%;"><a href="/introspection.html?type=refresh">Introspect Token</a></P>' +
+                                              '<P><form><input class="btn2" type="submit" value="Copy Token"' + 
+                                              ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
+                                          '</td>' +
+                                          '<td>' +
+                                              '<textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>' + 
+                                              currentRefreshToken +
+                                              "</textarea>" +
                                           "</td>" +
                                         "</tr>";
          }
          token_endpoint_result_html +=  "<tr>" +
-                                          '<td><P><a href="/token_detail.html?type=id">ID Token</a></P>' +
-                                          '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P></td>' +
-                                          "<td><textarea rows=10 cols=60 name=token_id_token id=token_id_token>" + 
-                                             data.id_token + 
+                                          '<td>' +
+                                            '<P><a href="/token_detail.html?type=id">ID Token</a></P>' +
+                                            '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P>' +
+                                            '<P><form><input class="btn1" type="submit" value="Copy Token"' + 
+                                            ' onclick="return debugger2.onClickCopyToken(\'#token_id_token\');"/></form></P>' +
+                                          '</td>' +
+                                          '<td>' +
+                                            '<textarea rows=10 cols=60 name=token_id_token id=token_id_token>' + 
+                                            data.id_token + 
                                             "</textarea>" +
-                                          "</td>" +
+                                          '</td>' +
                                         "</tr>" +
                                       "</table>" +
                                       "</fieldset>";
@@ -228,7 +243,11 @@ $(document).ready(function() {
                                       "<legend>Token Endpoint Results:</legend>" +
                                       "<table>" +
                                         "<tr>" +
-                                          '<td><a href="/token_detail.html?type=access">Access Token</a></td>' +
+                                          '<td>' +
+                                            '<p><a href="/token_detail.html?type=access">Access Token</a></p>'
+                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
+                                          '</td>' +
                                           "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" +
                                             data.access_token +
                                             "</textarea>" +
@@ -236,7 +255,11 @@ $(document).ready(function() {
                                         "</tr>";
          if(currentRefreshToken) {
            token_endpoint_result_html += "<tr>" +
-                                          '<td><a href="/token_detail.html?type=access">Refresh Token</a></td>' +
+                                          '<td>' +
+                                            '<a href="/token_detail.html?type=access">Refresh Token</a>' +
+                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
+                                          '</td>' +
                                           "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" +
                                            currentRefreshToken +
                                             "</textarea>" +
@@ -248,7 +271,8 @@ $(document).ready(function() {
          localStorage.setItem("token_access_token", data.access_token);
          localStorage.setItem("token_refresh_token", data.refresh_token);
       }
-      $("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
+      //$("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
+      $("#token_endpoint_result").html(token_endpoint_result_html);
       $("#refresh_refresh_token").val(currentRefreshToken);
       $("#refresh_client_id").val(localStorage.getItem("client_id"));
       $("#refresh_scope").val(localStorage.getItem("scope"));
@@ -341,32 +365,49 @@ $(".refresh_btn").click(function() {
                                       "<legend>Token Endpoint Results for Refresh Token Call:</legend>" + 
 				      "<table>" +
 				        "<tr>" +
-                                          '<td><P><a href="/token_detail.html?type=refresh_access">Access Token</a></P>' +
-                                          '<P style="font-size:50%;"><a href="/introspection.html?type=refresh_access">Introspect Token</a></P>' +
-                                          "</td><td><textarea rows=10 cols=60 name=refresh_access_token id=refresh_access_token>" + 
-                                            data.access_token + 
+                                          '<td>' +
+                                            '<P><a href="/token_detail.html?type=refresh_access">Access Token</a></P>' +
+                                            '<P style="font-size:50%;"><a href="/introspection.html?type=refresh_access">Introspect Token</a></P>' +
+                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            ' onclick="return debugger2.onClickCopyToken(\'#refresh_access_token\');"/></form></P>' +
+                                          "</td>" +
+                                          "<td>" + 
+                                            "<textarea rows=10 cols=60 name=refresh_access_token id=refresh_access_token>" + 
+                                              data.access_token + 
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          '<td><P><a href="/token_detail.html?type=refresh_refresh">Refresh Token</a></P>' +
-                                          '<P style="font-size:50%;"><a href="/introspection.html?type=refresh_refresh">Introspect Token</a></P>' +
-                                          "</td><td><textarea rows=10 cols=60 name=refresh_refresh_token id=refresh_refresh_token>" + 
-                                            currentRefreshToken +
+                                          '<td>' +
+                                            '<P><a href="/token_detail.html?type=refresh_refresh">Refresh Token</a></P>' +
+                                            '<P style="font-size:50%;"><a href="/introspection.html?type=refresh_refresh">Introspect Token</a></P>' +
+                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            ' onclick="return debugger2.onClickCopyToken(\'#refresh_refresh_token\');"/></form></P>' +
+                                          "</td>" +
+                                          "<td><textarea rows=10 cols=60 name=refresh_refresh_token id=refresh_refresh_token>" + 
+                                              currentRefreshToken +
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          '<td><P><a href="/token_detail.html?type=refresh_id">ID Token</a></P>' +
-                                          '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P></td>' +
-                                          "<td><textarea rows=10 cols=60 name=refresh_id_token id=refresh_id_token>" + 
-                                             data.id_token + 
+                                          '<td>' +
+                                            '<P><a href="/token_detail.html?type=refresh_id">ID Token</a></P>' +
+                                            '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P>' +
+                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            ' onclick="return debugger2.onClickCopyToken(\'#refresh_id_token\');"/></form></P>' +
+                                          "</td>" +
+                                          "<td>" +
+                                            "<textarea rows=10 cols=60 name=refresh_id_token id=refresh_id_token>" + 
+                                              data.id_token + 
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
 					  "<td>iteration</td>" +
-					  "<td><input type=\"text\" value=\"" + iteration + "\" id=\"refresh-token-results-iteration-count\" name=\"refresh-token-results-iteration-count\"></td>" +
+					  "<td>" +
+                                            '<input type="text" value="' + iteration +
+                                            '" id="refresh-token-results-iteration-count" name="refresh-token-results-iteration-count">'
+                                          "</td>" +
                                         "</tr>" +
                                       "</table>" +
                                       "</fieldset>";
@@ -375,14 +416,23 @@ $(".refresh_btn").click(function() {
                                       "<legend>Token Endpoint Results for Refresh Token Call:</legend>" +
                                       "<table>" +
                                         "<tr>" +
-                                          '<td><a href="/token_detail.html?type=refresh_access">Access Token</a></td>' +
-                                          "<td><textarea rows=10 cols=60 name=refresh_access_token id=refresh_access_token>" +
-                                            data.access_token +
+                                          "<td>" +
+                                            '<a href="/token_detail.html?type=refresh_access">Access Token</a>' +
+                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            ' onclick="return debugger2.onClickCopyToken(\'#refresh_access_token\');"/></form></P>' +
+                                          "</td>" +
+                                          "<td>" +
+                                            "<textarea rows=10 cols=60 name=refresh_access_token id=refresh_access_token>" +
+                                              data.access_token +
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
                                         "<tr>" +
-                                          '<td><a href="/token_detail.html?type=refresh_id">ID Token</a></td>' +
+                                          '<td>' +
+                                            '<a href="/token_detail.html?type=refresh_id">ID Token</a>' +
+                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_id_token\');"/></form></P>' +
+                                          '</td>' +
                                           "<td><textarea rows=10 cols=60 name=refresh_id_token id=refresh_id_token>" +
                                             currentRefreshToken +
                                             "</textarea>" +
@@ -390,12 +440,16 @@ $(".refresh_btn").click(function() {
                                         "</tr>" +
                                         "<tr>" +
                                           "<td>iteration</td>" +
-                                          "<td><input type=\"text\" value=\"" + iteration + "\" id=\"refresh-token-results-iteration-count\" name=\"refresh-token-results-iteration-count\"></td>" +
+                                          "<td>"
+                                            '<input type="text" value="' + iteration + 
+                                            '" id="refresh-token-results-iteration-count" name="refresh-token-results-iteration-count">'
+                                          "</td>" +
                                         "</tr>" +
                                       "</table>" +
                                       "</fieldset>";
       }
-      $("#refresh_endpoint_result").html(DOMPurify.sanitize(refresh_endpoint_result_html));
+      //$("#refresh_endpoint_result").html(DOMPurify.sanitize(refresh_endpoint_result_html));
+      $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
       // Update refresh token field in the refresh token grant pane
       $("refresh_refresh_token").val(currentRefreshToken);
       // Store new tokens in local storage
@@ -1334,65 +1388,91 @@ function recreateTokenDisplay()
 {
       var token_endpoint_result_html = "";
       log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
+      var refreshToken = localStorage.getItem("token_refresh_token");
       if(displayOpenIDConnectArtifacts == true)
       {
          // Display OAuth2/OIDC Artifacts
-         var refreshToken = localStorage.getItem("token_refresh_token");
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" + 
-				      "<table>" +
-				        "<tr>" +
-                                          '<td><P><a href="/token_detail.html?type=access">Access Token</a></P>' +
-                                          '<P style="font-size:50%;"><a href="/introspection.html?type=access">Introspect Token</a></P>' + 
-                                          "</td><td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
-                                            localStorage.getItem("token_access_token") + 
-                                            "</textarea>" +
+                                      "<table>" +
+                                        "<tr>" +
+                                          '<td>' +
+                                              '<P><a href="/token_detail.html?type=access">Access Token</a></P>' +
+                                              '<P style="font-size:50%;"><a href="/introspection.html?type=access">Introspect Token</a></P>' + 
+                                              '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                              ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
+                                          "</td>" +
+                                          "<td>" +
+                                             "<textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
+                                               localStorage.getItem("token_access_token") + 
+                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>";
-         if(typeof refreshToken != "undefined" && refreshToken != "undefined") {
-           token_endpoint_result_html += "<tr>" +
-                                          '<td><P><a href="/token_detail.html?type=refresh">Refresh Token</a></P>' +
-                                          '<P style="font-size:50%;"><a href="/introspection.html?type=refresh">Introspect Token</a></P>' +
-                                          "</td><td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" + 
-                                            refreshToken +
-                                            "</textarea>" +
+        if(refreshToken) {
+           token_endpoint_result_html +=  '<tr>' +
+                                          '<td>' +
+                                              '<P><a href="/token_detail.html?type=refresh">Refresh Token</a></P>' +
+                                              '<P style="font-size:50%;"><a href="/introspection.html?type=refresh">Introspect Token</a></P>' +
+                                              '<P><form><input class="btn2" type="submit" value="Copy Token"' + 
+                                              ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
+                                          '</td>' +
+                                          '<td>' +
+                                              '<textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>' + 
+                                                refreshToken +
+                                              "</textarea>" +
                                           "</td>" +
                                         "</tr>";
          }
-         token_endpoint_result_html += "<tr>" +
-                                          '<td><P><a href="/token_detail.html?type=id">ID Token</a></P>' +
-                                          '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P></td>' +
-                                          "<td><textarea rows=10 cols=60 name=token_id_token id=token_id_token>" + 
-                                             localStorage.getItem("token_id_token") +
+         token_endpoint_result_html +=  "<tr>" +
+                                          '<td>' +
+                                            '<P><a href="/token_detail.html?type=id">ID Token</a></P>' +
+                                            '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P>' +
+                                            '<P><form><input class="btn1" type="submit" value="Copy Token"' + 
+                                            ' onclick="return debugger2.onClickCopyToken(\'#token_id_token\');"/></form></P>' +
+                                          '</td>' +
+                                          '<td>' +
+                                            '<textarea rows=10 cols=60 name=token_id_token id=token_id_token>' + 
+                                              localStorage.getItem("token_id_token") + 
                                             "</textarea>" +
-                                          "</td>" +
+                                          '</td>' +
                                         "</tr>" +
                                       "</table>" +
                                       "</fieldset>";
+
       } else {
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" +
                                       "<table>" +
                                         "<tr>" +
-                                          '<td><a href="/token_detail.html?type=access">Access Token</a></td>' +
+                                          '<td>' +
+                                            '<p><a href="/token_detail.html?type=access">Access Token</a></p>'
+                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
+                                          '</td>' +
                                           "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" +
-                                            localStorage.getItem("token_access_token") +
+                                              localStorage.getItem("token_access_token") + 
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>";
-         if(typeof refreshToken != "undefined" && refreshToken != "undefined") {
+         if(refreshToken) {
            token_endpoint_result_html += "<tr>" +
-                                          '<td><a href="/token_detail.html?type=access">Refresh Token</a></td>' +
-                                          "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" +
-                                            refreshToken +
+                                          '<td>' +
+                                            '<a href="/token_detail.html?type=access">Refresh Token</a>' +
+                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
+                                          '</td>' +
+                                          "<td>" +
+                                            "<textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" +
+                                              refreshToken +
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>";
-        }
-        token_endpoint_result_html += "</table>" +
+         }
+         token_endpoint_result_html += "</table>" +
                                       "</fieldset>";
       }
-      $("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
+      //$("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
+      $("#token_endpoint_result").html(token_endpoint_result_html);
 }
 
 function displayTokenCustomParametersCheck()
@@ -1589,6 +1669,15 @@ function setHeaderAuthStyleRefreshToken() {
   return false;
 }
 
+function onClickCopyToken(field) {
+  log.debug("Entering copyToken().");
+  var copyText = $(field);
+//  copyText.select();
+  navigator.clipboard.writeText(copyText.val());
+  log.debug("Leaving copyToken().");
+  return false;
+}
+
 module.exports = {
   OnSubmitTokenEndpointForm,
   getParameterByName,
@@ -1618,5 +1707,6 @@ module.exports = {
   setPostAuthStyleCheckToken,
   setHeaderAuthStyleCheckToken,
   setPostAuthStyleRefreshToken,
-  setHeaderAuthStyleRefreshToken
+  setHeaderAuthStyleRefreshToken,
+  onClickCopyToken
 };
