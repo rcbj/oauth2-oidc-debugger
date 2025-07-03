@@ -25,6 +25,7 @@
     "bunyan": "latest",
     "dompurify": "latest",
     "jquery": "latest",
-    "jwks": "latest"
+    "jwks": "latest",
+    "xmldom": "latest"
   }
 }

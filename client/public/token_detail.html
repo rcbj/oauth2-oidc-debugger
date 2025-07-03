@@ -7,6 +7,7 @@
     <link href="/css/header.css" rel="stylesheet">
     <link href="/css/bottom.css" rel="stylesheet">
     <link href="/css/footer.css" rel="stylesheet">
+    <link href="/css/token_detail.css" rel="stylesheet">
     <style>
       textarea {
         width: auto;
@@ -37,16 +38,23 @@
 <p>If nothing is displayed, then the requested token retrieved from the endpoint is not a JWT or not a valid JWT.</p>
 <p>In the future, additional token formats may be added.</p>
 <p>Although, many leading IdPs use JWT as the format for OAuth2 access tokens and refresh tokens. The spec does not require this.</p>
-<p>Some IdPs intentionally use opaque tokens that have no deeper meaning than to be a randomly generated identifier that points back to session information stored on the IdP</P>
+<p>Some IdPs intentionally use opaque tokens that have no deeper meaning than to be a randomly generated identifier that points back to session information stored on the IdP. If this is the case, return to the Token Endpoint screen and navigate to the UserInfo Endpoint screen or Token Introspection Screen.</p>
 <div class="step3" id="step3">
   <fieldset>
     <legend id="h2_title_2" name="h2_title_2">Decoded Token
     </legend>
-    <table>
+    <div class="tab">
+      <button class="tablinks" onclick="token_detail.populateTable(event, 'json')">JSON</button>
+      <button class="tablinks" onclick="token_detail.populateTable(event, 'key-pair')">Key Pairs</button>
+    </div>
+    <div id="json" class="tabcontent" style="display: block;">
+    <table class="outertable">
       <tbody>
         <tr>
           <td>
             <a href="/debugger2.html?redirectFromTokenDetail=true">Return to debugger</a>
+          </td>
+        </tr>
         <tr>
           <td>
             <div class="tooltip"><label>JWT Header:</label><span class="tooltiptext">The decoded JWT Header.</span>
@@ -108,11 +116,82 @@
         </tr>
       </tbody>
     </table>
+  </div>
+  <div id="key-pair" class="tabcontent">
+    <table class="outertable">
+      <tbody>
+        <tr>
+          <td>
+            <a href="/debugger2.html?redirectFromTokenDetail=true">Return to debugger</a>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>JWT Header:</label><span class="tooltiptext">JWT Header Key-Value Pairs.</span>
+            </div>
+          </td>
+          <td>
+            <div id="key_pair_jwt_header">
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>JWT Payload:</label><span class="tooltiptext">JWT Proposer Key-Value Pairs.</span>
+            </div>
+          </td>
+          <td>
+             <div id="key_pair_jwt_payload">
+             </div>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Verification Type: </label><span class="tooltiptext">The JWT Verification Type.</span>
+            </div>
+          </td>
+          <td>
+            <select class="stored" id="jwt_verification_type" name="jwt_verification_type">
+              <option value="hmac" selected="selected">HMAC Secret</option>
+              <option value="x509">X.509 Certificate (PEM)</option>
+              <option value="jwks">JWKS (JSON)</option>
+              <option value="jwks_url">JWKS (URL)</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>JWT Verification Key/URL:</label><span class="tooltiptext">The JWT Verification Key/URL.</span>
+            </div>
+          </td>
+          <td>
+            <textarea rows=6 cols=50 id="jwt_verification_key" name="jwt_verification_key"></textarea>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <input class="btn2" type="submit" value="Verify Signature" onclick="return token_detail.verifyJWT();" />
+          </td>
+          <td>&nbsp;
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Verification Output:</label><span class="tooltiptext">Verification Output.</span>
+            </div>
+          </td>
+          <td>
+            <textarea rows=6 cols=50 id="jwt_verification_output" name="jwt_verification_output"></textarea>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+  </div>
   </fieldset>
 </div>
 
-    </div>
-
+<br>
   <div class="navbar">
     <a href="#" class="active">Home</a>
     <a href="/privacypolicy.html">Privacy Policy</a>
