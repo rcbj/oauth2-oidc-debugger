@@ -8,10 +8,13 @@
 var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var $ = require("jquery");
+const { DOMParser } = require('xmldom');
 var log = bunyan.createLogger({ name: 'token_detail',
                                 level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
 const jwt = require('jsonwebtoken');
+
+claimDescriptionDictionary = {};
 
 function getParameterByName(name, url)
 {
@@ -189,14 +192,103 @@ window.onload = function() {
   } else {
     log.error('Unknown token type encountered.');
   }
-  log.debug('jwt: ' + jwt);
-  const decodedJWT = decodeJWT(jwt);
-  log.debug('decoded jwt: ' + JSON.stringify(decodedJWT));
-  document.getElementById('jwt_header').value = JSON.stringify(decodedJWT.header, null, 2);
-  document.getElementById('jwt_payload').value = JSON.stringify(decodedJWT.payload, null, 2);
+  // Retrieve IANA JWT claim assignments
+  fetch(appconfig.apiUrl + "/claimdescription")
+  .then((response) => response.text())
+  .then((body_text) => {
+    console.log(body_text);
+    parser = new DOMParser();
+    xmlDoc = parser.parseFromString(body_text, "application/xml");
+    records = xmlDoc.getElementsByTagName("record");
+    for (i = 0; i < records.length; i++)
+    {
+      claim = records[i].getElementsByTagName("value")[0].textContent;
+      description = records[i].getElementsByTagName("description")[0].textContent;
+  //    console.log(claim + ":" + description);
+      claimDescriptionDictionary[claim] = description;
+    }
+  }).then( () => {
+    Object.keys(claimDescriptionDictionary).forEach( (key) => {
+      log.debug("Claims Description Map Entry: " + key + ":" + claimDescriptionDictionary[key]);
+      log.debug('jwt: ' + jwt);
+      const decodedJWT = decodeJWT(jwt);
+      log.debug('decoded jwt: ' + JSON.stringify(decodedJWT));
+      // Populate JSON tab.  
+      $('#jwt_header').val(JSON.stringify(decodedJWT.header, null, 2));
+      $('#jwt_payload').val(JSON.stringify(decodedJWT.payload, null, 2));
+      // Populate Key-Pair tab
+      keyPairJWTHeader = '<table border="1">'
+                       +   '<tr>'
+                       +     '<td><b>Claim</b></td><td><b>Value</b></td><td><b>Description</b></td>'
+                       +   '</tr>'
+      Object.keys(decodedJWT.header).forEach(key => {
+        if ( typeof decodedJWT.header[key] === "object" )
+        {
+          keyPairJWTHeader += '<tr>'
+                            + '<td>' + key + '</td>'
+                            + '<td>' + JSON.stringify(decodedJWT.header[key]) + '</td>';
+          if (!!claimDescriptionDictionary[key]) {
+            keyPairJWTHeader += '<td>' + claimDescriptionDictionary[key] + '</td>';
+          }
+          keyPairJWTHeader += '</tr>';
+        } else {
+          keyPairJWTHeader += '<tr>'
+                            + '<td>' + key + '</td>'
+                            + '<td>' + decodedJWT.header[key] + '</td>';
+          if (!!claimDescriptionDictionary[key]) {
+            keyPairJWTHeader += '<td>' + claimDescriptionDictionary[key] + '</td>';
+          }
+          keyPairJWTHeader += '</tr>';
+        }
+      });
+      keyPairJWTHeader += '</table>';
+      $('#key_pair_jwt_header').html(keyPairJWTHeader);
+      keyPairJWTPayload = '<table border="1">'
+                       +   '<tr>'
+                       +     '<td><b>Claim</b></td><td><b>Value</b></td><td><b>Description</b></td>'
+                       +   '</tr>'
+      Object.keys(decodedJWT.payload).forEach(key => {
+        if (typeof decodedJWT.payload[key] === "object" )
+        {
+          keyPairJWTPayload += '<tr>'
+                            + '<td>' + key + '</td>'
+                            + '<td>' + JSON.stringify(decodedJWT.payload[key]) + '</td>';
+          if (!!claimDescriptionDictionary[key]) {
+            keyPairJWTPayload += '<td>' + claimDescriptionDictionary[key] + '</td>';
+          }
+          keyPairJWTPayload += '</tr>';
+        } else {
+          keyPairJWTPayload += '<tr>'
+                            + '<td>' + key + '</td>'
+                            + '<td>' + decodedJWT.payload[key] + '</td>';
+          if (!!claimDescriptionDictionary[key]) {
+            keyPairJWTPayload += '<td>' + claimDescriptionDictionary[key] + '</td>';
+          }
+          keyPairJWTPayload += '</tr>';
+        }
+      });
+      keyPairJWTPayload += '</table>';
+      $('#key_pair_jwt_payload').html(keyPairJWTPayload);
+    });
+  });
+}
+
+function populateTable(evt, tabName) {
+  var i, tabcontent, tablinks;
+  tabcontent = document.getElementsByClassName("tabcontent");
+  for (i = 0; i < tabcontent.length; i++) {
+    tabcontent[i].style.display = "none";
+  }
+  tablinks = document.getElementsByClassName("tablinks");
+  for (i = 0; i < tablinks.length; i++) {
+    tablinks[i].className = tablinks[i].className.replace(" active", "");
+  }
+  document.getElementById(tabName).style.display = "block";
+  evt.currentTarget.className += " active";
 }
 
 module.exports = {
  decodeJWT,
- verifyJWT
+ verifyJWT,
+ populateTable
 };
