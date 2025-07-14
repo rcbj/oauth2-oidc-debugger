@@ -177,9 +177,14 @@ $(document).ready(function() {
     data: JSON.stringify(formData),
     contentType: "application/json; charset=utf-8",
     success: function(data, textStatus, request) {
-      log.debug('Entering ajax success function for Access Token call.');
+      log.debug("Entering ajax success function for Access Token call: data=" 
+              + JSON.stringify(data)
+              + ", textStatus="
+              + textStatus
+              + ", request=" 
+              + JSON.stringify(request));
       var token_endpoint_result_html = "";
-      if (data.refresh_token && data.refresh_token != 'undefined') {
+      if (!!data.refresh_token && data.refresh_token != 'undefined') {
         currentRefreshToken = data.refresh_token;
       }
       if (data.id_token && data.id_token != 'undefined'){
@@ -205,7 +210,7 @@ $(document).ready(function() {
                                              "</textarea>" +
                                           "</td>" +
                                         "</tr>";
-        if(currentRefreshToken) {
+        if(useRefreshTokenTester) {
            token_endpoint_result_html +=  '<tr>' +
                                           '<td>' +
                                               '<P><a href="/token_detail.html?type=refresh">Refresh Token</a></P>' +
@@ -239,21 +244,23 @@ $(document).ready(function() {
          localStorage.setItem("token_refresh_token", data.refresh_token);
          localStorage.setItem("token_id_token", data.id_token);
       } else {
+         log.debug("Displaying Access Token. No OIDC ID Token: data.access_token=" + data.access_token);
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" +
                                       "<table>" +
                                         "<tr>" +
                                           '<td>' +
-                                            '<p><a href="/token_detail.html?type=access">Access Token</a></p>'
-                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
-                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
+                                            '<p><a href="/token_detail.html?type=access">Access Token</a></p>' +
+                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           '</td>' +
                                           "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" +
                                             data.access_token +
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>";
-         if(currentRefreshToken) {
+         if(useRefreshTokenTester) {
+           log.debug("Refresh token found. Generating token: data.refresh_token=" + currentRefreshToken);
            token_endpoint_result_html += "<tr>" +
                                           '<td>' +
                                             '<a href="/token_detail.html?type=access">Refresh Token</a>' +
@@ -280,7 +287,7 @@ $(document).ready(function() {
       $("#token_fieldset").hide();
       $("#token_expand_button").val("Expand");
       useRefreshTokens();
-      if(currentRefreshToken) {
+      if(!!currentRefreshToken) {
         $("#logout_id_token_hint").val(data.id_token);
       } else {
         $("#logout_fieldset").hide();
@@ -346,7 +353,12 @@ $(".refresh_btn").click(function() {
     data: JSON.stringify(formData),
     contentType: "application/json; charset=utf-8",
     success: function(data, textStatus, request) {
-      log.debug('Entering ajax success function for Refresh Token call.');
+      log.debug("Entering ajax success function for Refresh Token call: data=" 
+              + JSON.stringify(data)
+              + ", textStatus="
+              + textStatus
+              + ", request=" 
+              + JSON.stringify(request));
       var refresh_endpoint_result_html = "";
       log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
       var iteration = 1;
@@ -482,7 +494,8 @@ function resetUI(value)
 {
     log.debug("Entering resetUI().");
     $("#logout_post_redirect_uri").val('http://localhost:3000/logout.html');
-    if( value == "client_credential")
+    if( value == "client_credential" &&
+        getParameterByName("redirectFromTokenDetail") != "true")
     {
       $("#code").hide();
       $("#authzUsernameRow").hide();
@@ -501,10 +514,13 @@ function resetUI(value)
       $("#step5").hide();
       $("#useRefreshToken-yes").prop("checked", false);
       $("#useRefreshToken-no").prop("checked", true);
-      displayOpenIDConnectArtifacts = false;
       useRefreshTokenTester = false;
+      $("#yesCheckOIDCArtifacts").prop("checked", "false");
+      $("#noCheckOIDCArtifacts").prop("checked", "true");
+      displayOpenIDConnectArtifacts = false;
     }
-    if( value == "resource_owner")
+    if( value == "resource_owner" &&
+        getParameterByName("redirectFromTokenDetail") != "true")
     {
       $("#code").hide();
       $("#authzUsernameRow").show();
@@ -978,6 +994,16 @@ function onload() {
   $("#password-form-group1").hide();
   $("#password-form-group2").hide();
 
+  if(getParameterByName("redirectFromTokenDetail") != "true") {
+    // Clear all token values.
+    localStorage.setItem("token_access_token", "");
+    localStorage.setItem("token_id_token", "");
+    localStorage.setItem("token_refresh_token", "");
+    localStorage.setItem("refresh_access_token", "");
+    localStorage.setItem("refresh_id_token", "");
+    localStorage.setItem("refresh_refresh_token", "");
+  }
+
   // Check if state matches
   log.debug('Checking on state.');
   var state = getParameterByName('state');
@@ -1058,6 +1084,13 @@ function onload() {
     usePKCE = false;
     $("#usePKCE-yes").prop("checked", false);
     $("#usePKCE-no").prop("checked", true);
+    usePKCE = false
+    $("#yesCheckOIDCArtifacts").prop("checked", "false");
+    $("#noCheckOIDCArtifacts").prop("checked", "true");
+    displayOpenIDConnectArtifacts = false;
+    $("#useRefreshToken-yes").prop("checked", false);
+    $("#useRefreshToken-no").prop("checked", true);
+    useRefreshTokenTester = false;
     usePKCERFC();
   }
 
@@ -1068,15 +1101,8 @@ function onload() {
     $("#step3").hide();
     recreateTokenDisplay();
     $("#logout_id_token_hint").val(localStorage.getItem("token_id_token"));
-  } else {
-    // Clear all token values.
-    localStorage.setItem("token_access_token", "");
-    localStorage.setItem("token_id_token", "");
-    localStorage.setItem("token_refresh_token", "");
-    localStorage.setItem("refresh_access_token", "");
-    localStorage.setItem("refresh_id_token", "");
-    localStorage.setItem("refresh_refresh_token", "");
   }
+
   log.debug("Leaving onload().");
 }
 
@@ -1224,7 +1250,13 @@ function recalculateTokenErrorDescription(data)
       var statusText = data.statusText;
       var readyState = data.readyState;
       var responseText = data.responseText;
-      var responseObject = JSON.parse(responseText);
+      var responseObject = {};
+      try {
+        responseObject = JSON.parse(responseText);
+      } catch (e) {
+        log.warn("Unable to parse response text.");
+        responseObject = {};
+      }
       $("#display_token_error_form_textarea1").val(                             "status: " + status + "\n" +
 										"statusText: " + statusText + "\n" +
 										"readyState: " + readyState + "\n" +
@@ -1237,7 +1269,13 @@ function recalculateTokenErrorDescription(data)
       var statusText = data.statusText;
       var readyState = data.readyState;
       var responseText = data.responseText;
-      var responseObject = JSON.parse(responseText);
+      var responseObject = {};
+      try {
+        responseObject = JSON.parse(responseText);
+      } catch (e) {
+        log.warn("Unable to parse response text.");
+        responseObject = {};
+      }
       $("#display_token_error_form_textarea1").val(                         "status: " + status + "\n" +
                                                                             "statusText: " + statusText + "\n" +
                                                                             "readyState: " + readyState + "\n" +
@@ -1250,7 +1288,13 @@ function recalculateTokenErrorDescription(data)
       var statusText = data.statusText;
       var readyState = data.readyState;
       var responseText = data.responseText;
-      var responseObject = JSON.parse(responseText);
+      var responseObject = {};
+      try {
+        responseObject = JSON.parse(responseText);
+      } catch (e) {
+        log.warn("Unable to parse response text.");
+        responseObject = {};
+      }
       $("#display_token_error_form_textarea1").val(                         "status: " + status + "\n" +
                                                                             "statusText: " + statusText + "\n" +
                                                                             "readyState: " + readyState + "\n" +
@@ -1289,7 +1333,13 @@ function recalculateRefreshErrorDescription(data)
       var statusText = data.statusText;
       var readyState = data.readyState;
       var responseText = data.responseText;
-      var responseObject = JSON.parse(responseText);
+      var responseObject = {};
+      try {
+        responseObject = JSON.parse(responseText);
+      } catch (e) {
+        log.warn("Unable to parse response text.");
+        responseObject = {};
+      }
       $("#display_refresh_error_form_textarea1").val(                           "status: " + status + "\n" +
 										"statusText: " + statusText + "\n" +
 										"readyState: " + readyState + "\n" +
@@ -1391,6 +1441,7 @@ function recreateTokenDisplay()
       var refreshToken = localStorage.getItem("token_refresh_token");
       if(displayOpenIDConnectArtifacts == true)
       {
+         log.debug("Displaying full OIDC Token results.");
          // Display OAuth2/OIDC Artifacts
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" + 
@@ -1408,7 +1459,8 @@ function recreateTokenDisplay()
                                              "</textarea>" +
                                           "</td>" +
                                         "</tr>";
-        if(refreshToken) {
+        if(useRefreshTokenTester) {
+           log.debug("Displaying refresh token.");
            token_endpoint_result_html +=  '<tr>' +
                                           '<td>' +
                                               '<P><a href="/token_detail.html?type=refresh">Refresh Token</a></P>' +
@@ -1440,21 +1492,23 @@ function recreateTokenDisplay()
                                       "</fieldset>";
 
       } else {
+         log.debug("Logging access_token only.");
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" +
                                       "<table>" +
                                         "<tr>" +
                                           '<td>' +
-                                            '<p><a href="/token_detail.html?type=access">Access Token</a></p>'
-                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
-                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
+                                            '<p><a href="/token_detail.html?type=access">Access Token</a></p>' +
+                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           '</td>' +
                                           "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" +
                                               localStorage.getItem("token_access_token") + 
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>";
-         if(refreshToken) {
+         if(useRefreshTokenTester) {
+           log.debug("Displaying refresh token");
            token_endpoint_result_html += "<tr>" +
                                           '<td>' +
                                             '<a href="/token_detail.html?type=access">Refresh Token</a>' +
