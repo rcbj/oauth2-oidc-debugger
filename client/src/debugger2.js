@@ -14,6 +14,8 @@ var useRefreshTokenTester = true;
 var discoveryInfo = {};
 var currentRefreshToken = '';
 var usePKCE = true;
+var useFrontEnd = false;
+var useRefreshFrontEnd = false;
 
 function OnSubmitTokenEndpointForm()
 {
@@ -79,33 +81,77 @@ $(document).ready(function() {
     return false;
   });
 
-  $(".btn1").click(function() {
-      log.debug("Entering token Submit button clicked function.");
-      // validate and process form here
-      var token_endpoint = $("#token_endpoint").val();
-      var client_id = $("#token_client_id").val();
-      var client_secret = $("#token_client_secret").val();
-      var code = $("#code").val();
-      var grant_type = $("#token_grant_type").val();
-      var redirect_uri = $("#token_redirect_uri").val();
-      var username = $("#token_username").val();
-      var password = $("#token_password").val();
-      var scope = $("#token_scope").val();
-      var sslValidate = "";
-      var code_verifier = $("#token_pkce_code_verifier").val();
-      if($("#SSLValidate-yes").is(":checked"))
-      {
-        sslValidate = $("#SSLValidate-yes").val();
-      } else if ($("#SSLValidate-no").is(":checked")) {
-	sslValidate = $("#SSLValidate-no").val();
-      } else {
-        sslValidate = "true";
-      }
-      var auth_style = getLSBooleanItem("token_post_auth_style");
-      var formData = {};
-      if(grant_type == "authorization_code")
-      {
-        formData = {
+  $(".token_btn").click(tokenButtonClick);
+  $(".refresh_btn").click(refreshButtonClick);
+
+  log.debug("Leaving token submit button clicked function.");
+});
+
+function tokenButtonClick() {
+  log.debug("Entering token Submit button clicked function.");
+  log.debug("Updating local stroage.");
+  writeValuesToLocalStorage();
+  log.debug("Recalculating token request description.");
+  recalculateTokenRequestDescription();
+  log.debug("Recalculating refresh request description.");
+  recalculateRefreshRequestDescription();
+  log.debug("Reset error displays.");
+  resetErrorDisplays();
+  log.debug("Build internal representation of token request data.");
+  var formData = buildInternalTokenAPIRequestMessage();
+  if (useFrontEnd) {
+    log.debug("Using frontend to call Token Endpoint. formData=" + JSON.stringify(formData));
+    $.ajax({
+      type: "POST",
+      crossdomain: true,
+      url: localStorage.getItem("token_endpoint"),
+      data: convertToOAuth2Format(formData),
+      contentType: "application/x-www-form-urlencoded",
+      success: successfulInternalTokenAPICall,
+      error: errorInternalTokenAPICall
+    });
+  } else {
+    log.debug("Using backend to call Token Endpoint. formData=" + JSON.stringify(formData));
+    $.ajax({
+      type: "POST",
+      crossdomain: true,
+      url: appconfig.apiUrl + "/token",
+      data: JSON.stringify(formData),
+      contentType: "application/json; charset=utf-8",
+      success: successfulInternalTokenAPICall,
+      error: errorInternalTokenAPICall
+    });
+  }
+  return false; // don't reload the page.
+}
+
+function buildInternalTokenAPIRequestMessage() {
+  log.debug("Entering buildInternalTokenAPIRequestMessage().");
+  // validate and process form here
+  var token_endpoint = $("#token_endpoint").val();
+  var client_id = $("#token_client_id").val();
+  var client_secret = $("#token_client_secret").val();
+  var code = $("#code").val();
+  var grant_type = $("#token_grant_type").val();
+  var redirect_uri = $("#token_redirect_uri").val();
+  var username = $("#token_username").val();
+  var password = $("#token_password").val();
+  var scope = $("#token_scope").val();
+  var sslValidate = "";
+  var code_verifier = $("#token_pkce_code_verifier").val();
+  if($("#SSLValidate-yes").is(":checked"))
+  {
+    sslValidate = $("#SSLValidate-yes").val();
+  } else if ($("#SSLValidate-no").is(":checked")) {
+    sslValidate = $("#SSLValidate-no").val();
+  } else {
+    sslValidate = "true";
+  }
+  var auth_style = getLSBooleanItem("token_post_auth_style");
+  var formData = {};
+  if(grant_type == "authorization_code")
+  {
+    formData = {
           grant_type: grant_type,
           client_id: client_id,
           code: code,
@@ -114,9 +160,9 @@ $(document).ready(function() {
           token_endpoint: token_endpoint,
           sslValidate: sslValidate,
           auth_style: auth_style
-        };
-      } else if( grant_type == "password") {
-        formData = {
+    };
+  } else if( grant_type == "password") {
+    formData = {
           grant_type: grant_type,
           client_id: client_id,
           username: username,
@@ -125,93 +171,219 @@ $(document).ready(function() {
           scope: scope,
           token_endpoint: token_endpoint,
           sslValidate: sslValidate
-        };
-      } else if( grant_type == "client_credentials") {
-        formData = {
+    };
+  } else if( grant_type == "client_credentials") {
+    formData = {
           grant_type: grant_type,
           client_id: client_id,
           scope: scope,
           token_endpoint: token_endpoint,
           sslValidate: sslValidate,
           auth_style: auth_style
-        };
+    };
+  }
+  log.debug("formData=" + JSON.stringify(formData));
+  var yesCheck = $("#yesResourceCheckToken").is(":checked");
+  if(yesCheck) //add resource value to OAuth query string
+  {
+    var resource = $("#token_resource").val();
+    if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
+    {
+      formData.resource = resource
+     }
+  }
+  if(typeof client_secret != "undefined")
+  {
+    formData.client_secret = client_secret
+  }
+  var tokencustomParametersCheck = $("#customTokenParametersCheck-yes").is(":checked");
+  log.debug("customTokenParametersCheck: " + tokencustomParametersCheck + ", type=" + typeof(tokencustomParametersCheck));
+  if(tokencustomParametersCheck) 
+  {
+    formData.customParams = {};
+    const numberCustomParameters = parseInt($("#tokenNumberCustomParameters").val());
+    log.debug('numberCustomParameters=' + numberCustomParameters);
+    var i = 0;
+    for(i = 0; i < numberCustomParameters; i++)
+    {
+      formData.customParams[$("#customTokenParameterName-" + i).val()] =
+                            $("#customTokenParameterValue-" + i).val();
+    }
+  }
+  if(usePKCE) {
+    formData.code_verifier = code_verifier;
+  }
+  log.debug("Leaving buildInternalTokenAPIRequestMessage().");
+  return formData;
+}
+
+function convertToOAuth2Format(formData) {
+  log.debug("Entering convertToOAuth2Format(): formData=" + JSON.stringify(formData));
+  try {
+    log.info('Entering app.post for /token.');
+    const body = formData;
+    log.debug('body: ' + JSON.stringify(body));
+    var grantType = body.grant_type;  //=authorization_code
+    var clientId = body.client_id;  //=5qqbus6ukft6srjgqlijvk2465
+    var code = body.code; //=2a795117-43d5-4d4c-bdd6-0fc9632c0594
+    var redirectUri = body.redirect_uri; //=http%3A%2F%2Flocalhost%3A3000%2Fcallback
+    var scope = body.scope || ""; //=openid+email+phone+profile
+    var tokenEndpoint = body.token_endpoint; //=https%3A%2F%2Fblogpost1.auth.us-west-2.amazoncognito.com%2Foauth2%2Ftoken
+    var sslValidate = body.sslValidate; //=true
+    var clientSecret = encodeURIComponent(body.client_secret); //=tester
+    var username = body.username || "";
+    var password = body.password || "";
+    var refreshToken = body.refresh_token || "";
+    var resource = body.resource || "";
+    var customParams = body.customParams || {};
+    var code_verifier = body.code_verifier;
+    var auth_style = body.auth_style;
+
+    log.debug('grantType: ' + grantType);
+    log.debug('clientId: ' + clientId);
+    log.debug('code: ' + code);
+    log.debug('redirectUri: ' + redirectUri);
+    log.debug('scope: ' + scope);
+    log.debug('tokenEndpoint: ' + tokenEndpoint);
+    log.debug('sslValidate: ' + sslValidate);
+    log.debug('clientSecret: ' + clientSecret);
+    log.debug('username: ' + username);
+    log.debug('password: ' + password);
+    log.debug('refreshToken: ' + refreshToken);
+    log.debug('resource: ' + resource);
+    Object.keys(customParams).forEach( (key) => {
+      log.debug(key + ':' + customParams[key]);
+    });
+    log.debug("code_verifier: " + code_verifier);
+    log.debug("auth_style: " + auth_style);
+    var parameterObject = {};
+    if(grantType == "authorization_code") {
+      parameterObject = {
+        grant_type: grantType,
+        client_id: clientId,
+        code: code,
+        redirect_uri: redirectUri,
+      };
+      if (typeof code_verifier != "undefined") {
+        parameterObject.code_verifier = code_verifier
       }
-      log.debug("formData=" + JSON.stringify(formData));
-      var yesCheck = $("#yesResourceCheckToken").is(":checked");
-      if(yesCheck) //add resource value to OAuth query string
-      {
-        var resource = $("#token_resource").val();
-        if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
-        {
-          formData.resource = resource
-        }
+      log.debug("clientSecret: " + clientSecret);
+      log.debug("auth_style: " + auth_style);
+      if (!!clientSecret && auth_style) {
+        parameterObject.client_secret = clientSecret;
       }
-      if(typeof client_secret != "undefined")
-      {
-        formData.client_secret = client_secret
+    } else if(grantType == "client_credentials") {
+       parameterObject =  {
+         grant_type: grantType
+       };
+       log.debug("clientSecret: " + clientSecret);
+       log.debug("auth_style: " + auth_style);
+       if ((typeof clientSecret != "undefined" && clientSecret != "undefined")
+          && auth_style) {
+         parameterObject.client_secret = clientSecret;
+       }
+    } else if(grantType == "password") {
+       parameterObject = {
+        grant_type: grantType,
+        username: username,
+        password: password
+       };
+    } else if(grantType == "refresh_token") {
+      parameterObject = {
+        grant_type: grantType,
+        client_id: clientId,
+        refresh_token: refreshToken,
+      };
+      log.debug("clientSecret: " + clientSecret);
+      log.debug("auth_style: " + auth_style);
+      if ((typeof clientSecret != "undefined" && clientSecret != "undefined")
+         && auth_style) {
+        parameterObject.client_secret = clientSecret;
       }
-      var tokencustomParametersCheck = $("#customTokenParametersCheck-yes").is(":checked");
-      log.debug("customTokenParametersCheck: " + tokencustomParametersCheck + ", type=" + typeof(tokencustomParametersCheck));
-      if(tokencustomParametersCheck) {
-        formData.customParams = {};
-        const numberCustomParameters = parseInt($("#tokenNumberCustomParameters").val());
-        log.debug('numberCustomParameters=' + numberCustomParameters);
-        var i = 0;
-        for(i = 0; i < numberCustomParameters; i++)
-        {
-           formData.customParams[$("#customTokenParameterName-" + i).val()] =
-                                  $("#customTokenParameterValue-" + i).val();
-        }
-      }
-      if(usePKCE) {
-        formData.code_verifier = code_verifier;
-      }
-      writeValuesToLocalStorage();
-      recalculateTokenRequestDescription();
-      recalculateRefreshRequestDescription();
-      resetErrorDisplays();
-  $.ajax({
-    type: "POST",
-    crossdomain: true,
-    url: appconfig.apiUrl + "/token",
-    data: JSON.stringify(formData),
-    contentType: "application/json; charset=utf-8",
-    success: function(data, textStatus, request) {
-      log.debug("Entering ajax success function for Access Token call: data=" 
-              + JSON.stringify(data)
-              + ", textStatus="
-              + textStatus
-              + ", request=" 
-              + JSON.stringify(request));
-      var token_endpoint_result_html = "";
-      if (!!data.refresh_token && data.refresh_token != 'undefined') {
-        currentRefreshToken = data.refresh_token;
-      }
-      if (data.id_token && data.id_token != 'undefined'){
-        $("#logout_id_token_hint").val(data.id_token);
-      }
-      log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
-      if(displayOpenIDConnectArtifacts == true)
-      {
-         // Display OAuth2/OIDC Artifacts
-         token_endpoint_result_html = "<fieldset>" +
-                                      "<legend>Token Endpoint Results:</legend>" + 
-				      "<table>" +
-				        "<tr>" +
-                                          '<td>' +
-                                              '<P><a href="/token_detail.html?type=access">Access Token</a></P>' +
-                                              '<P style="font-size:50%;"><a href="/introspection.html?type=access">Introspect Token</a></P>' + 
-                                              '<P><form><input class="btn2" type="submit" value="Copy Token"' +
-                                              ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
-                                          "</td>" +
-                                          "<td>" +
-                                             "<textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
-                                               data.access_token + 
-                                             "</textarea>" +
-                                          "</td>" +
-                                        "</tr>";
-        if(useRefreshTokenTester) {
-           token_endpoint_result_html +=  '<tr>' +
+    }
+    if(auth_style) {
+        parameterObject.client_id = clientId;
+    }
+    if(resource != "") {
+      parameterObject.resource = resource;
+    }
+
+    if(scope != "") {
+      parameterObject.scope = scope;
+    }
+    if (Object.keys(customParams).length > 0) {
+      Object.keys(customParams).forEach( (key) => {
+        parameterObject[key] = customParams[key];
+      });
+    }
+    log.debug("parameterObject: " + JSON.stringify(parameterObject));
+
+    var parameterString = "";
+    Object.keys(parameterObject).forEach( (key) => {
+      parameterString = parameterString +
+                      key +
+                      "=" +
+                      parameterObject[key] +
+                      "&";
+    });
+
+    var headers = {
+      'content-type' : 'application/x-www-form-urlencoded'
+    };
+    if ( typeof code_verifier != "undefined" ||
+         (grantType == "refresh_token" &&
+          !clientSecret)) {
+      headers.origin = appconfig.uiUrl;
+    }
+    if (!auth_style) {
+      // Put client_id + client_secret in Authorization header
+      headers.authorization = 'Basic ' + Buffer.from(clientId + ":" + clientSecret).toString('base64');
+    }
+    parameterString = parameterString.substring(0, parameterString.length - 1);
+    log.debug("Leaving convertToOAuth2Format().");
+    return parameterString;
+  } catch (e) {
+    log.error("An error occurred: " + e);
+  }
+}
+
+function successfulInternalTokenAPICall(data, textStatus, request)
+{
+  log.debug("Entering ajax success function for Access Token call: data=" 
+          + JSON.stringify(data)
+          + ", textStatus="
+          + textStatus
+          + ", request=" 
+          + JSON.stringify(request));
+  var token_endpoint_result_html = "";
+  if (!!data.refresh_token && data.refresh_token != 'undefined') {
+    currentRefreshToken = data.refresh_token;
+  }
+  if (data.id_token && data.id_token != 'undefined'){
+    $("#logout_id_token_hint").val(data.id_token);
+  }
+  log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
+  if(displayOpenIDConnectArtifacts == true)
+  {
+    // Display OAuth2/OIDC Artifacts
+    token_endpoint_result_html = "<fieldset>" +
+                                 "<legend>Token Endpoint Results:</legend>" + 
+				   "<table>" +
+				     "<tr>" +
+                                       '<td>' +
+                                         '<P><a href="/token_detail.html?type=access">Access Token</a></P>' +
+                                         '<P style="font-size:50%;"><a href="/introspection.html?type=access">Introspect Token</a></P>' + 
+                                         '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                         ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
+                                       '</td>' +
+                                       '<td>' +
+                                         "<textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
+                                           data.access_token + 
+                                         "</textarea>" +
+                                       '</td>' +
+                                     '</tr>';
+    if(useRefreshTokenTester) {
+      token_endpoint_result_html +=  '<tr>' +
                                           '<td>' +
                                               '<P><a href="/token_detail.html?type=refresh">Refresh Token</a></P>' +
                                               '<P style="font-size:50%;"><a href="/introspection.html?type=refresh">Introspect Token</a></P>' +
@@ -224,12 +396,12 @@ $(document).ready(function() {
                                               "</textarea>" +
                                           "</td>" +
                                         "</tr>";
-         }
-         token_endpoint_result_html +=  "<tr>" +
+      }
+      token_endpoint_result_html +=  "<tr>" +
                                           '<td>' +
                                             '<P><a href="/token_detail.html?type=id">ID Token</a></P>' +
                                             '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P>' +
-                                            '<P><form><input class="btn1" type="submit" value="Copy Token"' + 
+                                            '<P><form><input class="token_btn" type="submit" value="Copy Token"' + 
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_id_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
@@ -240,12 +412,12 @@ $(document).ready(function() {
                                         "</tr>" +
                                       "</table>" +
                                       "</fieldset>";
-         localStorage.setItem("token_access_token", data.access_token);
-         localStorage.setItem("token_refresh_token", data.refresh_token);
-         localStorage.setItem("token_id_token", data.id_token);
-      } else {
-         log.debug("Displaying Access Token. No OIDC ID Token: data.access_token=" + data.access_token);
-         token_endpoint_result_html = "<fieldset>" +
+      localStorage.setItem("token_access_token", data.access_token);
+      localStorage.setItem("token_refresh_token", data.refresh_token);
+      localStorage.setItem("token_id_token", data.id_token);
+    } else {
+      log.debug("Displaying Access Token. No OIDC ID Token: data.access_token=" + data.access_token);
+      token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" +
                                       "<table>" +
                                         "<tr>" +
@@ -259,9 +431,9 @@ $(document).ready(function() {
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>";
-         if(useRefreshTokenTester) {
-           log.debug("Refresh token found. Generating token: data.refresh_token=" + currentRefreshToken);
-           token_endpoint_result_html += "<tr>" +
+      if(useRefreshTokenTester) {
+        log.debug("Refresh token found. Generating token: data.refresh_token=" + currentRefreshToken);
+        token_endpoint_result_html += "<tr>" +
                                           '<td>' +
                                             '<a href="/token_detail.html?type=access">Refresh Token</a>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
@@ -272,108 +444,134 @@ $(document).ready(function() {
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>";
-         }
-         token_endpoint_result_html += "</table>" +
-                                      "</fieldset>";
-         localStorage.setItem("token_access_token", data.access_token);
-         localStorage.setItem("token_refresh_token", data.refresh_token);
       }
-      //$("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
-      $("#token_endpoint_result").html(token_endpoint_result_html);
-      $("#refresh_refresh_token").val(currentRefreshToken);
-      $("#refresh_client_id").val(localStorage.getItem("client_id"));
-      $("#refresh_scope").val(localStorage.getItem("scope"));
-      $("#refresh_client_secret").val(localStorage.getItem("client_secret"));
-      $("#token_fieldset").hide();
-      $("#token_expand_button").val("Expand");
-      useRefreshTokens();
-      if(!!currentRefreshToken) {
-        $("#logout_id_token_hint").val(data.id_token);
-      } else {
-        $("#logout_fieldset").hide();
-        $("#logout_expand_button").val("Expand");
-        $("#refresh_fieldset").hide();
-        $("#refresh_expand_button").val("Expand");
-      }
-      recalculateRefreshRequestDescription();
-    },
-    error: function (request, status, error) {
-      log.error("An error occurred calling the token endpoint.");
-      log.error("request: " + JSON.stringify(request));
-      log.error("status: " + JSON.stringify(status));
-      log.error("error: " + JSON.stringify(error));
-      recalculateTokenErrorDescription(request);
+      token_endpoint_result_html += "</table>" +
+                                    "</fieldset>";
+      localStorage.setItem("token_access_token", data.access_token);
+      localStorage.setItem("token_refresh_token", data.refresh_token);
     }
-  });
-  return false;
-    });
+    //$("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
+    $("#token_endpoint_result").html(token_endpoint_result_html);
+    $("#refresh_refresh_token").val(currentRefreshToken);
+    $("#refresh_client_id").val(localStorage.getItem("client_id"));
+    $("#refresh_scope").val(localStorage.getItem("scope"));
+    $("#refresh_client_secret").val(localStorage.getItem("client_secret"));
+    $("#token_fieldset").hide();
+    $("#token_expand_button").val("Expand");
+    useRefreshTokens();
+    if(!!currentRefreshToken) {
+      $("#logout_id_token_hint").val(data.id_token);
+    } else {
+      $("#logout_fieldset").hide();
+      $("#logout_expand_button").val("Expand");
+      $("#refresh_fieldset").hide();
+      $("#refresh_expand_button").val("Expand");
+    }
+    recalculateRefreshRequestDescription();
+}
 
-$(".refresh_btn").click(function() {
-      log.debug("Entering refresh Submit button clicked function.");
-      // validate and process form here
-      var token_endpoint = $("#token_endpoint").val();
-      var client_id = $("#refresh_client_id").val();
-      var client_secret = $("#refresh_client_secret").val();
-      if (client_secret == "undefined") {
-        client_secret = "";
-      }
-      var refresh_token = $("#refresh_refresh_token").val();
-      var grant_type = $("#refresh_grant_type").val();
-      var scope = $("#refresh_scope").val();
-      var sslValidate = "";
-      if( $("#SSLValidate-yes").is(":checked"))
-      {
-        sslValidate = $("#SSLValidate-yes").val();
-      } else if ($("#SSLValidate-no").is(":checked")) {
-	sslValidate = $("#SSLValidate-no").val();
-      } else {
-        sslValidate = "true";
-      }
-      var auth_style = getLSBooleanItem("refresh_post_auth_style");
-      var formData = {
-        grant_type: grant_type,
-        client_id: client_id,
-        refresh_token: refresh_token,
-        scope: scope,
-        token_endpoint: token_endpoint,
-        sslValidate: sslValidate,
-        auth_style: auth_style
-      };
-      if(typeof client_secret != "undefined")
-      {
-        formData.client_secret = client_secret
-      }
-      writeValuesToLocalStorage();
-      recalculateRefreshRequestDescription();
-      resetErrorDisplays();
-  $.ajax({
-    type: "POST",
-    crossdomain: true,
-    url: appconfig.apiUrl + "/token",
-    data: JSON.stringify(formData),
-    contentType: "application/json; charset=utf-8",
-    success: function(data, textStatus, request) {
-      log.debug("Entering ajax success function for Refresh Token call: data=" 
-              + JSON.stringify(data)
-              + ", textStatus="
-              + textStatus
-              + ", request=" 
-              + JSON.stringify(request));
-      var refresh_endpoint_result_html = "";
-      log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
-      var iteration = 1;
-      if(!!$("#refresh-token-results-iteration-count").val())
-      {
-        iteration = parseInt($("#refresh-token-results-iteration-count").val()) + 1;
-      }
-      log.debug('data.refresh_token=' + data.refresh_token);
-      if(data.refresh_token && data.refresh_token != 'undefined') {
-        log.debug('Setting new Refresh Token.');
-        currentRefreshToken = data.refresh_token;
-      }
-      if(displayOpenIDConnectArtifacts == true)
-      {
-         refresh_endpoint_result_html = "<fieldset>" +
+function errorInternalTokenAPICall(request, status, error) {
+  log.error("An error occurred calling the token endpoint.");
+  log.error("request: " + JSON.stringify(request));
+  log.error("status: " + JSON.stringify(status));
+  log.error("error: " + JSON.stringify(error));
+  recalculateTokenErrorDescription(request);
+}
+
+function buildInternalRefreshAPIRequestMessage() {
+  log.debug("Entering buildInternalTokenAPIRequestMessage()."); 
+  // validate and process form here
+  var token_endpoint = $("#token_endpoint").val();
+  var client_id = $("#refresh_client_id").val();
+  var client_secret = $("#refresh_client_secret").val();
+  if (client_secret == "undefined") {
+    client_secret = "";
+  }
+  var refresh_token = $("#refresh_refresh_token").val();
+  var grant_type = $("#refresh_grant_type").val();
+  var scope = $("#refresh_scope").val();
+  var sslValidate = "";
+  if( $("#SSLValidate-yes").is(":checked"))
+  {
+    sslValidate = $("#SSLValidate-yes").val();
+  } else if ($("#SSLValidate-no").is(":checked")) {
+    sslValidate = $("#SSLValidate-no").val();
+  } else {
+    sslValidate = "true";
+  }
+  var auth_style = getLSBooleanItem("refresh_post_auth_style");
+  var formData = {
+    grant_type: grant_type,
+    client_id: client_id,
+    refresh_token: refresh_token,
+    scope: scope,
+    token_endpoint: token_endpoint,
+    sslValidate: sslValidate,
+    auth_style: auth_style
+  };
+  if(typeof client_secret != "undefined")
+  {
+    formData.client_secret = client_secret
+  }
+  log.debug("Leaving buildInternalTokenAPIRequestMessage().");
+  return formData;
+}
+
+function refreshButtonClick() {
+  log.debug("Entering refresh Submit button clicked function.");
+  log.debug("Write values to local storage.");
+  writeValuesToLocalStorage();
+  log.debug("Recalculate refresh request description.");
+  recalculateRefreshRequestDescription();
+  log.debug("Reset error displays.");
+  resetErrorDisplays();
+  var formData = buildInternalRefreshAPIRequestMessage();
+  if(useRefreshFrontEnd) {
+    $.ajax({
+      type: "POST",
+      crossdomain: true,
+      url: localStorage.getItem("token_endpoint"),
+      data: convertToOAuth2Format(formData),
+      contentType: "application/x-www-form-urlencoded",
+      success: successfulInternalRefreshAPICall,
+      error: errorInternalRefreshAPICall
+    });
+  } else {
+    $.ajax({
+      type: "POST",
+      crossdomain: true,
+      url: appconfig.apiUrl + "/token",
+      data: JSON.stringify(formData),
+      contentType: "application/json; charset=utf-8",
+      success: successfulInternalRefreshAPICall,
+      error: errorInternalRefreshAPICall
+    });
+  } 
+  return false;
+}
+
+function successfulInternalRefreshAPICall(data, textStatus, request) {
+  log.debug("Entering ajax success function for Refresh Token call: data=" 
+            + JSON.stringify(data)
+            + ", textStatus="
+            + textStatus
+            + ", request=" 
+            + JSON.stringify(request));
+  var refresh_endpoint_result_html = "";
+  log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
+  var iteration = 1;
+  if(!!$("#refresh-token-results-iteration-count").val())
+  {
+    iteration = parseInt($("#refresh-token-results-iteration-count").val()) + 1;
+  }
+  log.debug('data.refresh_token=' + data.refresh_token);
+  if(!!data.refresh_token) {
+    log.debug('Setting new Refresh Token.');
+    currentRefreshToken = data.refresh_token;
+  }
+  if(displayOpenIDConnectArtifacts == true)
+  {
+    refresh_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results for Refresh Token Call:</legend>" + 
 				      "<table>" +
 				        "<tr>" +
@@ -423,8 +621,8 @@ $(".refresh_btn").click(function() {
                                         "</tr>" +
                                       "</table>" +
                                       "</fieldset>";
-      } else {
-         refresh_endpoint_result_html = "<fieldset>" +
+  } else {
+    refresh_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results for Refresh Token Call:</legend>" +
                                       "<table>" +
                                         "<tr>" +
@@ -459,36 +657,31 @@ $(".refresh_btn").click(function() {
                                         "</tr>" +
                                       "</table>" +
                                       "</fieldset>";
-      }
-      //$("#refresh_endpoint_result").html(DOMPurify.sanitize(refresh_endpoint_result_html));
-      $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
-      // Update refresh token field in the refresh token grant pane
-      $("refresh_refresh_token").val(currentRefreshToken);
-      // Store new tokens in local storage
-      localStorage.setItem("refresh_access_token", data.access_token );
-      localStorage.setItem("refresh_refresh_token", currentRefreshToken );
-      localStorage.setItem("refresh_id_token", data.id_token );
-      // Update token in logout pane.
-      if(currentRefreshToken) {
-        $("#logout_id_token_hint").val(data.id_token);
-      } else {
-        $("#logout_fieldset").hide();
-      }
-      recalculateRefreshRequestDescription();
-    },
-    error: function (request, status, error) {
-      log.error("An error occurred making a token refresh call to token endpoint.");
-      log.error("request: " + JSON.stringify(request));
-      log.error("status: " + JSON.stringify(status));
-      log.error("error: " + JSON.stringify(error));
-      recalculateRefreshErrorDescription(request);
-    }
-  });
-  return false;
-    });
-    log.debug("Leaving token submit button clicked function.");
+  }
+  //$("#refresh_endpoint_result").html(DOMPurify.sanitize(refresh_endpoint_result_html));
+  $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
+  // Update refresh token field in the refresh token grant pane
+  $("#refresh_refresh_token").val(currentRefreshToken);
+  // Store new tokens in local storage
+  localStorage.setItem("refresh_access_token", data.access_token );
+  localStorage.setItem("refresh_refresh_token", currentRefreshToken );
+  localStorage.setItem("refresh_id_token", data.id_token );
+  // Update token in logout pane.
+  if(currentRefreshToken) {
+    $("#logout_id_token_hint").val(data.id_token);
+  } else {
+    $("#logout_fieldset").hide();
+  }
+  recalculateRefreshRequestDescription();
+}
 
-});
+function errorInternalRefreshAPICall(request, status, error) {
+  log.error("An error occurred making a token refresh call to token endpoint.");
+  log.error("request: " + JSON.stringify(request));
+  log.error("status: " + JSON.stringify(status));
+  log.error("error: " + JSON.stringify(error));
+  recalculateRefreshErrorDescription(request);
+} 
 
 function resetUI(value)
 {
@@ -613,6 +806,10 @@ function writeValuesToLocalStorage()
       localStorage.setItem("PKCE_code_verifier", $("#token_pkce_code_verifier").val() );
       localStorage.setItem("usePKCE_yes", $("#usePKCE-yes").is(":checked"));
       localStorage.setItem("usePKCE_no", $("#usePKCE-no").is(":checked"));
+      localStorage.setItem("token_initiateFromFrontEnd", $("#token_initiateFromFrontEnd").is(":checked"));
+      localStorage.setItem("token_initiateFromBackEnd", $("#token_initiateFromBackEnd").is(":checked"));
+      localStorage.setItem("refresh_initiateFromFrontEnd", $("#refresh_initiateFromFrontEnd").is(":checked"));
+      localStorage.setItem("refresh_initiateFromBackEnd", $("#refresh_initiateFromBackEnd").is(":checked"));
   }
 
   log.debug("Leaving writeValuesToLocalStorage().");
@@ -655,6 +852,11 @@ function loadValuesFromLocalStorage()
   $("#noCheckOIDCArtifacts").prop("checked", getLSBooleanItem("noCheckOIDCArtifacts"));
   $("#usePKCE-yes").prop("checked", getLSBooleanItem("usePKCE_yes"));
   $("#usePKCE-no").prop("checked", getLSBooleanItem("usePKCE_no"));
+  $("#token_initiateFromFrontEnd").prop("checked", getLSBooleanItem("token_initiateFromFrontEnd"));
+  $("#token_initiateFromBackEnd").prop("checked", getLSBooleanItem("token_initiateFromBackEnd"));
+  $("#refresh_initiateFromFrontEnd").prop("checked", getLSBooleanItem("refresh_initiateFromFrontEnd"));
+  $("#refresh_initiateFromBackEnd").prop("checked", getLSBooleanItem("refresh_initiateFromBackEnd"));
+
   $("#refresh_refresh_token").val(localStorage.getItem("refresh_refresh_token"));
   $("#refresh_client_id").val(localStorage.getItem("refresh_client_id"));
   $("#refresh_scope").val(localStorage.getItem("refresh_scope"));
@@ -1479,7 +1681,7 @@ function recreateTokenDisplay()
                                           '<td>' +
                                             '<P><a href="/token_detail.html?type=id">ID Token</a></P>' +
                                             '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P>' +
-                                            '<P><form><input class="btn1" type="submit" value="Copy Token"' + 
+                                            '<P><form><input class="token_btn" type="submit" value="Copy Token"' + 
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_id_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
@@ -1732,6 +1934,34 @@ function onClickCopyToken(field) {
   return false;
 }
 
+function setInitiateFromEnd() {
+  log.debug("Entering setInitiateFromEnd().");
+  var frontEndInitiated = $("#token_initiateFromFrontEnd").is(":checked");
+  var backEndInitiated = $("#token_initiateFromBackEnd").is(":checked");
+  if(frontEndInitiated) {
+    useFrontEnd = true;
+  } else {
+    useFrontEnd = false;
+  }
+  log.debug("frontEndInitiated: " + frontEndInitiated);
+  log.debug("backEndInitiated: " + backEndInitiated);
+  log.debug("Leaving setInitiateFromEnd().");
+}
+
+function setInitiateRefreshFromEnd() {
+  log.debug("Entering setInitiateRefreshFromEnd().");
+  var frontEndRefreshInitiated = $("#refresh_initiateFromFrontEnd").is(":checked");
+  var backEndRefreshInitiated = $("#refresh_initiateFromBackEnd").is(":checked");
+  if(frontEndRefreshInitiated) {
+    useRefreshFrontEnd = true;
+  } else {
+    useRefreshFrontEnd = false;
+  }
+  log.debug("frontEndRefreshInitiated: " + frontEndRefreshInitiated);
+  log.debug("backEndRefreshInitiated: " + backEndRefreshInitiated);
+  log.debug("Leaving setInitiateRefreshFromEnd().");
+}
+
 module.exports = {
   OnSubmitTokenEndpointForm,
   getParameterByName,
@@ -1762,5 +1992,7 @@ module.exports = {
   setHeaderAuthStyleCheckToken,
   setPostAuthStyleRefreshToken,
   setHeaderAuthStyleRefreshToken,
-  onClickCopyToken
+  onClickCopyToken,
+  setInitiateFromEnd,
+  setInitiateRefreshFromEnd
 };

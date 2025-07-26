@@ -330,7 +330,7 @@
           </tr>
         <tr>
           <td>
-            <input class="btn1" type="submit" value="Get Token" />
+            <input class="token_btn" type="submit" value="Get Token" />
           </td>
           <td>&nbsp;
           </td>
@@ -402,6 +402,15 @@
           <td>POST
             <input id="refresh_postAuthStyleCheckToken" name="refresh-post-authstyle-yesno" checked="true" onclick="debugger2.setPostAuthStyleRefreshToken();" type="radio" />Header
             <input id="refresh_headerAuthStyleCheckToken" name="refresh-header-authstyle-yesno" checked="false" onclick="debugger2.setHeaderAuthStyleRefreshToken();" type="radio" />
+          </td>
+        </tr>
+         <td>
+            <div class="tooltip"><label>Initiate Token Endpoint Call From front or backend.: </label><span class="tooltiptext">The debugger can initiate a Token Endpoint call from either the frontend (browser) or from the backend API component. Certain IdPs make stringent assumptions about CORS and how calls will be originated. Especially concerning the Origin request header, which cannot be controlled from the browser.</span>
+            </div>
+          </td>
+          <td>Front
+            <input id="refresh_initiateFromFrontEnd" name="refresh-initiateFromFrontEnd" checked="true" onclick="debugger2.setInitiateRefreshFromEnd();" type="radio" />Back
+            <input id="refresh_initiateFromBackEnd" name="refresh-initiateFromFrontEnd" checked="false" onclick="debugger2.setInitiateRefreshFromEnd();" type="radio" />
           </td>
         </tr>
         <tr>
