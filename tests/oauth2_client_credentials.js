@@ -30,7 +30,7 @@ async function getAccessToken(driver, client_id, client_secret, scope) {
   token_client_id = By.id("token_client_id");
   token_client_secret = By.id("token_client_secret");
   token_scope = By.id("token_scope");
-  btn1 = By.className("btn1");
+  token_btn = By.className("token_btn");
   token_access_token = By.id("token_access_token");
   display_token_error_form_textarea1 = By.id("display_token_error_form_textarea1");
 
@@ -46,7 +46,7 @@ async function getAccessToken(driver, client_id, client_secret, scope) {
   await driver.findElement(token_client_secret).sendKeys(client_secret);
   await driver.findElement(token_scope).clear();
   await driver.findElement(token_scope).sendKeys(scope);
-  await driver.findElement(btn1).click();
+  await driver.findElement(token_btn).click();
 
   // Get access token result
   async function waitForVisibility(element) {

@@ -39,7 +39,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   keycloak_username = By.id("username");
   keycloak_password = By.id("password");
   keycloak_kc_login = By.id("kc-login");
-  btn1 = By.className("btn1");
+  token_btn = By.className("token_btn");
   token_access_token = By.id("token_access_token");
   display_token_error_form_textarea1 = By.id("display_token_error_form_textarea1");
 
@@ -95,7 +95,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   await driver.findElement(token_client_secret).sendKeys(client_secret);
   await driver.findElement(token_scope).clear();
   await driver.findElement(token_scope).sendKeys(scope);
-  await driver.findElement(btn1).click();
+  await driver.findElement(token_btn).click();
 
   // Get access token result
   async function waitForVisibility(element) {
