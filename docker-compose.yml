@@ -4,12 +4,12 @@ services:
     container_name: api
     image: rcbj/api
     environment:
-     - HOST=0.0.0.0
-     - PORT=4000
-     - LOG_LEVEL=debug
+      - CONFIG_FILE=./env/local.js
     build:
-      context: api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./api/Dockerfile
+      args:
+        CONFIG_FILE: ${CONFIG_FILE}
     ports:
       - "4000:4000"
   client:
@@ -18,8 +18,8 @@ services:
     environment:
       - CONFIG_FILE=./env/local.js
     build:
-      context: client
-      dockerfile: Dockerfile 
+      context: .
+      dockerfile: ./client/Dockerfile 
       args:
         CONFIG_FILE: ${CONFIG_FILE}
     ports:
