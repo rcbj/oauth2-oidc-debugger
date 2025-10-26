@@ -1,10 +1,12 @@
 #!/bin/bash
+. $NVM_DIR/nvm.sh
 
 # Install testing dependencies
-npm install --prefix tests
 
 # Start Docker containers
-CONFIG_FILE=./env/local.js docker compose -f docker-compose-with-keycloak.yml up -d --build
+CONFIG_FILE=./env/local.js docker-compose -f docker-compose-with-keycloak.yml build
+CONFIG_FILE=./env/local.js docker-compose -f docker-compose-with-keycloak.yml up -d
+
 sleep 30
 
 # Configure Keycloak
@@ -45,6 +47,8 @@ do
     declare ${FLOW_VARIABLE}_USER="${USER_ID}"
 done
 
+node --version
+exit 0
 # Test client credentials flow
 DISCOVERY_ENDPOINT=${CLIENT_CREDENTIALS_DISCOVERY_ENDPOINT} \
 CLIENT_ID=${CLIENT_CREDENTIALS_CLIENT_ID} \

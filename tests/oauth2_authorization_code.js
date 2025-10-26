@@ -162,7 +162,7 @@ async function test() {
       process.exit(1);
     }
 
-    await driver.get("http://localhost:3000");
+    await driver.get("http://client:3000");
     await populateMetadata(driver, discovery_endpoint);
     let access_token = await getAccessToken(driver, client_id, client_secret, scope, pkce_enabled);
     await verifyAccessToken(access_token, client_id, scope, user);
