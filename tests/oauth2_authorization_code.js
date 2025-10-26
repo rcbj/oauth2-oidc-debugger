@@ -3,6 +3,10 @@ const { Select } = require('selenium-webdriver/lib/select');
 const chrome = require("selenium-webdriver/chrome");
 const jwt = require("jsonwebtoken");
 const assert = require("assert");
+const { Command, Option } = require('commander');
+
+var baseUrl = "http://localhost:3000"
+var headless = true;
 
 async function populateMetadata(driver, discovery_endpoint) {
   oidc_discovery_endpoint = By.id("oidc_discovery_endpoint");
@@ -134,7 +138,9 @@ async function verifyAccessToken(access_token, client_id, scope, user) {
 
 async function test() {
   const options = new chrome.Options();
-  options.addArguments("--headless");
+  if(headless) {
+    options.addArguments("--headless");
+  }
   options.addArguments("--no-sandbox");
   const driver = await new Builder().forBrowser("chrome").setChromeOptions(options).build();
 
@@ -162,7 +168,7 @@ async function test() {
       process.exit(1);
     }
 
-    await driver.get("http://client:3000");
+    await driver.get(baseUrl);
     await populateMetadata(driver, discovery_endpoint);
     let access_token = await getAccessToken(driver, client_id, client_secret, scope, pkce_enabled);
     await verifyAccessToken(access_token, client_id, scope, user);
@@ -174,5 +180,33 @@ async function test() {
     await driver.quit();
   }
 }
+
+const program = new Command();
+program
+  .name('oauth_authorization_code')
+  .description("Run test.")
+  .addOption(
+    new Option(
+      "-u, --url <url>",
+      "Set base URL.")
+    .makeOptionMandatory()
+  )
+  .addOption(
+    new Option(
+      "-b, --browser",
+      "Display browser (only works within device).")
+  )
+  .action((options) => {
+    if(!!options.url) {
+      console.log("Setting url to " + options.url);
+      baseUrl = options.url;
+    }
+    if(!!options.browser) {
+      console.log("Using browser. headless = false.");
+      headless = false;
+    }
+  });
+
+program.parse(process.argv).opts();
 
 test();

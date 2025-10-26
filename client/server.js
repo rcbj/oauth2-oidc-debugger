@@ -21,7 +21,10 @@ const HOST = appconfig.hostname || '0.0.0.0';
 // App
 const app = express();
 
-app.use(express.static('public'));
+app.use( function(req, res, next) {
+    console.log(req.originalUrl);
+    next();
+}, express.static('public'));
 app.use(expressLogging(logger));
 
 app.get('/callback', (req, res) => {

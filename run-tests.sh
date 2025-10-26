@@ -1,33 +1,68 @@
 #!/bin/bash
-. $NVM_DIR/nvm.sh
+set -x
 
+init()
+{
+  DEBUGGER_BASE_URL=http://localhost:3000
+  CONFIG_FILE=./env/local.js
+}
+
+check_return_code()
+{
+  rc=$1
+  if [  $rc -ne 0 ];
+  then
+    echo "Non-zero return code. Exiting."
+    exit 1
+  fi
+}
+
+init
+npm install --prefix tests
 # Install testing dependencies
 
 # Start Docker containers
-CONFIG_FILE=./env/local.js docker-compose -f docker-compose-with-keycloak.yml build
-CONFIG_FILE=./env/local.js docker-compose -f docker-compose-with-keycloak.yml up -d
+sudo CONFIG_FILE=./env/local.js docker-compose -f local-tests.yml build
+sudo CONFIG_FILE=./env/local.js docker-compose -f local-tests.yml up -d
 
-sleep 30
+sleep 60
 
 # Configure Keycloak
 KEYCLOAK_ACCESS_TOKEN=$(curl -X POST "http://localhost:8080/realms/master/protocol/openid-connect/token" -H "Content-Type: application/x-www-form-urlencoded" -d "client_id=admin-cli" -d "username=keycloak" -d "password=keycloak" -d "grant_type=password" | jq -r '.access_token')
-curl -X POST "http://localhost:8080/admin/realms" -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" -H "Content-Type: application/json" -d '{"realm": "debugger-testing", "enabled": true}'
+if [ -z "${KEYCLOAK_ACCESS_TOKEN}" ];
+then
+  echo "Unable to obtain tokens."
+  exit  1
+fi
+echo "KEYCLOAK_ACCESS_TOKEN=${KEYCLOAK_ACCESS_TOKEN}"
+
+curl -X POST "http://localhost:8080/admin/realms" -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" -H "Content-Type: application/json" -d '{"realm": "debugger-testing", "enabled": true}'A
+check_return_code $?
 
 for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_CONFIDENTIAL AUTHORIZATION_CODE_PUBLIC
 do
     FLOW_NAME=$(echo ${FLOW_VARIABLE} | tr '[:upper:]' '[:lower:]' | tr '_' '-')
 
     KEYCLOAK_ACCESS_TOKEN=$(curl -X POST "http://localhost:8080/realms/master/protocol/openid-connect/token" -H "Content-Type: application/x-www-form-urlencoded" -d "client_id=admin-cli" -d "username=keycloak" -d "password=keycloak" -d "grant_type=password" | jq -r '.access_token')
+    if [ -z "${KEYCLOAK_ACCESS_TOKEN}" ];
+    then
+      echo "Unable to obtain tokens."
+      exit 1
+    fi
     curl -X POST "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" -H "Content-Type: application/json" -d '{"name": "'${FLOW_NAME}'-scope", "protocol": "openid-connect", "attributes": {"display.on.consent.screen": "false", "include.in.token.scope": "true"}}'
+    check_return_code $?
     case "${FLOW_VARIABLE}" in
         CLIENT_CREDENTIALS)
             curl -X POST "http://localhost:8080/admin/realms/debugger-testing/clients" -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" -H "Content-Type: application/json" -d '{"clientId": "'${FLOW_NAME}'", "protocol": "openid-connect", "publicClient": false, "serviceAccountsEnabled": true, "authorizationServicesEnabled": false, "standardFlowEnabled": false, "directAccessGrantsEnabled": false, "clientAuthenticatorType": "client-secret"}'
+            check_return_code $?
             ;;
         AUTHORIZATION_CODE_CONFIDENTIAL)
             curl -X POST "http://localhost:8080/admin/realms/debugger-testing/clients" -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" -H "Content-Type: application/json" -d '{"clientId": "'${FLOW_NAME}'", "protocol": "openid-connect", "publicClient": false, "serviceAccountsEnabled": false, "authorizationServicesEnabled": false, "standardFlowEnabled": true, "directAccessGrantsEnabled": false, "clientAuthenticatorType": "client-secret", "frontchannelLogout": true, "redirectUris": ["http://localhost:3000/callback"], "webOrigins": ["/*", "http://localhost:3000/*"], "attributes": {"frontchannel.logout.url": "http://localhost:3000/logout"}}'
+            check_return_code $?
             ;;
         AUTHORIZATION_CODE_PUBLIC)
             curl -X POST "http://localhost:8080/admin/realms/debugger-testing/clients" -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" -H "Content-Type: application/json" -d '{"clientId": "'${FLOW_NAME}'", "protocol": "openid-connect", "publicClient": true, "serviceAccountsEnabled": false, "authorizationServicesEnabled": false, "standardFlowEnabled": true, "directAccessGrantsEnabled": false, "clientAuthenticatorType": null, "frontchannelLogout": true, "redirectUris": ["http://localhost:3000/callback"], "webOrigins": ["/*", "http://localhost:3000/*"], "attributes": {"frontchannel.logout.url": "http://localhost:3000/logout"}}'
+            check_return_code $?
             ;;
     esac
 
@@ -36,9 +71,24 @@ do
     CLIENT_SECRET=$(curl "http://localhost:8080/admin/realms/debugger-testing/clients?clientId=${FLOW_NAME}" -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" | jq -r '.[0].secret')
     SCOPE_ID=$(curl "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" | jq -r '.[] | select(.name=="'${FLOW_NAME}'-scope") | .id')
     SCOPE_NAME=$(curl "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" | jq -r '.[] | select(.name=="'${FLOW_NAME}'-scope") | .name')
+    if [ -z "${CLIENT_ID}" ] ||
+       [ -z "${CLIENT_CLIENTID}" ] ||
+       [ -z "${CLIENT_SECRET}" ] ||
+       [ -z "${SCOPE_ID}" ];
+    then
+      echo "Variable is blank."
+      exit 1
+    fi
     curl -X PUT "http://localhost:8080/admin/realms/debugger-testing/clients/${CLIENT_ID}/optional-client-scopes/${SCOPE_ID}" -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}"
+    check_return_code $?
     USER_ID=$(curl -X POST "http://localhost:8080/admin/realms/debugger-testing/users" -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" -H "Content-Type: application/json" -d '{"username": "'${FLOW_NAME}'", "firstName": "'${FLOW_NAME}'", "lastName": "'${FLOW_NAME}'", "email": "'${FLOW_NAME}'@iyasec.io", "enabled": true, "emailVerified": true}' -i | grep Location | rev | cut -d '/' -f 1 | rev | tr -d ' \n\r')
+    if [ -z "${USER_ID}" ];
+    then
+      echo "USER_ID is blank."
+      exit 1
+    fi
     curl -X PUT "http://localhost:8080/admin/realms/debugger-testing/users/${USER_ID}/reset-password" -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" -H "Content-Type: application/json" -d '{"type": "password", "value": "'${FLOW_NAME}'", "temporary": false}'
+    check_return_code $?
 
     declare ${FLOW_VARIABLE}_DISCOVERY_ENDPOINT="http://localhost:8080/realms/debugger-testing/.well-known/openid-configuration"
     declare ${FLOW_VARIABLE}_CLIENT_ID="${CLIENT_CLIENTID}"
@@ -48,13 +98,13 @@ do
 done
 
 node --version
-exit 0
 # Test client credentials flow
 DISCOVERY_ENDPOINT=${CLIENT_CREDENTIALS_DISCOVERY_ENDPOINT} \
 CLIENT_ID=${CLIENT_CREDENTIALS_CLIENT_ID} \
 CLIENT_SECRET=${CLIENT_CREDENTIALS_CLIENT_SECRET} \
 SCOPE=${CLIENT_CREDENTIALS_SCOPE} \
-node tests/oauth2_client_credentials.js
+node tests/oauth2_client_credentials.js --url "${DEBUGGER_BASE_URL}"
+check_return_code $?
 
 # Test authorization code flow
 for PKCE_ENABLED in true false
@@ -66,7 +116,8 @@ do
     SCOPE=${AUTHORIZATION_CODE_CONFIDENTIAL_SCOPE} \
     USER=${AUTHORIZATION_CODE_CONFIDENTIAL_USER} \
     PKCE_ENABLED=${PKCE_ENABLED} \
-    node tests/oauth2_authorization_code.js
+    node tests/oauth2_authorization_code.js --url "${DEBUGGER_BASE_URL}" --browser
+    check_return_code $?
 
     # Public client
     DISCOVERY_ENDPOINT=${AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT} \
@@ -75,5 +126,8 @@ do
     SCOPE=${AUTHORIZATION_CODE_PUBLIC_SCOPE} \
     USER=${AUTHORIZATION_CODE_PUBLIC_USER} \
     PKCE_ENABLED=${PKCE_ENABLED} \
-    node tests/oauth2_authorization_code.js
+    node tests/oauth2_authorization_code.js --url "${DEBUGGER_BASE_URL}"
+    check_return_code $?
 done
+
+exit 0

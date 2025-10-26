@@ -18,8 +18,6 @@ RUN npm install
 COPY api/. .
 COPY api/env/ /usr/src/app/env/
 COPY common/data.js .
-RUN ls
-RUN ls env
 
 EXPOSE 4000
 CMD [ "npm", "start" ]

@@ -3,8 +3,10 @@ const { Select } = require('selenium-webdriver/lib/select');
 const chrome = require("selenium-webdriver/chrome");
 const jwt = require("jsonwebtoken");
 const assert = require("assert");
+const { Command, Option } = require('commander');
 
-var logs = {};
+var baseUrl = "http://localhost:3000"
+var headless = true;
 
 async function populateMetadata(driver, discovery_endpoint) {
   console.log("Entering populateMetadata().");
@@ -47,6 +49,20 @@ async function getAccessToken(driver, client_id, client_secret, scope) {
   authorization_grant_type = By.id("authorization_grant_type");
   console.log("Find token_client_id.");
   token_client_id = By.id("token_client_id");
+
+  // Select client credential login type
+  console.log("Find visible text 'OAuth2 Client Credential' and select.");
+  await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OAuth2 Client Credential');
+  console.log("Find token_client_id element.");
+
+  console.log("Find token_client_id.");
+  token_client_id = By.id("token_client_id");
+  await driver.wait(until.elementLocated(token_client_id), 10000);
+  console.log("Switch to client_credential grant.");
+  await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OAuth2 Client Credential');
+  console.log("Wait until element is visible.");
+  await driver.wait(until.elementIsVisible(driver.findElement(token_client_id)), 10000);
+
   console.log("Find token_client_secret.")
   token_client_secret = By.id("token_client_secret");
   console.log("Find token_scope.");
@@ -57,14 +73,6 @@ async function getAccessToken(driver, client_id, client_secret, scope) {
   token_access_token = By.id("token_access_token");
   console.log("Find display_token_error_form_textarea1.");
   display_token_error_form_textarea1 = By.id("display_token_error_form_textarea1");
-
-  // Select client credential login type
-  console.log("Find visible text 'OAuth2 Client Credential'.");
-  await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OAuth2 Client Credential');
-  console.log("Find token_client_id element.");
-  await driver.wait(until.elementLocated(token_client_id), 10000);
-  console.log("Wait until element is visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(token_client_id)), 10000);
 
   // Submit credentials
   console.log("Find token_client_id & clear.");
@@ -84,18 +92,8 @@ async function getAccessToken(driver, client_id, client_secret, scope) {
 
   // Get access token result
   async function waitForVisibility(element) {
-    console.log("element: " + element);
-    console.log("Waiting for element: " + element);
-//    console.log("Dump of current console.");
-//    logs = await driver.executeScript('return window.console.log;');
-//    console.log(logs);
-    console.log("------------------------------------------");
-    print(driver.page_source);
-    console.log("------------------------------------------");
     await driver.wait(until.elementLocated(element), 10000);
-    console.log("Waiting for element2: " + element);
     await driver.wait(until.elementIsVisible(driver.findElement(element)), 10000);
-    console.log("element: " + element);
     return element;
   }
 
@@ -129,7 +127,9 @@ async function verifyAccessToken(access_token, client_id, scope) {
 
 async function test() {
   const options = new chrome.Options();
-  options.addArguments("--headless");
+  if(headless) {
+    options.addArguments("--headless");
+  }
   options.addArguments("--no-sandbox");
   const driver = await new Builder().forBrowser("chrome").setChromeOptions(options).build();
 
@@ -148,10 +148,7 @@ async function test() {
     console.log("Assertions completed successfully.");
 
     console.log("Starting driver.get() run.");
-    await driver.get("http://client:3000");
-    console.log("Setup console logger.");
-    logs = await driver.executeScript('return window.console.log;');
-    console.log(logs);
+    await driver.get(baseUrl);
     console.log("Completed driver.get() run.");
     console.log("Starting populateMetadata().");
     await populateMetadata(driver, discovery_endpoint);
@@ -165,11 +162,38 @@ async function test() {
     console.log("Test completed successfully.")
   } catch (error) {
     console.log(error.message);
-    console.log(logs);
     process.exit(1);
   } finally {
     await driver.quit();
   }
 }
+
+const program = new Command();
+program
+  .name('oauth_client_credentials')
+  .description("Run test.")
+  .addOption(
+    new Option(
+      "-u, --url <url>",
+      "Set base URL.")
+    .makeOptionMandatory()
+  )
+  .addOption(
+    new Option(
+      "-b, --browser",
+      "Display browser (only works within device).")
+  )
+  .action((options) => {
+    if(!!options.url) {
+      console.log("Setting url to " + options.url);
+      baseUrl = options.url;
+    }
+    if(!!options.browser) {
+      console.log("Using browser. headless = false.");
+      headless = false;
+    }
+  });
+ 
+program.parse(process.argv).opts();
 
 test();
