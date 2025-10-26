@@ -32,7 +32,7 @@ services:
      - PORT=4000
      - LOG_LEVEL=debug
     environment:
-      - CONFIG_FILE=./env/docker-tests.js
+      - CONFIG_FILE=./env/local.js
     build:
       context: .
       dockerfile: api/Dockerfile
@@ -46,7 +46,7 @@ services:
     container_name: client
     image: rcbj/client
     environment:
-      - CONFIG_FILE=./env/docker-tests.js
+      - CONFIG_FILE=./env/local.js
     build:
       context: .
       dockerfile: client/Dockerfile 
