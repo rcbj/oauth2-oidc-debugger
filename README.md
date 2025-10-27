@@ -3,8 +3,8 @@
 
 This is a simple OAuth2 and OpenID Connect (OIDC) debugger (test tool) that I created as part of a Red Hat SSO blog post I wrote in November, 2017.  Since then, I have expanded support to include several major Identity Providers (see the complete list below). The blog post uses this debugger for testing the OpenID Connect setup.  So, checkout the blog for usage examples. This project builds a docker container that runs the debugger application.
 
-# Supported Specs
-This project currently supports the following specs:
+# Supported Specs & Features
+This project currently supports the following specs & features:
 * [OAuth2 - RFC 6749](https://tools.ietf.org/html/rfc6749)
 * [OAuth2 Refresh Token Support](https://www.rfc-editor.org/rfc/rfc6749#section-6)
 * [OAuth2 application authentication with client_id and client_secret via POST body or Basic Auth (rather than client cert or dsig).](https://www.rfc-editor.org/rfc/rfc6749#section-2.3.1)
@@ -15,12 +15,11 @@ This project currently supports the following specs:
 * [OIDC RP-Initiated Logout v1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html)
 * [OAuth2 Token Introspection Endpoint (RFC7662)](https://www.rfc-editor.org/rfc/rfc7662) -- client_credentials (basic auth) or bearer token [RFC6750](https://www.rfc-editor.org/rfc/rfc6750) authentication.
 * With the ability to add custom parameters to the Authorization Endpoint call and Token Endpoint call, numerous other protocols can be supported. We'll eventually get around to adding direct support.
+* Token Endpoint calls can be initiated from the front-end or back-end depending on what the IdP requires in various use cases.
+* The client_id and client_secret can be submitted to the Token Endpoint via POST body or Authorization Request Header.
 
 It also supports a couple of proprietary IdP extensions as described below.
 # Supported OAuth2 Authorization Grants
-
-The referenced blog posts are the only documentation currently available for the debugger.
-
 The following OAuth2 Authorization Grants are supported:
 * [Authorization Code Grant](https://medium.com/@robert.broeckelmann/openid-connect-authorization-code-flow-with-red-hat-sso-d141dde4ed3f)
 * [Implicit Code Grant](https://medium.com/@robert.broeckelmann/oauth2-implicit-grant-with-red-hat-sso-v7-1-234810b0ea6f)
@@ -39,8 +38,8 @@ So far, this tool has been tested with the following OAuth2 or OIDC implementati
 
 * Red Hat SSO v7.1 (OAuth2 + OIDC)
 * 3Scale SaaS with self-managed APICast Gateway (OAuth2 + OIDC)
-* Azure Active Directory (v1 endpoints, OIDC + OAuth2)
-* Azure Active Directory (v2 endpoints, OIDC + OAuth2)
+* Azure Active Directory / EntraId (v1 endpoints, OIDC + OAuth2)
+* Azure Active Directory / EntraId (v2 endpoints, OIDC + OAuth2)
 * Apigee Edge (OAuth2, with caveats described [here](https://medium.com/@robert.broeckelmann/demo-apigee-edge-oauth2-debugging-a10223eb334))
 * Ping Federate (OAuth2 + OIDC)
 * AWS Cognito (OAuth2 + OIDC)
@@ -95,10 +94,15 @@ sudo CONFIG_FILE=./env/local.js docker-compose build
 sudo CONFIG_FILE=./env/local.js docker-compose up
 ```
 # Clean Up / Start Over
+This is a nuclear option to cleanup docker. You may not want to do this if you have other important things running on your site.
+
 * List all containers (only IDs) ```sudo docker ps -aq```
 * Stop all running containers: ```sudo docker stop $(docker ps -aq)```
 * Remove all containers: ```sudo docker rm $(docker ps -aq)```
 * Remove all images: ```sudo docker rmi $(docker images -q)```
+* Prune volumes: ```sudo docker volume prune --all --force```
+* Remove all volumes: ```sudo docker volume rm $(sudo docker volume ls | awk '{ print $2 }')```
+* Remmove all networks: ```sudo docker network prune -f```
 
 On other systems, the commands needed to start the debugger in a local docker container will be similar. The docker Sinatra/Ruby runtime will have to be able to establish connections to remote IdP endpoint (whether locally in other docker containers, on the host VM, or over the network/internet). On the test system, it was necessary to add "--net=host" to the "docker run" args. The network connectivity details for docker may vary from platform-to-platform.
 
@@ -143,26 +147,11 @@ For the other grants and flows, similar steps to the above are used.
 See the blog [posts](https://medium.com/@robert.broeckelmann/red-hat-sso-and-3scale-series-d904f2127702) for more information.
 
 ## Running tests
-* sudo CONFIG_FILE=./env/local.js docker compose -f docker-compose-with-keycloak.yml up -d --build
+To run the docker-based tests locally, run the following commmand:
+```sudo CONFIG_FILE=./env/local.js docker compose -f docker-compose-with-keycloak.yml up --abort-on-container-exit```
+To run tests locally, run: ```./local-run-tests.sh```
 
-* KEYCLOAK_ACCESS_TOKEN=$(curl -X POST "http://localhost:8080/realms/master/protocol/openid-connect/token" -H "Content-Type: application/x-www-form-urlencoded" -d "client_id=admin-cli" -d "username=keycloak" -d "password=keycloak" -d "grant_type=password" | jq -r '.access_token')
-* curl -X POST "http://localhost:8080/admin/realms" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"realm": "debugger-testing", "enabled": true}'
-* curl -X POST "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"name": "client-credentials-scope", "protocol": "openid-connect", "attributes": {"display.on.consent.screen": "false", "include.in.token.scope": "true"}}'
-* curl -X POST "http://localhost:8080/admin/realms/debugger-testing/clients" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" -H "Content-Type: application/json" -d '{"clientId": "client-credentials", "protocol": "openid-connect", "publicClient": false, "serviceAccountsEnabled": true, "authorizationServicesEnabled": false, "standardFlowEnabled": false, "directAccessGrantsEnabled": false, "clientAuthenticatorType": "client-secret"}'
-* KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_ID=$(curl "http://localhost:8080/admin/realms/debugger-testing/clients?clientId=client-credentials" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[0].id')
-* KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_CLIENTID=$(curl "http://localhost:8080/admin/realms/debugger-testing/clients?clientId=client-credentials" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[0].clientId')
-* KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_SECRET=$(curl "http://localhost:8080/admin/realms/debugger-testing/clients?clientId=client-credentials" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[0].secret')
-* KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_ID=$(curl "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[] | select(.name=="client-credentials-scope") | .id')
-* KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_NAME=$(curl "http://localhost:8080/admin/realms/debugger-testing/client-scopes" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN" | jq -r '.[] | select(.name=="client-credentials-scope") | .name')
-* curl -X PUT "http://localhost:8080/admin/realms/debugger-testing/clients/$KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_ID/optional-client-scopes/$KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_ID" -H "Authorization: Bearer $KEYCLOAK_ACCESS_TOKEN"
-
-
-* cd tests && npm install
-* DISCOVERY_ENDPOINT="http://localhost:8080/realms/debugger-testing/.well-known/openid-configuration" \\\
-  CLIENT_ID=$KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_CLIENTID \\\
-  CLIENT_SECRET=$KEYCLOAK_CLIENT_CREDENTIALS_CLIENT_SECRET \\\
-  SCOPE=$KEYCLOAK_CLIENT_CREDENTIALS_SCOPE_NAME \\\
-  node oauth2_client_credentials.js
+If you need to pop up the browser for troubleshooting, pass in the --browser option to the test scripts.
 
 ## Prerequisites
 
@@ -192,6 +181,10 @@ All tokens (Access, Refresh, ID) returned by the IdP can have their details view
 
 This feature currently only supports JWT tokens, but in the future will support other token types.
 
+There are two views: raw-JSON or table view.
+
+The table view will display a claim description for spec-defined claims.
+
 Some caveats to keep in mind:
 
 * If nothing is displayed, then the requested token retrieved from the endpoint is not a JWT or not a valid JWT.
@@ -204,6 +197,11 @@ If the Logout URL can be read from the OIDC Discovery Endpoint, it will be autom
 
 The associated refresh token should be invalidated at this point. The corresponding JWT tokens could still be validated unless you compare them against the Introspection Endpoint.
 
+## JWT Validation
+The detail view screen for tokens can validate a JWT token signature.
+
+It can take a JWKS Endpoint or certificate directly.
+
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.2 - 3Scale + APICast support for all OAuth2 Grants and OIDC Authorization Code Flow
@@ -212,6 +210,8 @@ The associated refresh token should be invalidated at this point. The correspond
 * v0.5 - Refresh Token support. Updates to UI.
 * v0.6 - Rewritten in JavaScript. Ported to AWS for idptools.io website. Numerous enhancements. See Release Notes.
 * v0.7 - PKCE Support added.
+* v0.8 - Added Selenium-based test suite. Token Endpoint calls can be initiated from frontend or backend. Numerous new features.
+
 ## Authors
 
 Robert C. Broeckelmann Jr. - Initial work
@@ -223,13 +223,14 @@ This project is licensed under the MIT License - see the LICENSE.md file for det
 ## Acknowledgments
 Thanks to the following:
 * [APICast (3Scale API Management Gateway OAuth2 Example)](https://github.com/3scale/apicast/tree/master/examples/oauth2) for being the starting point for this experiment.
-* [Docker](https://docker.com)
-* docker-compose
-* Node.js
-* Javascript
-* Typescript
-* Browserify
-* Swagger
+* [Docker](https://docs.docker.com/reference/cli/docker/)
+* [docker-compose](https://docs.docker.com/reference/cli/docker/compose/)
+* Node.js(https://nodejs.org/api/all.html)
+* Javascript(https://devdocs.io/javascript/)
+* Typescript(https://www.typescriptlang.org/docs/)
+* Browserify(https://github.com/browserify/browserify#usage)
+* OpenAPI(https://swagger.io/specification/)
+* Selenium(https://www.selenium.dev/selenium/docs/api/javascript/index.html)
 
 # Flows
 ## OAuth2 Client Credentials Grant
