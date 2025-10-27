@@ -1,4 +1,4 @@
-const { Builder, By, until } = require("selenium-webdriver");
+const { Builder, By, until, logging } = require("selenium-webdriver");
 const { Select } = require('selenium-webdriver/lib/select');
 const chrome = require("selenium-webdriver/chrome");
 const jwt = require("jsonwebtoken");
@@ -30,81 +30,147 @@ async function populateMetadata(driver, discovery_endpoint) {
 }
 
 async function getAccessToken(driver, client_id, client_secret, scope, pkce_enabled) {
+  console.log("Entering getAccessToken().");
+  console.log("Find authorization_grant_type.");
   authorization_grant_type = By.id("authorization_grant_type");
+  console.log("Find usePKCE-yes.");
   usePKCE_yes = By.id("usePKCE-yes");
+  console.log("Find usePKCE-no.");
   usePKCE_no = By.id("usePKCE-no");
+  console.log("Find authz_expand_button");
   authz_expand_button = By.id("authz_expand_button");
+  console.log("Find client_id.");
   client_id_ = By.id("client_id");
+  console.log("Find scope.");
   scope_ = By.id("scope");
+  console.log("find token_client_id.");
   token_client_id = By.id("token_client_id");
+  console.log("Find token_client_secret.");
   token_client_secret = By.id("token_client_secret");
+  console.log("Find token_scope.");
   token_scope = By.id("token_scope");
+  console.log("Find btn_authorize.");
   btn_authorize = By.css("input[type=\"submit\"][value=\"Authorize\"]");
+  console.log("Find username.");
   keycloak_username = By.id("username");
+  console.log("Find password.");
   keycloak_password = By.id("password");
+  console.log("Find kc-login");
   keycloak_kc_login = By.id("kc-login");
+  console.log("Find token_btn.");
   token_btn = By.className("token_btn");
+  console.log("Find token_access_token.");
   token_access_token = By.id("token_access_token");
+  console.log("Find display_token_error_form_texarea1.");
   display_token_error_form_textarea1 = By.id("display_token_error_form_textarea1");
 
   // Select client credential login type
+  console.log("Set authorization_grant_type to OIDC Authorizaton Code Authentication Flow.");
   await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OIDC Authorization Code Flow(code)');
+  console.log("Waiting for usePKCE_yes");
   await driver.wait(until.elementLocated(usePKCE_yes), 10000);
+  console.log("Waiting for usePKCE_yes to be visible.");
   await driver.wait(until.elementIsVisible(driver.findElement(usePKCE_yes)), 10000);
+  console.log("Waiting for usePKCE_no.");
   await driver.wait(until.elementLocated(usePKCE_no), 10000);
+  console.log("Waiting for usePKCE to be visible");
   await driver.wait(until.elementIsVisible(driver.findElement(usePKCE_no)), 10000);
 
   if (pkce_enabled) {
+    console.log("Click usePKCE_yes.");
     await driver.findElement(usePKCE_yes).click();
   } else {
+    console.log("Click usePKCE_no.");
     await driver.findElement(usePKCE_no).click();
   }
 
+  console.log("Find authz_expand_button.");
   await driver.wait(until.elementLocated(authz_expand_button), 10000);
+  console.log("Waiting for authz_expand_button to be visible.");
   await driver.wait(until.elementIsVisible(driver.findElement(authz_expand_button)), 10000);
+  console.log("Click authz_expand_button.");
   await driver.findElement(authz_expand_button).click();
+  console.log("Locate client_id_.");
   await driver.wait(until.elementLocated(client_id_), 10000);
+  console.log("Find client_id_.");
   await driver.wait(until.elementIsVisible(driver.findElement(client_id_)), 10000);
 
   // Submit credentials
+  console.log("Clear client_id_.");
   await driver.findElement(client_id_).clear();
+  console.log("Set client_id value.");
   await driver.findElement(client_id_).sendKeys(client_id);
+  console.log("Clear scope_.");
   await driver.findElement(scope_).clear();
+  console.log("Set scope value.");
   await driver.findElement(scope_).sendKeys(scope);
+  console.log("Find token_redirect_uri.");
+  redirect_uri = By.id("redirect_uri");
+  console.log("Clear redirect_uri.");
+  await driver.findElement(redirect_uri).clear();
+  console.log("Set redirect_uri value: redirect_uri=" + redirect_uri + ", redirect_uri=" + baseUrl + "/callback");
+  await driver.findElement(redirect_uri).sendKeys(baseUrl + "/callback");
+  console.log("Click btn_authorize button.");
   await driver.findElement(btn_authorize).click();
 
   // Login to Keycloak
   try {
+    console.log("Wait for keycloak_username.");
     await driver.wait(until.elementLocated(keycloak_username), 10000);
+    console.log("Wait for keycloak_username to be visible.");
     await driver.wait(until.elementIsVisible(driver.findElement(keycloak_username)), 10000);
   } catch (error) {
+    console.log("Unable to log into keycloak.");
     authz_error_report = await driver.findElement(By.id("authz-error-report"));
     authz_error_report_paragraphs = await authz_error_report.findElements(By.css("p"));
     throw new Error(await authz_error_report_paragraphs[authz_error_report_paragraphs.length - 1].getText());
   }
 
+  console.log("Clear keycloak_username.");
   await driver.findElement(keycloak_username).clear();
+  console.log("Set keycloak_username value.");
   await driver.findElement(keycloak_username).sendKeys(client_id);
+  console.log("Clear keycloak_password.");
   await driver.findElement(keycloak_password).clear();
+  console.log("Set client_id value.");
   await driver.findElement(keycloak_password).sendKeys(client_id);
+  console.log("Click keycloak_kc_login button.");
   await driver.findElement(keycloak_kc_login).click();
 
   // Submit credentials (again)
+  console.log("Locate token_client_id.");
   await driver.wait(until.elementLocated(token_client_id), 10000);
+  console.log("Wait for token_client_id to be visible.");
   await driver.wait(until.elementIsVisible(driver.findElement(token_client_id)), 10000);
 
+  console.log("Clear token_client_id.");
   await driver.findElement(token_client_id).clear();
+  console.log("Set token_client_id value.");
   await driver.findElement(token_client_id).sendKeys(client_id);
+  console.log("Clear token_client_secret.");
   await driver.findElement(token_client_secret).clear();
+  console.log("Set token_client_secret value.");
   await driver.findElement(token_client_secret).sendKeys(client_secret);
+  console.log("Clear token_scope.");
   await driver.findElement(token_scope).clear();
+  console.log("Set token_scope value.");
   await driver.findElement(token_scope).sendKeys(scope);
+  console.log("Find token_redirect_uri.");
+  token_redirect_uri = By.id("token_redirect_uri");
+  console.log("Clear token_redirect_uri.");
+  await driver.findElement(token_redirect_uri).clear();
+  console.log("Set token_redirect_uri value: token_redirect_uri=" + token_redirect_uri + ", redirect_uri=" + baseUrl + "/callback");
+  await driver.findElement(token_redirect_uri).sendKeys(baseUrl + "/callback");
+  console.log("Click token_btn button.");
   await driver.findElement(token_btn).click();
 
   // Get access token result
   async function waitForVisibility(element) {
+    console.log("Waiting for " + element);
     await driver.wait(until.elementLocated(element), 10000);
+    console.log("Waiting for " + element + "is visible.");
     await driver.wait(until.elementIsVisible(driver.findElement(element)), 10000);
+    console.log("Returning " + element);
     return element;
   }
 
@@ -113,6 +179,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
     waitForVisibility(display_token_error_form_textarea1)
   ]);
 
+  console.log("Begin returning token.");
   return await driver.findElement(visibleAccessTokenElement).getAttribute("value");
 }
 
@@ -142,7 +209,18 @@ async function test() {
     options.addArguments("--headless");
   }
   options.addArguments("--no-sandbox");
-  const driver = await new Builder().forBrowser("chrome").setChromeOptions(options).build();
+  console.log("Enabling selinium logging.");
+//    var logger = logging.getLogger('webdriver')
+//    logger.setLevel(logging.Level.FINEST)
+//    logging.installConsoleHandler()
+    const loggingPrefs = new logging.Preferences();
+    loggingPrefs.setLevel(logging.Type.BROWSER, logging.Level.ALL);
+
+  const driver = await new Builder()
+    .forBrowser("chrome")
+    .setChromeOptions(options)
+    .setLoggingPrefs(loggingPrefs)
+    .build();
 
   try {
     const discovery_endpoint = process.env.DISCOVERY_ENDPOINT;
@@ -168,9 +246,21 @@ async function test() {
       process.exit(1);
     }
 
+    console.log("Enabling selinium logging.");
+//    var logger = logging.getLogger('webdriver')
+//    logger.setLevel(logging.Level.FINEST)
+//    logging.installConsoleHandler()
+    const loggingPrefs = new logging.Preferences();
+    loggingPrefs.setLevel(logging.Type.BROWSER, logging.Level.ALL);
+
+    console.log("Kicking off test.");
     await driver.get(baseUrl);
+    console.log("Calling populateMetadata().");
     await populateMetadata(driver, discovery_endpoint);
+    console.log("Calling getAccessToken().");
     let access_token = await getAccessToken(driver, client_id, client_secret, scope, pkce_enabled);
+    console.log("Access token: " + access_token);
+    console.log("Calling verifyAccessToken().");
     await verifyAccessToken(access_token, client_id, scope, user);
     console.log("Test completed successfully.")
   } catch (error) {
