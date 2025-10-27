@@ -18,4 +18,7 @@ jobs:
         with:
           version: '2.14.2'
       - name: Run Tests
-        run: sudo CONFIG_FILE=./env/docker-tests.js docker compose -f docker-compose-run-tests.yml up --abort-on-container-exit
+        run: |
+          ls
+          pwd
+          sudo CONFIG_FILE=./env/docker-tests.js docker compose -f docker-compose-run-tests.yml up --abort-on-container-exit
