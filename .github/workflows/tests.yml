@@ -13,9 +13,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Run Tests
-        run: sudo CONFIG_FILE=./env/docker-tests.js docker-compose -f docker-compose-run-tests.yml up --abort-on-container-exit
       - name: Install docker-compose
         uses: KengoTODA/actions-setup-docker-compose@v1
         with:
           version: '2.14.2'
+      - name: Run Tests
+        run: sudo CONFIG_FILE=./env/docker-tests.js docker-compose -f docker-compose-run-tests.yml up --abort-on-container-exit
