@@ -1,0 +1,123 @@
+#version: '3'
+services:
+  postgres:
+    image: postgres:17
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+      POSTGRES_DB: keycloak
+    healthcheck:
+      test: pg_isready
+      interval: 10s
+      timeout: 60s
+      retries: 5
+      start_period: 45s
+    ports:
+      - 5432:5432
+    networks:
+      - keycloak
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1.4
+    command: ["start-dev"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KEYCLOAK_ADMIN: keycloak
+      KEYCLOAK_ADMIN_PASSWORD: keycloak
+      KC_HEALTH_ENABLED: "true"
+    hostname: keycloak
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "exec 3<>/dev/tcp/localhost/9000; \
+        echo -en 'GET /health/ready' >&3; \
+        # Give the server a moment to respond, then search for 'UP'
+        if timeout 3 cat <&3 | grep -m 1 'UP'; then \
+          exec 3<&-; exec 3>&-; exit 0; \
+        else \
+          exec 3<&-; exec 3>&-; exit 1; \
+        fi"
+      ]
+      interval: 10s
+      timeout: 60s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - keycloak
+  api:
+    container_name: api
+    image: rcbj/api
+    environment:
+      - CONFIG_FILE=./env/docker-tests.js
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+      args:
+        CONFIG_FILE: ${CONFIG_FILE}
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: curl -X GET http://localhost:4000
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - keycloak
+    ports:
+      - 4000:4000
+  client:
+    container_name: client
+    image: rcbj/client
+    environment:
+      - CONFIG_FILE=./env/docker-tests.js
+    build:
+      context: .
+      dockerfile: client/Dockerfile 
+      args:
+        CONFIG_FILE: ${CONFIG_FILE}
+    healthcheck:
+      test: curl -X GET http://localhost:3000
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks:
+      - keycloak
+    ports:
+      - 3000:3000
+  tests:
+    container_name: tests
+    image: rcbj/test
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
+    depends_on:
+      client:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    networks:
+     - keycloak
+
+volumes:
+  postgres_data:
+
+networks:
+  keycloak:
+    driver: bridge

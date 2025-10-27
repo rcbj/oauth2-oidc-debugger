@@ -5,6 +5,7 @@ on:
     branches: [ master, develop ]
   pull_request:
     branches: [ master, develop ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -23,4 +24,4 @@ jobs:
 #        env:
 #          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
        - name: build
-         run: CONFIG_FILE=./env/local.js docker-compose build
+         run: CONFIG_FILE=./env/local.js docker-compose -f docker-compose.yml build

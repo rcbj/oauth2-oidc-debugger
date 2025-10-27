@@ -9,6 +9,8 @@ const $ = require("jquery");
 const log = bunyan.createLogger({ name: 'debugger2',
                                 level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
+const { convertToOAuth2Format  } = require('./data.js');
+
 var displayOpenIDConnectArtifacts = true;
 var useRefreshTokenTester = true;
 var discoveryInfo = {};
@@ -66,7 +68,7 @@ $(document).ready(function() {
       var className = $(this).attr('name');
       var value = $(this).val();
       if (value!=""){ 
-        nameValuePairs[className] = value;; 
+        nameValuePairs[className] = value;
       }
     });
     log.debug(nameValuePairs); // Log the name-value pairs
@@ -148,6 +150,8 @@ function buildInternalTokenAPIRequestMessage() {
     sslValidate = "true";
   }
   var auth_style = getLSBooleanItem("token_post_auth_style");
+   
+  log.debug("RCBJ0001: " + auth_style);
   var formData = {};
   if(grant_type == "authorization_code")
   {
@@ -187,12 +191,12 @@ function buildInternalTokenAPIRequestMessage() {
   if(yesCheck) //add resource value to OAuth query string
   {
     var resource = $("#token_resource").val();
-    if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
+    if (!!resource)
     {
       formData.resource = resource
-     }
+    }
   }
-  if(typeof client_secret != "undefined")
+  if(!!client_secret)
   {
     formData.client_secret = client_secret
   }
@@ -215,136 +219,6 @@ function buildInternalTokenAPIRequestMessage() {
   }
   log.debug("Leaving buildInternalTokenAPIRequestMessage().");
   return formData;
-}
-
-function convertToOAuth2Format(formData) {
-  log.debug("Entering convertToOAuth2Format(): formData=" + JSON.stringify(formData));
-  try {
-    log.info('Entering app.post for /token.');
-    const body = formData;
-    log.debug('body: ' + JSON.stringify(body));
-    var grantType = body.grant_type;  //=authorization_code
-    var clientId = body.client_id;  //=5qqbus6ukft6srjgqlijvk2465
-    var code = body.code; //=2a795117-43d5-4d4c-bdd6-0fc9632c0594
-    var redirectUri = body.redirect_uri; //=http%3A%2F%2Flocalhost%3A3000%2Fcallback
-    var scope = body.scope || ""; //=openid+email+phone+profile
-    var tokenEndpoint = body.token_endpoint; //=https%3A%2F%2Fblogpost1.auth.us-west-2.amazoncognito.com%2Foauth2%2Ftoken
-    var sslValidate = body.sslValidate; //=true
-    var clientSecret = encodeURIComponent(body.client_secret); //=tester
-    var username = body.username || "";
-    var password = body.password || "";
-    var refreshToken = body.refresh_token || "";
-    var resource = body.resource || "";
-    var customParams = body.customParams || {};
-    var code_verifier = body.code_verifier;
-    var auth_style = body.auth_style;
-
-    log.debug('grantType: ' + grantType);
-    log.debug('clientId: ' + clientId);
-    log.debug('code: ' + code);
-    log.debug('redirectUri: ' + redirectUri);
-    log.debug('scope: ' + scope);
-    log.debug('tokenEndpoint: ' + tokenEndpoint);
-    log.debug('sslValidate: ' + sslValidate);
-    log.debug('clientSecret: ' + clientSecret);
-    log.debug('username: ' + username);
-    log.debug('password: ' + password);
-    log.debug('refreshToken: ' + refreshToken);
-    log.debug('resource: ' + resource);
-    Object.keys(customParams).forEach( (key) => {
-      log.debug(key + ':' + customParams[key]);
-    });
-    log.debug("code_verifier: " + code_verifier);
-    log.debug("auth_style: " + auth_style);
-    var parameterObject = {};
-    if(grantType == "authorization_code") {
-      parameterObject = {
-        grant_type: grantType,
-        client_id: clientId,
-        code: code,
-        redirect_uri: redirectUri,
-      };
-      if (typeof code_verifier != "undefined") {
-        parameterObject.code_verifier = code_verifier
-      }
-      log.debug("clientSecret: " + clientSecret);
-      log.debug("auth_style: " + auth_style);
-      if (!!clientSecret && auth_style) {
-        parameterObject.client_secret = clientSecret;
-      }
-    } else if(grantType == "client_credentials") {
-       parameterObject =  {
-         grant_type: grantType
-       };
-       log.debug("clientSecret: " + clientSecret);
-       log.debug("auth_style: " + auth_style);
-       if ((typeof clientSecret != "undefined" && clientSecret != "undefined")
-          && auth_style) {
-         parameterObject.client_secret = clientSecret;
-       }
-    } else if(grantType == "password") {
-       parameterObject = {
-        grant_type: grantType,
-        username: username,
-        password: password
-       };
-    } else if(grantType == "refresh_token") {
-      parameterObject = {
-        grant_type: grantType,
-        client_id: clientId,
-        refresh_token: refreshToken,
-      };
-      log.debug("clientSecret: " + clientSecret);
-      log.debug("auth_style: " + auth_style);
-      if ((typeof clientSecret != "undefined" && clientSecret != "undefined")
-         && auth_style) {
-        parameterObject.client_secret = clientSecret;
-      }
-    }
-    if(auth_style) {
-        parameterObject.client_id = clientId;
-    }
-    if(resource != "") {
-      parameterObject.resource = resource;
-    }
-
-    if(scope != "") {
-      parameterObject.scope = scope;
-    }
-    if (Object.keys(customParams).length > 0) {
-      Object.keys(customParams).forEach( (key) => {
-        parameterObject[key] = customParams[key];
-      });
-    }
-    log.debug("parameterObject: " + JSON.stringify(parameterObject));
-
-    var parameterString = "";
-    Object.keys(parameterObject).forEach( (key) => {
-      parameterString = parameterString +
-                      key +
-                      "=" +
-                      parameterObject[key] +
-                      "&";
-    });
-
-    var headers = {
-      'content-type' : 'application/x-www-form-urlencoded'
-    };
-    if ( typeof code_verifier != "undefined" ||
-         (grantType == "refresh_token" &&
-          !clientSecret)) {
-      headers.origin = appconfig.uiUrl;
-    }
-    if (!auth_style) {
-      // Put client_id + client_secret in Authorization header
-      headers.authorization = 'Basic ' + Buffer.from(clientId + ":" + clientSecret).toString('base64');
-    }
-    parameterString = parameterString.substring(0, parameterString.length - 1);
-    log.debug("Leaving convertToOAuth2Format().");
-    return parameterString;
-  } catch (e) {
-    log.error("An error occurred: " + e);
-  }
 }
 
 function successfulInternalTokenAPICall(data, textStatus, request)
@@ -784,11 +658,17 @@ function writeValuesToLocalStorage()
       localStorage.setItem("customTokenParametersCheck-yes", $("#customTokenParametersCheck-yes").is(":checked"));
       localStorage.setItem("customTokenParametersCheck-no", $("#customTokenParametersCheck-no").is(":checked"));
       localStorage.setItem("tokenNumberCustomParameters", $("#tokenNumberCustomParameters").val());
-      if ($("#token_postAuthStyleCheckToken").is(":checked") ||
-         $("#refresh_postAuthStyleCheckToken").is(":checked")) {
+      if ($("#token_postAuthStyleCheckToken").is(":checked"))
+      {
         localStorage.setItem("token_post_auth_style", true);
       } else {
         localStorage.setItem("token_post_auth_style", false);
+      }
+      if ($("#refresh_postAuthStyleCheckToken").is(":checked"))
+      {
+        localStorage.setItem("refresh_post_auth_style", true);
+      } else {
+        localStorage.setItem("refresh_post_auth_style", false);
       }
       if ($("#customTokenParametersCheck-yes").is(":checked")) {
         var i = 0;
@@ -820,7 +700,7 @@ function loadValuesFromLocalStorage()
   log.debug("Entering loadValuesFromLocalStorage().");
   var authzGrantType = localStorage.getItem("authorization_grant_type");
   log.debug("authzGrantType=" + authzGrantType);
-  if (authzGrantType == "" || typeof(authzGrantType) == "undefined" || authzGrantType == "null")
+  if (!!authzGrantType)
   {
     $("#authorization_grant_type").val("authorization_grant");
     resetUI("authorization_grant");
@@ -912,7 +792,7 @@ function loadValuesFromLocalStorage()
     log.debug("Checking for code.  agt=" + agt + ", pathname=" + pathname);
     log.debug("fragement: " + parseFragment());
     code = parseFragment()["code"];
-    if(code == null || code == "null" || code == "" || typeof code == "undefined")
+    if(!!code)
     {
       code = "NO_CODE_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
@@ -929,15 +809,12 @@ function loadValuesFromLocalStorage()
   {
     var access_token = getParameterByName("access_token",window.location.href);
     log.debug("access_token=" + access_token);
-    if(access_token == null || 
-       access_token == "null" || 
-       access_token == "" || 
-       typeof access_token == "undefined")
+    if(!!access_token)
     {
       //Check to see if passed in as local anchor (ADFS & Azure Active Directory do this)
       log.debug("fragement: " + parseFragment());
       access_token = parseFragment()["access_token"];
-      if(access_token == null || access_token == "null" || access_token == "" || typeof access_token == "undefined")
+      if(!!access_token)
       {
         access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
       }
@@ -962,20 +839,14 @@ function loadValuesFromLocalStorage()
   {
     log.debug("fragement: " + parseFragment());
     access_token = parseFragment()["access_token"];
-    if(	access_token == null ||
-	access_token == "null" || 
-	access_token == "" ||
-	typeof access_token == "undefined")
+    if(!access_token)
     {
       access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
     log.debug("access_token=" + access_token);
     log.debug("fragement: " + parseFragment());
     id_token = parseFragment()["id_token"];
-    if(	id_token == null ||
-	id_token == "null" ||
-	id_token == "" ||
-	typeof id_token == "undefined")
+    if(!!id_token)
     {
       id_token = "NO_ID_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
@@ -1015,10 +886,7 @@ function loadValuesFromLocalStorage()
   {
     log.debug("fragement: " + parseFragment());
     access_token = parseFragment()["access_token"];
-    if(	access_token == null ||
-	access_token == "null" ||
-	access_token == "" ||
-	typeof access_token == "undefined")
+    if(!access_token)
     {
       access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
@@ -1040,12 +908,12 @@ function loadValuesFromLocalStorage()
   {
     var id_token = getParameterByName("id_token",window.location.href);
     log.debug("id_token=" + access_token);
-    if(id_token == null || id_token == "null" || id_token == "" || typeof id_token == "undefined")
+    if(!id_token)
     {
       //Check to see if passed in as local anchor (ADFS & Azure Active Directory do this)
       log.debug("fragement: " + parseFragment());
       id_token = parseFragment()["id_token"];
-      if(id_token == null || id_token == "null" || id_token == "" || typeof id_token == "undefined")
+      if(!id_token)
       {
         id_token = "NO_ID_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
       }
@@ -1068,7 +936,7 @@ function loadValuesFromLocalStorage()
   var authzGrantType = $("#authorization_grant_type").val();
   if(	pathname == "/debugger2.html" && 
 	(authzGrantType == "authorization_grant" || authzGrantType == "implicit_grant" || authzGrantType == "oidc_hybrid_code_id_token") &&
-	(error != null && error != "null" && typeof error != "undefined" && error != ""))
+	(!!error))
   {
     $("#display_authz_error_class").html(DOMPurify.sanitize("<fieldset><legend>Authorization Endpoint Error</legend><form action=\"\" name=\"display_authz_error_form\" id=\"display_authz_error_form\"><table><tr><td><label name=\"display_authz_error_form_label1\" value=\"\" id=\"display_authz_error_form_label1\">Error</label></td><td><textarea rows=\"10\" cols=\"100\" id=\"display_authz_error_form_textarea1\"></td></tr></table></textarea></form></fieldset>"));
   }
@@ -1085,7 +953,7 @@ function recalculateTokenRequestDescription()
   if(yesCheck) //add resource value to OAuth query string
   {
     var resource = $("#token_resource").val();
-    if (resource != "" && typeof resource != "undefined" && resource != null && resource != "null")
+    if (!!resource)
     {
       resourceComponent =  "&resource=" + resource;
     }
@@ -1106,7 +974,7 @@ function recalculateTokenRequestDescription()
     customParametersComponent = customParametersComponent.substring(0,  customParametersComponent.length - 2);
     log.debug('customParametersComponent=' + customParametersComponent);
   }
-  if (ta1 != null)
+  if (!!ta1)
   {
     var grant_type = $("#token_grant_type").val();
     if(grant_type == "authorization_code")
@@ -1156,15 +1024,13 @@ function recalculateRefreshRequestDescription()
   var ta1 = $("#display_refresh_request_form_textarea1");
   var resourceComponent = "";
 
-  if (ta1 != null)
+  if (!!ta1)
   {
     var grant_type = $("#refresh_grant_type").val();
     if( grant_type == "refresh_token")
     {
       var client_secret = $("#refresh_client_secret").val();
-      if( client_secret != "" &&
-          client_secret != null &&
-          client_secret != "null")
+      if(!!client_secret)
       {
         $("#display_refresh_request_form_textarea1").val(DOMPurify.sanitize("POST " + $("#token_endpoint").val() + "\n" +
                                                                       "Message Body:\n" +
@@ -1209,7 +1075,7 @@ function onload() {
   // Check if state matches
   log.debug('Checking on state.');
   var state = getParameterByName('state');
-  if (typeof(state) != "undefined" && state != "null" && state != null && state != undefined) {
+  if (!!state) {
     log.debug('Found state: ' + state)
     var storedState = localStorage.getItem('state');
     if ( state == storedState) {
@@ -1383,7 +1249,7 @@ function recalculateAuthorizationErrorDescription()
   log.debug("Entering recalculateAuthorizationErrorDescription().");
   log.debug("update error field");
   var ta1 = $("#display_authz_error_form_textarea1");
-  if (ta1 != null)
+  if (!!ta1)
   {
     var grant_type = $("#response_type").val();
     if( grant_type == "code" ||
@@ -1895,7 +1761,7 @@ function setPostAuthStyleCheckToken() {
   $("#token_postAuthStyleCheckToken").prop("checked", true);
   $("#token_headerAuthStyleCheckToken").prop("checked", false);
   localStorage.setItem("token_post_auth_style", true);
-  log.debug("Leaving setPostAuthStyleCheckToken().");
+  log.debug("Leaving setPostAuthStyleCheckToken(): token_post_auth_style=" + localStorage.getItem("token_post_auth_style") + ".");
   return false;
 }
 
@@ -1904,7 +1770,7 @@ function setHeaderAuthStyleCheckToken() {
   $("#token_postAuthStyleCheckToken").prop("checked", false);
   $("#token_headerAuthStyleCheckToken").prop("checked", true);
   localStorage.setItem("token_post_auth_style", false);
-  log.debug("Leaving setHeaderAuthStyleCheckToken().");
+  log.debug("Leaving setHeaderAuthStyleCheckToken(): token_post_auth_style=" + localStorage.getItem("token_post_auth_style") + ".");
   return false;
 }
 
@@ -1913,6 +1779,7 @@ function setPostAuthStyleRefreshToken() {
   $("#refresh_postAuthStyleCheckToken").prop("checked", true);
   $("#refresh_headerAuthStyleCheckToken").prop("checked", false);
   localStorage.setItem("refresh_post_auth_style", true);
+  log.debug("Leaving setPostAuthStyleRefreshToken(): token_post_auth_style=" + localStorage.getItem("refresh_post_auth_style") + ".");
   return false;
 }
 
@@ -1921,7 +1788,7 @@ function setHeaderAuthStyleRefreshToken() {
   $("#refresh_postAuthStyleCheckToken").prop("checked", false);
   $("#refresh_headerAuthStyleCheckToken").prop("checked", true);
   localStorage.setItem("refresh_post_auth_style", false);
-  log.debug("Leaving setHeaderAuthStyleRefreshToken().");
+  log.debug("Leaving setHeaderAuthStyleRefreshToken(): refresh_post_auth_style=" + localStorage.getItem("refresh_post_auth_style") + ".");
   return false;
 }
 
