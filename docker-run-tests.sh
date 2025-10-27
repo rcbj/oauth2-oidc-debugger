@@ -18,7 +18,6 @@ check_return_code()
 }
 
 init
-sleep 90
 KEYCLOAK_ACCESS_TOKEN=$(curl \
   -X POST "http://keycloak:8080/realms/master/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
