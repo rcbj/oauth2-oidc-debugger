@@ -14,14 +14,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-       - uses: actions/checkout@v4
-#         with:
-#           ref: ${{ github.ref_name }}
+       - name: Checkout Repository
+         uses: actions/checkout@v4
        - name: Install docker-compose
          uses: KengoTODA/actions-setup-docker-compose@v1
          with:
            version: '2.14.2'
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
        - name: build
          run: CONFIG_FILE=./env/local.js docker-compose -f docker-compose.yml build
