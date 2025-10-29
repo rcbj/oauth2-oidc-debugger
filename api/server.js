@@ -49,7 +49,7 @@ app.get('/healthcheck', function (req, res) {
 });
 
 /**
- * System healthcheck
+ * Retrieve Claims Description.
  * @route GET /claimdescription
  * @group Metadata - Support operations
  * @returns {HealthcheckResponse.model} 200 - Claim Description Response
@@ -179,6 +179,81 @@ app.post('/token', (req, res) => {
     res.status(500);
     res.json({ "error": e });
   }
+});
+
+/**
+ * @typedef IntrspectionRequest
+ * @property {string} grant_type.required - The OAuth2 / OIDC Grant / Flow Type
+ * @property {string} client_id.required - The OAuth2 client identifier
+ */
+
+/**
+ * @typedef IntrospectionResponse
+ * @property {string} access_token.required - The OAuth2 Access Token
+ * @property {string} id_token - The OpenID Connect ID Token
+ */
+
+/**
+ * Wrapper around OAuth2 Introspection Endpoint
+ * @route POST /introspection
+ * @group Debugger - Operations for OAuth2/OIDC Debugger
+ * @param {IntrospectionRequest.model} req.body.required - Token Endpoint Request
+ * @returns {IntrospectionResponse.model} 200 - Token Endpoint Response
+ * @returns {Error.model} 400 - Syntax error
+ * @returns {Error.model} 500 - Unexpected error
+ */
+app.post('/introspection', (req, res) => {
+  log.info('Entering app.post for /introspection.');
+  const body = req.body;
+  log.debug('body: ' + JSON.stringify(body));
+  var headers = {
+    "Authorization": req.headers.authorization,
+    "Content-Type": "application/x-www-form-urlencoded"
+  };
+  var introspectionRequestMessage = {
+    token: body.token,
+    token_type_hint: body.token_type_hint
+  }
+  const parameterString = JSON.stringify(introspectionRequestMessage);
+  log.debug("Method: POST");
+  log.debug("URL: " + body.introspectionEndpoint);
+  log.debug("headers: " + JSON.stringify(headers));
+  log.debug("body: " + parameterString);
+  axios({
+      method: 'post',
+      url: body.introspectionEndpoint,
+      headers: headers,
+      data: introspectionRequestMessage,
+      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: true })
+    })
+    .then(function (response) {
+      log.debug('Response from OAuth2 Introspection Endpoint: ' + JSON.stringify(response.data));
+      log.debug('Headers: ' + response.headers);
+      res.status(response.status);
+      res.json(response.data);
+    })
+    .catch(function (error) {
+      log.error('Error from OAuth2 Introspection Endpoint: ' + error);
+      if(!!error.response) {
+        if(!!error.response.status) {
+          log.error("Error Status: " + error.response.status);
+        }
+        if(!!error.response.data) {
+          log.error("Error Response body: " + JSON.stringify(error.response.data));
+        }
+        if(!!error.response.headers) {
+          log.error("Error Response headers: " + error.response.headers);
+        }
+        if (!!error.response) {
+          res.status(error.response.status);
+          res.json(error.response.data);
+        } else {
+          res.status(500);
+          res.json(error.message);
+        }
+      }
+    });
+
 });
 
 let options = {

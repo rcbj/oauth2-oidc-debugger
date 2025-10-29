@@ -50,6 +50,16 @@
           </tr>
           <tr>
             <td>
+              <div class="tooltip"><label>Initiate Introspection Endpoint Call From front or backend.: </label><span class="tooltiptext">The debugger can initiate an Introspection Endpoint call from either the frontend (browser) or from the backend API component. Certain IdPs make stringent assumptions about CORS and how calls will be originated. Especially concerning the Origin request header, which cannot be controlled from the browser.</span>
+              </div>
+            </td>
+            <td>Front
+              <input id="introspection_initiateFromFrontEnd" name="introspection-initiateFromFrontEnd" checked="true" onclick="introspection.setInitiateFromEnd();" type="radio" />Back
+              <input id="introspection_initiateFromBackEnd" name="introspection-initiateFromFrontEnd" checked="false" onclick="introspection.setInitiateFromEnd();" type="radio" />
+            </td>
+          </tr>
+          <tr>
+            <td>
               <div class="tooltip"><label>OIDC Introspection Token: </label><span class="tooltiptext">The OIDC Introspection Token.</span>
               </div>
             </td>
