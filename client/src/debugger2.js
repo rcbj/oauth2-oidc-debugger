@@ -1,7 +1,3 @@
-// File: debugger2_js.js
-// Author: Robert C. Broeckelmann Jr.
-// Date: 06/15/2017
-//
 const appconfig = require(process.env.CONFIG_FILE);
 const bunyan = require("bunyan");
 const DOMPurify = require("dompurify");
@@ -62,34 +58,34 @@ $(document).ready(function() {
   resetUI(value);
   recalculateRefreshRequestDescription();
 
-  $("#logout_btn").click(function() {
-    log.debug("Logout link clicked.");
-    var nameValuePairs = {};
-
-    $('#logout_fieldset input.q').each(function() {
-      var className = $(this).attr('name');
-      var value = $(this).val();
-      if (value!=""){ 
-        nameValuePairs[className] = value;
-      }
-    });
-    log.debug(nameValuePairs); // Log the name-value pairs
-    var queryString = $.param(nameValuePairs);
-
-    log.debug(queryString); // Log the query string
-    var logoutUrl = DOMPurify.sanitize($("#logout_end_session_endpoint").val()) + "?" + DOMPurify.sanitize(queryString);
-
-    clearLocalStorage();
-    window.location.href = logoutUrl;
-
-    return false;
-  });
-
   $(".token_btn").click(tokenButtonClick);
   $(".refresh_btn").click(refreshButtonClick);
 
   log.debug("Leaving token submit button clicked function.");
 });
+
+function logoutButtonClick()  {
+  log.debug("Logout link clicked.");
+  var nameValuePairs = {};
+
+  $('#logout_fieldset input.q').each(function() {
+    var className = $(this).attr('name');
+    var value = $(this).val();
+    if (value!=""){
+      nameValuePairs[className] = value;
+    }
+  });
+  log.debug(nameValuePairs); // Log the name-value pairs
+  var queryString = $.param(nameValuePairs);
+
+  log.debug(queryString); // Log the query string
+  var logoutUrl = DOMPurify.sanitize($("#logout_end_session_endpoint").val()) + "?" + DOMPurify.sanitize(queryString);
+
+  clearLocalStorage();
+  window.location.href = logoutUrl;
+
+  return false;
+};
 
 function tokenButtonClick() {
   log.debug("Entering token Submit button clicked function.");
@@ -241,6 +237,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
   if(displayOpenIDConnectArtifacts == true)
   {
     // Display OAuth2/OIDC Artifacts
+    log.debug("RCBJ0003");
     token_endpoint_result_html = "<fieldset>" +
                                  "<legend>Token Endpoint Results:</legend>" + 
 				   "<table>" +
@@ -292,6 +289,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
       localStorage.setItem("token_id_token", data.id_token);
     } else {
       log.debug("Displaying Access Token. No OIDC ID Token: data.access_token=" + data.access_token);
+      log.debug("RCBJ0004");
       token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" +
                                       "<table>" +
@@ -615,7 +613,14 @@ function resetUI(value)
       recalculateTokenRequestDescription();
       recalculateRefreshRequestDescription();
     }
-
+    if( value == "implicit_grant" &&
+        getParameterByName("redirectFromTokenDetail") == "true")
+    {
+      $("#config_fieldset").hide();
+      $("#config_expand_button").val("Expand");
+      $("#step3").hide();
+    }
+    
     resetErrorDisplays();
     $("#yesResourceCheckToken").prop("checked", false);
     $("#noResourceCheckToken").prop("checked", true);
@@ -796,7 +801,12 @@ function loadValuesFromLocalStorage()
     $("#token_pkce_code_method").val(localStorage.getItem("PKCE_code_challenge_method"));
   }
   usePKCERFC();
+  log.debug("Leaving loadValuesFromLocalStorage().");
+}
 
+function recreateUniqueGrantFlowElements()
+{
+  log.debug("Entering recreateUniqueGrantFlowElements().");
   var agt = $("#authorization_grant_type").val();
   var pathname = window.location.pathname;
   log.debug("agt=" + agt);
@@ -821,9 +831,8 @@ function loadValuesFromLocalStorage()
       $("#code").val(code);
     }
   }
-  if ( 	(agt == "implicit_grant" || 
-         agt == "oidc_implicit_flow" ) &&
-	pathname == "/debugger2.html") //retrieve access_token for implicit_grant for callback redirect response
+  if ( agt == "implicit_grant" || 
+       agt == "oidc_implicit_flow")
   {
     log.debug("Looking for access_token.");
     var access_token = getParameterByName("access_token",window.location.href);
@@ -836,12 +845,21 @@ function loadValuesFromLocalStorage()
       access_token = parseFragment()["access_token"];
       if(!!!access_token)
       {
-        log.debug("Didn't find token in fragment.");
-        access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
+        log.debug("Didn't find token in fragment. Checking to see if there is a saved token in local storage.");
+        access_token = localStorage.getItem("token_access_token");
+        if(!!!access_token)
+        {
+          log.debug("Didn't find token in local storage. No access_token found.");
+          access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS(IMPLICIT_GRANT||OIDC_IMPLICIT_FLOW)";
+        } else {
+          log.debug("Found access_token in local storage.");
+        }
       } else {
         log.debug("Found token in fragment.");
       } 
-    }
+    } else {
+     log.debug("Found token in query parameter.");
+    } 
     var authorization_endpoint_result_html = "<fieldset>" +
                                              "<legend>Authorization Endpoint Results:</legend>" +
                                              "<table>" + 
@@ -860,7 +878,6 @@ function loadValuesFromLocalStorage()
                                              "</table>" +
                                              "</fieldset>";
     $("#authorization_endpoint_result").html(DOMPurify.sanitize(authorization_endpoint_result_html));
-    log.debug("RCBJ0001");
     localStorage.setItem("token_access_token", access_token);
   }
   if (  agt == "oidc_hybrid_code_id_token_token" &&
@@ -870,7 +887,7 @@ function loadValuesFromLocalStorage()
     access_token = parseFragment()["access_token"];
     if(!access_token)
     {
-      access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
+      access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS(oidc_hybrid_code_id_token_token)";
     }
     log.debug("access_token=" + access_token);
     log.debug("fragement: " + parseFragment());
@@ -917,7 +934,7 @@ function loadValuesFromLocalStorage()
     access_token = parseFragment()["access_token"];
     if(!access_token)
     {
-      access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
+      access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS(oidc_hybrid_code_token)";
     }
     log.debug("access_token=" + access_token);
     $("#authorization_endpoint_result").html(DOMPurify.sanitize("<fieldset>" +
@@ -964,12 +981,31 @@ function loadValuesFromLocalStorage()
   var error = getParameterByName("error",window.location.href);
   var authzGrantType = $("#authorization_grant_type").val();
   if(	pathname == "/debugger2.html" && 
-	(authzGrantType == "authorization_grant" || authzGrantType == "implicit_grant" || authzGrantType == "oidc_hybrid_code_id_token") &&
-	(!!error))
+	( authzGrantType == "authorization_grant" ||
+          authzGrantType == "implicit_grant" ||
+          authzGrantType == "oidc_hybrid_code_id_token") &&
+	  (!!error))
   {
-    $("#display_authz_error_class").html(DOMPurify.sanitize("<fieldset><legend>Authorization Endpoint Error</legend><form action=\"\" name=\"display_authz_error_form\" id=\"display_authz_error_form\"><table><tr><td><label name=\"display_authz_error_form_label1\" value=\"\" id=\"display_authz_error_form_label1\">Error</label></td><td><textarea rows=\"10\" cols=\"100\" id=\"display_authz_error_form_textarea1\"></td></tr></table></textarea></form></fieldset>"));
+    error_html = "<fieldset>" +
+                   "<legend>Authorization Endpoint Error</legend>" +
+                   "<form action='' name='display_authz_error_form' id='display_authz_error_form'>" +
+                     "<table>" +
+                       "<tr>" +
+                         "<td>" +
+                           "<label name='display_authz_error_form_label1' value='' id='display_authz_error_form_label1'>Error</label>" +
+                         "</td>" +
+                         "<td>" +
+                           "<textarea rows='10' cols='50' id='display_authz_error_form_textarea1'>" +
+                           error +
+                           "</textarea>"
+                         "</td>" +
+                       "</tr>" +
+                     "</table>" +
+                   "</form>" +
+                 "</fieldset>";
+    $("#display_authz_error_class").html(DOMPurify.sanitize(error_html));
   }
-  log.debug("Leaving loadValuesFromLocalStorage().");
+  log.debug("Entering recreateUniqueGrantFlowElements().");
 }
 
 function recalculateTokenRequestDescription()
@@ -1087,31 +1123,36 @@ function processStateParameter()
   // Check if state matches
   log.debug("Checking on state.");
   var state = getParameterByName("state");
+  var stateParameterFound = false;
   if (!!state) {
     log.debug("Found state in query parameters: " + state);
+    stateParameterFound = true;
   } else {
     log.debug("Didn't find state in query parameters, attempting to find fragment.");
     state = parseFragment()["state"];
     if(!!state) {
       log.debug("Found state in fragment.");
+      stateParameterFound = true
     } else {
       log.debug("Didn't find state.");
     }
   }
   var storedState = localStorage.getItem("state");
   // Generate report
-  if ( !!state &&
-       !!storedState &&
-       state == storedState) {
-    log.debug('State matches stored state.');
-    var stateReportHTML = '<h1>State Report</h1>' +
-                          '<P>' + 'State matches: state=' + state + '</P>';
-    $("#state-status").html(DOMPurify.sanitize(stateReportHTML));
-  } else {
-    log.debug('State does not match: state=' + state + ', storedState=' + storedState);
-    var stateReportHTML = '<h1>State Report</h1>' +
-                          '<P>State does not match: state=' + state + ', storedState=' + storedState + '</P>';
-    $("#state-status").html(DOMPurify.sanitize(stateReportHTML));
+  if(stateParameterFound) {
+    if ( !!state &&
+         !!storedState &&
+         state == storedState) {
+      log.debug('State matches stored state.');
+      var stateReportHTML = '<h1>State Report</h1>' +
+                            '<P>' + 'State matches: state=' + state + '</P>';
+      $("#state-status").html(DOMPurify.sanitize(stateReportHTML));
+    } else {
+      log.debug('State does not match: state=' + state + ', storedState=' + storedState);
+      var stateReportHTML = '<h1>State Report</h1>' +
+                            '<P>State does not match: state=' + state + ', storedState=' + storedState + '</P>';
+      $("#state-status").html(DOMPurify.sanitize(stateReportHTML));
+    }
   }
   log.debug("Leaving processStateParameter().");
 }
@@ -1126,8 +1167,11 @@ function onload() {
   $("#password-form-group1").hide();
   $("#password-form-group2").hide();
 
+  // If we are coming back from the Token Detail Page clear all saved tokens. 
+  // It will be reset.
   if(getParameterByName("redirectFromTokenDetail") != "true") {
     // Clear all token values.
+    log.debug("Detected page load for new grant/flow workflow. Clearing all existing tokens.");
     localStorage.setItem("token_access_token", "");
     localStorage.setItem("token_id_token", "");
     localStorage.setItem("token_refresh_token", "");
@@ -1142,7 +1186,8 @@ function onload() {
   var errorDescriptionParam = getParameterByName('error_description');
   var errorParam = getParameterByName('error');
   log.debug('errorDescriptionParam=' + errorDescriptionParam + ', errorParam=' + errorParam);
-  if (errorDescriptionParam || errorParam) {
+  if (errorDescriptionParam || 
+      errorParam) {
     $('#step0').hide();
     $('#step3').hide();
     $('#step4').hide();
@@ -1168,6 +1213,7 @@ function onload() {
   $("#customTokenParametersCheck-no").on("click", recalculateTokenRequestDescription);
 
   loadValuesFromLocalStorage();
+  recreateUniqueGrantFlowElements();
   recalculateAuthorizationErrorDescription();
   recalculateTokenRequestDescription();
   recalculateRefreshRequestDescription();
@@ -1218,7 +1264,10 @@ function onload() {
 
   displayTokenCustomParametersCheck();
 
-  if(getParameterByName("redirectFromTokenDetail") == "true") {
+  if( getParameterByName("redirectFromTokenDetail") == "true" &&
+      ( value != "implicit_grant" && 
+        value != "oidc_implicit_grant"))
+  {
     log.debug('Detected redirect back from token detail page.');
     $("#step3").hide();
     recreateTokenDisplay();
@@ -1565,6 +1614,7 @@ function recreateTokenDisplay()
       {
          log.debug("Displaying full OIDC Token results.");
          // Display OAuth2/OIDC Artifacts
+         log.debug("RCBJ0001");
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" + 
                                       "<table>" +
@@ -1615,6 +1665,7 @@ function recreateTokenDisplay()
 
       } else {
          log.debug("Logging access_token only.");
+         log.debug("RCBJ0002");
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" +
                                       "<table>" +
@@ -1914,5 +1965,6 @@ module.exports = {
   setHeaderAuthStyleRefreshToken,
   onClickCopyToken,
   setInitiateFromEnd,
-  setInitiateRefreshFromEnd
+  setInitiateRefreshFromEnd,
+  logoutButtonClick
 };

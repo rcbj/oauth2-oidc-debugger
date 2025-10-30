@@ -173,11 +173,17 @@ window.onload = function() {
   log.debug("Entering window.onload() function.");
   loadValuesFromLocalStorage();
   $("#introspection_authentication_type").trigger("change");
+  var frontEndInitiated = $("#introspection_initiateFromFrontEnd").is(":checked");
+  if(frontEndInitiated) {
+    useFrontEnd = true;
+  } else {
+    useFrontEnd = false;
+  }
   log.debug("Leaving window.onload() function.");
 }
 
-function setInitiateFromEnd() {
-  log.debug("Entering setInitiateFromEnd().");
+function setInitiateFromEnd(which_end) {
+  log.debug("Entering setInitiateFromEnd(). which_end=" + which_end);
   var frontEndInitiated = $("#introspection_initiateFromFrontEnd").is(":checked");
   var backEndInitiated = $("#introspection_initiateFromBackEnd").is(":checked");
   if(frontEndInitiated) {
