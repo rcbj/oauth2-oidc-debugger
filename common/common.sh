@@ -222,27 +222,36 @@ configureKeycloak()
           }'
     check_return_code $?
 
-    declare ${FLOW_VARIABLE}_DISCOVERY_ENDPOINT="${KEYCLOAK_BASE_URL}/realms/debugger-testing/.well-known/openid-configuration"
-    declare ${FLOW_VARIABLE}_CLIENT_ID="${CLIENT_CLIENTID}"
-    declare ${FLOW_VARIABLE}_CLIENT_SECRET="${CLIENT_SECRET}"
-    declare ${FLOW_VARIABLE}_SCOPE="${SCOPE_NAME}"
-    declare ${FLOW_VARIABLE}_USER="${USER_ID}"
+    declare -g ${FLOW_VARIABLE}_DISCOVERY_ENDPOINT="${KEYCLOAK_BASE_URL}/realms/debugger-testing/.well-known/openid-configuration"
+    declare -g ${FLOW_VARIABLE}_CLIENT_ID="${CLIENT_CLIENTID}"
+    declare -g ${FLOW_VARIABLE}_CLIENT_SECRET="${CLIENT_SECRET}"
+    declare -g ${FLOW_VARIABLE}_SCOPE="${SCOPE_NAME}"
+    declare -g ${FLOW_VARIABLE}_USER="${USER_ID}"
+
+    VAR_NAME1=${FLOW_VARIABLE}_DISCOVERY_ENDPOINT
+    VAR_NAME2=${FLOW_VARIABLE}_CLIENT_ID
+    VAR_NAME3=${FLOW_VARIABLE}_CLIENT_SECRET
+    VAR_NAME4=${FLOW_VARIABLE}_SCOPE
+    VAR_NAME5=${FLOW_VARIABLE}_USER
+
+    echo "${VAR_NAME1}=${!VAR_NAME1}"
+    echo "${VAR_NAME2}=${!VAR_NAME2}"
+    echo "${VAR_NAME3}=${!VAR_NAME3}"
+    echo "${VAR_NAME4}=${!VAR_NAME4}"
+    echo "${VAR_NAME5}=${!VAR_NAME5}"
   done
   echo "Leaving configureKeycloak()."
-  env 
-  exit 1
 }
 
 runTests()
 {
   echo "Entering runTests()."
-  env
   # Test client credentials flow
   DISCOVERY_ENDPOINT=${CLIENT_CREDENTIALS_DISCOVERY_ENDPOINT} \
   CLIENT_ID=${CLIENT_CREDENTIALS_CLIENT_ID} \
   CLIENT_SECRET=${CLIENT_CREDENTIALS_CLIENT_SECRET} \
   SCOPE=${CLIENT_CREDENTIALS_SCOPE} \
-  node tests/oauth2_client_credentials.js --url "${DEBUGGER_BASE_URL}"
+  node ${NODEJS_BASE_DIR}/oauth2_client_credentials.js --url "${DEBUGGER_BASE_URL}"
   check_return_code $?
 
   # Test authorization code flow
@@ -262,7 +271,7 @@ runTests()
     SCOPE=${AUTHORIZATION_CODE_CONFIDENTIAL_SCOPE} \
     USER=${AUTHORIZATION_CODE_CONFIDENTIAL_USER} \
     PKCE_ENABLED=${PKCE_ENABLED} \
-    node tests/oauth2_authorization_code.js --url "${DEBUGGER_BASE_URL}"
+    node ${NODEJS_BASE_DIR}/oauth2_authorization_code.js --url "${DEBUGGER_BASE_URL}"
     check_return_code $?
 
     echo "DISCOVERY_ENDPOINT=${AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT}"
@@ -279,7 +288,7 @@ runTests()
     SCOPE=${AUTHORIZATION_CODE_PUBLIC_SCOPE} \
     USER=${AUTHORIZATION_CODE_PUBLIC_USER} \
     PKCE_ENABLED=${PKCE_ENABLED} \
-    node tests/oauth2_authorization_code.js --url "${DEBUGGER_BASE_URL}"
+    node ${NODEJS_BASE_DIR}/oauth2_authorization_code.js --url "${DEBUGGER_BASE_URL}"
     check_return_code $?
   done
 
@@ -288,16 +297,8 @@ runTests()
   CLIENT_ID=${IMPLICIT_CLIENT_ID} \
   SCOPE=${IMPLICIT_SCOPE} \
   USER=${IMPLICIT_USER} \
-  node tests/oauth2_implicit.js --url "${DEBUGGER_BASE_URL}"
+  node ${NODEJS_BASE_DIR}/oauth2_implicit.js --url "${DEBUGGER_BASE_URL}"
   check_return_code $?
 
   echo "Leaving runTests()."
-}
-  
-execute()
-{
-  configureKeycloak
-  check_return_code $?
-  runTests
-  check_return_code $?
 }

@@ -18,6 +18,7 @@ init()
     echo "Cannot find ${COMMON_SH}."
     exit 1
   fi
+  NODEJS_BASE_DIR=tests
 }
 
 prepTestEnv()
@@ -40,7 +41,9 @@ startDocker
 check_return_code $?
 sleep 60
 check_return_code $?
-execute
+configureKeycloak
+check_return_code $?
+runTests
 check_return_code $?
 node --version
 check_return_code $?
