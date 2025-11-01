@@ -166,7 +166,7 @@
 <div class="step3" id="step3">
     <legend id="h2_title_2" name="h2_title_2">Exchange Authorization Code for Access Token
     </legend>
-    <form id="step0_expand_form">
+    <form id="step3_expand_form">
       <input class="btn2" type="submit" name="token_expand_button" id="token_expand_button" value="Hide" onclick="return debugger2.onClickShowFieldSet('token_expand_button', 'token_fieldset');"/>
     </form>
     <fieldset id="token_fieldset" name="token_fieldset" style="display: block;">
@@ -452,7 +452,7 @@
       <input class="btn2" type="submit" name="logout_expand_button" id="logout_expand_button" value="Hide" onclick="return debugger2.onClickShowFieldSet('logout_expand_button', 'logout_fieldset');"/>
     </form>
     <fieldset id="logout_fieldset" name="logout_fieldset" style="display: block;">
-    <form>
+    <form action="" onsubmit="return false;">
     <table>
       <tbody>
         <tr>
@@ -494,7 +494,7 @@
         </tr>
         <tr>
           <td>
-            <input id="logout_btn" class="logout_btn" type="submit" value="Logout" />
+            <input id="logout_btn" class="logout_btn" type="submit" value="Logout" onclick="return debugger2.logoutButtonClick();"  />
           </td>
           <td>&nbsp;
           </td>

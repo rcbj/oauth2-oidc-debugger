@@ -5,7 +5,7 @@ const jwt = require("jsonwebtoken");
 const assert = require("assert");
 const { Command, Option } = require('commander');
 
-var baseUrl = "http://localhost:3000"
+var baseUrl = "http://localhost:3000";
 var logout_post_redirect_uri_value = baseUrl + "/logout.html";
 var headless = true;
 
@@ -30,14 +30,10 @@ async function populateMetadata(driver, discovery_endpoint) {
   await driver.findElement(btn_oidc_populate_meta_data).click();
 }
 
-async function getAccessToken(driver, client_id, client_secret, scope, pkce_enabled) {
+async function getAccessToken(driver, client_id, scope) {
   console.log("Entering getAccessToken().");
   console.log("Find authorization_grant_type.");
   authorization_grant_type = By.id("authorization_grant_type");
-  console.log("Find usePKCE-yes.");
-  usePKCE_yes = By.id("usePKCE-yes");
-  console.log("Find usePKCE-no.");
-  usePKCE_no = By.id("usePKCE-no");
   console.log("Find authz_expand_button");
   authz_expand_button = By.id("authz_expand_button");
   console.log("Find client_id.");
@@ -46,8 +42,6 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   scope_ = By.id("scope");
   console.log("find token_client_id.");
   token_client_id = By.id("token_client_id");
-  console.log("Find token_client_secret.");
-  token_client_secret = By.id("token_client_secret");
   console.log("Find token_scope.");
   token_scope = By.id("token_scope");
   console.log("Find btn_authorize.");
@@ -58,32 +52,14 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   keycloak_password = By.id("password");
   console.log("Find kc-login");
   keycloak_kc_login = By.id("kc-login");
-  console.log("Find token_btn.");
-  token_btn = By.className("token_btn");
   console.log("Find token_access_token.");
   token_access_token = By.id("token_access_token");
   console.log("Find display_token_error_form_texarea1.");
   display_token_error_form_textarea1 = By.id("display_token_error_form_textarea1");
 
-  // Select client credential login type
-  console.log("Set authorization_grant_type to OIDC Authorizaton Code Authentication Flow.");
-  await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OIDC Authorization Code Flow(code)');
-  console.log("Waiting for usePKCE_yes");
-  await driver.wait(until.elementLocated(usePKCE_yes), 10000);
-  console.log("Waiting for usePKCE_yes to be visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(usePKCE_yes)), 10000);
-  console.log("Waiting for usePKCE_no.");
-  await driver.wait(until.elementLocated(usePKCE_no), 10000);
-  console.log("Waiting for usePKCE to be visible");
-  await driver.wait(until.elementIsVisible(driver.findElement(usePKCE_no)), 10000);
-
-  if (pkce_enabled) {
-    console.log("Click usePKCE_yes.");
-    await driver.findElement(usePKCE_yes).click();
-  } else {
-    console.log("Click usePKCE_no.");
-    await driver.findElement(usePKCE_no).click();
-  }
+  // Select OAuth2 Implicit Grant 
+  console.log("Set authorization_grant_type to OAuth2 Implicit Grant.");
+  await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OAuth2 Implicit Grant');
 
   console.log("Find authz_expand_button.");
   await driver.wait(until.elementLocated(authz_expand_button), 10000);
@@ -138,33 +114,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   console.log("Click keycloak_kc_login button.");
   await driver.findElement(keycloak_kc_login).click();
 
-  // Submit credentials (again)
-  console.log("Locate token_client_id.");
-  await driver.wait(until.elementLocated(token_client_id), 10000);
-  console.log("Wait for token_client_id to be visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(token_client_id)), 10000);
-
-  console.log("Clear token_client_id.");
-  await driver.findElement(token_client_id).clear();
-  console.log("Set token_client_id value.");
-  await driver.findElement(token_client_id).sendKeys(client_id);
-  console.log("Clear token_client_secret.");
-  await driver.findElement(token_client_secret).clear();
-  console.log("Set token_client_secret value.");
-  await driver.findElement(token_client_secret).sendKeys(client_secret);
-  console.log("Clear token_scope.");
-  await driver.findElement(token_scope).clear();
-  console.log("Set token_scope value.");
-  await driver.findElement(token_scope).sendKeys(scope);
-  console.log("Find token_redirect_uri.");
-  token_redirect_uri = By.id("token_redirect_uri");
-  console.log("Clear token_redirect_uri.");
-  await driver.findElement(token_redirect_uri).clear();
-  console.log("Set token_redirect_uri value: token_redirect_uri=" + token_redirect_uri + ", redirect_uri=" + baseUrl + "/callback");
-  await driver.findElement(token_redirect_uri).sendKeys(baseUrl + "/callback");
-  console.log("Click token_btn button.");
-  await driver.findElement(token_btn).click();
-
+  
   // Get access token result
   async function waitForVisibility(element) {
     console.log("Waiting for " + element);
@@ -254,7 +204,6 @@ async function test() {
     options.addArguments("--headless");
   }
   options.addArguments("--no-sandbox");
-  console.log("Enabling selinium logging.");
   const loggingPrefs = new logging.Preferences();
   loggingPrefs.setLevel(logging.Type.BROWSER, logging.Level.ALL);
 
@@ -267,33 +216,20 @@ async function test() {
   try {
     const discovery_endpoint = process.env.DISCOVERY_ENDPOINT;
     const client_id = process.env.CLIENT_ID;
-    const client_secret = process.env.CLIENT_SECRET;
     const scope = process.env.SCOPE;
     const user = process.env.USER;
-    let pkce_enabled = process.env.PKCE_ENABLED
 
     assert(discovery_endpoint, "DISCOVERY_ENDPOINT environment variable is not set.");
     assert(client_id, "CLIENT_ID environment variable is not set.");
-    assert(client_secret, "CLIENT_SECRET environment variable is not set.");
     assert(scope, "SCOPE environment variable is not set.");
     assert(user, "USER environment variable is not set.");
-    assert(pkce_enabled, "PKCE_ENABLED environment variable is not set.");
-
-    if (pkce_enabled === "true") {
-      pkce_enabled = true;
-    } else if (pkce_enabled === "false") {
-      pkce_enabled = false;
-    } else {
-      console.log("PKCE_ENABLED must be true or false.");
-      process.exit(1);
-    }
 
     console.log("Kicking off test.");
     await driver.get(baseUrl);
     console.log("Calling populateMetadata().");
     await populateMetadata(driver, discovery_endpoint);
     console.log("Calling getAccessToken().");
-    let access_token = await getAccessToken(driver, client_id, client_secret, scope, pkce_enabled);
+    let access_token = await getAccessToken(driver, client_id, scope);
     console.log("Access token: " + access_token);
     console.log("Calling verifyAccessToken().");
     await verifyAccessToken(access_token, client_id, scope, user);
