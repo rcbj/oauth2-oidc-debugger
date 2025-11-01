@@ -5,7 +5,8 @@ const jwt = require("jsonwebtoken");
 const assert = require("assert");
 const { Command, Option } = require('commander');
 
-var baseUrl = "http://localhost:3000"
+var baseUrl = "http://localhost:3000";
+var logout_post_redirect_uri_value = baseUrl + "/logout.html";
 var headless = true;
 
 async function populateMetadata(driver, discovery_endpoint) {
@@ -153,6 +154,50 @@ async function verifyAccessToken(access_token, client_id, scope, user) {
   assert.strictEqual(decoded_access_token.payload.email, `${client_id}@iyasec.io`, "Access token email does not match.");
 }
 
+async function logout(driver) {
+  console.log("Entering logout().");
+  console.log("Find logout Button");
+  logout_button = By.id("logout_btn");
+  console.log("Find logout_post_redirect_uri.");
+  logout_post_redirect_uri = By.id("logout_post_redirect_uri");
+  console.log("Wait for logout_post_redirect_uri.");
+  await driver.wait(until.elementLocated(logout_post_redirect_uri), 10000);
+  console.log("Wait for logout_post_redirect_uri to be visible.");
+  await driver.findElement(logout_post_redirect_uri).clear();
+  await driver.wait(until.elementIsVisible(driver.findElement(logout_post_redirect_uri)), 10000);
+  console.log("Set post_redirect_uri for logout.");
+  await driver.findElement(logout_post_redirect_uri).sendKeys(logout_post_redirect_uri_value);
+  console.log("Click logout_btn.");
+  await driver.findElement(logout_button).click();
+
+  console.log("Wait for kc_logout.");
+  kc_logout = By.id("kc-logout");
+  await driver.wait(until.elementLocated(kc_logout), 10000);
+  console.log("Wait for kc-logout to be visible.");
+  await driver.wait(until.elementIsVisible(driver.findElement(kc_logout)), 10000);
+
+  console.log("Click kc_logout.");
+  await driver.findElement(kc_logout).click();
+
+  console.log("Click link to return to the front page of the debugger.");
+  returnToDebugLink = By.partialLinkText('Return to debugger');
+  await driver.wait(until.elementLocated(returnToDebugLink), 10000);
+  await driver.findElement(returnToDebugLink).click();
+
+  console.log("Find authz_expand_button.");
+  authz_expand_button = By.id("authz_expand_button");
+  await driver.wait(until.elementLocated(authz_expand_button), 10000);
+  console.log("Waiting for authz_expand_button to be visible.");
+  await driver.wait(until.elementIsVisible(driver.findElement(authz_expand_button)), 10000);
+
+  console.log("Find client_id.");
+  client_id = By.id("client_id");
+  console.log("Wait for client_id");
+  await driver.findElement(client_id);
+  console.log("Wait for client_id to be visible.");
+  await driver.wait(until.elementIsVisible(driver.findElement(client_id)), 10000);
+}
+
 async function test() {
   const options = new chrome.Options();
   if(headless) {
@@ -188,6 +233,8 @@ async function test() {
     console.log("Access token: " + access_token);
     console.log("Calling verifyAccessToken().");
     await verifyAccessToken(access_token, client_id, scope, user);
+    console.log("Logging out.");
+    await logout(driver);
     console.log("Test completed successfully.")
   } catch (error) {
     console.log(error.message);
@@ -216,6 +263,7 @@ program
     if(!!options.url) {
       console.log("Setting url to " + options.url);
       baseUrl = options.url;
+      logout_post_redirect_uri_value = options.url + "/logout.html";
     }
     if(!!options.browser) {
       console.log("Using browser. headless = false.");
