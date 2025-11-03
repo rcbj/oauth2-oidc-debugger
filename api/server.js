@@ -57,16 +57,43 @@ app.get('/healthcheck', function (req, res) {
  * @returns {Error.model} 500 - Unexpected error
  */
 app.get('/claimdescription', function(req, res) {
-  fetch("https://www.iana.org/assignments/jwt/jwt.xml")
-  .then((response) => {
-    response.text()
-    .then( (text) => {
-      log.debug("Retrieved: " + text);
-      res
-      .append('Content-Type', 'application/xml')
-      .send(text)
+  try {
+    fetch("https://www.iana.org/assignments/jwt/jwt.xml")
+    .then((response) => {
+      response.text()
+      .then( (text) => {
+        log.debug("Retrieved: " + text);
+        res
+        .append('Content-Type', 'application/xml')
+        .send(text)
+      });
+    })
+    .catch(function (error) {
+      log.error('Error from claimsdescription endpoint: ' + error);
+      if(!!error.response) {
+        if(!!error.response.status) {
+          log.error("Error Status: " + error.response.status);
+        }
+        if(!!error.response.data) {
+          log.error("Error Response body: " + JSON.stringify(error.response.data));
+        }
+        if(!!error.response.headers) {
+          log.error("Error Response headers: " + error.response.headers);
+        }
+        if (!!error.response) {
+          res.status(error.response.status);
+          res.json(error.response.data);
+        } else {
+          res.status(500);
+          res.json(error.message);
+        }
+      }
     });
-  });
+  } catch(e) {
+    log.error("An error occurred while retrieving the claim description XML: " + e.stack);
+    res.status(500)
+       .render('error', { error: e });
+  }
 });
 
 /**
@@ -203,6 +230,7 @@ app.post('/token', (req, res) => {
  * @returns {Error.model} 500 - Unexpected error
  */
 app.post('/introspection', (req, res) => {
+try {
   log.info('Entering app.post for /introspection.');
   const body = req.body;
   log.debug('body: ' + JSON.stringify(body));
@@ -253,7 +281,9 @@ app.post('/introspection', (req, res) => {
         }
       }
     });
-
+  } catch(e) {
+    log.error("Error from OAuth2 Introspection Endpoint: " + error);
+  }
 });
 
 let options = {

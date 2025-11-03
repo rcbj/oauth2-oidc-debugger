@@ -35,7 +35,7 @@ configureKeycloak()
     -d '{"realm": "debugger-testing", "enabled": true}'
   check_return_code $?
   
-  for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_CONFIDENTIAL AUTHORIZATION_CODE_PUBLIC IMPLICIT
+  for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_CONFIDENTIAL AUTHORIZATION_CODE_PUBLIC IMPLICIT OIDC_AUTHORIZATION_CODE_CONFIDENTIAL OIDC_AUTHORIZATION_CODE_PUBLIC
   do
     FLOW_NAME=$(echo ${FLOW_VARIABLE} | tr '[:upper:]' '[:lower:]' | tr '_' '-')
 
@@ -150,6 +150,53 @@ configureKeycloak()
              }'
             check_return_code $?
             ;;
+        OIDC_AUTHORIZATION_CODE_PUBLIC)
+            curl -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing/clients" \
+              -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "clientId": "'${FLOW_NAME}'",
+                "protocol": "openid-connect",
+                "publicClient": true,
+                "serviceAccountsEnabled": false,
+                "authorizationServicesEnabled": false,
+                "standardFlowEnabled": true,
+                "directAccessGrantsEnabled": false,
+                "clientAuthenticatorType": null,
+                "frontchannelLogout": true,
+                "redirectUris": ["'${DEBUGGER_BASE_URL}/callback'"],
+                "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}/*'"],
+                "attributes": {
+                  "frontchannel.logout.url": "'${DEBUGGER_BASE_URL}/logout'",
+                  "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'"
+                }
+             }'
+            check_return_code $?
+            ;;
+        OIDC_AUTHORIZATION_CODE_CONFIDENTIAL)
+            curl -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing/clients" \
+              -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                   "clientId": "'${FLOW_NAME}'",
+                   "protocol": "openid-connect",
+                   "publicClient": false,
+                   "serviceAccountsEnabled": false,
+                   "authorizationServicesEnabled": false,
+                   "standardFlowEnabled": true,
+                   "directAccessGrantsEnabled": false,
+                   "clientAuthenticatorType": "client-secret",
+                   "frontchannelLogout": true,
+                   "redirectUris": ["'${DEBUGGER_BASE_URL}/callback'"],
+                   "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}/*'"],
+                   "attributes": {
+                     "frontchannel.logout.url": "'${DEBUGGER_BASE_URL}/logout'",
+                     "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'"
+                   }
+                }'
+            check_return_code $?
+            ;;
+
     esac
 
     CLIENT_ID=$(curl \
@@ -222,6 +269,7 @@ configureKeycloak()
           }'
     check_return_code $?
 
+    declare -g ${FLOW_VARIABLE}_AUDIENCE="${KEYCLOAK_BASE_URL}/realms/debugger-testing"
     declare -g ${FLOW_VARIABLE}_DISCOVERY_ENDPOINT="${KEYCLOAK_BASE_URL}/realms/debugger-testing/.well-known/openid-configuration"
     declare -g ${FLOW_VARIABLE}_CLIENT_ID="${CLIENT_CLIENTID}"
     declare -g ${FLOW_VARIABLE}_CLIENT_SECRET="${CLIENT_SECRET}"
@@ -233,12 +281,14 @@ configureKeycloak()
     VAR_NAME3=${FLOW_VARIABLE}_CLIENT_SECRET
     VAR_NAME4=${FLOW_VARIABLE}_SCOPE
     VAR_NAME5=${FLOW_VARIABLE}_USER
+    VAR_NAME6=${FLOW_VARIABLE}_AUDIENCE
 
     echo "${VAR_NAME1}=${!VAR_NAME1}"
     echo "${VAR_NAME2}=${!VAR_NAME2}"
     echo "${VAR_NAME3}=${!VAR_NAME3}"
     echo "${VAR_NAME4}=${!VAR_NAME4}"
     echo "${VAR_NAME5}=${!VAR_NAME5}"
+    echo "${VAR_NAME6}=${!VAR_NAME6}"
   done
   echo "Leaving configureKeycloak()."
 }
@@ -247,6 +297,7 @@ runTests()
 {
   echo "Entering runTests()."
   # Test client credentials flow
+  AUDIENCE=${CLIENT_CREDENTIALS_AUDIENCE} \
   DISCOVERY_ENDPOINT=${CLIENT_CREDENTIALS_DISCOVERY_ENDPOINT} \
   CLIENT_ID=${CLIENT_CREDENTIALS_CLIENT_ID} \
   CLIENT_SECRET=${CLIENT_CREDENTIALS_CLIENT_SECRET} \
@@ -257,6 +308,7 @@ runTests()
   # Test authorization code flow
   for PKCE_ENABLED in true false
   do
+    echo "AUDIENCE=${AUTHORIZATION_CODE_CONFIDENTIAL_AUDIENCE}"
     echo "DISCOVERY_ENDPOINT=${AUTHORIZATION_CODE_CONFIDENTIAL_DISCOVERY_ENDPOINT}"
     echo "CLIENT_ID=${AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID}"
     echo "CLIENT_SECRET=${AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET}"
@@ -265,6 +317,7 @@ runTests()
     echo "PKCE_ENABLED=${PKCE_ENABLED}"
 
     # Confidential client
+    AUDIENCE=${AUTHORIZATION_CODE_CONFIDENTIAL_AUDIENCE} \
     DISCOVERY_ENDPOINT=${AUTHORIZATION_CODE_CONFIDENTIAL_DISCOVERY_ENDPOINT} \
     CLIENT_ID=${AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID} \
     CLIENT_SECRET=${AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET} \
@@ -274,6 +327,7 @@ runTests()
     node ${NODEJS_BASE_DIR}/oauth2_authorization_code.js --url "${DEBUGGER_BASE_URL}"
     check_return_code $?
 
+    echo "AUDIENCE=${AUTHORIZATION_CODE_PUBLIC_AUDIENCE}"
     echo "DISCOVERY_ENDPOINT=${AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT}"
     echo "CLIENT_ID=${AUTHORIZATION_CODE_PUBLIC_CLIENT_ID}"
     echo "CLIENT_SECRET=${AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET}"
@@ -282,6 +336,7 @@ runTests()
     echo "PKCE_ENABLED=${PKCE_ENABLED}"
 
     # Public client
+    AUDIENCE=${AUTHORIZATION_CODE_PUBLIC_AUDIENCE} \
     DISCOVERY_ENDPOINT=${AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT} \
     CLIENT_ID=${AUTHORIZATION_CODE_PUBLIC_CLIENT_ID} \
     CLIENT_SECRET=${AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET} \
@@ -293,12 +348,55 @@ runTests()
   done
 
   # OAuth2 Implicit Grant
+  AUDIENCE=${IMPLICIT_AUDIENCE} \
   DISCOVERY_ENDPOINT=${IMPLICIT_DISCOVERY_ENDPOINT} \
   CLIENT_ID=${IMPLICIT_CLIENT_ID} \
   SCOPE=${IMPLICIT_SCOPE} \
   USER=${IMPLICIT_USER} \
   node ${NODEJS_BASE_DIR}/oauth2_implicit.js --url "${DEBUGGER_BASE_URL}"
   check_return_code $?
+
+  # Test OIDC Authorization Code Flow
+  for PKCE_ENABLED in true false
+  do
+    echo "AUDIENCE=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_AUDIENCE}"
+    echo "DISCOVERY_ENDPOINT=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_DISCOVERY_ENDPOINT}"
+    echo "CLIENT_ID=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID}"
+    echo "CLIENT_SECRET=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET}"
+    echo "SCOPE=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_SCOPE}"
+    echo "USER=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_USER}"
+    echo "PKCE_ENABLED=${PKCE_ENABLED}"
+
+    # Confidential client
+    AUDIENCE=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_AUDIENCE} \
+    DISCOVERY_ENDPOINT=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_DISCOVERY_ENDPOINT} \
+    CLIENT_ID=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID} \
+    CLIENT_SECRET=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET} \
+    SCOPE="openid profile email offline_access ${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_SCOPE}" \
+    USER=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_USER} \
+    PKCE_ENABLED=${PKCE_ENABLED} \
+    node ${NODEJS_BASE_DIR}/oidc_authorization_code.js --url "${DEBUGGER_BASE_URL}"
+    check_return_code $?
+
+    echo "AUDIENCE=${OIDC_AUTHORIZATION_CODE_PUBLIC_AUDIENCE}"
+    echo "DISCOVERY_ENDPOINT=${OIDC_AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT}"
+    echo "CLIENT_ID=${OIDC_AUTHORIZATION_CODE_PUBLIC_CLIENT_ID}"
+    echo "CLIENT_SECRET=${OIDC_AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET}"
+    echo "SCOPE={OIDC_AUTHORIZATION_CODE_PUBLIC_SCOPE}"
+    echo "USER=${OIDC_AUTHORIZATION_CODE_PUBLIC_USER}"
+    echo "PKCE_ENABLED=${PKCE_ENABLED}"
+
+    # Public client
+    AUDIENCE=${OIDC_AUTHORIZATION_CODE_PUBLIC_AUDIENCE} \
+    DISCOVERY_ENDPOINT=${OIDC_AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT} \
+    CLIENT_ID=${OIDC_AUTHORIZATION_CODE_PUBLIC_CLIENT_ID} \
+    CLIENT_SECRET=${OIDC_AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET} \
+    SCOPE="openid profile email offline_access ${OIDC_AUTHORIZATION_CODE_PUBLIC_SCOPE}" \
+    USER=${OIDC_AUTHORIZATION_CODE_PUBLIC_USER} \
+    PKCE_ENABLED=${PKCE_ENABLED} \
+    node ${NODEJS_BASE_DIR}/oidc_authorization_code.js --url "${DEBUGGER_BASE_URL}"
+    check_return_code $?
+  done
 
   echo "Leaving runTests()."
 }

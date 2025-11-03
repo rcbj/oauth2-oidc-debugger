@@ -308,7 +308,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
         log.debug("Refresh token found. Generating token: data.refresh_token=" + currentRefreshToken);
         token_endpoint_result_html += "<tr>" +
                                           '<td>' +
-                                            '<a href="/token_detail.html?type=access">Refresh Token</a>' +
+                                            '<a href="/token_detail.html?type=id">Refresh Token</a>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
@@ -1163,6 +1163,8 @@ function onload() {
   if (!appconfig) {
     log.debug('Failed to load appconfig.');
   }
+
+  var authorization_grant_type = $("#authorization_grant_type").val();
  
   $("#password-form-group1").hide();
   $("#password-form-group2").hide();
@@ -1265,8 +1267,8 @@ function onload() {
   displayTokenCustomParametersCheck();
 
   if( getParameterByName("redirectFromTokenDetail") == "true" &&
-      ( value != "implicit_grant" && 
-        value != "oidc_implicit_grant"))
+      ( authorization_grant_type != "implicit_grant" && 
+        authorization_grant_type != "oidc_implicit_grant"))
   {
     log.debug('Detected redirect back from token detail page.');
     $("#step3").hide();
@@ -1684,7 +1686,7 @@ function recreateTokenDisplay()
            log.debug("Displaying refresh token");
            token_endpoint_result_html += "<tr>" +
                                           '<td>' +
-                                            '<a href="/token_detail.html?type=access">Refresh Token</a>' +
+                                            '<a href="/token_detail.html?type=refresh">Refresh Token</a>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +

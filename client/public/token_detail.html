@@ -44,8 +44,8 @@
     <legend id="h2_title_2" name="h2_title_2">Decoded Token
     </legend>
     <div class="tab">
-      <button class="tablinks" onclick="token_detail.populateTable(event, 'json')">JSON</button>
-      <button class="tablinks" onclick="token_detail.populateTable(event, 'key-pair')">Key Pairs</button>
+      <button id="json_view_button" class="tablinks" onclick="token_detail.populateTable(event, 'json')">JSON</button>
+      <button id="key_pair_button" class="tablinks" onclick="token_detail.populateTable(event, 'key-pair')">Key Pairs</button>
     </div>
     <div id="json" class="tabcontent" style="display: block;">
     <table class="outertable">
