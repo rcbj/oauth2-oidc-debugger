@@ -430,20 +430,52 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
             + textStatus
             + ", request=" 
             + JSON.stringify(request));
-  var refresh_endpoint_result_html = "";
   log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
-  var iteration = 1;
-  if(!!$("#refresh-token-results-iteration-count").val())
-  {
-    iteration = parseInt($("#refresh-token-results-iteration-count").val()) + 1;
-  }
+  currentRefreshToken = "";
+  currentAccessToken = "";
+  currentIDToken = "";
   log.debug('data.refresh_token=' + data.refresh_token);
+  log.debug("data.access_token=" + data.access_token);
+  log.debug("data.id_token=" + data.id_token);
   if(!!data.refresh_token) {
     log.debug('Setting new Refresh Token.');
     currentRefreshToken = data.refresh_token;
   }
+  if(!!data.access_token) {
+    log.debug("Setting new Access Token.");
+    currentAccessToken = data.access_token;
+  }
+  if(!!data.id_token) {
+    log.debug("Setting new ID Token.");
+    currentIDToken = data.id_token;
+  }
+  displayRefreshTokenPane(currentRefreshToken, currentAccessToken, currentIDToken);
+  log.debug("Leaving ajax success function for Refresh Token.");
+}
+
+function displayRefreshTokenPane(currentRefreshToken, currentAccessToken, currentIDToken) {
+  log.debug("Entering displayRefreshTokenPane().");
+  var refresh_endpoint_result_html = "";
+  log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
+  var iteration = 1;
+  if(!!localStorage.getItem("refresh_iteration"))
+  {
+    //iteration = parseInt($("#refresh-token-results-iteration-count").val()) + 1;
+    iteration = parseInt(localStorage.getItem("refresh_iteration")) + 1;
+  }
+  localStorage.setItem("refresh_iteration", iteration);
+  if (!!!currentRefreshToken) {
+    currentRefreshToken = localStorage.getItem("refresh_refresh_token");
+  }
+  if (!!!currentAccessToken) {
+    currentAccessToken = localStorage.getItem("refresh_access_token");
+  }
+  if (!!!currentIDToken) {
+    currentIDToken = localStorage.getItem("refresh_id_token");
+  }
   if(displayOpenIDConnectArtifacts == true)
   {
+    log.debug("RCBJ100");
     refresh_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results for Refresh Token Call:</legend>" + 
 				      "<table>" +
@@ -456,7 +488,7 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
                                           "</td>" +
                                           "<td>" + 
                                             "<textarea rows=10 cols=60 name=refresh_access_token id=refresh_access_token>" + 
-                                              data.access_token + 
+                                              currentAccessToken + 
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
@@ -481,7 +513,7 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
                                           "</td>" +
                                           "<td>" +
                                             "<textarea rows=10 cols=60 name=refresh_id_token id=refresh_id_token>" + 
-                                              data.id_token + 
+                                              currentIDToken +
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
@@ -495,6 +527,7 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
                                       "</table>" +
                                       "</fieldset>";
   } else {
+    log.debug("RCBJ101");
     refresh_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results for Refresh Token Call:</legend>" +
                                       "<table>" +
@@ -506,7 +539,7 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
                                           "</td>" +
                                           "<td>" +
                                             "<textarea rows=10 cols=60 name=refresh_access_token id=refresh_access_token>" +
-                                              data.access_token +
+                                              currentAccessToken
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>" +
@@ -536,16 +569,23 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
   // Update refresh token field in the refresh token grant pane
   $("#refresh_refresh_token").val(currentRefreshToken);
   // Store new tokens in local storage
-  localStorage.setItem("refresh_access_token", data.access_token );
-  localStorage.setItem("refresh_refresh_token", currentRefreshToken );
-  localStorage.setItem("refresh_id_token", data.id_token );
+  if (!!currentAccessToken) {
+    localStorage.setItem("refresh_access_token", currentAccessToken );
+  }
+  if (!!currentRefreshToken) {
+    localStorage.setItem("refresh_refresh_token", currentRefreshToken );
+  }
+  if (!!currentIDToken) {
+    localStorage.setItem("refresh_id_token", currentIDToken);
+  }
   // Update token in logout pane.
   if(currentRefreshToken) {
-    $("#logout_id_token_hint").val(data.id_token);
+    $("#logout_id_token_hint").val(currentIDToken);
   } else {
     $("#logout_fieldset").hide();
   }
   recalculateRefreshRequestDescription();
+  log.debug("Leaving displayRefreshTokenPane().");
 }
 
 function errorInternalRefreshAPICall(request, status, error) {
@@ -1169,7 +1209,7 @@ function onload() {
   $("#password-form-group1").hide();
   $("#password-form-group2").hide();
 
-  // If we are coming back from the Token Detail Page clear all saved tokens. 
+  // If we are not coming back from the Token Detail Page clear all saved tokens. 
   // It will be reset.
   if(getParameterByName("redirectFromTokenDetail") != "true") {
     // Clear all token values.
@@ -1180,6 +1220,7 @@ function onload() {
     localStorage.setItem("refresh_access_token", "");
     localStorage.setItem("refresh_id_token", "");
     localStorage.setItem("refresh_refresh_token", "");
+    localStorage.setItem("refresh_iteration", "");
   }
 
   processStateParameter();
@@ -1272,7 +1313,11 @@ function onload() {
   {
     log.debug('Detected redirect back from token detail page.');
     $("#step3").hide();
+    if (useRefreshTokenTester) {
+      $("#step4").show();
+    }
     recreateTokenDisplay();
+    displayRefreshTokenPane("", "", ""); // no new token
     $("#logout_id_token_hint").val(localStorage.getItem("token_id_token"));
   }
 

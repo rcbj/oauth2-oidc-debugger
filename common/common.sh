@@ -96,10 +96,11 @@ configureKeycloak()
                    "clientAuthenticatorType": "client-secret", 
                    "frontchannelLogout": true, 
                    "redirectUris": ["'${DEBUGGER_BASE_URL}/callback'"], 
-                   "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}/*'"], 
+                   "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}'"], 
                    "attributes": {
                      "frontchannel.logout.url": "'${DEBUGGER_BASE_URL}/logout'",
-                     "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'"
+                     "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'",
+                     "access.token.lifespan": 3600
                    }
                 }'
             check_return_code $?
@@ -119,10 +120,11 @@ configureKeycloak()
                 "clientAuthenticatorType": null, 
                 "frontchannelLogout": true, 
                 "redirectUris": ["'${DEBUGGER_BASE_URL}/callback'"], 
-                "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}/*'"], 
+                "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}'"], 
                 "attributes": {
                   "frontchannel.logout.url": "'${DEBUGGER_BASE_URL}/logout'",
-                  "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'"
+                  "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'",
+                  "access.token.lifespan": 3600
                 }
              }'
             ;;
@@ -142,10 +144,11 @@ configureKeycloak()
                 "clientAuthenticatorType": null,
                 "frontchannelLogout": true,
                 "redirectUris": ["'${DEBUGGER_BASE_URL}/callback'"],
-                "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}/*'"],
+                "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}'"],
                 "attributes": {
                   "frontchannel.logout.url": "'${DEBUGGER_BASE_URL}/logout'",
-                  "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'"
+                  "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'",
+                  "access.token.lifespan": 3600
                 }
              }'
             check_return_code $?
@@ -165,10 +168,11 @@ configureKeycloak()
                 "clientAuthenticatorType": null,
                 "frontchannelLogout": true,
                 "redirectUris": ["'${DEBUGGER_BASE_URL}/callback'"],
-                "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}/*'"],
+                "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}'"],
                 "attributes": {
                   "frontchannel.logout.url": "'${DEBUGGER_BASE_URL}/logout'",
-                  "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'"
+                  "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'",
+                  "access.token.lifespan": 3600
                 }
              }'
             check_return_code $?
@@ -188,10 +192,11 @@ configureKeycloak()
                    "clientAuthenticatorType": "client-secret",
                    "frontchannelLogout": true,
                    "redirectUris": ["'${DEBUGGER_BASE_URL}/callback'"],
-                   "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}/*'"],
+                   "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}'"],
                    "attributes": {
                      "frontchannel.logout.url": "'${DEBUGGER_BASE_URL}/logout'",
-                     "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'"
+                     "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'",
+                     "access.token.lifespan": 3600
                    }
                 }'
             check_return_code $?

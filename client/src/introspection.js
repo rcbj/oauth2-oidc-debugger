@@ -1,8 +1,3 @@
-// File: introspection.js
-// Author: Robert C. Broeckelmann Jr.
-// Date: 07/11/2020
-// Notes:
-//
 var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var $ = require("jquery");
@@ -44,11 +39,12 @@ function callIntrospectionEndpoint() {
     token_type_hint: introspection_token_type_hint != "" ? introspection_token_type_hint : undefined,
   }
   var url_ = "";
+  log.debug("Making introspection call. useFrontEnd=" + useFrontEnd);
   if(useFrontEnd) {
+    url_ = introspection_endpoint;
+  } else {
     url_ = appconfig.apiUrl + "/introspection";
     body["introspectionEndpoint"] = introspection_endpoint;
-  } else {
-    url_ = introspection_endpoint;
   }
   log.debug("Method: POST");
   log.debug("URL: " + url_);
@@ -179,6 +175,7 @@ window.onload = function() {
   } else {
     useFrontEnd = false;
   }
+  log.debug("useFrontEnd=" + useFrontEnd + ", typeof(useFrontEnd)=" + typeof(useFrontEnd));
   log.debug("Leaving window.onload() function.");
 }
 
@@ -186,6 +183,7 @@ function setInitiateFromEnd(which_end) {
   log.debug("Entering setInitiateFromEnd(). which_end=" + which_end);
   var frontEndInitiated = $("#introspection_initiateFromFrontEnd").is(":checked");
   var backEndInitiated = $("#introspection_initiateFromBackEnd").is(":checked");
+  log.debug("typeof(frontEndInitiated): " + typeof(frontEndInitiated));
   if(frontEndInitiated) {
     useFrontEnd = true;
   } else {

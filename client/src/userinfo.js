@@ -1,8 +1,3 @@
-// File: userinfo.js
-// Author: Robert C. Broeckelmann Jr.
-// Date: 07/11/2020
-// Notes:
-//
 var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var $ = require("jquery");
@@ -17,6 +12,8 @@ var userinfo_method = "";
 var userinfo_claims = "";
 var token_access_token = "";
 var query_string = "";
+
+var useFrontEnd = false;
 
 function getParameterByName(name, url)
 {
@@ -36,55 +33,91 @@ window.onload = function()
   initLocalStorage();
   loadValuesFromLocalStorage();
   resetErrorDisplays();
+  var frontEndInitiated = $("#userinfo_initiateFromFrontEnd").is(":checked");
+  if(frontEndInitiated) {
+    useFrontEnd = true;
+  } else {
+    useFrontEnd = false;
+  }
+  log.debug("useFrontEnd=" + useFrontEnd + ", typeof(useFrontEnd)=" + typeof(useFrontEnd));
+  recalculateUserInfoURL();
   log.debug("Leaving window.onload() function.");
 }
 
 function recalculateUserInfoURL()
 {
   log.debug("Entering recalculateUserInfoURL() function.");
-  if(userinfo_scope) {
+  if(!!userinfo_scope) {
     query_string = 'scope=' + userinfo_scope;
   }
-  if(userinfo_claims) {
+  if(!!userinfo_claims) {
     query_string += '&claims=' + userinfo_claims;
   }
-  log.debug("Leaving recalcualteUserInfoURL().");
+  query_string = encodeURI(query_string);
+  log.debug("Leaving recalcualteUserInfoURL(): query_string=" + query_string);
 }
 
 function callUserInfoEndpoint()
 {
   log.debug("Entering callUserInfoEndpoint().");
-  var userinfoEndpointCall = $.ajax({
+  var url_ = "";
+  log.debug("Making Userinfo call. useFrontEnd=" + useFrontEnd);
+  const headers = {
+    "Authorization": 'Bearer ' + token_access_token,
+  };
+  if ( userinfo_method === "post" ) {
+    headers["Content-Type"] = "application/json";
+  }
+  if(useFrontEnd) {
+    url_ = userinfo_endpoint + "?" + query_string;
+  } else {
+    url_ = appconfig.apiUrl +
+           "/userinfo?" +
+           query_string +
+           "&userinfo_endpoint=" +
+           Buffer.from(userinfo_endpoint +
+           "?" +
+           query_string).toString('base64');
+  }
+  log.debug("url_: " + url_);
+  $.ajax({
     type: userinfo_method,
     crossdomain: true,
-    url: userinfo_endpoint + "?" + query_string,
-    headers: {
-      Authorization: 'Bearer ' + token_access_token
-    },
-    success: function(data, textStatus, request) {
-      log.debug('Entering ajax success function for Access Token call.');
-      log.debug('UserInfo textStatus: ' + JSON.stringify(textStatus));
-      log.debug('UserInfo Endpoint Response: ' + JSON.stringify(data));
-      log.debug('UserInfo request: ' + JSON.stringify(request));
-      log.debug('UserInfo Response Content-Type: ' + userinfoEndpointCall.getResponseHeader("Content-Type"));
-      log.debug('UserInfo Headers: ' + JSON.stringify(userinfoEndpointCall.getAllResponseHeaders()));
-      var responseContentType = userinfoEndpointCall.getResponseHeader("Content-Type");
-      if (responseContentType.includes('application/json')) {
-        log.debug('plaintext response detected, no signature, no encryption');
-        log.debug('UserInfo Endpoint Response: ' + JSON.stringify(data, null, 2));
-        document.getElementById("userinfo_output").value = JSON.stringify(data,null,2);
-      } else {
-        log.error('Unknown response format.');
-      }
-    },
-    error: function (request, status, error) {
-      log.debug("request: " + JSON.stringify(request));
-      log.debug("status: " + JSON.stringify(status));
-      log.debug("error: " + JSON.stringify(error));
-      // recalculateTokenErrorDescription(request);
-    }
+    url: url_,
+    headers: headers,
+    success: ajaxSuccessFunction,
+    error: ajaxErrorFunction
   });
   log.debug("Entering callUserInfoEndpoint().");
+}
+
+function ajaxSuccessFunction(data, textStatus, jqXHR) {
+  log.debug('Entering ajax success function for Access Token call.');
+  log.debug('UserInfo textStatus: ' + JSON.stringify(textStatus));
+  log.debug('UserInfo Endpoint Response: ' + JSON.stringify(data));
+  log.debug('UserInfo request: ' + JSON.stringify(jqXHR));
+  log.debug('UserInfo Response Content-Type: ' + jqXHR.getResponseHeader("Content-Type"));
+  log.debug('UserInfo Headers: ' + JSON.stringify(jqXHR.getAllResponseHeaders()));
+  var responseContentType = jqXHR.getResponseHeader("Content-Type");
+  if (responseContentType.includes('application/json')) {
+    log.debug('plaintext response detected, no signature, no encryption');
+    log.debug('UserInfo Endpoint Response: ' + JSON.stringify(data, null, 2));
+    $("#userinfo_output").val(JSON.stringify(data,null,2));
+  } else {
+    log.error('Unknown response format.');
+  }
+}
+
+function ajaxErrorFunction(request, status, error) {
+  log.debug("request: " + JSON.stringify(request));
+  log.debug("status: " + JSON.stringify(status));
+  log.debug("error: " + JSON.stringify(error));
+  const errorStatus = {
+    request: request,
+    status: status,
+    error: error
+  };
+  $("#userinfo_output").val(JSON.stringify(errorStatus,null,2));
 }
 
 $(".userinfo_endpoint").keypress(function() {
@@ -202,8 +235,30 @@ function onClickToggleConfigurationParameters() {
   log.debug("Leaving onClickToggleConfigurationParameters().");
 }
 
+function setInitiateFromEnd(which_end) {
+  log.debug("Entering setInitiateFromEnd(). which_end=" + which_end);
+  var frontEndInitiated = $("#userinfo_initiateFromFrontEnd").is(":checked");
+  var backEndInitiated = $("#userinfo_initiateFromBackEnd").is(":checked");
+  log.debug("typeof(frontEndInitiated): " + typeof(frontEndInitiated));
+  if(frontEndInitiated) {
+    useFrontEnd = true;
+  } else {
+    useFrontEnd = false;
+  }
+  log.debug("frontEndInitiated: " + frontEndInitiated);
+  log.debug("backEndInitiated: " + backEndInitiated);
+  log.debug("Leaving setInitiateFromEnd().");
+}
+
+function getLSBooleanItem(key)
+{
+  return localStorage.getItem(key) === 'true';
+}
+
 module.exports = {
   getParameterByName,
   callUserInfoEndpoint,
-  onClickToggleConfigurationParameters
+  onClickToggleConfigurationParameters,
+  setInitiateFromEnd
+
 };

@@ -62,6 +62,16 @@
           </tr>
           <tr>
             <td>
+              <div class="tooltip"><label>Initiate UserInfo Endpoint Call From front or backend.: </label><span class="tooltiptext">The debugger can initiate an UserInfo Endpoint call from either the frontend (browser) or from the backend API component. Certain IdPs make stringent assumptions about CORS and how calls will be originated. Especially concerning the Origin request header, which cannot be controlled from the browser.</span>
+              </div>
+            </td>
+            <td>Front
+              <input id="userinfo_initiateFromFrontEnd" name="userinfo-initiateFromFrontEnd" checked="true" onclick="userinfo.setInitiateFromEnd('frontend');" type="radio" />Back
+              <input id="userinfo_initiateFromBackEnd" name="userinfo-initiateFromFrontEnd" checked="false" onclick="userinfo.setInitiateFromEnd('backend');" type="radio" />
+            </td>
+          </tr>
+          <tr>
+            <td>
               <div class="tooltip"><label>OIDC UserInfo Scope: </label><span class="tooltiptext">The OIDC UserInfo Endpoint Scope.</span>
               </div>
             </td>
