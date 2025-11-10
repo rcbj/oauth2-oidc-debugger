@@ -21,11 +21,11 @@
   <body>
 
 <div class="header_debugger">
-  <a href="/index.html" class="logo">IDPTools</a>
+  <a href="/index.html" class="logo" onclick="return debugger.clickLink();">IDPTools</a>
   <div class="header-right">
-    <a class="active" href="#home">Home</a>
-    <a href="#contact">Contact</a>
-    <a href="#about">About</a>
+    <a class="active" href="#home" onclick="return debugger.clickLink();">Home</a>
+    <a href="#contact" onclick="return debugger.clickLink();">Contact</a>
+    <a href="#about" onclick="return debugger.clickLink();">About</a>
   </div>
 </div>
 
@@ -33,9 +33,9 @@
 
 <script type="text/javascript" src="/js/debugger.js">
 </script>
-<p>This is a simple Client to use with any <a href="https://medium.com/@robert.broeckelmann/saml2-vs-jwt-understanding-oauth2-4abde9e7ec8b">OAuth2</a> or <a href="https://medium.com/@robert.broeckelmann/understanding-openid-connect-series-37c93d25e92b">OpenID Connect</a> compliant identity provider.
+<p>This is a simple Client to use with any <a href="https://medium.com/@robert.broeckelmann/saml2-vs-jwt-understanding-oauth2-4abde9e7ec8b" onclick="return debugger.clickLink();">OAuth2</a> or <a href="https://medium.com/@robert.broeckelmann/understanding-openid-connect-series-37c93d25e92b" onclick="return debugger.clickLink();">OpenID Connect</a> compliant identity provider.
 </p>
-<P><a href=""https://www.rfc-editor.org/rfc/rfc6749>OAuth2 RFC</a></P>
+<P><a href="https://www.rfc-editor.org/rfc/rfc6749" onclick="return debugger.clickLink();">OAuth2 RFC</a></P>
 <P><a hreef="https://openid.net/specs/openid-connect-core-1_0.html#UserInfoRequest">OIDC Spec</a></P>
 <p>This page manages interaction with the OAuth2 Authorization Endpoint.</p>
 <div class="step0" id="step0">
@@ -49,7 +49,7 @@
       <table border="0">
           <tr>
             <td>&nbsp;</td>
-            <td><p>An OIDC Discovery endpoint uses a path that ends in /.well-known/openid-configuration. See the <a href="https://openid.net/specs/openid-connect-discovery-1_0.html">spec</spec>.<p></td>
+            <td><p>An OIDC Discovery endpoint uses a path that ends in /.well-known/openid-configuration. See the <a href="https://openid.net/specs/openid-connect-discovery-1_0.html" onclick="return debugger.clickLink();">spec</a>.<p></td>
           </tr>
           <tr>
             <td>
@@ -151,7 +151,7 @@
               </div>
             </td>
             <td>
-              <input class="stored" id="jwks_endpoint" name="jwks_endpoint" type="text" max="150" /><a href="/jwks.html">Review JWKS meta data</a>
+              <input class="stored" id="jwks_endpoint" name="jwks_endpoint" type="text" max="150" /><a href="/jwks.html" onclick="return debugger.clickLink();">Review JWKS meta data</a>
             </td>
           </tr>
           <tr>
@@ -161,7 +161,7 @@
             </td>
             <td>Yes 
               <input checked="true" id="yesCheckOIDCArtifacts" name="yesno" onclick="debug.displayOIDCArtifacts();" type="radio" value="true" />No 
-              <input id="noCheckOIDCArtifacts" name="yesno" onclick="debug.displayOIDCArtifacts();" type="radio" value="false" />
+              <input checked="false" id="noCheckOIDCArtifacts" name="yesno" onclick="debug.displayOIDCArtifacts();" type="radio" value="false" />
             </td>
           </tr>
           <tr>
@@ -171,7 +171,7 @@
             </td>
             <td>Yes 
               <input checked="true" id="SSLValidate-yes" name="sslValidation" type="radio" value="true" />No 
-              <input id="SSLValidate-no" name="sslValidation" type="radio" value="false" />
+              <input checked="false" id="SSLValidate-no" name="sslValidation" type="radio" value="false" />
             </td>
           </tr>
           <tr>
@@ -181,7 +181,7 @@
             </td>
             <td>Yes 
               <input checked="true" id="useRefreshToken-yes" name="useRefreshToken" onclick="debug.useRefreshTokens();" type="radio" value="true" />No 
-              <input id="useRefreshToken-no" name="useRefreshToken" onclick="debug.useRefreshTokens();" type="radio" value="false" />
+              <input checked="false" id="useRefreshToken-no" name="useRefreshToken" onclick="debug.useRefreshTokens();" type="radio" value="false" />
             </td>
           </tr>
           <tr>
@@ -191,7 +191,7 @@
             </td>
             <td>Yes
               <input checked="true" id="usePKCE-yes" name="usePKCE" onclick="debug.usePKCERFC();" type="radio" value="true" />No
-              <input id="usePKCE-no" name="usePKCE" onclick="debug.usePKCERFC();" type="radio" value="false" />
+              <input checked="false" id="usePKCE-no" name="usePKCE" onclick="debug.usePKCERFC();" type="radio" value="false" />
             </td>
           </tr>
         </tbody>
@@ -359,11 +359,11 @@
 </div>
 
 <div class="footer_debugger">
-  <a href="/index.html" class="logo">IDPTools</a>
+  <a href="/index.html" class="logo" onclick="return debugger.clickLink();">IDPTools</a>
   <div class="header-right">
-    <a class="active" href="#home">Home</a>
-    <a href="#contact">Contact</a>
-    <a href="#about">About</a>
+    <a class="active" href="#home" onclick="return debugger.clickLink();">Home</a>
+    <a href="#contact" onclick="return debugger.clickLink();">Contact</a>
+    <a href="#about" onclick="return debugger.clickLink();">About</a>
   </div>
 </div>
 <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">

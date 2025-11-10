@@ -21,11 +21,11 @@
   <body>
 
 <div class="header_debugger">
-  <a href="/index.html" class="logo">IDPTools</a>
+  <a href="/index.html" class="logo" onclick="debugger2.clickLink();">IDPTools</a>
   <div class="header-right">
-    <a class="active" href="#home">Home</a>
-    <a href="#contact">Contact</a>
-    <a href="#about">About</a>
+    <a class="active" href="#home" onclick="debugger2.clickLink();">Home</a>
+    <a href="#contact" onclick="debugger2.clickLink();">Contact</a>
+    <a href="#about" onclick="debugger2.clickLink();">About</a>
   </div>
 </div>
 
@@ -33,7 +33,7 @@
 
 <script type="text/javascript" src="/js/debugger2.js"></script>
 
-<p>This is a simple Client to use with any <a href="https://medium.com/@robert.broeckelmann/saml2-vs-jwt-understanding-oauth2-4abde9e7ec8b">OAuth2</a> or <a href="https://medium.com/@robert.broeckelmann/understanding-openid-connect-series-37c93d25e92b">OpenID Connect</a> compliant identity provider..
+<p>This is a simple Client to use with any <a href="https://medium.com/@robert.broeckelmann/saml2-vs-jwt-understanding-oauth2-4abde9e7ec8b" onclick="debugger2.clickLink();">OAuth2</a> or <a href="https://medium.com/@robert.broeckelmann/understanding-openid-connect-series-37c93d25e92b" onclick="debugger2.clickLink();">OpenID Connect</a> compliant identity provider..
 </p>
 <p>This page manages interaction with the OAuth2 Token Endpoint.</p>
 <div class="state-status" id="state-status"></div>
@@ -111,7 +111,7 @@
               </div>
             </td>
             <td>
-              <input class="stored" id="jwks_endpoint" name="jwks_endpoint" type="text" max="150" /><a href="/jwks.html">Review JWKS meta data</a>
+              <input class="stored" id="jwks_endpoint" name="jwks_endpoint" type="text" max="150" /><a href="/jwks.html" onclick="debugger2.clickLink();">Review JWKS meta data</a>
             </td>
           </tr>
           <tr>
@@ -120,8 +120,8 @@
               </div>
             </td>
             <td>Yes 
-              <input id="yesCheckOIDCArtifacts" name="yesno" onclick="debugger2.displayOIDCArtifacts();" type="radio" />No 
-              <input id="noCheckOIDCArtifacts" name="yesno" onclick="debugger2.displayOIDCArtifacts();" type="radio" />
+              <input checked="true" id="yesCheckOIDCArtifacts" name="yesno" onclick="debugger2.displayOIDCArtifacts();" type="radio" />No 
+              <input checked="false" id="noCheckOIDCArtifacts" name="yesno" onclick="debugger2.displayOIDCArtifacts();" type="radio" />
             </td>
           </tr>
           <tr>
@@ -131,7 +131,7 @@
             </td>
             <td>Yes 
               <input checked="true" id="SSLValidate-yes" name="sslValidation" type="radio" value="true" />No 
-              <input id="SSLValidate-no" name="sslValidation" type="radio" value="false" />
+              <input checked="false" id="SSLValidate-no" name="sslValidation" type="radio" value="false" />
             </td>
           </tr>
           <tr>
@@ -424,7 +424,7 @@
         </tr>
         <tr>
           <td>
-            <input class="refresh_btn" type="submit" value="Get Token" />
+            <input id="refresh_btn" class="refresh_btn" type="submit" value="Get Token" />
           </td>
           <td>&nbsp;
           </td>
@@ -508,11 +508,11 @@
     </div>
 
 <div class="footer_debugger">
-  <a href="/index.html" class="logo">IDPTools</a>
+  <a href="/index.html" class="logo" onclick="debugger2.clickLink();">IDPTools</a>
   <div class="header-right">
-    <a class="active" href="#home">Home</a>
-    <a href="#contact">Contact</a>
-    <a href="#about">About</a>
+    <a class="active" href="#home" onclick="debugger2.clickLink();">Home</a>
+    <a href="#contact" onclick="debugger2.clickLink();">Contact</a>
+    <a href="#about" onclick="debugger2.clickLink();">About</a>
   </div>
 </div>
 <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">

@@ -290,8 +290,16 @@ function populateTable(evt, tabName) {
   evt.currentTarget.className += " active";
 }
 
+function clickLink() {
+  log.debug("Entering clickLink().");
+  writeValuesToLocalStorage();
+  log.debug("Leaving clickLink().");
+  return true;
+}
+
 module.exports = {
  decodeJWT,
  verifyJWT,
- populateTable
+ populateTable,
+ clickLink
 };

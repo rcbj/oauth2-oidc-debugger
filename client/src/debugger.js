@@ -1,8 +1,3 @@
-// File: debugger.js
-// Author: Robert C. Broeckelmann Jr.
-// Date: 06/15/2017
-// Notes:
-//
 var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var DOMPurify = require("dompurify");
@@ -1494,6 +1489,13 @@ function getLSBooleanItem(key)
   return localStorage.getItem(key) === 'true';
 }
 
+function clickLink() {
+  log.debug("Entering clickLink().");
+  writeValuesToLocalStorage();
+  log.debug("Leaving clickLink().");
+  return true;
+}
+
 module.exports = {
   OnSubmitForm,
   OnSubmitTokenEndpointForm,
@@ -1523,5 +1525,6 @@ module.exports = {
   onClickShowAuthzFieldSet,
   onClickShowGenericFieldSet,
   onClickClearLocalStorage,
-  usePKCERFC
+  usePKCERFC,
+  clickLink
 };

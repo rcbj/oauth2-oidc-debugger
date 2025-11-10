@@ -33,7 +33,6 @@ function loadValuesFromLocalStorage()
 function OnSubmitJWKSEndpointForm()
 {
   log.debug("Entering OnSubmitJWKSEndpointForm().");
-//  writeValuesToLocalStorage();
   var jwksEndpoint = document.getElementById("jwks_endpoint").value;
   log.debug('URL: ' + jwksEndpoint);
   if (isUrl(jwksEndpoint)) {
@@ -167,6 +166,12 @@ function onSubmitClearAllForms() {
   $("#jwks_info_table").html("");
 }
 
+function clickLink() {
+  log.debug("Entering clickLink().");
+  log.debug("Leaving clickLink().");
+  return true;
+}
+
 module.exports = {
  loadValuesFromLocalStorage,
  OnSubmitJWKSEndpointForm,
@@ -176,4 +181,5 @@ module.exports = {
  parseJWKSInfo,
  buildJWKSInfoTable,
  onSubmitPopulateFormsWithDiscoveryInformation,
+ clickLink
 };

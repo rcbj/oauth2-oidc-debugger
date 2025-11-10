@@ -276,13 +276,22 @@ async function tokenDetailPage(driver, type)
     } else if ( type === "id_token") {
       token_field = "token_id_token";
       link_text = "ID Token";
+    } else if ( type == "refresh_access_token") {
+      token_field = "refresh_access_token";
+      link_text == "Latest Access Token";
+    } else if ( type == "refresh_refresh_token") {
+      token_field = "refresh_refresh_token";
+      link_text = "Latest Refresh Token";
+    } else if ( type == "refresh_id_token" ) {
+      token_field = "refresh_id_token";
+      link_text = "Latest ID Token";
     }
     // Find the token detail link on the debugger2.html page.
     console.log("Find token detail link.");
     tokenDetailLink = By.partialLinkText(link_text);
     console.log("Locate token detail link.");
     await driver.wait(until.elementLocated(tokenDetailLink), 10000);
-    console.log("Click link to go to the token detail page for" + type + " token.");
+    console.log("Click link to go to the token detail page for " + type + " token.");
     await driver.findElement(tokenDetailLink).click();
   
     // Find the jwt_payload field to confirm you are on the token_detail.html page.
@@ -300,7 +309,7 @@ async function tokenDetailPage(driver, type)
     const decodedJWT = decodeJWT(token);
     console.log("decodedJWT: " + JSON.stringify(decodedJWT.payload, null, 2));
     console.log("Waiting ten seconds.");
-    await wait(10000);
+    await wait(2000);
     console.log("Wait for JWT Payload to be populated in jwt_payload field.");
     console.log("jwt_payload_element: " + JSON.stringify(jwt_payload_element));
     const fromJWTPayloadJWT= await jwt_payload_element.getAttribute("value");
@@ -355,11 +364,55 @@ async function tokenDetailPage(driver, type)
   }
 }
 
+async function refresh_token_call(driver, client_id, scope, user, access, audience) {
+  console.log("Entering refresh_token_call().");
+  console.log("Find Refresh Button");
+  refresh_btn = By.id("refresh_btn");
+  console.log("Locate refresh_btn.");
+  await driver.wait(until.elementLocated(refresh_btn), 10000);
+  console.log("Wait for refresh_btn to be visible.");
+  await driver.wait(until.elementIsVisible(driver.findElement(refresh_btn)), 10000);
+  console.log("Click refresh_btn. Making refresh token call.");
+  await driver.findElement(refresh_btn).click();
+  console.log("Waiting for call to complete.");
+  await wait(4000);
+  console.log("Finding refresh_access_token.");
+  var refresh_access_token = By.id("refresh_access_token");
+  console.log("Locate refresh_access_token.");
+  var refresh_access_token_element = await driver.wait(until.elementLocated(refresh_access_token), 10000);
+  console.log("Waiting for refresh_access_token to be visible.");
+  await driver.wait(until.elementIsVisible(driver.findElement(refresh_btn)), 10000);
+  var refresh_access_token_value = await driver.findElement(refresh_access_token).getAttribute("value");
+
+  console.log("Calling verifyAccessToken().");
+  await verifyAccessToken(refresh_access_token_value, client_id, scope, user, access, audience);
+
+  var refresh_refresh_token = By.id("refresh_refresh_token");
+  console.log("Locate refresh_refresh_token.");
+  await driver.wait(until.elementLocated(refresh_refresh_token), 10000);
+  console.log("Waiting for refresh_refresh_token to be visible.");
+  await driver.wait(until.elementIsVisible( driver.findElement(refresh_refresh_token)), 10000);
+  var refresh_refresh_token_value = await driver.findElement(refresh_refresh_token).getAttribute("value");
+
+  console.log("Calling verifyRefreshToken().");
+  await verifyRefreshToken(refresh_refresh_token_value, client_id, user, audience, audience);
+
+  var refresh_id_token = By.id("refresh_id_token");
+  console.log("Locate refresh_id_token.");
+  await driver.wait(until.elementLocated(refresh_id_token), 10000);
+  console.log("Waiting for refresh_id_token to be visible.");
+  await driver.wait(until.elementIsVisible( driver.findElement(refresh_id_token)), 10000);
+  var refresh_id_token_value = await driver.findElement(refresh_id_token).getAttribute("value");
+
+  console.log("Calling verifyIDToken().");
+  await verifyIDToken(refresh_id_token_value, client_id, user, client_id, audience)
+
+  console.log("Leaving refresh_token_call().");
+}
+
 async function logout(driver) {
   console.log("Entering logout().");
   console.log("Find logout Button");
-  logout_button = By.id("logout_btn");
-  console.log("Find logout_post_redirect_uri.");
   logout_post_redirect_uri = By.id("logout_post_redirect_uri");
   console.log("Wait for logout_post_redirect_uri.");
   await driver.wait(until.elementLocated(logout_post_redirect_uri), 10000);
@@ -368,6 +421,11 @@ async function logout(driver) {
   await driver.wait(until.elementIsVisible(driver.findElement(logout_post_redirect_uri)), 10000);
   console.log("Set post_redirect_uri for logout.");
   await driver.findElement(logout_post_redirect_uri).sendKeys(logout_post_redirect_uri_value);
+  logout_button = By.id("logout_btn");
+  console.log("Locate logout_button.");
+  await driver.wait(until.elementLocated(logout_button), 10000);
+  console.log("Waiting for logout_button to be visible.");
+  await driver.wait(until.elementIsVisible(driver.findElement(logout_button)), 10000);
   console.log("Click logout_btn.");
   await driver.findElement(logout_button).click();
 
@@ -385,8 +443,8 @@ async function logout(driver) {
 
   console.log("Find client_id.");
   client_id = By.id("client_id");
-  console.log("Wait for client_id");
-  await driver.findElement(client_id);
+  console.log("Locate client_id");
+  await driver.wait(until.elementLocated(client_id), 10000);
   console.log("Wait for client_id to be visible.");
   await driver.wait(until.elementIsVisible(driver.findElement(client_id)), 10000);
 }
@@ -447,13 +505,21 @@ async function test() {
     let refresh_token = await getRefreshToken(driver);
     console.log("Refresh Token: " + refresh_token);
     console.log("Calling verifyRefreshToken()");
-    await verifyRefreshToken(refresh_token, client_id, user, audience, audience)
+    await verifyRefreshToken(refresh_token, client_id, user, audience, audience);
     console.log("Go to access_token detail page.");
     await tokenDetailPage(driver, "access_token");
     console.log("Go to refresh_token detail page.");
     await tokenDetailPage(driver, "refresh_token");
     console.log("Go to id_token detail page.");
-    await tokenDetailPage(driver, "id_token"); 
+    await tokenDetailPage(driver, "id_token");
+    console.log("Making refresh_token_call().");
+    await refresh_token_call(driver, client_id, scope, user, "account", audience);
+    console.log("Go to refresh_access_token detail page.");
+    await tokenDetailPage(driver, "refresh_access_token");
+//    console.log("Go to refresh_refresh_token detail page.");
+//    await tokenDetailPage(driver, "refresh_refresh_token");
+//    console.log("Go to refresh_id_token detail page.");
+//    await tokenDetailPage(driver, "refresh_id_token");
     console.log("Logging out.");
     await logout(driver);
     console.log("Test completed successfully.")

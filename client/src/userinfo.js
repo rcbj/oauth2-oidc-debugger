@@ -255,10 +255,17 @@ function getLSBooleanItem(key)
   return localStorage.getItem(key) === 'true';
 }
 
+function clickLink() {
+  log.debug("Entering clickLink().");
+  writeValuesToLocalStorage();
+  log.debug("Leaving clickLink().");
+  return true;
+}
+
 module.exports = {
   getParameterByName,
   callUserInfoEndpoint,
   onClickToggleConfigurationParameters,
-  setInitiateFromEnd
-
+  setInitiateFromEnd,
+  clickLink
 };
