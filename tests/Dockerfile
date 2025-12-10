@@ -25,6 +25,7 @@ WORKDIR /usr/src/app
 # where available (npm@5+)
 COPY tests/package*.json ./
 COPY docker-run-tests.sh .
+COPY common/common.sh .
 
 # Install NVM
 ENV NVM_DIR /usr/local/nvm
@@ -50,8 +51,8 @@ RUN node -v
 RUN npm -v
 
 # Bundle app source
-COPY tests/. .
-
+COPY tests/oauth2_* tests/oidc_* ./
+RUN ls
 RUN wget -q -O chrome-linux64.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/121.0.6167.85/linux64/chrome-linux64.zip && \
     unzip chrome-linux64.zip && \
     rm chrome-linux64.zip && \

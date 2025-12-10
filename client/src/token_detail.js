@@ -186,7 +186,7 @@ window.onload = function() {
   } else if (type == 'refresh_access') {
     jwt = localStorage.getItem("refresh_access_token");
   } else if (type == 'refresh_refresh') {
-    jwt = localStorage("refresh_refresh_token");
+    jwt = localStorage.getItem("refresh_refresh_token");
   } else if (type == 'refresh_id') {
     jwt = localStorage.getItem('refresh_id_token');
   } else {
@@ -270,6 +270,9 @@ window.onload = function() {
       keyPairJWTPayload += '</table>';
       $('#key_pair_jwt_payload').html(keyPairJWTPayload);
     });
+  })
+  .catch( (error) => {
+    log.error("An error was encountered: " + error.stack);
   });
 }
 
@@ -287,8 +290,16 @@ function populateTable(evt, tabName) {
   evt.currentTarget.className += " active";
 }
 
+function clickLink() {
+  log.debug("Entering clickLink().");
+  writeValuesToLocalStorage();
+  log.debug("Leaving clickLink().");
+  return true;
+}
+
 module.exports = {
  decodeJWT,
  verifyJWT,
- populateTable
+ populateTable,
+ clickLink
 };

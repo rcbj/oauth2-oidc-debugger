@@ -21,11 +21,11 @@
   <body>
 
 <div class="header_debugger">
-  <a href="/index.html" class="logo">IDPTools</a>
+  <a href="/index.html" class="logo" onclick="return introspection.clickLink();">IDPTools</a>
   <div class="header-right">
-    <a class="active" href="#home">Home</a>
-    <a href="#contact">Contact</a>
-    <a href="#about">About</a>
+    <a class="active" href="#home" onclick="return introspection.clickLink();">Home</a>
+    <a href="#contact" onclick="return introspection.clickLink();">Contact</a>
+    <a href="#about" onclick="return introspection.clickLink();">About</a>
   </div>
 </div>
 
@@ -46,6 +46,16 @@
             </td>
             <td>
               <input class="stored" id="introspection_endpoint" name="introspection_endpoint" type="text" max="150" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Initiate Introspection Endpoint Call From front or backend.: </label><span class="tooltiptext">The debugger can initiate an Introspection Endpoint call from either the frontend (browser) or from the backend API component. Certain IdPs make stringent assumptions about CORS and how calls will be originated. Especially concerning the Origin request header, which cannot be controlled from the browser.</span>
+              </div>
+            </td>
+            <td>Front
+              <input id="introspection_initiateFromFrontEnd" name="introspection-initiateFromFrontEnd" checked="true" onclick="introspection.setInitiateFromEnd('frontend');" type="radio" />Back
+              <input id="introspection_initiateFromBackEnd" name="introspection-initiateFromFrontEnd" checked="false" onclick="introspection.setInitiateFromEnd('backend');" type="radio" />
             </td>
           </tr>
           <tr>
@@ -130,7 +140,7 @@
       <tbody>
         <tr>
           <td>
-            <a href="/debugger2.html?redirectFromTokenDetail=true">Return to debugger</a>
+            <a href="/debugger2.html?redirectFromTokenDetail=true" onclick="return introspection.clickLink();">Return to debugger</a>
           </td>
         </tr>
         <tr>
@@ -149,9 +159,9 @@
 </div>
 
   <div class="navbar">
-    <a href="#" class="active">Home</a>
-    <a href="/privacypolicy.html">Privacy Policy</a>
-    <a href="/contact">Contact</a>
+    <a href="#" class="active" onclick="return introspection.clickLink();">Home</a>
+    <a href="/privacypolicy.html" onclick="return introspection.clickLink();">Privacy Policy</a>
+    <a href="/contact" onclick="return introspection.clickLink();">Contact</a>
   </div>
 <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">
 <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png">

@@ -1,7 +1,3 @@
-// File: debugger2_js.js
-// Author: Robert C. Broeckelmann Jr.
-// Date: 06/15/2017
-//
 const appconfig = require(process.env.CONFIG_FILE);
 const bunyan = require("bunyan");
 const DOMPurify = require("dompurify");
@@ -18,6 +14,7 @@ var currentRefreshToken = '';
 var usePKCE = true;
 var useFrontEnd = false;
 var useRefreshFrontEnd = false;
+var refreshTokenUsed = false;
 
 function OnSubmitTokenEndpointForm()
 {
@@ -38,56 +35,28 @@ function getParameterByName(name, url)
   return urlParams.get(name);
 }
 
-$(document).ready(function() {
-  log.debug("Entering ready function().");
-  // Call original onload function
-  onload();
-  var sel = $("#authorization_grant_type");
-  sel.change(function() {
-    log.debug("Entering selection changed function().");
+function logoutButtonClick()  {
+  log.debug("Logout link clicked.");
+  var nameValuePairs = {};
+
+  $('#logout_fieldset input.q').each(function() {
+    var className = $(this).attr('name');
     var value = $(this).val();
-    localStorage.setItem("authorization_grant_type", value);
-    if (value != "client_credential") {
-      writeValuesToLocalStorage(); 
-      window.location.href = "/debugger.html";
+    if (value!=""){
+      nameValuePairs[className] = value;
     }
-    resetUI(value);
-    recalculateTokenRequestDescription();
-    recalculateRefreshRequestDescription();
-    log.debug("Leaving selection changed function().");
   });
-  var value = $("#authorization_grant_type").val();
-  resetUI(value);
-  recalculateRefreshRequestDescription();
+  log.debug(nameValuePairs); // Log the name-value pairs
+  var queryString = $.param(nameValuePairs);
 
-  $("#logout_btn").click(function() {
-    log.debug("Logout link clicked.");
-    var nameValuePairs = {};
+  log.debug(queryString); // Log the query string
+  var logoutUrl = DOMPurify.sanitize($("#logout_end_session_endpoint").val()) + "?" + DOMPurify.sanitize(queryString);
 
-    $('#logout_fieldset input.q').each(function() {
-      var className = $(this).attr('name');
-      var value = $(this).val();
-      if (value!=""){ 
-        nameValuePairs[className] = value;
-      }
-    });
-    log.debug(nameValuePairs); // Log the name-value pairs
-    var queryString = $.param(nameValuePairs);
+  clearLocalStorage();
+  window.location.href = logoutUrl;
 
-    log.debug(queryString); // Log the query string
-    var logoutUrl = DOMPurify.sanitize($("#logout_end_session_endpoint").val()) + "?" + DOMPurify.sanitize(queryString);
-
-    clearLocalStorage();
-    window.location.href = logoutUrl;
-
-    return false;
-  });
-
-  $(".token_btn").click(tokenButtonClick);
-  $(".refresh_btn").click(refreshButtonClick);
-
-  log.debug("Leaving token submit button clicked function.");
-});
+  return false;
+};
 
 function tokenButtonClick() {
   log.debug("Entering token Submit button clicked function.");
@@ -151,7 +120,6 @@ function buildInternalTokenAPIRequestMessage() {
   }
   var auth_style = getLSBooleanItem("token_post_auth_style");
    
-  log.debug("RCBJ0001: " + auth_style);
   var formData = {};
   if(grant_type == "authorization_code")
   {
@@ -240,13 +208,14 @@ function successfulInternalTokenAPICall(data, textStatus, request)
   if(displayOpenIDConnectArtifacts == true)
   {
     // Display OAuth2/OIDC Artifacts
+    log.debug("RCBJ0003");
     token_endpoint_result_html = "<fieldset>" +
                                  "<legend>Token Endpoint Results:</legend>" + 
 				   "<table>" +
 				     "<tr>" +
                                        '<td>' +
-                                         '<P><a href="/token_detail.html?type=access">Access Token</a></P>' +
-                                         '<P style="font-size:50%;"><a href="/introspection.html?type=access">Introspect Token</a></P>' + 
+                                         '<P><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></P>' +
+                                         '<P style="font-size:50%;"><a href="/introspection.html?type=access" onclick="debugger2.clickLink()">Introspect Token</a></P>' + 
                                          '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                          ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                        '</td>' +
@@ -259,8 +228,8 @@ function successfulInternalTokenAPICall(data, textStatus, request)
     if(useRefreshTokenTester) {
       token_endpoint_result_html +=  '<tr>' +
                                           '<td>' +
-                                              '<P><a href="/token_detail.html?type=refresh">Refresh Token</a></P>' +
-                                              '<P style="font-size:50%;"><a href="/introspection.html?type=refresh">Introspect Token</a></P>' +
+                                              '<P><a href="/token_detail.html?type=refresh" onclick="debugger2.clickLink()">Refresh Token</a></P>' +
+                                              '<P style="font-size:50%;"><a href="/introspection.html?type=refresh" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
                                               '<P><form><input class="btn2" type="submit" value="Copy Token"' + 
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
@@ -273,8 +242,8 @@ function successfulInternalTokenAPICall(data, textStatus, request)
       }
       token_endpoint_result_html +=  "<tr>" +
                                           '<td>' +
-                                            '<P><a href="/token_detail.html?type=id">ID Token</a></P>' +
-                                            '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P>' +
+                                            '<P><a href="/token_detail.html?type=id" onclick="debugger2.clickLink()">ID Token</a></P>' +
+                                            '<P style="font-size:50%;">Get <a href="/userinfo.html" onclick="debugger2.clickLink()">UserInfo Data</a></P>' +
                                             '<P><form><input class="token_btn" type="submit" value="Copy Token"' + 
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_id_token\');"/></form></P>' +
                                           '</td>' +
@@ -291,12 +260,13 @@ function successfulInternalTokenAPICall(data, textStatus, request)
       localStorage.setItem("token_id_token", data.id_token);
     } else {
       log.debug("Displaying Access Token. No OIDC ID Token: data.access_token=" + data.access_token);
+      log.debug("RCBJ0004");
       token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" +
                                       "<table>" +
                                         "<tr>" +
                                           '<td>' +
-                                            '<p><a href="/token_detail.html?type=access">Access Token</a></p>' +
+                                            '<p><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></p>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           '</td>' +
@@ -309,7 +279,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
         log.debug("Refresh token found. Generating token: data.refresh_token=" + currentRefreshToken);
         token_endpoint_result_html += "<tr>" +
                                           '<td>' +
-                                            '<a href="/token_detail.html?type=access">Refresh Token</a>' +
+                                            '<a href="/token_detail.html?type=id" onclick="debugger2.clickLink()">Refresh Token</a>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
@@ -327,6 +297,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
     //$("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
     $("#token_endpoint_result").html(token_endpoint_result_html);
     $("#refresh_refresh_token").val(currentRefreshToken);
+    log.debug("RCBJ0200");
     $("#refresh_client_id").val(localStorage.getItem("client_id"));
     $("#refresh_scope").val(localStorage.getItem("scope"));
     $("#refresh_client_secret").val(localStorage.getItem("client_secret"));
@@ -431,40 +402,72 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
             + textStatus
             + ", request=" 
             + JSON.stringify(request));
-  var refresh_endpoint_result_html = "";
   log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
-  var iteration = 1;
-  if(!!$("#refresh-token-results-iteration-count").val())
-  {
-    iteration = parseInt($("#refresh-token-results-iteration-count").val()) + 1;
-  }
+  refreshTokenUsed=true;
+  localStorage.setItem("refresh_token_used", true);
+  var currentRefreshToken = "";
+  var currentAccessToken = "";
+  var currentIDToken = "";
   log.debug('data.refresh_token=' + data.refresh_token);
+  log.debug("data.access_token=" + data.access_token);
+  log.debug("data.id_token=" + data.id_token);
   if(!!data.refresh_token) {
     log.debug('Setting new Refresh Token.');
     currentRefreshToken = data.refresh_token;
   }
-  if(displayOpenIDConnectArtifacts == true)
+  if(!!data.access_token) {
+    log.debug("Setting new Access Token.");
+    currentAccessToken = data.access_token;
+  }
+  if(!!data.id_token) {
+    log.debug("Setting new ID Token.");
+    currentIDToken = data.id_token;
+  }
+  recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, currentIDToken);
+  log.debug("Leaving ajax success function for Refresh Token.");
+}
+
+function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, currentIDToken) {
+  log.debug("Entering displayRefreshTokenPane().");
+  var refresh_endpoint_result_html = "";
+  log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
+  var iteration = 0;
+  if(!!localStorage.getItem("refresh_iteration"))
   {
-    refresh_endpoint_result_html = "<fieldset>" +
+    //iteration = parseInt($("#refresh-token-results-iteration-count").val()) + 1;
+    iteration = parseInt(localStorage.getItem("refresh_iteration")) + 1;
+  }
+  localStorage.setItem("refresh_iteration", iteration);
+  if (!!!currentRefreshToken) {
+    currentRefreshToken = localStorage.getItem("refresh_refresh_token");
+  }
+  if (!!!currentAccessToken) {
+    currentAccessToken = localStorage.getItem("refresh_access_token");
+  }
+  if (!!!currentIDToken) {
+    currentIDToken = localStorage.getItem("refresh_id_token");
+  }
+  refresh_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results for Refresh Token Call:</legend>" + 
 				      "<table>" +
 				        "<tr>" +
                                           '<td>' +
-                                            '<P><a href="/token_detail.html?type=refresh_access">Access Token</a></P>' +
-                                            '<P style="font-size:50%;"><a href="/introspection.html?type=refresh_access">Introspect Token</a></P>' +
+                                            '<P><a href="/token_detail.html?type=refresh_access" onclick="debugger2.clickLink()">Latest Access Token</a></P>' +
+                                            '<P style="font-size:50%;"><a href="/introspection.html?type=refresh_access" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_access_token\');"/></form></P>' +
                                           "</td>" +
                                           "<td>" + 
                                             "<textarea rows=10 cols=60 name=refresh_access_token id=refresh_access_token>" + 
-                                              data.access_token + 
+                                              currentAccessToken + 
                                             "</textarea>" +
                                           "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
+                                       "</tr>"; 
+  if(!!currentRefreshToken) {
+    refresh_endpoint_result_html +=     "<tr>" +
                                           '<td>' +
-                                            '<P><a href="/token_detail.html?type=refresh_refresh">Refresh Token</a></P>' +
-                                            '<P style="font-size:50%;"><a href="/introspection.html?type=refresh_refresh">Introspect Token</a></P>' +
+                                            '<P><a href="/token_detail.html?type=refresh_refresh" onclick="debugger2.clickLink()">Latest Refresh Token</a></P>' +
+                                            '<P style="font-size:50%;"><a href="/introspection.html?type=refresh_refresh" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_refresh_token\');"/></form></P>' +
                                           "</td>" +
@@ -472,21 +475,24 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
                                               currentRefreshToken +
                                             "</textarea>" +
                                           "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
+                                        "</tr>";
+  }
+  if(displayOpenIDConnectArtifacts) {
+    refresh_endpoint_result_html +=      "<tr>" +
                                           '<td>' +
-                                            '<P><a href="/token_detail.html?type=refresh_id">ID Token</a></P>' +
-                                            '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P>' +
+                                            '<P><a href="/token_detail.html?type=refresh_id" onclick="debugger2.clickLink()">Latest ID Token</a></P>' +
+                                            '<P style="font-size:50%;">Get <a href="/userinfo.html" onclick="debugger2.clickLink()">UserInfo Data</a></P>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_id_token\');"/></form></P>' +
                                           "</td>" +
                                           "<td>" +
                                             "<textarea rows=10 cols=60 name=refresh_id_token id=refresh_id_token>" + 
-                                              data.id_token + 
+                                              currentIDToken +
                                             "</textarea>" +
                                           "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
+                                        "</tr>";
+  }
+  refresh_endpoint_result_html +=        "<tr>" +
 					  "<td>iteration</td>" +
 					  "<td>" +
                                             '<input type="text" value="' + iteration +
@@ -495,58 +501,33 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
                                         "</tr>" +
                                       "</table>" +
                                       "</fieldset>";
-  } else {
-    refresh_endpoint_result_html = "<fieldset>" +
-                                      "<legend>Token Endpoint Results for Refresh Token Call:</legend>" +
-                                      "<table>" +
-                                        "<tr>" +
-                                          "<td>" +
-                                            '<a href="/token_detail.html?type=refresh_access">Access Token</a>' +
-                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
-                                            ' onclick="return debugger2.onClickCopyToken(\'#refresh_access_token\');"/></form></P>' +
-                                          "</td>" +
-                                          "<td>" +
-                                            "<textarea rows=10 cols=60 name=refresh_access_token id=refresh_access_token>" +
-                                              data.access_token +
-                                            "</textarea>" +
-                                          "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
-                                          '<td>' +
-                                            '<a href="/token_detail.html?type=refresh_id">ID Token</a>' +
-                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
-                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_id_token\');"/></form></P>' +
-                                          '</td>' +
-                                          "<td><textarea rows=10 cols=60 name=refresh_id_token id=refresh_id_token>" +
-                                            currentRefreshToken +
-                                            "</textarea>" +
-                                          "</td>" +
-                                        "</tr>" +
-                                        "<tr>" +
-                                          "<td>iteration</td>" +
-                                          "<td>"
-                                            '<input type="text" value="' + iteration + 
-                                            '" id="refresh-token-results-iteration-count" name="refresh-token-results-iteration-count">'
-                                          "</td>" +
-                                        "</tr>" +
-                                      "</table>" +
-                                      "</fieldset>";
-  }
   //$("#refresh_endpoint_result").html(DOMPurify.sanitize(refresh_endpoint_result_html));
   $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
   // Update refresh token field in the refresh token grant pane
   $("#refresh_refresh_token").val(currentRefreshToken);
   // Store new tokens in local storage
-  localStorage.setItem("refresh_access_token", data.access_token );
-  localStorage.setItem("refresh_refresh_token", currentRefreshToken );
-  localStorage.setItem("refresh_id_token", data.id_token );
+  if (!!currentAccessToken) {
+    localStorage.setItem("refresh_access_token", currentAccessToken );
+  }
+  if (!!currentRefreshToken) {
+    localStorage.setItem("refresh_refresh_token", currentRefreshToken );
+  }
+  if (!!currentIDToken) {
+    localStorage.setItem("refresh_id_token", currentIDToken);
+  }
   // Update token in logout pane.
   if(currentRefreshToken) {
-    $("#logout_id_token_hint").val(data.id_token);
+    $("#logout_id_token_hint").val(currentIDToken);
   } else {
     $("#logout_fieldset").hide();
   }
   recalculateRefreshRequestDescription();
+  if (refreshTokenUsed) {
+   $("#refresh_endpoint_result").show(); 
+  } else {
+   $("#refresh_endpoint_result").hide();
+  }
+  log.debug("Leaving displayRefreshTokenPane().");
 }
 
 function errorInternalRefreshAPICall(request, status, error) {
@@ -605,6 +586,23 @@ function resetUI(value)
       $("#display_authz_request_class").hide();
       $("#display_token_request").show();
     }
+    if( value == "implicit_grant" &&
+        getParameterByName("redirectFromTokenDetail") != "true")
+    {
+      $("#config_fieldset").hide();
+      $("#config_expand_button").val("Expand");
+      $("#step3").hide();
+      recalculateTokenRequestDescription();
+      recalculateRefreshRequestDescription();
+    }
+    if( value == "implicit_grant" &&
+        getParameterByName("redirectFromTokenDetail") == "true")
+    {
+      $("#config_fieldset").hide();
+      $("#config_expand_button").val("Expand");
+      $("#step3").hide();
+    }
+    
     resetErrorDisplays();
     $("#yesResourceCheckToken").prop("checked", false);
     $("#noResourceCheckToken").prop("checked", true);
@@ -690,24 +688,32 @@ function writeValuesToLocalStorage()
       localStorage.setItem("token_initiateFromBackEnd", $("#token_initiateFromBackEnd").is(":checked"));
       localStorage.setItem("refresh_initiateFromFrontEnd", $("#refresh_initiateFromFrontEnd").is(":checked"));
       localStorage.setItem("refresh_initiateFromBackEnd", $("#refresh_initiateFromBackEnd").is(":checked"));
+      localStorage.setItem("refresh_token_used", refreshTokenUsed);
   }
 
   log.debug("Leaving writeValuesToLocalStorage().");
 }
 
-function loadValuesFromLocalStorage()
+// helper function to set the Grant Type menu option.
+function setAuthorizationGrantType()
 {
-  log.debug("Entering loadValuesFromLocalStorage().");
+  log.debug("Entering setAuthorizationGrantType().");
   var authzGrantType = localStorage.getItem("authorization_grant_type");
   log.debug("authzGrantType=" + authzGrantType);
   if (!!authzGrantType)
   {
-    $("#authorization_grant_type").val("authorization_grant");
-    resetUI("authorization_grant");
-  } else {
     $("#authorization_grant_type").val(authzGrantType);
-    resetUI(authzGrantType);
   }
+  resetUI(authzGrantType);
+  log.debug("Entering setAuthorizationGrantType().");
+}
+
+function loadValuesFromLocalStorage()
+{
+  log.debug("Entering loadValuesFromLocalStorage().");
+
+  setAuthorizationGrantType();
+
   $("#authorization_endpoint").val(localStorage.getItem("authorization_endpoint"));
   $("#token_endpoint").val(localStorage.getItem("token_endpoint"));
 
@@ -738,7 +744,7 @@ function loadValuesFromLocalStorage()
   $("#refresh_initiateFromBackEnd").prop("checked", getLSBooleanItem("refresh_initiateFromBackEnd"));
 
   $("#refresh_refresh_token").val(localStorage.getItem("refresh_refresh_token"));
-  $("#refresh_client_id").val(localStorage.getItem("refresh_client_id"));
+  $("#customTokenParametersCheck-no").prop("checked", getLSBooleanItem("customTokenParametersCheck-no"));$("#refresh_client_id").val(localStorage.getItem("refresh_client_id"));
   $("#refresh_scope").val(localStorage.getItem("refresh_scope"));
   $("#refresh_client_secret").val(localStorage.getItem("refresh_client_secret"));
   $("#useRefreshToken-yes").prop("checked", getLSBooleanItem("useRefreshToken_yes"));
@@ -778,7 +784,13 @@ function loadValuesFromLocalStorage()
     $("#token_pkce_code_method").val(localStorage.getItem("PKCE_code_challenge_method"));
   }
   usePKCERFC();
+  refreshTokenUsed=getLSBooleanItem("refresh_token_used");
+  log.debug("Leaving loadValuesFromLocalStorage().");
+}
 
+function recreateUniqueGrantFlowElements()
+{
+  log.debug("Entering recreateUniqueGrantFlowElements().");
   var agt = $("#authorization_grant_type").val();
   var pathname = window.location.pathname;
   log.debug("agt=" + agt);
@@ -792,47 +804,65 @@ function loadValuesFromLocalStorage()
     log.debug("Checking for code.  agt=" + agt + ", pathname=" + pathname);
     log.debug("fragement: " + parseFragment());
     code = parseFragment()["code"];
-    if(!!code)
+    if(!!!code)
     {
       code = "NO_CODE_PRESENTED_IN_EXPECTED_LOCATIONS";
     }
     log.debug("code=" + code);
-    if($("#code").val() == "")
+    if(!!!$("#code").val())
     {
       log.debug("code not yet set in next form. Doing so now.");
       $("#code").val(code);
     }
   }
-  if ( 	(agt == "implicit_grant" || 
-         agt == "oidc_implicit_flow" ) &&
-	pathname == "/debugger2.html") //retrieve access_token for implicit_grant for callback redirect response
+  if ( agt == "implicit_grant" || 
+       agt == "oidc_implicit_flow")
   {
+    log.debug("Looking for access_token.");
     var access_token = getParameterByName("access_token",window.location.href);
     log.debug("access_token=" + access_token);
-    if(!!access_token)
+    if(!!!access_token)
     {
       //Check to see if passed in as local anchor (ADFS & Azure Active Directory do this)
+      log.debug("Didn't find token in query parameter. Looking in fragment.");
       log.debug("fragement: " + parseFragment());
       access_token = parseFragment()["access_token"];
-      if(!!access_token)
+      if(!!!access_token)
       {
-        access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
-      }
-    }
-    log.debug("access_token=" + access_token);
+        log.debug("Didn't find token in fragment. Checking to see if there is a saved token in local storage.");
+        access_token = localStorage.getItem("token_access_token");
+        if(!!!access_token)
+        {
+          log.debug("Didn't find token in local storage. No access_token found.");
+          access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS(IMPLICIT_GRANT||OIDC_IMPLICIT_FLOW)";
+        } else {
+          log.debug("Found access_token in local storage.");
+        }
+      } else {
+        log.debug("Found token in fragment.");
+      } 
+    } else {
+     log.debug("Found token in query parameter.");
+    } 
     var authorization_endpoint_result_html = "<fieldset>" +
                                              "<legend>Authorization Endpoint Results:</legend>" +
                                              "<table>" + 
                                                "<tr>" +
-                                                 "<td>access_token</td>" +
-                                                 "<td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" 
-                                                   + access_token + 
+                                                 "<td>" +
+                                                   '<P><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></P>' +
+                                                   '<P style="font-size:50%;"><a href="/introspection.html?type=access" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
+                                                   '<P><form><input class="token_btn" type="submit" value="Copy Token"' +
+                                                   ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
+                                                 "</td>" +
+                                                 "<td><textarea rows=10 cols=60 name=\"token_access_token\" id=\"token_access_token\">" +
+                                                     access_token +
                                                    "</textarea>" +
                                                  "</td>" +
                                                "</tr>" + 
                                              "</table>" +
                                              "</fieldset>";
     $("#authorization_endpoint_result").html(DOMPurify.sanitize(authorization_endpoint_result_html));
+    localStorage.setItem("token_access_token", access_token);
   }
   if (  agt == "oidc_hybrid_code_id_token_token" &&
         pathname == "/debugger2.html") //retrieve access code and id_token that is returned from authorization endpoint.
@@ -841,7 +871,7 @@ function loadValuesFromLocalStorage()
     access_token = parseFragment()["access_token"];
     if(!access_token)
     {
-      access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
+      access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS(oidc_hybrid_code_id_token_token)";
     }
     log.debug("access_token=" + access_token);
     log.debug("fragement: " + parseFragment());
@@ -888,7 +918,7 @@ function loadValuesFromLocalStorage()
     access_token = parseFragment()["access_token"];
     if(!access_token)
     {
-      access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS";
+      access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS(oidc_hybrid_code_token)";
     }
     log.debug("access_token=" + access_token);
     $("#authorization_endpoint_result").html(DOMPurify.sanitize("<fieldset>" +
@@ -935,12 +965,31 @@ function loadValuesFromLocalStorage()
   var error = getParameterByName("error",window.location.href);
   var authzGrantType = $("#authorization_grant_type").val();
   if(	pathname == "/debugger2.html" && 
-	(authzGrantType == "authorization_grant" || authzGrantType == "implicit_grant" || authzGrantType == "oidc_hybrid_code_id_token") &&
-	(!!error))
+	( authzGrantType == "authorization_grant" ||
+          authzGrantType == "implicit_grant" ||
+          authzGrantType == "oidc_hybrid_code_id_token") &&
+	  (!!error))
   {
-    $("#display_authz_error_class").html(DOMPurify.sanitize("<fieldset><legend>Authorization Endpoint Error</legend><form action=\"\" name=\"display_authz_error_form\" id=\"display_authz_error_form\"><table><tr><td><label name=\"display_authz_error_form_label1\" value=\"\" id=\"display_authz_error_form_label1\">Error</label></td><td><textarea rows=\"10\" cols=\"100\" id=\"display_authz_error_form_textarea1\"></td></tr></table></textarea></form></fieldset>"));
+    error_html = "<fieldset>" +
+                   "<legend>Authorization Endpoint Error</legend>" +
+                   "<form action='' name='display_authz_error_form' id='display_authz_error_form'>" +
+                     "<table>" +
+                       "<tr>" +
+                         "<td>" +
+                           "<label name='display_authz_error_form_label1' value='' id='display_authz_error_form_label1'>Error</label>" +
+                         "</td>" +
+                         "<td>" +
+                           "<textarea rows='10' cols='50' id='display_authz_error_form_textarea1'>" +
+                           error +
+                           "</textarea>"
+                         "</td>" +
+                       "</tr>" +
+                     "</table>" +
+                   "</form>" +
+                 "</fieldset>";
+    $("#display_authz_error_class").html(DOMPurify.sanitize(error_html));
   }
-  log.debug("Leaving loadValuesFromLocalStorage().");
+  log.debug("Entering recreateUniqueGrantFlowElements().");
 }
 
 function recalculateTokenRequestDescription()
@@ -1052,33 +1101,32 @@ function recalculateRefreshRequestDescription()
   log.debug("Leaving recalculateRefreshRequestDescription().");
 }
 
-function onload() {
-  log.debug("Entering onload function.");
-
-  if (!appconfig) {
-    log.debug('Failed to load appconfig.');
-  }
- 
-  $("#password-form-group1").hide();
-  $("#password-form-group2").hide();
-
-  if(getParameterByName("redirectFromTokenDetail") != "true") {
-    // Clear all token values.
-    localStorage.setItem("token_access_token", "");
-    localStorage.setItem("token_id_token", "");
-    localStorage.setItem("token_refresh_token", "");
-    localStorage.setItem("refresh_access_token", "");
-    localStorage.setItem("refresh_id_token", "");
-    localStorage.setItem("refresh_refresh_token", "");
-  }
-
+function processStateParameter()
+{
+  log.debug("Entering processStateParameter().");
   // Check if state matches
-  log.debug('Checking on state.');
-  var state = getParameterByName('state');
+  log.debug("Checking on state.");
+  var state = getParameterByName("state");
+  var stateParameterFound = false;
   if (!!state) {
-    log.debug('Found state: ' + state)
-    var storedState = localStorage.getItem('state');
-    if ( state == storedState) {
+    log.debug("Found state in query parameters: " + state);
+    stateParameterFound = true;
+  } else {
+    log.debug("Didn't find state in query parameters, attempting to find fragment.");
+    state = parseFragment()["state"];
+    if(!!state) {
+      log.debug("Found state in fragment.");
+      stateParameterFound = true
+    } else {
+      log.debug("Didn't find state.");
+    }
+  }
+  var storedState = localStorage.getItem("state");
+  // Generate report
+  if(stateParameterFound) {
+    if ( !!state &&
+         !!storedState &&
+         state == storedState) {
       log.debug('State matches stored state.');
       var stateReportHTML = '<h1>State Report</h1>' +
                             '<P>' + 'State matches: state=' + state + '</P>';
@@ -1090,11 +1138,57 @@ function onload() {
       $("#state-status").html(DOMPurify.sanitize(stateReportHTML));
     }
   }
+  log.debug("Leaving processStateParameter().");
+}
+
+$(document).ready(function() {
+  log.debug("Entering document.ready() function.");
+
+  if (!appconfig) {
+    log.debug('Failed to load appconfig.');
+  }
+
+  var authorization_grant_type = $("#authorization_grant_type").val();
+
+  $("#authorization_grant_type").change(function() {
+    log.debug("Entering selection changed function().");
+    var value = $(this).val();
+    localStorage.setItem("authorization_grant_type", value);
+    if (value != "client_credential") {
+      writeValuesToLocalStorage();
+      window.location.href = "/debugger.html";
+    }
+    resetUI(value);
+    recalculateTokenRequestDescription();
+    recalculateRefreshRequestDescription();
+    log.debug("Leaving selection changed function().");
+  });
+ 
+  $("#password-form-group1").hide();
+  $("#password-form-group2").hide();
+
+  // If we are not coming back from the Token Detail Page clear all saved tokens. 
+  // It will be reset.
+  if(getParameterByName("redirectFromTokenDetail") != "true") {
+    // Clear all token values.
+    log.debug("Detected page load for new grant/flow workflow. Clearing all existing tokens.");
+    localStorage.setItem("token_access_token", "");
+    localStorage.setItem("token_id_token", "");
+    localStorage.setItem("token_refresh_token", "");
+    localStorage.setItem("refresh_access_token", "");
+    localStorage.setItem("refresh_id_token", "");
+    localStorage.setItem("refresh_refresh_token", "");
+    localStorage.setItem("refresh_iteration", "");
+  }
+
+  processStateParameter();
+
   // an error was returned from the authorization endpoint
   var errorDescriptionParam = getParameterByName('error_description');
   var errorParam = getParameterByName('error');
   log.debug('errorDescriptionParam=' + errorDescriptionParam + ', errorParam=' + errorParam);
-  if (errorDescriptionParam || errorParam) {
+  if (errorDescriptionParam || 
+      errorParam) {
     $('#step0').hide();
     $('#step3').hide();
     $('#step4').hide();
@@ -1106,6 +1200,12 @@ function onload() {
     return;
   }
 
+  // Sets the authorization grant type based upon
+  // what is in local storage, which must be set.
+  // The next call to to resetUI assumes this is set
+  // the way it needs to be.
+  setAuthorizationGrantType();
+
   resetUI();
   initFields();
   generateCustomParametersListUI();
@@ -1114,6 +1214,7 @@ function onload() {
   $("#customTokenParametersCheck-no").on("click", recalculateTokenRequestDescription);
 
   loadValuesFromLocalStorage();
+  recreateUniqueGrantFlowElements();
   recalculateAuthorizationErrorDescription();
   recalculateTokenRequestDescription();
   recalculateRefreshRequestDescription();
@@ -1164,15 +1265,27 @@ function onload() {
 
   displayTokenCustomParametersCheck();
 
-  if(getParameterByName("redirectFromTokenDetail") == "true") {
+  if( getParameterByName("redirectFromTokenDetail") == "true" &&
+      ( authorization_grant_type != "implicit_grant" && 
+        authorization_grant_type != "oidc_implicit_grant"))
+  {
     log.debug('Detected redirect back from token detail page.');
     $("#step3").hide();
+    if (useRefreshTokenTester) {
+      $("#step4").show();
+    }
     recreateTokenDisplay();
+    recreateRefreshTokenDisplay("", "", ""); // no new token
     $("#logout_id_token_hint").val(localStorage.getItem("token_id_token"));
   }
 
-  log.debug("Leaving onload().");
-}
+  recalculateRefreshRequestDescription();
+
+  $(".token_btn").click(tokenButtonClick);
+  $(".refresh_btn").click(refreshButtonClick);
+
+  log.debug("Leaving document.ready().");
+});
 
 function generateUUID () { // Public Domain/MIT
     log.debug("Entering generateUUID().");
@@ -1511,13 +1624,14 @@ function recreateTokenDisplay()
       {
          log.debug("Displaying full OIDC Token results.");
          // Display OAuth2/OIDC Artifacts
+         log.debug("RCBJ0001");
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" + 
                                       "<table>" +
                                         "<tr>" +
                                           '<td>' +
-                                              '<P><a href="/token_detail.html?type=access">Access Token</a></P>' +
-                                              '<P style="font-size:50%;"><a href="/introspection.html?type=access">Introspect Token</a></P>' + 
+                                              '<P><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></P>' +
+                                              '<P style="font-size:50%;"><a href="/introspection.html?type=access" onclick="debugger2.clickLink()">Introspect Token</a></P>' + 
                                               '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           "</td>" +
@@ -1531,8 +1645,8 @@ function recreateTokenDisplay()
            log.debug("Displaying refresh token.");
            token_endpoint_result_html +=  '<tr>' +
                                           '<td>' +
-                                              '<P><a href="/token_detail.html?type=refresh">Refresh Token</a></P>' +
-                                              '<P style="font-size:50%;"><a href="/introspection.html?type=refresh">Introspect Token</a></P>' +
+                                              '<P><a href="/token_detail.html?type=refresh" onclick="debugger2.clickLink()">Refresh Token</a></P>' +
+                                              '<P style="font-size:50%;"><a href="/introspection.html?type=refresh" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
                                               '<P><form><input class="btn2" type="submit" value="Copy Token"' + 
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
@@ -1545,8 +1659,8 @@ function recreateTokenDisplay()
          }
          token_endpoint_result_html +=  "<tr>" +
                                           '<td>' +
-                                            '<P><a href="/token_detail.html?type=id">ID Token</a></P>' +
-                                            '<P style="font-size:50%;">Get <a href="/userinfo.html">UserInfo Data</a></P>' +
+                                            '<P><a href="/token_detail.html?type=id" onclick="debugger2.clickLink()">ID Token</a></P>' +
+                                            '<P style="font-size:50%;">Get <a href="/userinfo.html" onclick="debugger2.clickLink()">UserInfo Data</a></P>' +
                                             '<P><form><input class="token_btn" type="submit" value="Copy Token"' + 
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_id_token\');"/></form></P>' +
                                           '</td>' +
@@ -1561,12 +1675,13 @@ function recreateTokenDisplay()
 
       } else {
          log.debug("Logging access_token only.");
+         log.debug("RCBJ0002");
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" +
                                       "<table>" +
                                         "<tr>" +
                                           '<td>' +
-                                            '<p><a href="/token_detail.html?type=access">Access Token</a></p>' +
+                                            '<p><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></p>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           '</td>' +
@@ -1579,7 +1694,7 @@ function recreateTokenDisplay()
            log.debug("Displaying refresh token");
            token_endpoint_result_html += "<tr>" +
                                           '<td>' +
-                                            '<a href="/token_detail.html?type=access">Refresh Token</a>' +
+                                            '<a href="/token_detail.html?type=refresh" onclick="debugger2.clickLink()">Refresh Token</a>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
@@ -1692,6 +1807,30 @@ function initFields() {
   log.debug("Entering initFields().");
   var token_initialize = getLSBooleanItem("token_initialize");
   if(!token_initialize) {
+    if ($("#yesCheckOIDCArtifacts")) {
+      $("#yesCheckOIDCArtifacts").prop("checked", true);
+    }
+    if ($("#noCheckOIDCArtifacts")) {
+      $("#noCheckOIDCArtifacts").prop("checked", false);
+    }
+    if ($("#SSLValidate-yes")) {
+      $("#SSLValidate-yes").prop("checked", true);
+    }
+    if ($("#SSLValidate-no")) {
+      $("#SSLValidate-no").prop("checked", false);
+    }
+    if ($("#useRefreshToken-yes")) {
+      $("#useRefreshToken-yes").prop("checked", true);
+    }
+    if ($("#useRefreshToken-no")) {
+      $("#useRefreshToken-no").prop("checked", false);
+    }
+    if ($("#usePKCE-yes")) {
+      $("#usePKCE-yes").prop("checked", true);
+    }
+    if ($("#usePKCE-no")) {
+      $("#usePKCE-no").prop("checked", false);
+    }
     if ($("#yesResourceCheckToken")) {
         $("#yesResourceCheckToken").prop("checked", false);
         localStorage.setItem("yesResourceCheckToken", false);
@@ -1720,6 +1859,25 @@ function initFields() {
     if ($("#refresh_headerAuthStyleCheckToken")) {
         $("#refresh_headerAuthStyleCheckToken").prop("checked", false);
     }
+    if ($("#usePKCE-yes")) {
+      $("#usePKCE-yes").prop("checked", true);
+    }
+    if ($("#usePKCE-no")) {
+      $("#usePKCE-no").prop("checked", false);
+    }
+    if ($("#token_initiateFromFrontEnd")) {
+      $("#token_initiateFromFrontEnd").prop("checked", true);
+    }
+    if ($("#token_initiateFromBackEnd")) {
+      $("#token_initiateFromBackEnd").prop("checked", false);
+    } 
+    if ($("#refresh_initiateFromFrontEnd")) {
+      $("#refresh_initiateFromFrontEnd").prop("checked", true);
+    }
+    if ($("#refresh_initiateFromBackEnd")) {
+      $("#refresh_initiateFromFrontEnd").prop("checked", false);
+    }
+
     localStorage.setItem("refresh_post_auth_style", true);
     localStorage.setItem("token_initialize", true);
     token_initialize = true;
@@ -1795,7 +1953,6 @@ function setHeaderAuthStyleRefreshToken() {
 function onClickCopyToken(field) {
   log.debug("Entering copyToken().");
   var copyText = $(field);
-//  copyText.select();
   navigator.clipboard.writeText(copyText.val());
   log.debug("Leaving copyToken().");
   return false;
@@ -1827,6 +1984,13 @@ function setInitiateRefreshFromEnd() {
   log.debug("frontEndRefreshInitiated: " + frontEndRefreshInitiated);
   log.debug("backEndRefreshInitiated: " + backEndRefreshInitiated);
   log.debug("Leaving setInitiateRefreshFromEnd().");
+}
+
+function clickLink() {
+  log.debug("Entering clickLink().");
+  writeValuesToLocalStorage();
+  log.debug("Leaving clickLink().");
+  return true;
 }
 
 module.exports = {
@@ -1861,5 +2025,7 @@ module.exports = {
   setHeaderAuthStyleRefreshToken,
   onClickCopyToken,
   setInitiateFromEnd,
-  setInitiateRefreshFromEnd
+  setInitiateRefreshFromEnd,
+  logoutButtonClick,
+  clickLink
 };

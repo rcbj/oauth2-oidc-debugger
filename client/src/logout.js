@@ -1,8 +1,3 @@
-// File: logout.js
-// Author: Robert C. Broeckelmann Jr.
-// Date: 12/28/2024
-//Notes:
-//
 var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var $ = require("jquery");
@@ -18,6 +13,13 @@ function loadValuesFromLocalStorage()
   log.debug("Entering loadValuesFromLocalStorage().");
 }
 
+function clickLink() {
+  log.debug("Entering clickLink().");
+  log.debug("Leaving clickLink().");
+  return true;
+}
+
 module.exports = {
- loadValuesFromLocalStorage,
+  loadValuesFromLocalStorage,
+  clickLink
 };
