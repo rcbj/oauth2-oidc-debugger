@@ -278,7 +278,7 @@ async function tokenDetailPage(driver, type)
       link_text = "ID Token";
     } else if ( type == "refresh_access_token") {
       token_field = "refresh_access_token";
-      link_text == "Latest Access Token";
+      link_text = "Latest Access Token";
     } else if ( type == "refresh_refresh_token") {
       token_field = "refresh_refresh_token";
       link_text = "Latest Refresh Token";
@@ -516,10 +516,18 @@ async function test() {
     await refresh_token_call(driver, client_id, scope, user, "account", audience);
     console.log("Go to refresh_access_token detail page.");
     await tokenDetailPage(driver, "refresh_access_token");
-//    console.log("Go to refresh_refresh_token detail page.");
-//    await tokenDetailPage(driver, "refresh_refresh_token");
-//    console.log("Go to refresh_id_token detail page.");
-//    await tokenDetailPage(driver, "refresh_id_token");
+    console.log("Go to refresh_refresh_token detail page.");
+    await tokenDetailPage(driver, "refresh_refresh_token");
+    console.log("Go to refresh_id_token detail page.");
+    await tokenDetailPage(driver, "refresh_id_token");
+    console.log("Making refresh_token_call().");
+    await refresh_token_call(driver, client_id, scope, user, "account", audience);
+    console.log("Go to refresh_access_token detail page.");
+    await tokenDetailPage(driver, "refresh_access_token");
+    console.log("Go to refresh_refresh_token detail page.");
+    await tokenDetailPage(driver, "refresh_refresh_token");
+    console.log("Go to refresh_id_token detail page.");
+    await tokenDetailPage(driver, "refresh_id_token");
     console.log("Logging out.");
     await logout(driver);
     console.log("Test completed successfully.")
