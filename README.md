@@ -148,7 +148,7 @@ See the blog [posts](https://medium.com/@robert.broeckelmann/red-hat-sso-and-3sc
 
 ## Running tests
 To run the docker-based tests locally, run the following commmand:
-```sudo CONFIG_FILE=./env/local.js docker compose -f docker-compose-with-keycloak.yml up --abort-on-container-exit```
+```sudo CONFIG_FILE=./env/local.js docker compose -f docker-compose-run-tests.yml up --abort-on-container-exit```
 To run tests locally, run: ```./local-run-tests.sh```
 
 If you need to pop up the browser for troubleshooting, pass in the --browser option to the test scripts.
