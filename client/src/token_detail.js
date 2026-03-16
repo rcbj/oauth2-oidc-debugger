@@ -13,8 +13,12 @@ var log = bunyan.createLogger({ name: 'token_detail',
                                 level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
 const jwt = require('jsonwebtoken');
+const vendorClaims = {
+  'microsoft_entra': require('./vendor_claims/microsoft_entra.json')
+};
 
 claimDescriptionDictionary = {};
+claimUrlDictionary = {};
 
 function getParameterByName(name, url)
 {
@@ -167,6 +171,382 @@ async function verifyJWKS(jwt_, jwks) {
   return await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, signature, data);
 }
 
+async function computeAtHash(value, alg) {
+  const hashAlgoMap = {
+    RS256: 'SHA-256', RS384: 'SHA-384', RS512: 'SHA-512',
+    ES256: 'SHA-256', ES384: 'SHA-384', ES512: 'SHA-512',
+    PS256: 'SHA-256', PS384: 'SHA-384', PS512: 'SHA-512'
+  };
+  const hashAlgo = hashAlgoMap[alg];
+  if (!hashAlgo) return null;
+  const encoder = new TextEncoder();
+  const hashBuffer = await crypto.subtle.digest(hashAlgo, encoder.encode(value));
+  const hashArray = new Uint8Array(hashBuffer);
+  const leftHalf = hashArray.slice(0, hashArray.length / 2);
+  let binary = '';
+  leftHalf.forEach(b => binary += String.fromCharCode(b));
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+async function validateClaims() {
+  const results = [];
+  const now = Math.floor(Date.now() / 1000);
+  const clockSkew = parseInt(document.getElementById('jwt_clock_skew').value) || 0;
+  const purpose = document.getElementById('jwt_purpose').value;
+  const expectedIss = document.getElementById('jwt_expected_iss').value.trim();
+  const expectedAud = document.getElementById('jwt_expected_aud').value.trim();
+  const clientId = document.getElementById('jwt_claims_client_id').value.trim();
+  const expectedScope = document.getElementById('jwt_expected_scope').value.trim();
+
+  function pass(claim, msg) { results.push('PASS  ' + claim + ': ' + msg); }
+  function fail(claim, msg) { results.push('FAIL  ' + claim + ': ' + msg); }
+  function skip(claim, msg) { results.push('SKIP  ' + claim + ': ' + msg); }
+
+  const type = getParameterByName('type');
+  var jwt_ = '';
+  if (type == 'access') {
+    jwt_ = localStorage.getItem('token_access_token');
+  } else if (type == 'refresh') {
+    jwt_ = localStorage.getItem('token_refresh_token');
+  } else if (type == 'id') {
+    jwt_ = localStorage.getItem('token_id_token');
+  } else if (type == 'refresh_access') {
+    jwt_ = localStorage.getItem('refresh_access_token');
+  } else if (type == 'refresh_refresh') {
+    jwt_ = localStorage.getItem('refresh_refresh_token');
+  } else if (type == 'refresh_id') {
+    jwt_ = localStorage.getItem('refresh_id_token');
+  } else {
+    document.getElementById('jwt_claims_validation_output').value = 'Error: Unknown token type.';
+    return false;
+  }
+
+  var decoded;
+  try {
+    decoded = decodeJWT(jwt_);
+    if (!decoded) throw new Error('Could not decode JWT.');
+  } catch (e) {
+    document.getElementById('jwt_claims_validation_output').value = 'Error: ' + e.message;
+    return false;
+  }
+
+  const header = decoded.header;
+  const payload = decoded.payload;
+  const isRequired = purpose !== 'generic';
+
+  // ---- Header checks ----
+
+  // alg — "none" is never acceptable for a signed token
+  if (!header.alg) {
+    fail('alg', 'Missing alg header claim');
+  } else if (header.alg === 'none') {
+    fail('alg', '"none" algorithm is not permitted');
+  } else {
+    pass('alg', header.alg);
+  }
+
+  // typ — RFC 9068 requires "at+JWT"
+  if (purpose === 'oauth2_access_token') {
+    if (!header.typ) {
+      fail('typ', 'Missing — must be "at+JWT" (RFC 9068 §2.1)');
+    } else if (header.typ !== 'at+JWT') {
+      fail('typ', '"' + header.typ + '" — expected "at+JWT" (RFC 9068 §2.1)');
+    } else {
+      pass('typ', '"at+JWT"');
+    }
+  } else if (header.typ !== undefined) {
+    pass('typ', '"' + header.typ + '"');
+  } else {
+    skip('typ', 'Not present');
+  }
+
+  // ---- RFC 7519 registered claims ----
+
+  // exp (RFC 7519 §4.1.4; required for OIDC and RFC 9068)
+  if (payload.exp !== undefined) {
+    if (typeof payload.exp !== 'number' || !Number.isInteger(payload.exp)) {
+      fail('exp', 'Must be an integer NumericDate (RFC 7519 §4.1.4)');
+    } else if (now > payload.exp + clockSkew) {
+      fail('exp', 'Token has expired (exp=' + new Date(payload.exp * 1000).toISOString() + ')');
+    } else {
+      const rem = payload.exp - now;
+      const remStr = rem >= 60 ? Math.floor(rem / 60) + 'm ' + (rem % 60) + 's remaining'
+                                : rem + 's remaining';
+      pass('exp', 'Not expired (' + new Date(payload.exp * 1000).toISOString() + ', ' + remStr + ')');
+    }
+  } else if (isRequired) {
+    fail('exp', 'Missing required claim');
+  } else {
+    skip('exp', 'Not present');
+  }
+
+  // nbf (RFC 7519 §4.1.5 — optional, validate if present)
+  if (payload.nbf !== undefined) {
+    if (typeof payload.nbf !== 'number' || !Number.isInteger(payload.nbf)) {
+      fail('nbf', 'Must be an integer NumericDate (RFC 7519 §4.1.5)');
+    } else if (now < payload.nbf - clockSkew) {
+      fail('nbf', 'Token not yet valid (nbf=' + new Date(payload.nbf * 1000).toISOString() + ')');
+    } else {
+      pass('nbf', 'Valid (nbf=' + new Date(payload.nbf * 1000).toISOString() + ')');
+    }
+  } else {
+    skip('nbf', 'Not present');
+  }
+
+  // iat (RFC 7519 §4.1.6; required for OIDC and RFC 9068)
+  if (payload.iat !== undefined) {
+    if (typeof payload.iat !== 'number' || !Number.isInteger(payload.iat)) {
+      fail('iat', 'Must be an integer NumericDate (RFC 7519 §4.1.6)');
+    } else if (payload.iat > now + clockSkew) {
+      fail('iat', 'Issued-at time is in the future (' + new Date(payload.iat * 1000).toISOString() + ')');
+    } else {
+      pass('iat', 'Current time is after iat (' + new Date(payload.iat * 1000).toISOString() + ')');
+    }
+  } else if (isRequired) {
+    fail('iat', 'Missing required claim');
+  } else {
+    skip('iat', 'Not present');
+  }
+
+  // exp/iat consistency
+  if (payload.exp !== undefined && payload.iat !== undefined &&
+      typeof payload.exp === 'number' && typeof payload.iat === 'number') {
+    if (payload.exp <= payload.iat) {
+      fail('exp/iat', 'exp (' + payload.exp + ') must be after iat (' + payload.iat + ')');
+    } else {
+      pass('exp/iat', 'exp is after iat');
+    }
+  }
+
+  // iss (RFC 7519 §4.1.1; required for OIDC and RFC 9068)
+  if (payload.iss !== undefined) {
+    if (typeof payload.iss !== 'string') {
+      fail('iss', 'Must be a StringOrURI (RFC 7519 §4.1.1)');
+    } else if (purpose === 'oidc_id_token' && payload.iss.endsWith('#')) {
+      fail('iss', 'Must not end with "#" (OIDC Core §2)');
+    } else if (expectedIss && payload.iss !== expectedIss) {
+      fail('iss', 'Mismatch (expected="' + expectedIss + '", got="' + payload.iss + '")');
+    } else {
+      pass('iss', '"' + payload.iss + '"' + (expectedIss ? ' (matches expected)' : ''));
+    }
+  } else if (isRequired) {
+    fail('iss', 'Missing required claim');
+  } else if (expectedIss) {
+    fail('iss', 'Expected issuer configured but claim is absent');
+  } else {
+    skip('iss', 'Not present');
+  }
+
+  // sub (RFC 7519 §4.1.2; required for OIDC and RFC 9068)
+  if (payload.sub !== undefined) {
+    if (typeof payload.sub !== 'string') {
+      fail('sub', 'Must be a StringOrURI (RFC 7519 §4.1.2)');
+    } else if (purpose === 'oidc_id_token' && payload.sub.length > 255) {
+      fail('sub', 'Must not exceed 255 ASCII characters (OIDC Core §2), length=' + payload.sub.length);
+    } else {
+      pass('sub', '"' + payload.sub + '"');
+    }
+  } else if (isRequired) {
+    fail('sub', 'Missing required claim');
+  } else {
+    skip('sub', 'Not present');
+  }
+
+  // aud (RFC 7519 §4.1.3; required for OIDC and RFC 9068)
+  if (payload.aud !== undefined) {
+    const audArray = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+    if (expectedAud && !audArray.includes(expectedAud)) {
+      fail('aud', 'Expected "' + expectedAud + '" not found in ' + JSON.stringify(payload.aud));
+    } else if (expectedAud) {
+      pass('aud', '"' + expectedAud + '" found in ' + JSON.stringify(payload.aud));
+    } else {
+      pass('aud', JSON.stringify(payload.aud));
+    }
+  } else if (isRequired) {
+    fail('aud', 'Missing required claim');
+  } else if (expectedAud) {
+    fail('aud', 'Expected audience configured but claim is absent');
+  } else {
+    skip('aud', 'Not present');
+  }
+
+  // jti (RFC 7519 §4.1.7; required for RFC 9068)
+  if (payload.jti !== undefined) {
+    pass('jti', '"' + payload.jti + '"');
+  } else if (purpose === 'oauth2_access_token') {
+    fail('jti', 'Missing required claim (RFC 9068 §2.2)');
+  } else {
+    skip('jti', 'Not present');
+  }
+
+  // ---- OIDC ID Token specific (OIDC Core 1.0 §3.1.3.7) ----
+  if (purpose === 'oidc_id_token') {
+    const audArray = payload.aud !== undefined
+      ? (Array.isArray(payload.aud) ? payload.aud : [payload.aud]) : [];
+
+    // azp
+    if (audArray.length > 1) {
+      if (!payload.azp) {
+        fail('azp', 'Required when aud has multiple values (OIDC Core §2)');
+      } else if (clientId && payload.azp !== clientId) {
+        fail('azp', 'Mismatch (expected="' + clientId + '", got="' + payload.azp + '")');
+      } else {
+        pass('azp', '"' + payload.azp + '"');
+      }
+    } else if (payload.azp !== undefined) {
+      if (clientId && payload.azp !== clientId) {
+        fail('azp', 'Mismatch (expected="' + clientId + '", got="' + payload.azp + '")');
+      } else {
+        pass('azp', '"' + payload.azp + '"');
+      }
+    } else {
+      skip('azp', 'Not present (only required when aud has multiple values)');
+    }
+
+    // nonce — presence required (OIDC Core §2)
+    if (payload.nonce) {
+      pass('nonce', 'Present');
+    } else {
+      fail('nonce', 'Missing — nonce is required in OIDC ID Tokens');
+    }
+
+    // auth_time
+    if (payload.auth_time !== undefined) {
+      if (typeof payload.auth_time !== 'number' || !Number.isInteger(payload.auth_time)) {
+        fail('auth_time', 'Must be an integer NumericDate (OIDC Core §2)');
+      } else if (payload.auth_time > now + clockSkew) {
+        fail('auth_time', 'Authentication time is in the future (' + new Date(payload.auth_time * 1000).toISOString() + ')');
+      } else {
+        pass('auth_time', new Date(payload.auth_time * 1000).toISOString());
+      }
+    } else {
+      skip('auth_time', 'Not present');
+    }
+
+    // acr
+    if (payload.acr !== undefined) {
+      pass('acr', '"' + payload.acr + '"');
+    } else {
+      skip('acr', 'Not present');
+    }
+
+    // amr
+    if (payload.amr !== undefined) {
+      pass('amr', JSON.stringify(payload.amr));
+    } else {
+      skip('amr', 'Not present');
+    }
+
+    // at_hash (OIDC Core §3.1.3.6)
+    if (payload.at_hash !== undefined) {
+      const accessToken = localStorage.getItem('token_access_token');
+      if (accessToken) {
+        try {
+          const computed = await computeAtHash(accessToken, header.alg);
+          if (computed === null) {
+            fail('at_hash', 'Cannot validate — unsupported algorithm "' + header.alg + '"');
+          } else if (computed !== payload.at_hash) {
+            fail('at_hash', 'Hash mismatch — does not match stored access token');
+          } else {
+            pass('at_hash', 'Verified against stored access token');
+          }
+        } catch (e) {
+          fail('at_hash', 'Validation error — ' + e.message);
+        }
+      } else {
+        skip('at_hash', 'Present but no access token available to verify against');
+      }
+    } else {
+      skip('at_hash', 'Not present');
+    }
+
+    // c_hash — cannot validate without the authorization code
+    if (payload.c_hash !== undefined) {
+      skip('c_hash', 'Present — cannot validate (authorization code no longer available)');
+    } else {
+      skip('c_hash', 'Not present');
+    }
+
+    // s_hash (FAPI) — cannot validate without the state value
+    if (payload.s_hash !== undefined) {
+      skip('s_hash', 'Present — cannot validate (state value no longer available)');
+    } else {
+      skip('s_hash', 'Not present');
+    }
+  }
+
+  // ---- OAuth2 Access Token specific (RFC 9068 §2.2) ----
+  if (purpose === 'oauth2_access_token') {
+    // client_id
+    if (payload.client_id !== undefined) {
+      if (clientId && payload.client_id !== clientId) {
+        fail('client_id', 'Mismatch (expected="' + clientId + '", got="' + payload.client_id + '")');
+      } else {
+        pass('client_id', '"' + payload.client_id + '"');
+      }
+    } else {
+      fail('client_id', 'Missing required claim (RFC 9068 §2.2)');
+    }
+
+    // scope / authorization_details
+    if (payload.scope !== undefined) {
+      if (expectedScope) {
+        const tokenScopes = payload.scope.split(' ');
+        const requiredScopes = expectedScope.split(' ').filter(s => s.length > 0);
+        const missing = requiredScopes.filter(s => !tokenScopes.includes(s));
+        if (missing.length > 0) {
+          fail('scope', 'Missing required scope(s): ' + missing.join(', ') + ' (present: "' + payload.scope + '")');
+        } else {
+          pass('scope', '"' + payload.scope + '" (all required scopes present)');
+        }
+      } else {
+        pass('scope', '"' + payload.scope + '"');
+      }
+    } else if (payload.authorization_details !== undefined) {
+      pass('authorization_details', 'Present (used in place of scope)');
+      skip('scope', 'Not present — authorization_details present instead');
+    } else {
+      fail('scope/authorization_details', 'At least one is required (RFC 9068 §2.2)');
+    }
+  }
+
+  // ---- Token age summary ----
+  var ageLine = '';
+  if (payload.iat !== undefined && typeof payload.iat === 'number') {
+    const ageSeconds = now - payload.iat;
+    const ageMins = Math.floor(ageSeconds / 60);
+    const ageSecs = ageSeconds % 60;
+    ageLine = 'Token age: ' + (ageMins > 0 ? ageMins + 'm ' + ageSecs + 's' : ageSeconds + 's') +
+              ' (iat=' + new Date(payload.iat * 1000).toISOString() + ')';
+  }
+
+  const failCount = results.filter(r => r.startsWith('FAIL')).length;
+  var output = results.join('\n');
+  if (ageLine) output += '\n\n' + ageLine;
+  output += '\n\n' + (failCount === 0 ? 'All checks passed.' : failCount + ' check(s) failed.');
+  document.getElementById('jwt_claims_validation_output').value = output;
+  return false;
+}
+
+function writeValuesToLocalStorage() {
+  log.debug("Entering writeValuesToLocalStorage().");
+  try {
+    const vtEl = document.getElementById('jwt_verification_type');
+    const vkEl = document.getElementById('jwt_verification_key');
+    if (vtEl) localStorage.setItem('jwt_verification_type', vtEl.value);
+    if (vkEl) localStorage.setItem('jwt_verification_key', vkEl.value);
+    localStorage.setItem('jwt_purpose', document.getElementById('jwt_purpose').value);
+    localStorage.setItem('jwt_expected_iss', document.getElementById('jwt_expected_iss').value);
+    localStorage.setItem('jwt_expected_aud', document.getElementById('jwt_expected_aud').value);
+    localStorage.setItem('jwt_claims_client_id', document.getElementById('jwt_claims_client_id').value);
+    localStorage.setItem('jwt_expected_scope', document.getElementById('jwt_expected_scope').value);
+    localStorage.setItem('jwt_clock_skew', document.getElementById('jwt_clock_skew').value);
+  } catch(e) {
+    log.error("Error in writeValuesToLocalStorage: " + e.message);
+  }
+  log.debug("Leaving writeValuesToLocalStorage().");
+}
+
 $(document).on("change", "#jwt_verification_type", function() {
   if (this.value == "jwks_url") {
     document.getElementById('jwt_verification_key').value = localStorage.getItem("jwks_endpoint");
@@ -175,6 +555,25 @@ $(document).on("change", "#jwt_verification_type", function() {
 
 window.onload = function() {
   log.debug("Entering onload function.");
+
+  // Restore claims validation fields from localStorage
+  const storedPurpose = localStorage.getItem('jwt_purpose');
+  if (storedPurpose) document.getElementById('jwt_purpose').value = storedPurpose;
+  const storedIss = localStorage.getItem('jwt_expected_iss') || localStorage.getItem('issuer');
+  if (storedIss) document.getElementById('jwt_expected_iss').value = storedIss;
+  const storedAud = localStorage.getItem('jwt_expected_aud');
+  if (storedAud) document.getElementById('jwt_expected_aud').value = storedAud;
+  const storedClientId = localStorage.getItem('jwt_claims_client_id');
+  if (storedClientId) document.getElementById('jwt_claims_client_id').value = storedClientId;
+  else {
+    const globalClientId = localStorage.getItem('client_id');
+    if (globalClientId) document.getElementById('jwt_claims_client_id').value = globalClientId;
+  }
+  const storedScope = localStorage.getItem('jwt_expected_scope') || localStorage.getItem('scope');
+  if (storedScope) document.getElementById('jwt_expected_scope').value = storedScope;
+  const storedSkew = localStorage.getItem('jwt_clock_skew');
+  document.getElementById('jwt_clock_skew').value = (storedSkew !== null && storedSkew !== '') ? storedSkew : '30';
+
   const type = getParameterByName('type');
   var jwt = "";
   if (type == 'access') {
@@ -208,6 +607,21 @@ window.onload = function() {
       claimDescriptionDictionary[claim] = description;
     }
   }).then( () => {
+    // Merge vendor claim descriptions for any claim not already covered by IANA
+    Object.keys(vendorClaims).forEach(function(vendor) {
+      var claims = vendorClaims[vendor];
+      Object.keys(claims).forEach(function(claim) {
+        if (claim.startsWith('_')) return; // skip metadata keys
+        if (!claimDescriptionDictionary[claim]) {
+          var entry = claims[claim];
+          claimDescriptionDictionary[claim] = (typeof entry === 'object') ? entry.description : entry;
+          if (typeof entry === 'object' && entry.url) {
+            claimUrlDictionary[claim] = entry.url;
+          }
+        }
+      });
+    });
+    buildClaimSourcesFootnote();
     Object.keys(claimDescriptionDictionary).forEach( (key) => {
       log.debug("Claims Description Map Entry: " + key + ":" + claimDescriptionDictionary[key]);
       log.debug('jwt: ' + jwt);
@@ -219,52 +633,60 @@ window.onload = function() {
       // Populate Key-Pair tab
       keyPairJWTHeader = '<table border="1">'
                        +   '<tr>'
-                       +     '<td><b>Claim</b></td><td><b>Value</b></td><td><b>Description</b></td>'
+                       +     '<td><b>Claim</b></td><td><b>Value</b></td><td class="description-col"><b>Description</b> <sup><a href="#claim-sources" title="View claim description sources">†</a></sup></td>'
                        +   '</tr>'
       Object.keys(decodedJWT.header).forEach(key => {
+        var desc = claimDescriptionDictionary[key];
+        var descCell = '';
+        if (desc) {
+          var url = claimUrlDictionary[key];
+          descCell = '<td class="description-col">' + desc
+                   + (url ? ' <a href="' + url + '" target="_blank" rel="noopener noreferrer">[ref]</a>' : '')
+                   + '</td>';
+        }
         if ( typeof decodedJWT.header[key] === "object" )
         {
           keyPairJWTHeader += '<tr>'
                             + '<td>' + key + '</td>'
-                            + '<td>' + JSON.stringify(decodedJWT.header[key]) + '</td>';
-          if (!!claimDescriptionDictionary[key]) {
-            keyPairJWTHeader += '<td>' + claimDescriptionDictionary[key] + '</td>';
-          }
-          keyPairJWTHeader += '</tr>';
+                            + '<td>' + JSON.stringify(decodedJWT.header[key]) + '</td>'
+                            + descCell
+                            + '</tr>';
         } else {
           keyPairJWTHeader += '<tr>'
                             + '<td>' + key + '</td>'
-                            + '<td>' + decodedJWT.header[key] + '</td>';
-          if (!!claimDescriptionDictionary[key]) {
-            keyPairJWTHeader += '<td>' + claimDescriptionDictionary[key] + '</td>';
-          }
-          keyPairJWTHeader += '</tr>';
+                            + '<td>' + decodedJWT.header[key] + '</td>'
+                            + descCell
+                            + '</tr>';
         }
       });
       keyPairJWTHeader += '</table>';
       $('#key_pair_jwt_header').html(keyPairJWTHeader);
       keyPairJWTPayload = '<table border="1">'
                        +   '<tr>'
-                       +     '<td><b>Claim</b></td><td><b>Value</b></td><td><b>Description</b></td>'
+                       +     '<td><b>Claim</b></td><td><b>Value</b></td><td class="description-col"><b>Description</b> <sup><a href="#claim-sources" title="View claim description sources">†</a></sup></td>'
                        +   '</tr>'
       Object.keys(decodedJWT.payload).forEach(key => {
+        var desc = claimDescriptionDictionary[key];
+        var descCell = '';
+        if (desc) {
+          var url = claimUrlDictionary[key];
+          descCell = '<td class="description-col">' + desc
+                   + (url ? ' <a href="' + url + '" target="_blank" rel="noopener noreferrer">[ref]</a>' : '')
+                   + '</td>';
+        }
         if (typeof decodedJWT.payload[key] === "object" )
         {
           keyPairJWTPayload += '<tr>'
                             + '<td>' + key + '</td>'
-                            + '<td>' + JSON.stringify(decodedJWT.payload[key]) + '</td>';
-          if (!!claimDescriptionDictionary[key]) {
-            keyPairJWTPayload += '<td>' + claimDescriptionDictionary[key] + '</td>';
-          }
-          keyPairJWTPayload += '</tr>';
+                            + '<td>' + JSON.stringify(decodedJWT.payload[key]) + '</td>'
+                            + descCell
+                            + '</tr>';
         } else {
           keyPairJWTPayload += '<tr>'
                             + '<td>' + key + '</td>'
-                            + '<td>' + decodedJWT.payload[key] + '</td>';
-          if (!!claimDescriptionDictionary[key]) {
-            keyPairJWTPayload += '<td>' + claimDescriptionDictionary[key] + '</td>';
-          }
-          keyPairJWTPayload += '</tr>';
+                            + '<td>' + decodedJWT.payload[key] + '</td>'
+                            + descCell
+                            + '</tr>';
         }
       });
       keyPairJWTPayload += '</table>';
@@ -290,6 +712,54 @@ function populateTable(evt, tabName) {
   evt.currentTarget.className += " active";
 }
 
+function copyHtmlToClipboard(elementId) {
+  log.debug("Entering copyHtmlToClipboard(), elementId=" + elementId);
+  const el = document.getElementById(elementId);
+  if (!el) {
+    log.error("copyHtmlToClipboard: element not found: " + elementId);
+    return false;
+  }
+  navigator.clipboard.writeText(el.innerHTML).catch(function(err) {
+    log.error("copyHtmlToClipboard: failed to write to clipboard: " + err);
+  });
+  return false;
+}
+
+function buildClaimSourcesFootnote() {
+  var html = '<p><sup>†</sup> <strong>Vendor-specific claim descriptions were gathered from the following sources:</strong></p>';
+  Object.keys(vendorClaims).forEach(function(vendor) {
+    var data = vendorClaims[vendor];
+    var vendorName = data['_vendor_name'] || vendor;
+    var sources = data['_sources'];
+    if (!sources || !sources.length) return;
+    html += '<p><em>' + vendorName + ':</em></p><ul>';
+    sources.forEach(function(source) {
+      html += '<li><a href="' + source.url + '" target="_blank" rel="noopener noreferrer">' + source.name + '</a></li>';
+    });
+    html += '</ul>';
+  });
+  document.getElementById('claim-sources').innerHTML = html;
+}
+
+function copyToClipboard(elementId) {
+  log.debug("Entering copyToClipboard(), elementId=" + elementId);
+  const el = document.getElementById(elementId);
+  if (!el) {
+    log.error("copyToClipboard: element not found: " + elementId);
+    return false;
+  }
+  var text = el.value;
+  const toggleMap = { 'jwt_header': 'strip_newlines_header', 'jwt_payload': 'strip_newlines_payload' };
+  const toggleEl = document.getElementById(toggleMap[elementId]);
+  if (toggleEl && toggleEl.checked) {
+    text = text.replace(/[\r\n]/g, '');
+  }
+  navigator.clipboard.writeText(text).catch(function(err) {
+    log.error("copyToClipboard: failed to write to clipboard: " + err);
+  });
+  return false;
+}
+
 function clickLink() {
   log.debug("Entering clickLink().");
   writeValuesToLocalStorage();
@@ -300,6 +770,9 @@ function clickLink() {
 module.exports = {
  decodeJWT,
  verifyJWT,
+ validateClaims,
+ copyToClipboard,
+ copyHtmlToClipboard,
  populateTable,
  clickLink
 };

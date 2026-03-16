@@ -1,0 +1,159 @@
+{
+  "_vendor_name": "Microsoft Entra ID (Azure AD)",
+  "_sources": [
+    {
+      "name": "Access Token Claims Reference",
+      "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+    },
+    {
+      "name": "ID Token Claims Reference",
+      "url": "https://learn.microsoft.com/en-us/entra/identity-platform/id-token-claims-reference"
+    },
+    {
+      "name": "Optional Claims Reference",
+      "url": "https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference"
+    },
+    {
+      "name": "Claims Customization Reference",
+      "url": "https://learn.microsoft.com/en-us/entra/identity-platform/reference-claims-customization"
+    },
+    {
+      "name": "Agent ID Token Claims Reference",
+      "url": "https://learn.microsoft.com/en-us/entra/agent-id/identity-platform/agent-token-claims"
+    }
+  ],
+  "_note": "Microsoft Entra ID (Azure AD) vendor-specific JWT claims. Claims already in the IANA JWT Claims Registry (https://www.iana.org/assignments/jwt/jwt.xml) are intentionally excluded.",
+
+  "x5t": {
+    "description": "X.509 certificate SHA-1 thumbprint. Legacy header claim emitted only in v1.0 tokens; functions identically to 'kid' and identifies the signing key.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "kid": {
+    "description": "Key ID. Thumbprint of the public key used to validate the token's signature. Emitted in v1.0 and v2.0 tokens.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "oid": {
+    "description": "Object identifier. Immutable GUID identifying the user or service principal, unique within a tenant. Two applications signing in the same user receive the same 'oid'. Requires the 'profile' scope.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "acct": {
+    "description": "Account type. '0' if the user is a member of the tenant; '1' if the user is a guest.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference"
+  },
+  "acrs": {
+    "description": "Authentication context class references. Array of Auth Context IDs the bearer is eligible to perform; used to trigger step-up authentication demands.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "aio": {
+    "description": "Azure internal opaque claim used to record data for token reuse. Resources must not use this claim.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "app_displayname": {
+    "description": "Display name of the registered application that requested the token.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/reference-claims-customization"
+  },
+  "appid": {
+    "description": "Application (client) ID of the requesting application (v1.0 tokens only). Replaced by 'azp' in v2.0 tokens.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "appidacr": {
+    "description": "Application authentication method indicator (v1.0 tokens only). '0' = public client; '1' = client ID and secret; '2' = client certificate. Replaced by 'azpacr' in v2.0 tokens.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "idtyp": {
+    "description": "Token type. Value is 'app' for app-only (client credentials) tokens; absent or 'user' for delegated tokens. The most reliable way to distinguish app-only from app+user tokens.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference"
+  },
+  "ipaddr": {
+    "description": "IP address of the client that authenticated.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "onprem_sid": {
+    "description": "On-premises Active Directory security identifier (SID) of the user. Present when the user has an on-premises account synced via Entra Connect.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "platf": {
+    "description": "Device platform indicator. Internal/restricted Microsoft claim; applications must not take a dependency on it.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/reference-claims-customization"
+  },
+  "puid": {
+    "description": "Passport Unique ID. Persistent identifier from Microsoft Accounts (MSA); used to map guest users back to their home-tenant identity.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/reference-claims-customization"
+  },
+  "rh": {
+    "description": "Refresh hash. Opaque internal claim used by Azure to revalidate tokens. Resources must not use this claim.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "scp": {
+    "description": "Delegated permission scopes. Space-separated list of OAuth 2.0 scopes granted via user consent. Present only in delegated (user) tokens. Note: Microsoft uses 'scp' where the IANA-registered claim name is 'scope'.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "signin_state": {
+    "description": "Sign-in state flags. Array of strings describing the sign-in session; 'kmsi' indicates the user selected 'Keep me signed in'.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/reference-claims-customization"
+  },
+  "tenant_region_scope": {
+    "description": "Geographic region of the resource tenant (e.g., 'EU' for tenants in the EU Data Boundary).",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference"
+  },
+  "tid": {
+    "description": "Tenant ID. GUID of the Entra ID tenant the user authenticated against. For personal Microsoft accounts the value is always '9188040d-6c67-4c5b-b112-36a304b66dad'.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "unique_name": {
+    "description": "Human-readable display identifier for the subject (v1.0 tokens only). Not guaranteed unique within a tenant; for display purposes only.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "upn": {
+    "description": "User Principal Name. May be used as a username hint but is not a stable identifier and must not be used as a database key or for authorization decisions.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference"
+  },
+  "uti": {
+    "description": "Unique token identifier. Per-token opaque identifier equivalent to the standard 'jti' claim.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "ver": {
+    "description": "Token version. '1.0' or '2.0', indicating the Entra ID token format version.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "wids": {
+    "description": "Tenant-wide directory role IDs. Array of RoleTemplateID GUIDs representing the Entra built-in directory roles assigned to the user across the entire tenant.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "xms_acd": {
+    "description": "Internal Microsoft Entra claim. Opaque restricted value; not intended for use by resource applications.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/reference-claims-customization"
+  },
+  "xms_act_fct": {
+    "description": "Actor facets. Space-separated integer flags describing properties of the token actor (azp/appid); used in Microsoft Entra Agent ID scenarios (e.g., '11' = AgentIdentity).",
+    "url": "https://learn.microsoft.com/en-us/entra/agent-id/identity-platform/agent-token-claims"
+  },
+  "xms_ftd": {
+    "description": "Agent identity token descriptor. Opaque internal value used in Entra Agent ID token flows; not intended for use by resource applications.",
+    "url": "https://learn.microsoft.com/en-us/entra/agent-id/identity-platform/agent-token-claims"
+  },
+  "xms_idrel": {
+    "description": "Identity relationship. Space-separated integer flags indicating the relationship between the token subject and the resource tenant (e.g., '1' = member user, '5' = guest, '7' = service principal).",
+    "url": "https://learn.microsoft.com/en-us/entra/agent-id/identity-platform/agent-token-claims"
+  },
+  "xms_st": {
+    "description": "Subject token object. Internal structured representation of subject identity information; behavior is not stable and is not intended for application use.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/reference-claims-customization"
+  },
+  "xms_sub_fct": {
+    "description": "Subject facets. Space-separated integer flags describing properties of the token subject; used in Entra Agent ID scenarios (e.g., '11' = AgentIdentity, '13' = AgentIDUser).",
+    "url": "https://learn.microsoft.com/en-us/entra/agent-id/identity-platform/agent-token-claims"
+  },
+  "xms_tcdt": {
+    "description": "Tenant creation date/time. Unix timestamp indicating when the Entra ID tenant was created.",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/access-token-claims-reference"
+  },
+  "xms_tdbr": {
+    "description": "Tenant data boundary region. Indicates the configured data boundary for the tenant (e.g., 'EU' for EU Data Boundary).",
+    "url": "https://learn.microsoft.com/en-us/entra/identity-platform/reference-claims-customization"
+  },
+  "xms_tnt_fct": {
+    "description": "Tenant facets. Space-separated integer flags describing properties of the tenant identified by 'tid'; used in Entra Agent ID scenarios.",
+    "url": "https://learn.microsoft.com/en-us/entra/agent-id/identity-platform/agent-token-claims"
+  }
+}
