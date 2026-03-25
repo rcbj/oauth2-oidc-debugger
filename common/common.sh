@@ -349,7 +349,7 @@ runTests()
     SCOPE=${AUTHORIZATION_CODE_PUBLIC_SCOPE} \
     USER=${AUTHORIZATION_CODE_PUBLIC_USER} \
     PKCE_ENABLED=${PKCE_ENABLED} \
-    node ${NODEJS_BASE_DIR}/oauth2_authorization_code.js --url "${DEBUGGER_BASE_URL}" --browser
+    node ${NODEJS_BASE_DIR}/oauth2_authorization_code.js --url "${DEBUGGER_BASE_URL}"
     check_return_code $?
   done
 
@@ -401,7 +401,7 @@ runTests()
     SCOPE="openid profile email offline_access ${OIDC_AUTHORIZATION_CODE_PUBLIC_SCOPE}" \
     USER=${OIDC_AUTHORIZATION_CODE_PUBLIC_USER} \
     PKCE_ENABLED=${PKCE_ENABLED} \
-    node ${NODEJS_BASE_DIR}/oidc_authorization_code.js --url "${DEBUGGER_BASE_URL}" --browser
+    node ${NODEJS_BASE_DIR}/oidc_authorization_code.js --url "${DEBUGGER_BASE_URL}"
     check_return_code $?
   done
 
