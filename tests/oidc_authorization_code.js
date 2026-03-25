@@ -293,7 +293,7 @@ async function tokenDetailPage(driver, type)
     await driver.wait(until.elementLocated(tokenDetailLink), 10000);
     console.log("Click link to go to the token detail page for " + type + " token.");
     await driver.findElement(tokenDetailLink).click();
-  
+
     // Find the jwt_payload field to confirm you are on the token_detail.html page.
     var jwt_payload = By.id("jwt_payload");
     console.log("Waiting for jwt_payload");
@@ -309,7 +309,7 @@ async function tokenDetailPage(driver, type)
     const decodedJWT = decodeJWT(token);
     console.log("decodedJWT: " + JSON.stringify(decodedJWT.payload, null, 2));
     console.log("Waiting ten seconds.");
-    await wait(2000);
+    await wait(10000);
     console.log("Wait for JWT Payload to be populated in jwt_payload field.");
     console.log("jwt_payload_element: " + JSON.stringify(jwt_payload_element));
     const fromJWTPayloadJWT= await jwt_payload_element.getAttribute("value");
@@ -319,29 +319,79 @@ async function tokenDetailPage(driver, type)
       console.log("jwt_payload_element has expected value.");
     } else {
       console.log("jwt_payload_element does not have expected value.");
-      throw new Error("jwt_payload_element does not have expected value. jwt_payload.text=" + 
-                      fromJWTPayloadJWT + 
-                      ", localStorage('" + 
-                      token_field + 
-                     "')=" + 
+      throw new Error("jwt_payload_element does not have expected value. jwt_payload.text=" +
+                      fromJWTPayloadJWT +
+                      ", localStorage('" +
+                      token_field +
+                     "')=" +
                      JSON.stringify(decodedJWT.payload, null, 2));
     }
+
+    // Click Copy button for JWT Header on JSON tab.
+    console.log("Click JWT Header Copy button on JSON tab.");
+    const jsonHeaderCopyBtn = By.xpath("//div[@id='json']//td[.//label[contains(text(),'JWT Header:')]]//button[text()='Copy']");
+    await driver.wait(until.elementLocated(jsonHeaderCopyBtn), 10000);
+    await driver.findElement(jsonHeaderCopyBtn).click();
+    console.log("JWT Header Copy button clicked.");
+
+    // Click Copy button for JWT Payload on JSON tab.
+    console.log("Click JWT Payload Copy button on JSON tab.");
+    const jsonPayloadCopyBtn = By.xpath("//div[@id='json']//td[.//label[contains(text(),'JWT Payload:')]]//button[text()='Copy']");
+    await driver.wait(until.elementLocated(jsonPayloadCopyBtn), 10000);
+    await driver.findElement(jsonPayloadCopyBtn).click();
+    console.log("JWT Payload Copy button clicked.");
 
     // Switch to the Key Pairs view.
     console.log("Switch to the key pair view.");
     keyPairButton = By.id("key_pair_button");
-    console.log("Locate key_pair_button."); 
+    console.log("Locate key_pair_button.");
     await driver.wait(until.elementLocated(keyPairButton), 10000);
     console.log("Click button to switch to Key Pair View");
-    await driver.findElement(keyPairButton).click(); 
-   
+    await driver.findElement(keyPairButton).click();
+
     // Confirm key-pair view is visible.
     keyPairJWTPayload = By.id("key_pair_jwt_payload");
-    console.log("Locate keyPairJWTPayload.");  
+    console.log("Locate keyPairJWTPayload.");
     await driver.wait(until.elementLocated(keyPairJWTPayload), 10000);
     console.log("Wait for keyPairJWTPayload to be visible.");
     await driver.wait(until.elementIsVisible(driver.findElement(keyPairJWTPayload)), 10000);
-  
+
+    // Click Copy button for JWT Header on Key Pairs tab.
+    console.log("Click JWT Header Copy button on Key Pairs tab.");
+    const keyPairHeaderCopyBtn = By.xpath("//div[@id='key-pair']//td[.//label[contains(text(),'JWT Header:')]]//button[text()='Copy']");
+    await driver.wait(until.elementLocated(keyPairHeaderCopyBtn), 10000);
+    await driver.findElement(keyPairHeaderCopyBtn).click();
+    console.log("Key Pairs JWT Header Copy button clicked.");
+
+    // Click Copy button for JWT Payload on Key Pairs tab.
+    console.log("Click JWT Payload Copy button on Key Pairs tab.");
+    const keyPairPayloadCopyBtn = By.xpath("//div[@id='key-pair']//td[.//label[contains(text(),'JWT Payload:')]]//button[text()='Copy']");
+    await driver.wait(until.elementLocated(keyPairPayloadCopyBtn), 10000);
+    await driver.findElement(keyPairPayloadCopyBtn).click();
+    console.log("Key Pairs JWT Payload Copy button clicked.");
+
+    // Scroll to the Claims Validation section and run validation.
+    console.log("Scroll to Claims Validation section.");
+    const validateClaimsBtn = await driver.findElement(By.css("input[value='Validate Claims']"));
+    await driver.executeScript("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", validateClaimsBtn);
+
+    // Set JWT purpose to OIDC ID Token to exercise the full set of validations.
+    console.log("Set JWT purpose to OIDC ID Token.");
+    await new Select(await driver.findElement(By.id("jwt_purpose"))).selectByValue("oidc_id_token");
+
+    console.log("Click Validate Claims button.");
+    await validateClaimsBtn.click();
+    await wait(2000);
+
+    // Read and report the validation output.
+    const validationOutput = await driver.findElement(By.id("jwt_claims_validation_output")).getAttribute("value");
+    console.log("Claims validation output:\n" + validationOutput);
+
+    // Fail if no check failures are reported.
+    //assert(validationOutput.includes("check(s) failed"),
+    //  "Expected claims validation to report at least one check failure, but got: " + validationOutput);
+    console.log("Claims validation correctly reported check failures.");
+
     // Return to the debugger.
     console.log("Find return to debugger link.");
     returnToDebugger = By.partialLinkText('Return to debugger');

@@ -1188,6 +1188,7 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   var introspectionEndpoint = discoveryInfo["introspection_endpoint"];
   var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
   var endSessionEndpoint = discoveryInfo["end_session_endpoint"];
+  var issuer = discoveryInfo["issuer"];
 
   $("#authorization_endpoint").val(authorizationEndpoint);
   $("#token_endpoint").val(tokenEndpoint);
@@ -1219,6 +1220,7 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
       localStorage.setItem("jwks_endpoint", jwksUri);
       localStorage.setItem("end_session_endpoint", endSessionEndpoint);
       localStorage.setItem("debugger_initialized", true);
+      localStorage.setItem("issuer", issuer);
   }
   log.debug('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
   return true;

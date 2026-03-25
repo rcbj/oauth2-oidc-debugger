@@ -59,6 +59,12 @@
           <td>
             <div class="tooltip"><label>JWT Header:</label><span class="tooltiptext">The decoded JWT Header.</span>
             </div>
+            <button class="btn2" style="display: block; margin-top: 8px;" onclick="return token_detail.copyToClipboard('jwt_header');">Copy</button>
+            <label class="toggle-switch" style="margin-top: 8px;">
+              <input type="checkbox" id="strip_newlines_header">
+              <span class="toggle-slider"></span>
+              Strip newlines from clipboard value
+            </label>
           </td>
           <td>
             <textarea rows=6 cols=50 id="jwt_header" name="jwt_header">
@@ -69,6 +75,12 @@
           <td>
             <div class="tooltip"><label>JWT Payload:</label><span class="tooltiptext">The decoded JWT Proposer.</span>
             </div>
+            <button class="btn2" style="display: block; margin-top: 8px;" onclick="return token_detail.copyToClipboard('jwt_payload');">Copy</button>
+            <label class="toggle-switch" style="margin-top: 8px;">
+              <input type="checkbox" id="strip_newlines_payload">
+              <span class="toggle-slider"></span>
+              Strip newlines from clipboard value
+            </label>
           </td>
           <td>
             <textarea rows=30 cols=50 id="jwt_payload" name="jwt_payload">
@@ -129,6 +141,7 @@
           <td>
             <div class="tooltip"><label>JWT Header:</label><span class="tooltiptext">JWT Header Key-Value Pairs.</span>
             </div>
+            <button class="btn2" style="display: block; margin-top: 8px;" onclick="return token_detail.copyHtmlToClipboard('key_pair_jwt_header');">Copy</button>
           </td>
           <td>
             <div id="key_pair_jwt_header">
@@ -139,6 +152,7 @@
           <td>
             <div class="tooltip"><label>JWT Payload:</label><span class="tooltiptext">JWT Proposer Key-Value Pairs.</span>
             </div>
+            <button class="btn2" style="display: block; margin-top: 8px;" onclick="return token_detail.copyHtmlToClipboard('key_pair_jwt_payload');">Copy</button>
           </td>
           <td>
              <div id="key_pair_jwt_payload">
@@ -189,6 +203,85 @@
 
   </div>
   </fieldset>
+</div>
+
+<div class="step4" id="step4">
+  <fieldset>
+    <legend>Claims Validation</legend>
+    <table class="outertable">
+      <tbody>
+        <tr>
+          <td>
+            <div class="tooltip"><label>JWT Purpose:</label><span class="tooltiptext">Select the token type to apply the appropriate validation rules.</span></div>
+          </td>
+          <td>
+            <select id="jwt_purpose" name="jwt_purpose">
+              <option value="generic">Generic JWT (RFC 7519)</option>
+              <option value="oidc_id_token">OIDC ID Token</option>
+              <option value="oauth2_access_token">OAuth2 Access Token (RFC 9068)</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Expected Issuer (iss):</label><span class="tooltiptext">Leave blank to skip issuer validation.</span></div>
+          </td>
+          <td>
+            <input type="text" id="jwt_expected_iss" name="jwt_expected_iss" size="50" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Expected Audience (aud):</label><span class="tooltiptext">A single audience value that must appear in the aud claim. Leave blank to skip audience validation.</span></div>
+          </td>
+          <td>
+            <input type="text" id="jwt_expected_aud" name="jwt_expected_aud" size="50" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Client ID:</label><span class="tooltiptext">Used to validate azp (OIDC) and client_id (RFC 9068).</span></div>
+          </td>
+          <td>
+            <input type="text" id="jwt_claims_client_id" name="jwt_claims_client_id" size="50" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Required Scope(s):</label><span class="tooltiptext">Space-separated list of scopes that must all be present in the scope claim. Leave blank to skip.</span></div>
+          </td>
+          <td>
+            <input type="text" id="jwt_expected_scope" name="jwt_expected_scope" size="50" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Clock Skew Tolerance (seconds):</label><span class="tooltiptext">Seconds of tolerance applied to exp, nbf, and iat time checks.</span></div>
+          </td>
+          <td>
+            <input type="number" id="jwt_clock_skew" name="jwt_clock_skew" value="30" min="0" size="10" />
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <input class="btn2" type="submit" value="Validate Claims" onclick="return token_detail.validateClaims();" />
+          </td>
+          <td>&nbsp;</td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Validation Output:</label><span class="tooltiptext">All validation errors are listed here. Empty means all checks passed.</span></div>
+          </td>
+          <td>
+            <textarea rows="8" cols="50" id="jwt_claims_validation_output" name="jwt_claims_validation_output" readonly></textarea>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </fieldset>
+</div>
+
+<div id="claim-sources" style="margin-top: 24px; padding: 10px; border-top: 1px solid #ccc; font-size: 0.9em;">
 </div>
 
 <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">

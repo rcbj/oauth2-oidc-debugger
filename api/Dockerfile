@@ -1,4 +1,4 @@
-FROM node:lts
+FROM node:22.5.1
 
 ARG CONFIG_FILE
 
@@ -9,7 +9,7 @@ WORKDIR /usr/src/app
 # A wildcard is used to ensure both package.json AND package-lock.json are copied
 # where available (npm@5+)
 COPY api/package*.json ./
-
+RUN npm -version
 RUN npm install
 # If you are building your code for production
 # RUN npm ci --only=production
