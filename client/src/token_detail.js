@@ -36,26 +36,47 @@ function decodeJWT(jwt_) {
   return jwt.decode(jwt_, {complete: true});
 }
 
-async function verifyJWT() {
+function resolveTokenFromParams() {
   var type = getParameterByName('type');
+  if (type === 'access') {
+    return localStorage.getItem('token_access_token');
+  } else if (type === 'refresh') {
+    return localStorage.getItem('token_refresh_token');
+  } else if (type === 'id') {
+    return localStorage.getItem('token_id_token');
+  } else if (type === 'refresh_access') {
+    return localStorage.getItem('refresh_access_token');
+  } else if (type === 'refresh_refresh') {
+    return localStorage.getItem('refresh_refresh_token');
+  } else if (type === 'refresh_id') {
+    return localStorage.getItem('refresh_id_token');
+  } else if (type === 'history_access' || type === 'history_refresh' || type === 'history_id_token') {
+    var generation = parseInt(getParameterByName('generation'), 10);
+    var history = [];
+    try {
+      history = JSON.parse(localStorage.getItem('token_history') || '[]');
+    } catch (e) {
+      log.error('Failed to parse token_history: ' + e);
+      return null;
+    }
+    if (isNaN(generation) || generation < 0 || generation >= history.length) {
+      log.error('Invalid generation index: ' + generation);
+      return null;
+    }
+    var entry = history[generation];
+    if (type === 'history_access')    return entry.access_token || null;
+    if (type === 'history_refresh')   return entry.refresh_token || null;
+    if (type === 'history_id_token')  return entry.id_token || null;
+  } else {
+    log.error('Unknown token type: ' + type);
+    return null;
+  }
+}
+
+async function verifyJWT() {
   var jwt_verification_type = document.getElementById("jwt_verification_type").value;
   var jwt_verification_key = document.getElementById("jwt_verification_key").value;
-  var jwt_ = "";
-  if (type == 'access') {
-    jwt_ = localStorage.getItem("token_access_token");
-  } else if (type == 'refresh') {
-    jwt_ = localStorage.getItem("token_refresh_token");
-  } else if (type == 'id') {
-    jwt_ = localStorage.getItem("token_id_token");
-  } else if (type == 'refresh_access') {
-    jwt_ = localStorage.getItem("refresh_access_token");
-  } else if (type == 'refresh_refresh') {
-    jwt_ = localStorage("refresh_refresh_token");
-  } else if (type == 'refresh_id') {
-    jwt_ = localStorage.getItem('refresh_id_token');
-  } else {
-    log.error('Unknown token type encountered.');
-  }
+  var jwt_ = resolveTokenFromParams();
 
   try {
     const [headerB64, payloadB64, signatureB64] = jwt_.split('.');
@@ -203,22 +224,9 @@ async function validateClaims() {
   function fail(claim, msg) { results.push('FAIL  ' + claim + ': ' + msg); }
   function skip(claim, msg) { results.push('SKIP  ' + claim + ': ' + msg); }
 
-  const type = getParameterByName('type');
-  var jwt_ = '';
-  if (type == 'access') {
-    jwt_ = localStorage.getItem('token_access_token');
-  } else if (type == 'refresh') {
-    jwt_ = localStorage.getItem('token_refresh_token');
-  } else if (type == 'id') {
-    jwt_ = localStorage.getItem('token_id_token');
-  } else if (type == 'refresh_access') {
-    jwt_ = localStorage.getItem('refresh_access_token');
-  } else if (type == 'refresh_refresh') {
-    jwt_ = localStorage.getItem('refresh_refresh_token');
-  } else if (type == 'refresh_id') {
-    jwt_ = localStorage.getItem('refresh_id_token');
-  } else {
-    document.getElementById('jwt_claims_validation_output').value = 'Error: Unknown token type.';
+  var jwt_ = resolveTokenFromParams();
+  if (!jwt_) {
+    document.getElementById('jwt_claims_validation_output').value = 'Error: Unknown or missing token type.';
     return false;
   }
 
@@ -578,23 +586,7 @@ window.onload = function() {
   const storedSkew = localStorage.getItem('jwt_clock_skew');
   document.getElementById('jwt_clock_skew').value = (storedSkew !== null && storedSkew !== '') ? storedSkew : '30';
 
-  const type = getParameterByName('type');
-  var jwt = "";
-  if (type == 'access') {
-    jwt = localStorage.getItem("token_access_token");
-  } else if (type == 'refresh') {
-    jwt = localStorage.getItem("token_refresh_token");
-  } else if (type == 'id') {
-    jwt = localStorage.getItem("token_id_token");
-  } else if (type == 'refresh_access') {
-    jwt = localStorage.getItem("refresh_access_token");
-  } else if (type == 'refresh_refresh') {
-    jwt = localStorage.getItem("refresh_refresh_token");
-  } else if (type == 'refresh_id') {
-    jwt = localStorage.getItem('refresh_id_token');
-  } else {
-    log.error('Unknown token type encountered.');
-  }
+  var jwt = resolveTokenFromParams() || "";
   // Retrieve IANA JWT claim assignments
   fetch(appconfig.apiUrl + "/claimdescription")
   .then((response) => response.text())

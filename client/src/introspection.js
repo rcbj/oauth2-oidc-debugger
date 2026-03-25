@@ -117,6 +117,29 @@ function loadValuesFromLocalStorage() {
     } else if (type == 'refresh_refresh') {
       document.getElementById("introspection_token").value = localStorage.getItem("refresh_refresh_token");
       document.getElementById("introspection_token_type_hint").value = "refresh_token";
+    } else if (type == 'history_access' || type == 'history_refresh' || type == 'history_id_token') {
+      var generation = parseInt(getParameterByName('generation'), 10);
+      var history = [];
+      try {
+        history = JSON.parse(localStorage.getItem('token_history') || '[]');
+      } catch (e) {
+        log.error('Failed to parse token_history: ' + e);
+      }
+      if (!isNaN(generation) && generation >= 0 && generation < history.length) {
+        var entry = history[generation];
+        if (type == 'history_access') {
+          document.getElementById("introspection_token").value = entry.access_token || '';
+          document.getElementById("introspection_token_type_hint").value = "access_token";
+        } else if (type == 'history_refresh') {
+          document.getElementById("introspection_token").value = entry.refresh_token || '';
+          document.getElementById("introspection_token_type_hint").value = "refresh_token";
+        } else if (type == 'history_id_token') {
+          document.getElementById("introspection_token").value = entry.id_token || '';
+          document.getElementById("introspection_token_type_hint").value = "";
+        }
+      } else {
+        log.error('Invalid generation index: ' + generation);
+      }
     } else {
       log.error('Unknown token type encountered.');
     }
