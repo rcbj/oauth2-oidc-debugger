@@ -8,11 +8,35 @@
     <link href="/css/bottom.css" rel="stylesheet">
     <link href="/css/footer.css" rel="stylesheet">
     <style>
+      .container {
+        width: 95%;
+        max-width: none;
+      }
       textarea {
         width: auto;
       }
       legend {
-        width: 540px;
+        width: auto;
+      }
+      .side-by-side-col {
+        overflow: hidden;
+        min-width: 0;
+      }
+      .side-by-side-col textarea {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+      .side-by-side-col table {
+        width: 100%;
+        table-layout: fixed;
+        word-wrap: break-word;
+      }
+      .side-by-side-col input.input,
+      .side-by-side-col input[type="text"] {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
       }
     </style>
     <link href="/css/bootstrap-responsive.css" rel="stylesheet">
@@ -21,12 +45,7 @@
   <body>
 
 <div class="header_debugger">
-  <a href="/index.html" class="logo" onclick="debugger2.clickLink();">IDPTools</a>
-  <div class="header-right">
-    <a class="active" href="#home" onclick="debugger2.clickLink();">Home</a>
-    <a href="#contact" onclick="debugger2.clickLink();">Contact</a>
-    <a href="#about" onclick="debugger2.clickLink();">About</a>
-  </div>
+<!--#include file="/partials/header.html"-->
 </div>
 
 <div class="container">
@@ -39,12 +58,15 @@
 <div class="state-status" id="state-status"></div>
 <div class="authz-error-report" id="authz-error-report"></div>
 
+<!-- Configuration Parameters and Token Exchange forms side by side -->
+<div style="display:flex; gap:16px; align-items:flex-start; margin-top:8px;">
+  <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
     <div class="step0" id="step0">
     <legend>Configuration Parameters</legend>
     <form id="step0_expand_form">
-      <input class="btn2" type="submit" name="config_expand_button" id="config_expand_button" value="Hide" onclick="return debugger2.onClickShowFieldSet('config_expand_button', 'config_fieldset');"/>
+      <input class="btn2" type="submit" name="config_expand_button" id="config_expand_button" value="Expand" onclick="return debugger2.onClickShowFieldSet('config_expand_button', 'config_fieldset');"/>
     </form>
-    <fieldset id="config_fieldset" name="config_fieldset" style="display: block;">
+    <fieldset id="config_fieldset" name="config_fieldset" style="display: none;">
     <form action="" id="endpoints" name="endpoints">
       <input type="hidden" name="response_type" value="" id="response_type" />
       <table border="0">
@@ -159,17 +181,15 @@
     </form>
   </fieldset>
 </div>
-
-<div class="display_authz_error_class" id="display_authz_error_class">&nbsp;
-</div>
-
-<div class="step3" id="step3">
+  </div>
+  <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
+    <div class="step3" id="step3">
     <legend id="h2_title_2" name="h2_title_2">Exchange Authorization Code for Access Token
     </legend>
     <form id="step3_expand_form">
-      <input class="btn2" type="submit" name="token_expand_button" id="token_expand_button" value="Hide" onclick="return debugger2.onClickShowFieldSet('token_expand_button', 'token_fieldset');"/>
+      <input class="btn2" type="submit" name="token_expand_button" id="token_expand_button" value="Expand" onclick="return debugger2.onClickShowFieldSet('token_expand_button', 'token_fieldset');"/>
     </form>
-    <fieldset id="token_fieldset" name="token_fieldset" style="display: block;">
+    <fieldset id="token_fieldset" name="token_fieldset" style="display: none;">
     <input class="input" id="token_grant_type" name="grant_type" type="hidden" value="authorization_code" />
     <table>
       <tbody>
@@ -340,111 +360,140 @@
             <div class="tooltip"><label id="display_token_request_form_label1" name="display_token_request_form_label1" value="">Request</label><span class="tooltiptext">The request to the Token Endpoint.</span>
             </div>
           </td>
-          <td><textarea cols="100" id="display_token_request_form_textarea1" rows="10"></textarea>
+          <td><textarea cols="100" id="display_token_request_form_textarea1" rows="5"></textarea>
           </td>
         </tr>
       </tbody>
     </table>
   </fieldset>
 </div>
-
-<div class="display_token_error_class" id="display_token_error_class">&nbsp;
+    </div>
+  </div>
 </div>
+
+<div class="display_authz_error_class" id="display_authz_error_class">&nbsp;
+</div>
+
 <div class="authorization_endpoint_result" id="authorization_endpoint_result">&nbsp;
 </div>
 <div class="authorization_endpoint_id_token_result" id="authorization_endpoint_id_token_result">&nbsp;
 </div>
-<div class="token_endpoint_result" id="token_endpoint_result">&nbsp;
+
+<!-- Token Endpoint Results, Refresh Token Results, and Currently Viewing side by side -->
+<div style="display:flex; gap:16px; align-items:flex-start; margin-top:8px;">
+  <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
+    <div class="display_token_error_class" id="display_token_error_class">&nbsp;
+    </div>
+    <div class="token_endpoint_result" id="token_endpoint_result">&nbsp;
+    </div>
+  </div>
+  <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
+    <div class="display_refresh_error_class" id="display_refresh_error_class">&nbsp;
+    </div>
+    <div class="refresh_endpoint_result" id="refresh_endpoint_result">&nbsp;
+    </div>
+  </div>
+  <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
+    <div id="currently-viewing-panel" style="display:none;">
+    </div>
+  </div>
 </div>
 
-<div class="step4" id="step4">
-    <legend>Obtain New Access Token Using Refresh Token
-    </legend>
-    <form>
-      <input class="btn2" type="submit" name="refresh_expand_button" id="refresh_expand_button" value="Hide" onclick="return debugger2.onClickShowFieldSet('refresh_expand_button', 'refresh_fieldset');"/>
-    </form>
-    <fieldset id="refresh_fieldset" name="refresh_fieldset">
-    <input class="input" id="refresh_grant_type" name="refresh_grant_type" type="hidden" value="refresh_token" />
-    <table>
-      <tbody>
-        <tr>
-          <td>
-            <div class="tooltip"><label>Refresh Token: </label><span class="tooltiptext">The refresh token received in the last step. This field is auto-populated.</span>
-            </div>
-          </td>
-          <td>
-            <input class="input" id="refresh_refresh_token" name="refresh_refresh_token" type="text" value="" />
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div class="tooltip"><label>Client ID: </label><span class="tooltiptext">The client identifier assigned to the client being tested.</span>
-            </div>
-          </td>
-          <td>
-            <input class="input" id="refresh_client_id" name="refresh_client_id" type="text" />
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div class="tooltip"><label>Client Secret: </label><span class="tooltiptext">The client secret assigned to the client being tested. This field is optional.</span>
-            </div>
-          </td>
-          <td>
-            <input class="input" id="refresh_client_secret" name="refresh_client_secret" type="text" />
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div class="tooltip"><label>Auth Style: </label><span class="tooltiptext">Authenticate application through post body parameters or authorization request header.</span>
-            </div>
-          </td>
-          <td>POST
-            <input id="refresh_postAuthStyleCheckToken" name="refresh-post-authstyle-yesno" checked="true" onclick="debugger2.setPostAuthStyleRefreshToken();" type="radio" />Header
-            <input id="refresh_headerAuthStyleCheckToken" name="refresh-header-authstyle-yesno" checked="false" onclick="debugger2.setHeaderAuthStyleRefreshToken();" type="radio" />
-          </td>
-        </tr>
-         <td>
-            <div class="tooltip"><label>Initiate Token Endpoint Call From front or backend.: </label><span class="tooltiptext">The debugger can initiate a Token Endpoint call from either the frontend (browser) or from the backend API component. Certain IdPs make stringent assumptions about CORS and how calls will be originated. Especially concerning the Origin request header, which cannot be controlled from the browser.</span>
-            </div>
-          </td>
-          <td>Front
-            <input id="refresh_initiateFromFrontEnd" name="refresh-initiateFromFrontEnd" checked="true" onclick="debugger2.setInitiateRefreshFromEnd();" type="radio" />Back
-            <input id="refresh_initiateFromBackEnd" name="refresh-initiateFromFrontEnd" checked="false" onclick="debugger2.setInitiateRefreshFromEnd();" type="radio" />
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div class="tooltip"><label>Scope </label><span class="tooltiptext">The requested scope. Must be the same as the original scope or subset.</span>
-            </div>
-          </td>
-          <td>
-            <input class="input" id="refresh_scope" name="refresh_scope" type="text" value="" />
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <input id="refresh_btn" class="refresh_btn" type="submit" value="Get Token" />
-          </td>
-          <td>&nbsp;
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <div class="tooltip"><label id="display_refresh_request_form_label1" name="display_refresh_request_form_label1" value="">Request</label><span class="tooltiptext">The requst to the Token Endpoint.</span>
-            </div>
-          </td>
-          <td><textarea cols="100" id="display_refresh_request_form_textarea1" rows="10"></textarea>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </fieldset>
+<!-- Refresh Token controls and Token History side by side -->
+<div style="display:flex; gap:16px; align-items:flex-start; margin-top:8px;">
+  <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
+    <div class="step4" id="step4">
+        <legend>Obtain New Access Token Using Refresh Token
+        </legend>
+        <form>
+          <input class="btn2" type="submit" name="refresh_expand_button" id="refresh_expand_button" value="Hide" onclick="return debugger2.onClickShowFieldSet('refresh_expand_button', 'refresh_fieldset');"/>
+        </form>
+        <fieldset id="refresh_fieldset" name="refresh_fieldset">
+        <input class="input" id="refresh_grant_type" name="refresh_grant_type" type="hidden" value="refresh_token" />
+        <table>
+          <tbody>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Refresh Token: </label><span class="tooltiptext">The refresh token received in the last step. This field is auto-populated.</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="refresh_refresh_token" name="refresh_refresh_token" type="text" value="" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Client ID: </label><span class="tooltiptext">The client identifier assigned to the client being tested.</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="refresh_client_id" name="refresh_client_id" type="text" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Client Secret: </label><span class="tooltiptext">The client secret assigned to the client being tested. This field is optional.</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="refresh_client_secret" name="refresh_client_secret" type="text" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Auth Style: </label><span class="tooltiptext">Authenticate application through post body parameters or authorization request header.</span>
+                </div>
+              </td>
+              <td>POST
+                <input id="refresh_postAuthStyleCheckToken" name="refresh-post-authstyle-yesno" checked="true" onclick="debugger2.setPostAuthStyleRefreshToken();" type="radio" />Header
+                <input id="refresh_headerAuthStyleCheckToken" name="refresh-header-authstyle-yesno" checked="false" onclick="debugger2.setHeaderAuthStyleRefreshToken();" type="radio" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Initiate Token Endpoint Call From front or backend.: </label><span class="tooltiptext">The debugger can initiate a Token Endpoint call from either the frontend (browser) or from the backend API component. Certain IdPs make stringent assumptions about CORS and how calls will be originated. Especially concerning the Origin request header, which cannot be controlled from the browser.</span>
+                </div>
+              </td>
+              <td>Front
+                <input id="refresh_initiateFromFrontEnd" name="refresh-initiateFromFrontEnd" checked="true" onclick="debugger2.setInitiateRefreshFromEnd();" type="radio" />Back
+                <input id="refresh_initiateFromBackEnd" name="refresh-initiateFromFrontEnd" checked="false" onclick="debugger2.setInitiateRefreshFromEnd();" type="radio" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Scope </label><span class="tooltiptext">The requested scope. Must be the same as the original scope or subset.</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="refresh_scope" name="refresh_scope" type="text" value="" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <input id="refresh_btn" class="refresh_btn" type="submit" value="Get Token" />
+              </td>
+              <td>&nbsp;
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label id="display_refresh_request_form_label1" name="display_refresh_request_form_label1" value="">Request</label><span class="tooltiptext">The requst to the Token Endpoint.</span>
+                </div>
+              </td>
+              <td><textarea cols="100" id="display_refresh_request_form_textarea1" rows="5"></textarea>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </fieldset>
+    </div>
+  </div>
+  <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
+    <div id="token-history-panel" style="display:none;">
+    </div>
+  </div>
 </div>
-<div class="display_refresh_error_class" id="display_refresh_error_class">&nbsp;
-</div>
-<div class="refresh_endpoint_result" id="refresh_endpoint_result">&nbsp;
-</div>
+
 <div class="step5" id="step5">
     <legend>RP-initiated Logout
     </legend>
@@ -508,12 +557,7 @@
     </div>
 
 <div class="footer_debugger">
-  <a href="/index.html" class="logo" onclick="debugger2.clickLink();">IDPTools</a>
-  <div class="header-right">
-    <a class="active" href="#home" onclick="debugger2.clickLink();">Home</a>
-    <a href="#contact" onclick="debugger2.clickLink();">Contact</a>
-    <a href="#about" onclick="debugger2.clickLink();">About</a>
-  </div>
+<!--#include file="/partials/footer.html"-->
 </div>
 <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">
 <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png">

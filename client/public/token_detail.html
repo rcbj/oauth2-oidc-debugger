@@ -22,12 +22,7 @@
   <body>
 
 <div class="header_debugger">
-  <a href="/index.html" class="logo" onclick="return token_detail.clickLink();">IDPTools</a>
-  <div class="header-right">
-    <a class="active" href="#home" onclick="return token_detail.clickLink();">Home</a>
-    <a href="#contact" onclick="return token_detail.clickLink();">Contact</a>
-    <a href="#about" onclick="return token_detail.clickLink();">About</a>
-  </div>
+<!--#include file="/partials/header.html"-->
 </div>
 
     <div class="container">
@@ -281,7 +276,11 @@
   </fieldset>
 </div>
 
-<div id="claim-sources" style="margin-top: 24px; padding: 10px; border-top: 1px solid #ccc; font-size: 0.9em;">
+<div style="margin-top: 24px; padding: 10px; border-top: 1px solid #ccc; font-size: 0.9em;">
+  <p><sup>*</sup> Claim descriptions are sourced from the <a href="https://www.iana.org/assignments/jwt/jwt.xml" target="_blank" rel="noopener noreferrer">IANA JSON Web Token Claims Registry</a> unless otherwise noted.</p>
+</div>
+
+<div id="claim-sources" style="padding: 10px; border-top: 1px solid #ccc; font-size: 0.9em;">
 </div>
 
 <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">
@@ -301,5 +300,8 @@
 <meta name="msapplication-TileColor" content="#ffffff">
 <meta name="msapplication-TileImage" content="/ms-icon-144x144.png">
 <meta name="theme-color" content="#ffffff">
+<div class="footer_debugger">
+<!--#include file="/partials/footer.html"-->
+</div>
 </body>
 </html>
