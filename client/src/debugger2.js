@@ -208,9 +208,9 @@ function successfulInternalTokenAPICall(data, textStatus, request)
   if(displayOpenIDConnectArtifacts == true)
   {
     // Display OAuth2/OIDC Artifacts
-    log.debug("RCBJ0003");
     token_endpoint_result_html = "<fieldset>" +
-                                 "<legend>Token Endpoint Results:</legend>" + 
+                                 "<legend>Token Endpoint Results:</legend>" +
+                                 "<p><em>Most recent results of the OAuth2 Grant or OIDC Authentication Flow call.</em></p>" +
 				   "<table>" +
 				     "<tr>" +
                                        '<td>' +
@@ -220,7 +220,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                          ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                        '</td>' +
                                        '<td>' +
-                                         "<textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
+                                         "<textarea rows=5 cols=60 name=token_access_token id=token_access_token>" + 
                                            data.access_token + 
                                          "</textarea>" +
                                        '</td>' +
@@ -234,7 +234,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
-                                              '<textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>' + 
+                                              '<textarea rows=5 cols=60 name=token_refresh_token id=token_refresh_token>' + 
                                               currentRefreshToken +
                                               "</textarea>" +
                                           "</td>" +
@@ -248,7 +248,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_id_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
-                                            '<textarea rows=10 cols=60 name=token_id_token id=token_id_token>' + 
+                                            '<textarea rows=5 cols=60 name=token_id_token id=token_id_token>' + 
                                             data.id_token + 
                                             "</textarea>" +
                                           '</td>' +
@@ -258,11 +258,12 @@ function successfulInternalTokenAPICall(data, textStatus, request)
       localStorage.setItem("token_access_token", data.access_token);
       localStorage.setItem("token_refresh_token", data.refresh_token);
       localStorage.setItem("token_id_token", data.id_token);
+      saveTokenSetToHistory(data.access_token, data.refresh_token, data.id_token, 'token');
     } else {
       log.debug("Displaying Access Token. No OIDC ID Token: data.access_token=" + data.access_token);
-      log.debug("RCBJ0004");
       token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" +
+                                 "<p><em>Most recent results of the OAuth2 Grant or OIDC Authentication Flow call.</em></p>" +
                                       "<table>" +
                                         "<tr>" +
                                           '<td>' +
@@ -270,7 +271,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           '</td>' +
-                                          "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" +
+                                          "<td><textarea rows=5 cols=60 name=token_access_token id=token_access_token>" +
                                             data.access_token +
                                             "</textarea>" +
                                           "</td>" +
@@ -283,7 +284,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
-                                          "<td><textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" +
+                                          "<td><textarea rows=5 cols=60 name=token_refresh_token id=token_refresh_token>" +
                                            currentRefreshToken +
                                             "</textarea>" +
                                           "</td>" +
@@ -293,6 +294,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                     "</fieldset>";
       localStorage.setItem("token_access_token", data.access_token);
       localStorage.setItem("token_refresh_token", data.refresh_token);
+      saveTokenSetToHistory(data.access_token, data.refresh_token, null, 'token');
     }
     //$("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
     $("#token_endpoint_result").html(token_endpoint_result_html);
@@ -448,7 +450,8 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
     currentIDToken = localStorage.getItem("refresh_id_token");
   }
   refresh_endpoint_result_html = "<fieldset>" +
-                                      "<legend>Token Endpoint Results for Refresh Token Call:</legend>" + 
+                                      "<legend>Token Endpoint Results for Refresh Token Call:</legend>" +
+                                      "<p><em>Most recent results of the Refresh Token call.</em></p>" +
 				      "<table>" +
 				        "<tr>" +
                                           '<td>' +
@@ -458,7 +461,7 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_access_token\');"/></form></P>' +
                                           "</td>" +
                                           "<td>" + 
-                                            "<textarea rows=10 cols=60 name=refresh_access_token id=refresh_access_token>" + 
+                                            "<textarea rows=5 cols=60 name=refresh_access_token id=refresh_access_token>" + 
                                               currentAccessToken + 
                                             "</textarea>" +
                                           "</td>" +
@@ -471,7 +474,7 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_refresh_token\');"/></form></P>' +
                                           "</td>" +
-                                          "<td><textarea rows=10 cols=60 name=refresh_refresh_token id=refresh_refresh_token>" + 
+                                          "<td><textarea rows=5 cols=60 name=refresh_refresh_token id=refresh_refresh_token>" + 
                                               currentRefreshToken +
                                             "</textarea>" +
                                           "</td>" +
@@ -486,7 +489,7 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_id_token\');"/></form></P>' +
                                           "</td>" +
                                           "<td>" +
-                                            "<textarea rows=10 cols=60 name=refresh_id_token id=refresh_id_token>" + 
+                                            "<textarea rows=5 cols=60 name=refresh_id_token id=refresh_id_token>" + 
                                               currentIDToken +
                                             "</textarea>" +
                                           "</td>" +
@@ -515,6 +518,7 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
   if (!!currentIDToken) {
     localStorage.setItem("refresh_id_token", currentIDToken);
   }
+  saveTokenSetToHistory(currentAccessToken, currentRefreshToken, currentIDToken, 'refresh');
   // Update token in logout pane.
   if(currentRefreshToken) {
     $("#logout_id_token_hint").val(currentIDToken);
@@ -785,6 +789,7 @@ function loadValuesFromLocalStorage()
   }
   usePKCERFC();
   refreshTokenUsed=getLSBooleanItem("refresh_token_used");
+  renderTokenHistory();
   log.debug("Leaving loadValuesFromLocalStorage().");
 }
 
@@ -854,7 +859,7 @@ function recreateUniqueGrantFlowElements()
                                                    '<P><form><input class="token_btn" type="submit" value="Copy Token"' +
                                                    ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                                  "</td>" +
-                                                 "<td><textarea rows=10 cols=60 name=\"token_access_token\" id=\"token_access_token\">" +
+                                                 "<td><textarea rows=5 cols=60 name=\"token_access_token\" id=\"token_access_token\">" +
                                                      access_token +
                                                    "</textarea>" +
                                                  "</td>" +
@@ -889,11 +894,11 @@ function recreateUniqueGrantFlowElements()
 				    "<table>" +
 				      "<tr>" +
 				        "<td>access_token</td>" +
-                                        "<td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + access_token + "</textarea></td>"
+                                        "<td><textarea id=\"implicit_grant_access_token\" rows=3 cols=100>" + access_token + "</textarea></td>"
 				      "</tr>" + 
 				      "<tr>" +
 				        "<td>id_token</td>" + 
-				        "<td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + id_token + "</textarea></td>" +
+				        "<td><textarea id=\"implicit_grant_access_token\" rows=3 cols=100>" + id_token + "</textarea></td>" +
 				      "</tr>" +
 				    "</table>" +
                                     "</fieldset>";
@@ -903,7 +908,7 @@ function recreateUniqueGrantFlowElements()
                                     "<table>" +
                                       "<tr>" +
                                         "<td>access_token</td>" +
-                                        "<td><textarea id=\"implicit_grant_access_token\" rows=5 cols=100>" + access_token + "</textarea></td>"
+                                        "<td><textarea id=\"implicit_grant_access_token\" rows=3 cols=100>" + access_token + "</textarea></td>"
                                       "</tr>" +
                                     "</table>" +
                                     "</fieldset>";
@@ -927,7 +932,7 @@ function recreateUniqueGrantFlowElements()
                                                                 "    <tr>" +
                                                                 "      <td>access_token</td>" +
                                                                 "      <td>" +
-                                                                "        <textarea id='implicit_grant_access_token' rows=5 cols=100>" + access_token + "</textarea>" +
+                                                                "        <textarea id='implicit_grant_access_token' rows=3 cols=100>" + access_token + "</textarea>" +
                                                                 "      </td>" +
                                                                 "    </tr>" +
                                                                 "  </table>" +
@@ -956,7 +961,7 @@ function recreateUniqueGrantFlowElements()
                                                                          "    <tr>" +
                                                                          "      <td>id_token</td>" +
                                                                          "      <td>" +
-                                                                         "        <textarea id='implicit_flow_id_token' rows=5 cols=100>" + DOMPurify.sanitize(id_token) + "</textarea>" +
+                                                                         "        <textarea id='implicit_flow_id_token' rows=3 cols=100>" + DOMPurify.sanitize(id_token) + "</textarea>" +
                                                                          "      </td>" +
                                                                          "    </tr>" +
                                                                          "  </table>" +
@@ -979,7 +984,7 @@ function recreateUniqueGrantFlowElements()
                            "<label name='display_authz_error_form_label1' value='' id='display_authz_error_form_label1'>Error</label>" +
                          "</td>" +
                          "<td>" +
-                           "<textarea rows='10' cols='50' id='display_authz_error_form_textarea1'>" +
+                           "<textarea rows='5' cols='50' id='display_authz_error_form_textarea1'>" +
                            error +
                            "</textarea>"
                          "</td>" +
@@ -1414,7 +1419,7 @@ function recalculateTokenErrorDescription(data)
                                            "<table>" +
                                              "<tr>" +
                                                "<td><label name=\"display_token_error_form_label1\" value=\"\" id=\"display_token_error_form_label1\">Error</label></td>" +
-                                               "<td><textarea rows=\"10\" cols=\"60\" id=\"display_token_error_form_textarea1\"></textarea></td>" +
+                                               "<td><textarea rows=\"5\" cols=\"60\" id=\"display_token_error_form_textarea1\"></textarea></td>" +
                                              "</tr>" +
                                            "</table>" +
                                          "</form>" +
@@ -1497,7 +1502,7 @@ function recalculateRefreshErrorDescription(data)
                                          "<table>" +
                                            "<tr>" +
                                              "<td><label name=\"display_refresh_error_form_label1\" value=\"\" id=\"display_refresh_error_form_label1\">Error</label></td>" +
-                                             "<td><textarea rows=\"10\" cols=\"60\" id=\"display_refresh_error_form_textarea1\"></textarea></td>" +
+                                             "<td><textarea rows=\"5\" cols=\"60\" id=\"display_refresh_error_form_textarea1\"></textarea></td>" +
                                            "</tr>" +
                                          "</table>" +
                                         "</form>" +
@@ -1605,6 +1610,131 @@ function clearLocalStorage() {
   }
 }
 
+// ---- Token History ----
+
+function decodeJwtPayload(token) {
+  try {
+    var parts = token.split('.');
+    if (parts.length < 2) return null;
+    var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    var pad = '==='.slice(0, (4 - b64.length % 4) % 4);
+    return JSON.parse(atob(b64 + pad));
+  } catch (e) {
+    return null;
+  }
+}
+
+function extractSid(access_token, id_token) {
+  var payload;
+  if (id_token) {
+    payload = decodeJwtPayload(id_token);
+    if (payload && payload.sid) return payload.sid;
+  }
+  if (access_token) {
+    payload = decodeJwtPayload(access_token);
+    if (payload && payload.sid) return payload.sid;
+  }
+  return null;
+}
+
+function saveTokenSetToHistory(access_token, refresh_token, id_token, source) {
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('token_history') || '[]'); } catch(e) {}
+  var sid = extractSid(access_token, id_token);
+  history.push({
+    timestamp: new Date().toISOString(),
+    sid: sid,
+    source: source || 'token',
+    access_token: access_token || '',
+    refresh_token: refresh_token || '',
+    id_token: id_token || ''
+  });
+  localStorage.setItem('token_history', JSON.stringify(history));
+  renderTokenHistory();
+}
+
+function selectTokenSet(index) {
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('token_history') || '[]'); } catch(e) { return false; }
+  if (index < 0 || index >= history.length) return false;
+  var entry = history[index];
+  localStorage.setItem('token_access_token', entry.access_token);
+  localStorage.setItem('token_refresh_token', entry.refresh_token);
+  localStorage.setItem('token_id_token', entry.id_token);
+  localStorage.setItem('refresh_access_token', entry.access_token);
+  localStorage.setItem('refresh_refresh_token', entry.refresh_token);
+  localStorage.setItem('refresh_id_token', entry.id_token);
+  localStorage.setItem('token_history_active_index', index);
+  $("#refresh_refresh_token").val(entry.refresh_token);
+  if (entry.id_token) {
+    $("#logout_id_token_hint").val(entry.id_token);
+  }
+  renderTokenHistory();
+  return false;
+}
+
+function renderTokenHistory() {
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('token_history') || '[]'); } catch(e) {}
+  if (history.length === 0) {
+    $("#token-history-panel").hide();
+    return;
+  }
+  var activeIndex = parseInt(localStorage.getItem('token_history_active_index'));
+  if (isNaN(activeIndex)) activeIndex = -1;
+
+  // Group entries by sid, preserving first-seen order of each session
+  var sessionOrder = [];
+  var sessions = {};
+  history.forEach(function(entry, idx) {
+    var key = entry.sid || '__no_sid__';
+    if (!sessions[key]) {
+      sessions[key] = [];
+      sessionOrder.push(key);
+    }
+    sessions[key].push({ index: idx, entry: entry });
+  });
+
+  var html = '<fieldset><legend>Token History</legend>';
+  html += '<div style="max-height:450px; overflow-y:auto;">';
+  sessionOrder.slice().reverse().forEach(function(sid) {
+    var label = sid === '__no_sid__' ? 'No Session ID' : 'Session: ' + sid;
+    html += '<div style="margin-bottom:10px;">';
+    html += '<strong>' + label + '</strong>';
+    html += '<table border="1" style="margin-top:4px;">';
+    html += '<tr><th style="width:4%">#</th><th style="width:22%">Time</th><th style="width:10%">Source</th><th style="width:10%">Access</th><th style="width:10%">Refresh</th><th style="width:12%">ID Token</th><th>Action</th></tr>';
+    sessions[sid].slice().reverse().forEach(function(item) {
+      var e = item.entry;
+      var idx = item.index;
+      var isActive = (idx === activeIndex);
+      var rowStyle = isActive ? ' style="background-color:#d4edda;"' : '';
+      var datePart = e.timestamp.substring(0, 10);
+      var timePart = e.timestamp.substring(11, 19);
+      html += '<tr' + rowStyle + '>';
+      html += '<td>' + (idx + 1) + '</td>';
+      html += '<td style="font-size:80%;">' + datePart + '<br>' + timePart + '</td>';
+      html += '<td>' + e.source + '</td>';
+      html += '<td style="text-align:center;">' + (e.access_token ? '&#10003;' : '') + '</td>';
+      html += '<td style="text-align:center;">' + (e.refresh_token ? '&#10003;' : '') + '</td>';
+      html += '<td style="text-align:center;">' + (e.id_token ? '&#10003;' : '') + '</td>';
+      html += '<td>';
+      if (isActive) {
+        html += '<strong>Active</strong>';
+      } else {
+        html += '<input type="button" value="Activate" onclick="return debugger2.selectTokenSet(' + idx + ');" />';
+      }
+      html += '</td>';
+      html += '</tr>';
+    });
+    html += '</table></div>';
+  });
+  html += '</div>';
+  html += '</fieldset>';
+
+  $("#token-history-panel").html(html);
+  $("#token-history-panel").show();
+}
+
 function regenerateState() {
   $("#state").val(generateUUID());
   localStorage.setItem('state', $("#state").val());
@@ -1626,7 +1756,8 @@ function recreateTokenDisplay()
          // Display OAuth2/OIDC Artifacts
          log.debug("RCBJ0001");
          token_endpoint_result_html = "<fieldset>" +
-                                      "<legend>Token Endpoint Results:</legend>" + 
+                                      "<legend>Token Endpoint Results:</legend>" +
+                                 "<p><em>Most recent results of the OAuth2 Grant or OIDC Authentication Flow call.</em></p>" +
                                       "<table>" +
                                         "<tr>" +
                                           '<td>' +
@@ -1636,7 +1767,7 @@ function recreateTokenDisplay()
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           "</td>" +
                                           "<td>" +
-                                             "<textarea rows=10 cols=60 name=token_access_token id=token_access_token>" + 
+                                             "<textarea rows=5 cols=60 name=token_access_token id=token_access_token>" + 
                                                localStorage.getItem("token_access_token") + 
                                              "</textarea>" +
                                           "</td>" +
@@ -1651,7 +1782,7 @@ function recreateTokenDisplay()
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
-                                              '<textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>' + 
+                                              '<textarea rows=5 cols=60 name=token_refresh_token id=token_refresh_token>' + 
                                                 refreshToken +
                                               "</textarea>" +
                                           "</td>" +
@@ -1665,7 +1796,7 @@ function recreateTokenDisplay()
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_id_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
-                                            '<textarea rows=10 cols=60 name=token_id_token id=token_id_token>' + 
+                                            '<textarea rows=5 cols=60 name=token_id_token id=token_id_token>' + 
                                               localStorage.getItem("token_id_token") + 
                                             "</textarea>" +
                                           '</td>' +
@@ -1678,6 +1809,7 @@ function recreateTokenDisplay()
          log.debug("RCBJ0002");
          token_endpoint_result_html = "<fieldset>" +
                                       "<legend>Token Endpoint Results:</legend>" +
+                                 "<p><em>Most recent results of the OAuth2 Grant or OIDC Authentication Flow call.</em></p>" +
                                       "<table>" +
                                         "<tr>" +
                                           '<td>' +
@@ -1685,7 +1817,7 @@ function recreateTokenDisplay()
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           '</td>' +
-                                          "<td><textarea rows=10 cols=60 name=token_access_token id=token_access_token>" +
+                                          "<td><textarea rows=5 cols=60 name=token_access_token id=token_access_token>" +
                                               localStorage.getItem("token_access_token") + 
                                             "</textarea>" +
                                           "</td>" +
@@ -1699,7 +1831,7 @@ function recreateTokenDisplay()
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
                                           "<td>" +
-                                            "<textarea rows=10 cols=60 name=token_refresh_token id=token_refresh_token>" +
+                                            "<textarea rows=5 cols=60 name=token_refresh_token id=token_refresh_token>" +
                                               refreshToken +
                                             "</textarea>" +
                                           "</td>" +
@@ -2027,5 +2159,6 @@ module.exports = {
   setInitiateFromEnd,
   setInitiateRefreshFromEnd,
   logoutButtonClick,
-  clickLink
+  clickLink,
+  selectTokenSet
 };

@@ -1,0 +1,23 @@
+{
+  "_vendor_name": "JOSE Header Parameters (RFC 7515 / RFC 7519)",
+  "_sources": [
+    {
+      "name": "RFC 7515: JSON Web Signature (JWS) — Section 4.1",
+      "url": "https://www.rfc-editor.org/rfc/rfc7515#section-4.1"
+    },
+    {
+      "name": "RFC 7519: JSON Web Token (JWT) — Section 5",
+      "url": "https://www.rfc-editor.org/rfc/rfc7519#section-5"
+    }
+  ],
+  "_note": "JOSE Header Parameters defined in RFC 7515 (JWS) and RFC 7519 (JWT). These appear in the JWT header, not the payload, and are distinct from the IANA JWT Claims Registry which covers payload claims.",
+
+  "alg": {
+    "description": "Algorithm. Identifies the cryptographic algorithm used to secure the JWS. The value is a case-sensitive ASCII StringOrURI. This Header Parameter MUST be present and MUST be understood and processed by implementations. Values are registered in the IANA 'JSON Web Signature and Encryption Algorithms' registry (RFC 7518 §3.1).",
+    "url": "https://www.rfc-editor.org/rfc/rfc7515#section-4.1.1"
+  },
+  "typ": {
+    "description": "Type. Used by JWS/JWT applications to declare the media type of this complete JWT. Intended to disambiguate among different kinds of objects in application data structures. Ignored by JWT implementations; processed only by the application. Use is OPTIONAL. In a JWT context (RFC 7519 §5.1), the RECOMMENDED value is 'JWT'; RFC 9068 requires 'at+JWT' for OAuth 2.0 access tokens. The 'application/' prefix may be omitted when no '/' appears in the value — recipients MUST prepend it in that case.",
+    "url": "https://www.rfc-editor.org/rfc/rfc7515#section-4.1.9"
+  }
+}
