@@ -33,6 +33,9 @@ The following OpenID Connect Authentication Flows are supported
 * Implicit Flow (2 variants)
 * Hybrid Flow (3 variants)
 
+# AI Coding Tool Disclosure
+As of Q1, 2026, Anthropic Claude was used to implement some new features of this project. All code is reviewed by a human before being merged into the main branch.
+
 # Tested Platforms
 So far, this tool has been tested with the following OAuth2 or OIDC implementations:
 
