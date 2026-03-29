@@ -62,9 +62,10 @@ function logoutButtonClick()  {
 
 function tokenButtonClick() {
   log.debug("Entering token Submit button clicked function.");
+  $('#step3').show();
   $('#step4').show();
   $('#step5').show();
-  log.debug("Updating local stroage.");
+  log.debug("Updating local storage.");
   writeValuesToLocalStorage();
   log.debug("Recalculating token request description.");
   recalculateTokenRequestDescription();
@@ -302,8 +303,8 @@ function successfulInternalTokenAPICall(data, textStatus, request)
     }
     //$("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
     $("#token_endpoint_result").html(token_endpoint_result_html);
+    $("#token_endpoint_result").show();
     $("#refresh_refresh_token").val(currentRefreshToken);
-    log.debug("RCBJ0200");
     $("#refresh_client_id").val(localStorage.getItem("client_id"));
     $("#refresh_scope").val(localStorage.getItem("scope"));
     $("#refresh_client_secret").val(localStorage.getItem("client_secret"));
@@ -577,7 +578,7 @@ function resetUI(value)
       $("#noCheckOIDCArtifacts").prop("checked", "true");
       displayOpenIDConnectArtifacts = false;
     }
-    if( value == "resource_owner" &&
+    if( value === "resource_owner" &&
         getParameterByName("redirectFromTokenDetail") != "true")
     {
       $("#code").hide();
@@ -1177,6 +1178,21 @@ $(document).ready(function() {
       writeValuesToLocalStorage();
       window.location.href = "/debugger.html";
     }
+    if( value == "oidc_authorization_code_flow" ||
+       value === "authorization_grant")
+    {
+      $("#usePKCE-yes").prop("checked", true);
+      $("#usePKCE-no").prop("checked", false);
+      usePKCE = true
+      $("#yesCheckOIDCArtifacts").prop("checked", true);
+      $("#noCheckOIDCArtifacts").prop("checked", false);
+      displayOpenIDConnectArtifacts = true;
+      $("#useRefreshToken-yes").prop("checked", true);
+      $("#useRefreshToken-no").prop("checked", false);
+      useRefreshTokenTester = true;
+      usePKCERFC();
+      writeValuesToLocalStorage();
+    }
     resetUI(value);
     recalculateTokenRequestDescription();
     recalculateRefreshRequestDescription();
@@ -1206,8 +1222,8 @@ $(document).ready(function() {
   var errorDescriptionParam = getParameterByName('error_description');
   var errorParam = getParameterByName('error');
   log.debug('errorDescriptionParam=' + errorDescriptionParam + ', errorParam=' + errorParam);
-  if (errorDescriptionParam || 
-      errorParam) {
+  if (!!errorDescriptionParam || 
+      !!errorParam) {
     $('#step0').hide();
     $('#step3').hide();
     $('#step4').hide();
@@ -1273,8 +1289,8 @@ $(document).ready(function() {
     $("#usePKCE-yes").prop("checked", false);
     $("#usePKCE-no").prop("checked", true);
     usePKCE = false
-    $("#yesCheckOIDCArtifacts").prop("checked", "false");
-    $("#noCheckOIDCArtifacts").prop("checked", "true");
+    $("#yesCheckOIDCArtifacts").prop("checked", false);
+    $("#noCheckOIDCArtifacts").prop("checked", true);
     displayOpenIDConnectArtifacts = false;
     $("#useRefreshToken-yes").prop("checked", false);
     $("#useRefreshToken-no").prop("checked", true);
@@ -1303,15 +1319,32 @@ $(document).ready(function() {
   $(".token_btn").click(tokenButtonClick);
   $(".refresh_btn").click(refreshButtonClick);
 
-  if (getParameterByName('redirectFromTokenDetail') !== 'true' && !!getParameterByName('code')) {
-    $('#step4').hide();
-    $('#step5').hide();
-    $('#token-history-panel').hide();
-    $('#currently-viewing-panel').hide();
+  if (!window.location.search) {
+    $('#step3').show();
     $('#token_fieldset').css('display', 'block');
     $('#token_expand_button').val('Hide');
     $('#config_fieldset').css('display', 'block');
     $('#config_expand_button').val('Hide');
+    $('#step4').hide();
+    $('#step5').hide();
+    $('#token-history-panel').hide();
+    $('#currently-viewing-panel').hide();
+    $('#token_endpoint_result').hide();
+    $('#refresh_endpoint_result').hide();
+  }
+
+  if ( $('#step3').is(':visible') &&
+       $('#token_fieldset').css('display') === 'none') {
+    $('#token_fieldset').css('display', 'block');
+    $('#token_expand_button').val('Hide');
+  }
+
+  if( authzGrantType === "implicit_grant" ||
+      authzGrantType === "oidc_implicit_flow") 
+  {
+    $('#step3').show();
+    $('#step4').show();
+    $('#step5').show();
   }
 
   log.debug("Leaving document.ready().");
@@ -1649,15 +1682,10 @@ function decodeJwtPayload(token) {
   }
 }
 
-function extractSid(access_token, id_token) {
-  var payload;
+function extractNonce(id_token) {
   if (id_token) {
-    payload = decodeJwtPayload(id_token);
-    if (payload && payload.sid) return payload.sid;
-  }
-  if (access_token) {
-    payload = decodeJwtPayload(access_token);
-    if (payload && payload.sid) return payload.sid;
+    var payload = decodeJwtPayload(id_token);
+    if (payload && payload.nonce) return payload.nonce;
   }
   return null;
 }
@@ -1670,7 +1698,7 @@ function saveTokenSetToHistory(access_token, refresh_token, id_token, source) {
   {
     log.error("An error occurred while writing to local storage: " + e);
   }
-  var sid = extractSid(access_token, id_token);
+  var nonce = extractNonce(id_token);
   if (history.length >= TOKEN_HISTORY_LIMIT) {
     localStorage.removeItem('token_history');
     renderTokenHistory();
@@ -1678,7 +1706,7 @@ function saveTokenSetToHistory(access_token, refresh_token, id_token, source) {
   }
   history.push({
     timestamp: new Date().toISOString(),
-    sid: sid,
+    nonce: nonce,
     source: source || 'token',
     access_token: access_token || '',
     refresh_token: refresh_token || '',
@@ -1755,8 +1783,8 @@ function renderCurrentlyViewing(index, entry) {
                  '<td>' + (index + 1) + '</td>' +
                '</tr>' +
                '<tr>' +
-                 '<td><strong>Session ID:</strong></td>' +
-                 '<td><input type="text" readonly value="' + (entry.sid || '') + '" style="width:100%;" /></td>' +
+                 '<td><strong>Nonce:</strong></td>' +
+                 '<td><input type="text" readonly value="' + (entry.nonce || '') + '" style="width:100%;" /></td>' +
                '</tr>' +
              '</table>' +
              '</fieldset>';
@@ -1774,11 +1802,11 @@ function renderTokenHistory() {
   var activeIndex = parseInt(localStorage.getItem('token_history_active_index'));
   if (isNaN(activeIndex)) activeIndex = -1;
 
-  // Group entries by sid, preserving first-seen order of each session
+  // Group entries by nonce, preserving first-seen order of each session
   var sessionOrder = [];
   var sessions = {};
   history.forEach(function(entry, idx) {
-    var key = entry.sid || '__no_sid__';
+    var key = entry.nonce || '__no_nonce__';
     if (!sessions[key]) {
       sessions[key] = [];
       sessionOrder.push(key);
@@ -1789,13 +1817,13 @@ function renderTokenHistory() {
   var html = '<fieldset><legend>Token History</legend>';
   html += '<input type="button" value="Clear History" onclick="return debugger2.clearTokenHistory();" />';
   html += '<div style="max-height:450px; overflow-y:auto;">';
-  sessionOrder.slice().reverse().forEach(function(sid) {
-    var label = sid === '__no_sid__' ? 'No Session ID' : 'Session: ' + sid;
+  sessionOrder.slice().reverse().forEach(function(nonce) {
+    var label = nonce === '__no_nonce__' ? 'No Nonce' : 'Nonce: ' + nonce;
     html += '<div style="margin-bottom:10px;">';
     html += '<strong>' + label + '</strong>';
     html += '<table border="1" style="margin-top:4px;">';
     html += '<tr><th style="width:4%">#</th><th style="width:22%">Time</th><th style="width:10%">Source</th><th style="width:10%">Access</th><th style="width:10%">Refresh</th><th style="width:12%">ID Token</th><th>Action</th></tr>';
-    sessions[sid].slice().reverse().forEach(function(item) {
+    sessions[nonce].slice().reverse().forEach(function(item) {
       var e = item.entry;
       var idx = item.index;
       var isActive = (idx === activeIndex);

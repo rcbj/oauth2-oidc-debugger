@@ -657,6 +657,7 @@ window.onload = function() {
       });
       keyPairJWTHeader += '</table>';
       $('#key_pair_jwt_header').html(keyPairJWTHeader);
+      var TIMESTAMP_CLAIMS = ['iat', 'exp', 'nbf', 'auth_time', 'updated_at'];
       keyPairJWTPayload = '<table border="1">'
                        +   '<tr>'
                        +     '<td><b>Claim</b></td><td><b>Value</b></td><td class="description-col"><b>Description</b> <sup><a href="#claim-sources" title="View claim description sources">†</a></sup></td>'
@@ -670,20 +671,18 @@ window.onload = function() {
                    + (url ? ' <a href="' + url + '" target="_blank" rel="noopener noreferrer">[ref]</a>' : '')
                    + '</td>';
         }
-        if (typeof decodedJWT.payload[key] === "object" )
-        {
-          keyPairJWTPayload += '<tr>'
-                            + '<td>' + key + '</td>'
-                            + '<td>' + JSON.stringify(decodedJWT.payload[key]) + '</td>'
-                            + descCell
-                            + '</tr>';
+        var valueCell;
+        if (typeof decodedJWT.payload[key] === "object") {
+          valueCell = '<td>' + JSON.stringify(decodedJWT.payload[key]) + '</td>';
+        } else if (TIMESTAMP_CLAIMS.indexOf(key) !== -1 && typeof decodedJWT.payload[key] === 'number') {
+          var humanDate = new Date(decodedJWT.payload[key] * 1000).toLocaleString(undefined, { timeZoneName: 'short' });
+          valueCell = '<td><span class="ts-tooltip">' + decodedJWT.payload[key]
+                    + '<span class="ts-tooltip-text">' + humanDate + '</span>'
+                    + '</span></td>';
         } else {
-          keyPairJWTPayload += '<tr>'
-                            + '<td>' + key + '</td>'
-                            + '<td>' + decodedJWT.payload[key] + '</td>'
-                            + descCell
-                            + '</tr>';
+          valueCell = '<td>' + decodedJWT.payload[key] + '</td>';
         }
+        keyPairJWTPayload += '<tr><td>' + key + '</td>' + valueCell + descCell + '</tr>';
       });
       keyPairJWTPayload += '</table>';
       $('#key_pair_jwt_payload').html(keyPairJWTPayload);

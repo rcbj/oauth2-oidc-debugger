@@ -7,6 +7,8 @@ const bunyan = require("bunyan");
 const axios = require('axios');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const { convertToOAuth2Format  } = require('./data.js');
 
 // Constants
@@ -26,8 +28,11 @@ var log = bunyan.createLogger({ name: 'server',
                                 level: LOG_LEVEL });
 log.info("Log initialized. logLevel=" + log.level());
 
-var claimDescriptions = "";
-var cachedClaimDescriptions = false;
+// jwt.xml is a local copy of https://www.iana.org/assignments/jwt/jwt.xml.
+// A local copy is used to avoid latency and availability issues fetching the
+// online copy from IANA, which has been an ongoing reliability problem.
+var claimDescriptions = fs.readFileSync(path.join(__dirname, 'jwt.xml'), 'utf8');
+var cachedClaimDescriptions = true;
 
 const app = express();
 const expressSwagger = require('express-swagger-generator')(app);

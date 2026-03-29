@@ -9,6 +9,7 @@ var baseUrl = "http://localhost:3000"
 var logout_post_redirect_uri_value = baseUrl + "/logout.html";
 var headless = true;
 var audience = "http://localhost:8080/realms/debugger-testing";
+var waitTime = 10000;
 
 function decodeJWT(jwt_) {
   return jwt.decode(jwt_, {complete: true});
@@ -22,8 +23,8 @@ async function populateMetadata(driver, discovery_endpoint) {
   btn_oidc_populate_meta_data = By.className("btn_oidc_populate_meta_data");
 
   // Wait until page is loaded
-  await driver.wait(until.elementLocated(oidc_discovery_endpoint), 10000);
-  await driver.wait(until.elementIsVisible(driver.findElement(oidc_discovery_endpoint)), 10000);
+  await driver.wait(until.elementLocated(oidc_discovery_endpoint), waitTime);
+  await driver.wait(until.elementIsVisible(driver.findElement(oidc_discovery_endpoint)), waitTime);
 
   // Enter discovery endpoint
   await driver.findElement(oidc_discovery_endpoint).clear();
@@ -31,8 +32,8 @@ async function populateMetadata(driver, discovery_endpoint) {
   await driver.findElement(btn_oidc_discovery_endpoint).click();
 
   // Populate metadata
-  await driver.wait(until.elementLocated(btn_oidc_populate_meta_data), 10000);
-  await driver.wait(until.elementIsVisible(driver.findElement(btn_oidc_populate_meta_data)), 10000);
+  await driver.wait(until.elementLocated(btn_oidc_populate_meta_data), waitTime);
+  await driver.wait(until.elementIsVisible(driver.findElement(btn_oidc_populate_meta_data)), waitTime);
   await driver.executeScript("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", await driver.findElement(btn_oidc_populate_meta_data));
   await driver.findElement(btn_oidc_populate_meta_data).click();
 }
@@ -76,13 +77,13 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   console.log("Set authorization_grant_type to OIDC Authorizaton Code Authentication Flow.");
   await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OIDC Authorization Code Flow(code)');
   console.log("Waiting for usePKCE_yes");
-  await driver.wait(until.elementLocated(usePKCE_yes), 10000);
+  await driver.wait(until.elementLocated(usePKCE_yes), waitTime);
   console.log("Waiting for usePKCE_yes to be visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(usePKCE_yes)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(usePKCE_yes)), waitTime);
   console.log("Waiting for usePKCE_no.");
-  await driver.wait(until.elementLocated(usePKCE_no), 10000);
+  await driver.wait(until.elementLocated(usePKCE_no), waitTime);
   console.log("Waiting for usePKCE to be visible");
-  await driver.wait(until.elementIsVisible(driver.findElement(usePKCE_no)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(usePKCE_no)), waitTime);
 
   if (pkce_enabled) {
     console.log("Click usePKCE_yes.");
@@ -93,15 +94,15 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   }
 
   console.log("Find authz_expand_button.");
-  await driver.wait(until.elementLocated(authz_expand_button), 10000);
+  await driver.wait(until.elementLocated(authz_expand_button), waitTime);
   console.log("Waiting for authz_expand_button to be visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(authz_expand_button)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(authz_expand_button)), waitTime);
   console.log("Click authz_expand_button.");
   await driver.findElement(authz_expand_button).click();
   console.log("Locate client_id_.");
-  await driver.wait(until.elementLocated(client_id_), 10000);
+  await driver.wait(until.elementLocated(client_id_), waitTime);
   console.log("Find client_id_.");
-  await driver.wait(until.elementIsVisible(driver.findElement(client_id_)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(client_id_)), waitTime);
 
   // Submit credentials
   console.log("Clear client_id_.");
@@ -124,9 +125,9 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   // Login to Keycloak
   try {
     console.log("Wait for keycloak_username.");
-    await driver.wait(until.elementLocated(keycloak_username), 10000);
+    await driver.wait(until.elementLocated(keycloak_username), waitTime);
     console.log("Wait for keycloak_username to be visible.");
-    await driver.wait(until.elementIsVisible(driver.findElement(keycloak_username)), 10000);
+    await driver.wait(until.elementIsVisible(driver.findElement(keycloak_username)), waitTime);
   } catch (error) {
     console.log("Unable to log into keycloak.");
     authz_error_report = await driver.findElement(By.id("authz-error-report"));
@@ -147,9 +148,9 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
 
   // Submit credentials (again)
   console.log("Locate token_client_id.");
-  await driver.wait(until.elementLocated(token_client_id), 10000);
+  await driver.wait(until.elementLocated(token_client_id), waitTime);
   console.log("Wait for token_client_id to be visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(token_client_id)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(token_client_id)), waitTime);
 
   console.log("Clear token_client_id.");
   await driver.findElement(token_client_id).clear();
@@ -175,9 +176,9 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   // Get access token result
   async function waitForVisibility(element) {
     console.log("Waiting for " + element);
-    await driver.wait(until.elementLocated(element), 10000);
+    await driver.wait(until.elementLocated(element), waitTime);
     console.log("Waiting for " + element + "is visible.");
-    await driver.wait(until.elementIsVisible(driver.findElement(element)), 10000);
+    await driver.wait(until.elementIsVisible(driver.findElement(element)), waitTime);
     console.log("Returning " + element);
     return element;
   }
@@ -290,17 +291,17 @@ async function tokenDetailPage(driver, type)
     console.log("Find token detail link.");
     tokenDetailLink = By.partialLinkText(link_text);
     console.log("Locate token detail link.");
-    await driver.wait(until.elementLocated(tokenDetailLink), 10000);
+    await driver.wait(until.elementLocated(tokenDetailLink), waitTime);
     console.log("Click link to go to the token detail page for " + type + " token.");
     await driver.findElement(tokenDetailLink).click();
 
     // Find the jwt_payload field to confirm you are on the token_detail.html page.
     var jwt_payload = By.id("jwt_payload");
     console.log("Waiting for jwt_payload");
-    var jwt_payload_element = await driver.wait(until.elementLocated(jwt_payload), 10000);
+    var jwt_payload_element = await driver.wait(until.elementLocated(jwt_payload), waitTime);
     console.log("jwt_payload_element: " + JSON.stringify(jwt_payload_element));
     console.log("Waiting for jwt_payload to be visible.");
-    await driver.wait(until.elementIsVisible(jwt_payload_element), 10000);
+    await driver.wait(until.elementIsVisible(jwt_payload_element), waitTime);
 
     // Confirm that the value in the jwt_payload text field matches the expected payload value.
     token = await driver.executeScript("return window.localStorage.getItem(\"" + token_field + "\");")
@@ -309,12 +310,12 @@ async function tokenDetailPage(driver, type)
     const decodedJWT = decodeJWT(token);
     console.log("decodedJWT: " + JSON.stringify(decodedJWT.payload, null, 2));
     console.log("Waiting ten seconds.");
-    await wait(10000);
+    await wait(waitTime);
     console.log("Wait for JWT Payload to be populated in jwt_payload field.");
     console.log("jwt_payload_element: " + JSON.stringify(jwt_payload_element));
     const fromJWTPayloadJWT= await jwt_payload_element.getAttribute("value");
     console.log("jwt_payload_element.text(): " + fromJWTPayloadJWT);
-    // await driver.wait(until.elementTextIs( jwt_payload_element, JSON.stringify(decodedJWT.payload, null, 2)), 10000);
+    // await driver.wait(until.elementTextIs( jwt_payload_element, JSON.stringify(decodedJWT.payload, null, 2)), waitTime);
     if (fromJWTPayloadJWT === JSON.stringify(decodedJWT.payload, null, 2)) {
       console.log("jwt_payload_element has expected value.");
     } else {
@@ -330,14 +331,14 @@ async function tokenDetailPage(driver, type)
     // Click Copy button for JWT Header on JSON tab.
     console.log("Click JWT Header Copy button on JSON tab.");
     const jsonHeaderCopyBtn = By.xpath("//div[@id='json']//td[.//label[contains(text(),'JWT Header:')]]//button[text()='Copy']");
-    await driver.wait(until.elementLocated(jsonHeaderCopyBtn), 10000);
+    await driver.wait(until.elementLocated(jsonHeaderCopyBtn), waitTime);
     await driver.findElement(jsonHeaderCopyBtn).click();
     console.log("JWT Header Copy button clicked.");
 
     // Click Copy button for JWT Payload on JSON tab.
     console.log("Click JWT Payload Copy button on JSON tab.");
     const jsonPayloadCopyBtn = By.xpath("//div[@id='json']//td[.//label[contains(text(),'JWT Payload:')]]//button[text()='Copy']");
-    await driver.wait(until.elementLocated(jsonPayloadCopyBtn), 10000);
+    await driver.wait(until.elementLocated(jsonPayloadCopyBtn), waitTime);
     await driver.findElement(jsonPayloadCopyBtn).click();
     console.log("JWT Payload Copy button clicked.");
 
@@ -345,28 +346,28 @@ async function tokenDetailPage(driver, type)
     console.log("Switch to the key pair view.");
     keyPairButton = By.id("key_pair_button");
     console.log("Locate key_pair_button.");
-    await driver.wait(until.elementLocated(keyPairButton), 10000);
+    await driver.wait(until.elementLocated(keyPairButton), waitTime);
     console.log("Click button to switch to Key Pair View");
     await driver.findElement(keyPairButton).click();
 
     // Confirm key-pair view is visible.
     keyPairJWTPayload = By.id("key_pair_jwt_payload");
     console.log("Locate keyPairJWTPayload.");
-    await driver.wait(until.elementLocated(keyPairJWTPayload), 10000);
+    await driver.wait(until.elementLocated(keyPairJWTPayload), waitTime);
     console.log("Wait for keyPairJWTPayload to be visible.");
-    await driver.wait(until.elementIsVisible(driver.findElement(keyPairJWTPayload)), 10000);
+    await driver.wait(until.elementIsVisible(driver.findElement(keyPairJWTPayload)), waitTime);
 
     // Click Copy button for JWT Header on Key Pairs tab.
     console.log("Click JWT Header Copy button on Key Pairs tab.");
     const keyPairHeaderCopyBtn = By.xpath("//div[@id='key-pair']//td[.//label[contains(text(),'JWT Header:')]]//button[text()='Copy']");
-    await driver.wait(until.elementLocated(keyPairHeaderCopyBtn), 10000);
+    await driver.wait(until.elementLocated(keyPairHeaderCopyBtn), waitTime);
     await driver.findElement(keyPairHeaderCopyBtn).click();
     console.log("Key Pairs JWT Header Copy button clicked.");
 
     // Click Copy button for JWT Payload on Key Pairs tab.
     console.log("Click JWT Payload Copy button on Key Pairs tab.");
     const keyPairPayloadCopyBtn = By.xpath("//div[@id='key-pair']//td[.//label[contains(text(),'JWT Payload:')]]//button[text()='Copy']");
-    await driver.wait(until.elementLocated(keyPairPayloadCopyBtn), 10000);
+    await driver.wait(until.elementLocated(keyPairPayloadCopyBtn), waitTime);
     await driver.findElement(keyPairPayloadCopyBtn).click();
     console.log("Key Pairs JWT Payload Copy button clicked.");
 
@@ -396,7 +397,7 @@ async function tokenDetailPage(driver, type)
     console.log("Find return to debugger link.");
     returnToDebugger = By.partialLinkText('Return to debugger');
     console.log("Locate return to debugger link.");
-    await driver.wait(until.elementLocated(returnToDebugger), 10000);
+    await driver.wait(until.elementLocated(returnToDebugger), waitTime);
     console.log("Click link to go back to debugger2.");
     await driver.findElement(returnToDebugger).click();
 
@@ -406,7 +407,7 @@ async function tokenDetailPage(driver, type)
     console.log("Wait for " + token_field);
     await driver.findElement(token);
     console.log("Wait for " + token_field + " to be visible.");
-    await driver.wait(until.elementIsVisible(driver.findElement(token)), 10000);
+    await driver.wait(until.elementIsVisible(driver.findElement(token)), waitTime);
     console.log("Leaving tokenDetailPage().");
   } catch(e) {
     console.log("An error occurred: " + e.stack);
@@ -419,9 +420,9 @@ async function refresh_token_call(driver, client_id, scope, user, access, audien
   console.log("Find Refresh Button");
   refresh_btn = By.id("refresh_btn");
   console.log("Locate refresh_btn.");
-  await driver.wait(until.elementLocated(refresh_btn), 10000);
+  await driver.wait(until.elementLocated(refresh_btn), waitTime);
   console.log("Wait for refresh_btn to be visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(refresh_btn)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(refresh_btn)), waitTime);
   console.log("Click refresh_btn. Making refresh token call.");
   await driver.findElement(refresh_btn).click();
   console.log("Waiting for call to complete.");
@@ -429,9 +430,9 @@ async function refresh_token_call(driver, client_id, scope, user, access, audien
   console.log("Finding refresh_access_token.");
   var refresh_access_token = By.id("refresh_access_token");
   console.log("Locate refresh_access_token.");
-  var refresh_access_token_element = await driver.wait(until.elementLocated(refresh_access_token), 10000);
+  var refresh_access_token_element = await driver.wait(until.elementLocated(refresh_access_token), waitTime);
   console.log("Waiting for refresh_access_token to be visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(refresh_btn)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(refresh_btn)), waitTime);
   var refresh_access_token_value = await driver.findElement(refresh_access_token).getAttribute("value");
 
   console.log("Calling verifyAccessToken().");
@@ -439,9 +440,9 @@ async function refresh_token_call(driver, client_id, scope, user, access, audien
 
   var refresh_refresh_token = By.id("refresh_refresh_token");
   console.log("Locate refresh_refresh_token.");
-  await driver.wait(until.elementLocated(refresh_refresh_token), 10000);
+  await driver.wait(until.elementLocated(refresh_refresh_token), waitTime);
   console.log("Waiting for refresh_refresh_token to be visible.");
-  await driver.wait(until.elementIsVisible( driver.findElement(refresh_refresh_token)), 10000);
+  await driver.wait(until.elementIsVisible( driver.findElement(refresh_refresh_token)), waitTime);
   var refresh_refresh_token_value = await driver.findElement(refresh_refresh_token).getAttribute("value");
 
   console.log("Calling verifyRefreshToken().");
@@ -449,9 +450,9 @@ async function refresh_token_call(driver, client_id, scope, user, access, audien
 
   var refresh_id_token = By.id("refresh_id_token");
   console.log("Locate refresh_id_token.");
-  await driver.wait(until.elementLocated(refresh_id_token), 10000);
+  await driver.wait(until.elementLocated(refresh_id_token), waitTime);
   console.log("Waiting for refresh_id_token to be visible.");
-  await driver.wait(until.elementIsVisible( driver.findElement(refresh_id_token)), 10000);
+  await driver.wait(until.elementIsVisible( driver.findElement(refresh_id_token)), waitTime);
   var refresh_id_token_value = await driver.findElement(refresh_id_token).getAttribute("value");
 
   console.log("Calling verifyIDToken().");
@@ -465,38 +466,38 @@ async function logout(driver) {
   console.log("Find logout Button");
   logout_post_redirect_uri = By.id("logout_post_redirect_uri");
   console.log("Wait for logout_post_redirect_uri.");
-  await driver.wait(until.elementLocated(logout_post_redirect_uri), 10000);
+  await driver.wait(until.elementLocated(logout_post_redirect_uri), waitTime);
   console.log("Wait for logout_post_redirect_uri to be visible.");
   await driver.findElement(logout_post_redirect_uri).clear();
-  await driver.wait(until.elementIsVisible(driver.findElement(logout_post_redirect_uri)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(logout_post_redirect_uri)), waitTime);
   console.log("Set post_redirect_uri for logout.");
   await driver.findElement(logout_post_redirect_uri).sendKeys(logout_post_redirect_uri_value);
   logout_button = By.id("logout_btn");
   console.log("Locate logout_button.");
-  await driver.wait(until.elementLocated(logout_button), 10000);
+  await driver.wait(until.elementLocated(logout_button), waitTime);
   console.log("Waiting for logout_button to be visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(logout_button)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(logout_button)), waitTime);
   console.log("Click logout_btn.");
   await driver.findElement(logout_button).click();
 
   returnToDebugLink = By.partialLinkText('Return to debugger');
   console.log("Locate returnToDebugLink.");
-  await driver.wait(until.elementLocated(returnToDebugLink), 10000);
+  await driver.wait(until.elementLocated(returnToDebugLink), waitTime);
   console.log("Click link to return to the front page of the debugger.");
   await driver.findElement(returnToDebugLink).click();
 
   console.log("Find authz_expand_button.");
   authz_expand_button = By.id("authz_expand_button");
-  await driver.wait(until.elementLocated(authz_expand_button), 10000);
+  await driver.wait(until.elementLocated(authz_expand_button), waitTime);
   console.log("Waiting for authz_expand_button to be visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(authz_expand_button)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(authz_expand_button)), waitTime);
 
   console.log("Find client_id.");
   client_id = By.id("client_id");
   console.log("Locate client_id");
-  await driver.wait(until.elementLocated(client_id), 10000);
+  await driver.wait(until.elementLocated(client_id), waitTime);
   console.log("Wait for client_id to be visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(client_id)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(client_id)), waitTime);
 }
 
 async function test() {

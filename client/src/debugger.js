@@ -50,17 +50,50 @@ $(document).ready(function() {
     var value = $(this).val();
     resetUI(value);
     recalculateAuthorizationRequestDescription();
-    if(value == "client_credential") {
+    if(value == "client_credential" ||
+       value === "resource_owner") {
       writeValuesToLocalStorage();
       window.location.href = "/debugger2.html";
+    }
+    if( value === "oidc_authorization_code_flow" ||
+        value === "authorization_grant") 
+    {
+      $("#usePKCE-yes").prop("checked", true);
+      $("#usePKCE-no").prop("checked", false);
+      usePKCE = true
+      $("#yesCheckOIDCArtifacts").prop("checked", true);
+      $("#noCheckOIDCArtifacts").prop("checked", false);
+      displayOpenIDConnectArtifacts
+      $("#useRefreshToken-yes").prop("checked", true);
+      $("#useRefreshToken-no").prop("checked", false);
+      useRefreshTokenTester = true;
+      usePKCERFC();
+      writeValuesToLocalStorage();
     }
     log.debug("Leaving selection changed function().");
   });
   var value = $("#authorization_grant_type").val();
   resetUI(value);
-  if( value == "client_credential") {
+  if( value == "client_credential" ||
+      value === "resource_owner") {
     writeValuesToLocalStorage();
     window.location.href = "/debugger2.html";
+  }
+  if( value === "oidc_authorization_code_flow" ||
+      value === "authorization_grant")
+  {
+    log.debug("Setting Configuration Options to Authorization Code flow/grant.");
+    $("#usePKCE-yes").prop("checked", true);
+    $("#usePKCE-no").prop("checked", false);
+    usePKCE = true
+    $("#yesCheckOIDCArtifacts").prop("checked", true);
+    $("#noCheckOIDCArtifacts").prop("checked", false);
+    displayOpenIDConnectArtifacts = true;
+    $("#useRefreshToken-yes").prop("checked", true);
+    $("#useRefreshToken-no").prop("checked", false);
+    useRefreshTokenTester = true;
+    usePKCERFC();
+//    writeValuesToLocalStorage();
   }
   recalculateAuthorizationRequestDescription();
   initializeUIPostDebuggerInitialization();
@@ -280,7 +313,8 @@ function initValuesToLocalStorage()
 {
   log.debug("Entering initValuesToLocalStorage().");
   var initialized = getLSBooleanItem("initialized");
-  if (localStorage && !initialized) {
+  if ( localStorage && 
+       !initialized) {
       localStorage.setItem("authorization_grant_type", "oidc_authorization_code_flow");
       localStorage.setItem("authorization_endpoint", "https://localhost/oauth2/authorization");
       localStorage.setItem("token_endpoint","https://localhost/oauth2/token");
@@ -775,7 +809,9 @@ function onload() {
   recalculateAuthorizationRequestDescription();
 
   var type = $("#response_type").val();
-  if(type == "client_credential") {
+  if(type === "client_credential" || 
+     type ==="resource_owner") {
+    writeValuesToLocalStorage();
     window.location.href = "/debugger2.html";
   }
   log.debug("Leaving onload().");
@@ -1011,7 +1047,6 @@ function displayOIDCArtifacts()
   log.debug("yesCheckOIDCArtifacts=" + yesCheck, "noCheckOIDCArtifacts=" + noCheck);
   if(yesCheck) {
     displayOpenIDConnectArtifacts = true;
-    
   } else if(noCheck) {
     displayOpenIDConnectArtifacts = false;
   }
