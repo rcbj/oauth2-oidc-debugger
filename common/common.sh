@@ -11,6 +11,23 @@ check_return_code()
   fi
 }
 
+common_setup()
+{
+  echo "Entering common_setup()."
+  REV=/usr/bin/rev
+  JQ=/usr/bin/jq
+  CURL=/usr/bin/curl
+  for COMMAND in ${REV} ${JQ} ${CURL}
+  do
+    if [ ! -x "${COMMAND}" ];
+    then
+      echo "Cannot execute ${COMMAND} command."
+      exit 1
+    fi
+  done
+  echo "Leaving common_setup()."
+}
+
 configureKeycloak()
 {
   echo "Entering configureKeycloak()."
@@ -302,6 +319,7 @@ runTests()
 {
   echo "Entering runTests()."
   # Test client credentials flow
+  echo "Running client credentials flow test."
   AUDIENCE=${CLIENT_CREDENTIALS_AUDIENCE} \
   DISCOVERY_ENDPOINT=${CLIENT_CREDENTIALS_DISCOVERY_ENDPOINT} \
   CLIENT_ID=${CLIENT_CREDENTIALS_CLIENT_ID} \
@@ -323,6 +341,7 @@ runTests()
     echo "PKCE_ENABLED=${PKCE_ENABLED}"
 
 #    # Confidential client
+#    "Running authorization code grant with confidential client test."
 #    AUDIENCE=${AUTHORIZATION_CODE_CONFIDENTIAL_AUDIENCE} \
 #    DISCOVERY_ENDPOINT=${AUTHORIZATION_CODE_CONFIDENTIAL_DISCOVERY_ENDPOINT} \
 #    CLIENT_ID=${AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID} \
@@ -342,6 +361,7 @@ runTests()
     echo "PKCE_ENABLED=${PKCE_ENABLED}"
 
     # Public client
+    "Running authorization code grant with public client test."
     AUDIENCE=${AUTHORIZATION_CODE_PUBLIC_AUDIENCE} \
     DISCOVERY_ENDPOINT=${AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT} \
     CLIENT_ID=${AUTHORIZATION_CODE_PUBLIC_CLIENT_ID} \
@@ -354,6 +374,7 @@ runTests()
   done
 
   # OAuth2 Implicit Grant
+  echo "Running oauth2 implicit grant test." 
   AUDIENCE=${IMPLICIT_AUDIENCE} \
   DISCOVERY_ENDPOINT=${IMPLICIT_DISCOVERY_ENDPOINT} \
   CLIENT_ID=${IMPLICIT_CLIENT_ID} \
@@ -375,6 +396,7 @@ runTests()
     echo "PKCE_ENABLED=${PKCE_ENABLED}"
 
 #    # Confidential client
+#    echo "Run OIDC Authorization Code flow with confidential client test."
 #    AUDIENCE=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_AUDIENCE} \
 #    DISCOVERY_ENDPOINT=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_DISCOVERY_ENDPOINT} \
 #    CLIENT_ID=${OIDC_AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID} \
@@ -394,6 +416,7 @@ runTests()
     echo "PKCE_ENABLED=${PKCE_ENABLED}"
 
     # Public client
+    echo "Run OIDC Authorization Code Flow with public client test."
     AUDIENCE=${OIDC_AUTHORIZATION_CODE_PUBLIC_AUDIENCE} \
     DISCOVERY_ENDPOINT=${OIDC_AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT} \
     CLIENT_ID=${OIDC_AUTHORIZATION_CODE_PUBLIC_CLIENT_ID} \

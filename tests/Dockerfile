@@ -14,8 +14,9 @@ RUN apt-get -y install curl \
         libnss3 \
         xdg-utils \
         wget \
-        unzip
-
+        unzip \
+        util-linux
+ 
 
 # Create app directory
 WORKDIR /usr/src/app
