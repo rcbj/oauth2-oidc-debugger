@@ -41,8 +41,8 @@ RUN npm -v
 # Install app dependencies
 # A wildcard is used to ensure both package.json AND package-lock.json are copied
 # where available (npm@5+)
-COPY client/package.json /usr/src/app
-RUN npm install && npm cache clean --force 
+COPY client/package.json client/package-lock.json /usr/src/app/
+RUN npm ci && npm cache clean --force
 RUN npm install -g browserify
 #RUN npm install -g node-gyp
 
