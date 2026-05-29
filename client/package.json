@@ -10,22 +10,18 @@
   "dependencies": {
     "@fidm/x509": "^1.2.1",
     "@peculiar/asn1-pkcs8": "latest",
+    "browserify": "^17.0.1",
     "bunyan": "latest",
     "dompurify": "latest",
     "envify": "latest",
     "express": "^4.22.2",
     "express-logging": "latest",
-    "jquery": "^3.7.1",
+    "jquery": "latest",
     "jsonwebtoken": "latest",
     "jwk-to-pem": "latest",
+    "jwks": "latest",
     "logops": "latest",
     "pem-file": "latest",
-    "@peculiar/asn1-pkcs8": "latest",
-    "envify": "latest",
-    "bunyan": "latest",
-    "dompurify": "latest",
-    "jquery": "latest",
-    "jwks": "latest",
     "xmldom": "latest"
   }
 }
