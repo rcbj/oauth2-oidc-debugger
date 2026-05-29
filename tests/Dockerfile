@@ -15,7 +15,8 @@ RUN apt-get -y install curl \
         xdg-utils \
         wget \
         unzip \
-        util-linux
+        util-linux \
+        bsdextrautils
  
 
 # Create app directory
