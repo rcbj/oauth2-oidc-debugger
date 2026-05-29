@@ -30,8 +30,14 @@ RUN source $NVM_DIR/nvm.sh \
     && nvm alias default $NODE_VERSION \
     && nvm use default
 
+# Symlink the node/npm/npx binaries nvm actually installed into a dir that is
+# always on PATH. This avoids "npm: command not found" when the hardcoded
+# v$NODE_VERSION path below ever drifts from the directory nvm created.
+RUN source $NVM_DIR/nvm.sh \
+    && ln -sf "$(dirname "$(nvm which default)")"/* /usr/local/bin/
+
 # add node and npm to path so the commands are available
-ENV NODE_PATH $NVM_DIR/v$NODE_VERSION/lib/node_modules
+ENV NODE_PATH $NVM_DIR/versions/node/v$NODE_VERSION/lib/node_modules
 ENV PATH $NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
 
 # confirm installation
