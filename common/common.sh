@@ -35,7 +35,7 @@ configureKeycloak()
     -d '{"realm": "debugger-testing", "enabled": true}'
   check_return_code $?
   
-  for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_CONFIDENTIAL AUTHORIZATION_CODE_PUBLIC IMPLICIT OIDC_AUTHORIZATION_CODE_CONFIDENTIAL OIDC_AUTHORIZATION_CODE_PUBLIC
+  for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_CONFIDENTIAL AUTHORIZATION_CODE_PUBLIC IMPLICIT OIDC_AUTHORIZATION_CODE_CONFIDENTIAL OIDC_AUTHORIZATION_CODE_PUBLIC RESOURCE_OWNER_CREDENTIAL
   do
     FLOW_NAME=$(echo ${FLOW_VARIABLE} | tr '[:upper:]' '[:lower:]' | tr '_' '-')
 
@@ -201,6 +201,29 @@ configureKeycloak()
                 }'
             check_return_code $?
             ;;
+        RESOURCE_OWNER_CREDENTIAL)
+            curl -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing/clients" \
+              -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                   "clientId": "'${FLOW_NAME}'",
+                   "protocol": "openid-connect",
+                   "publicClient": false,
+                   "serviceAccountsEnabled": false,
+                   "authorizationServicesEnabled": false,
+                   "standardFlowEnabled": false,
+                   "directAccessGrantsEnabled": true,
+                   "clientAuthenticatorType": "client-secret",
+                   "frontchannelLogout": true,
+                   "redirectUris": ["'${DEBUGGER_BASE_URL}/callback'"],
+                   "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}'"],
+                   "attributes": {
+                     "frontchannel.logout.url": "'${DEBUGGER_BASE_URL}/logout'",
+                     "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'",
+                     "access.token.lifespan": 3600
+                   }
+                }'
+
 
     esac
 
@@ -361,6 +384,17 @@ runTests()
   USER=${IMPLICIT_USER} \
   node ${NODEJS_BASE_DIR}/oauth2_implicit.js --url "${DEBUGGER_BASE_URL}"
   check_return_code $?
+
+  # OAuth2 Resource Owner Credentials Grant
+  AUDIENCE=${RESOURCE_OWNER_CREDENTIAL_AUDIENCE} \
+  DISCOVERY_ENDPOINT=${RESOURCE_OWNER_CREDENTIAL_DISCOVERY_ENDPOINT} \
+  CLIENT_ID=${RESOURCE_OWNER_CREDENTIAL_CLIENT_ID} \
+  CLIENT_SECRET=${RESOURCE_OWNER_CREDENTIAL_CLIENT_SECRET} \
+  SCOPE=${RESOURCE_OWNER_CREDENTIAL_SCOPE} \
+  USER=${RESOURCE_OWNER_CREDENTIAL_USER} \
+  node ${NODEJS_BASE_DIR}/oauth2_resource_owner_password_credentials_grant.js --url "${DEBUGGER_BASE_URL}" --browser
+  check_return_code $?
+  exit 0
 
   # Test OIDC Authorization Code Flow
   echo "Test OIDC AUthorization Code Flow."

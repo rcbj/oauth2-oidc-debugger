@@ -1,0 +1,36 @@
+.container {
+  width: 95%;
+  max-width: none;
+}
+
+textarea {
+  width: auto;
+}
+
+legend {
+  width: auto;
+}
+
+.side-by-side-col {
+  overflow: hidden;
+  min-width: 0;
+}
+
+.side-by-side-col textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.side-by-side-col table {
+  width: 100%;
+  table-layout: fixed;
+  word-wrap: break-word;
+}
+
+.side-by-side-col input.input,
+.side-by-side-col input[type="text"] {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}

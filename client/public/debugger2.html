@@ -7,38 +7,7 @@
     <link href="/css/header.css" rel="stylesheet">
     <link href="/css/bottom.css" rel="stylesheet">
     <link href="/css/footer.css" rel="stylesheet">
-    <style>
-      .container {
-        width: 95%;
-        max-width: none;
-      }
-      textarea {
-        width: auto;
-      }
-      legend {
-        width: auto;
-      }
-      .side-by-side-col {
-        overflow: hidden;
-        min-width: 0;
-      }
-      .side-by-side-col textarea {
-        width: 100%;
-        max-width: 100%;
-        box-sizing: border-box;
-      }
-      .side-by-side-col table {
-        width: 100%;
-        table-layout: fixed;
-        word-wrap: break-word;
-      }
-      .side-by-side-col input.input,
-      .side-by-side-col input[type="text"] {
-        width: 100%;
-        max-width: 100%;
-        box-sizing: border-box;
-      }
-    </style>
+    <link href="/css/debugger2.css" rel="stylesheet">
     <link href="/css/bootstrap-responsive.css" rel="stylesheet">
   </head>
 
@@ -258,7 +227,7 @@
             <input class="input" id="token_scope" name="scope" type="text" value="" />
           </td>
         </tr>
-        <tr id="authzUsernameRow" style="visibility:collapse">
+        <tr id="authzUsernameRow" style="display:none">
           <td>
             <div class="tooltip"><label>Username: </label><span class="tooltiptext">The username for the Resource Owner Password Credential Grant.</span>
             </div>
@@ -267,7 +236,7 @@
             <input class="input" id="token_username" name="username" type="text" value="" />
           </td>
         </tr>
-        <tr id="authzPasswordRow" style="visibility:collapse">
+        <tr id="authzPasswordRow" style="display:none">
           <td>
             <div class="tooltip"><label>Password: </label><span class="tooltiptext">The password for the Resource Owner Password Credential Grant.</span>
             </div>
