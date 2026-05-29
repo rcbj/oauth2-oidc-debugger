@@ -2,6 +2,10 @@
 FROM ubuntu:latest
         
 ARG CONFIG_FILE
+
+# replace shell with bash so we can source files
+RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+
 # Create app directory
 WORKDIR /usr/src/app
 
