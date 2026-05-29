@@ -670,23 +670,6 @@ window.onload = function() {
           descCell = '<td class="description-col">' + desc
                    + (url ? ' <a href="' + url + '" target="_blank" rel="noopener noreferrer">[ref]</a>' : '')
                    + '</td>';
-<<<<<<< HEAD
-=======
-        }
-        if (typeof decodedJWT.payload[key] === "object" )
-        {
-          keyPairJWTPayload += '<tr>'
-                            + '<td>' + key + '</td>'
-                            + '<td>' + JSON.stringify(decodedJWT.payload[key]) + '</td>'
-                            + descCell
-                            + '</tr>';
-        } else {
-          keyPairJWTPayload += '<tr>'
-                            + '<td>' + key + '</td>'
-                            + '<td>' + decodedJWT.payload[key] + '</td>'
-                            + descCell
-                            + '</tr>';
->>>>>>> master
         }
         var valueCell;
         if (typeof decodedJWT.payload[key] === "object") {
@@ -738,11 +721,7 @@ function copyHtmlToClipboard(elementId) {
 }
 
 function buildClaimSourcesFootnote() {
-<<<<<<< HEAD
   var html = '<p><sup>†</sup> <strong>Claim descriptions were gathered from the following sources:</strong></p>';
-=======
-  var html = '<p><sup>†</sup> <strong>Vendor-specific claim descriptions were gathered from the following sources:</strong></p>';
->>>>>>> master
   Object.keys(vendorClaims).forEach(function(vendor) {
     var data = vendorClaims[vendor];
     var vendorName = data['_vendor_name'] || vendor;
