@@ -272,7 +272,11 @@ async function validateClaims() {
   // ---- RFC 7519 registered claims ----
 
   // exp (RFC 7519 §4.1.4; required for OIDC and RFC 9068)
+<<<<<<< HEAD
   if (!!payload.exp) {
+=======
+  if (payload.exp !== undefined) {
+>>>>>>> master
     if (typeof payload.exp !== 'number' || !Number.isInteger(payload.exp)) {
       fail('exp', 'Must be an integer NumericDate (RFC 7519 §4.1.4)');
     } else if (now > payload.exp + clockSkew) {
@@ -290,7 +294,11 @@ async function validateClaims() {
   }
 
   // nbf (RFC 7519 §4.1.5 — optional, validate if present)
+<<<<<<< HEAD
   if (!!payload.nbf) {
+=======
+  if (payload.nbf !== undefined) {
+>>>>>>> master
     if (typeof payload.nbf !== 'number' || !Number.isInteger(payload.nbf)) {
       fail('nbf', 'Must be an integer NumericDate (RFC 7519 §4.1.5)');
     } else if (now < payload.nbf - clockSkew) {
@@ -303,7 +311,11 @@ async function validateClaims() {
   }
 
   // iat (RFC 7519 §4.1.6; required for OIDC and RFC 9068)
+<<<<<<< HEAD
   if (!!payload.iat) {
+=======
+  if (payload.iat !== undefined) {
+>>>>>>> master
     if (typeof payload.iat !== 'number' || !Number.isInteger(payload.iat)) {
       fail('iat', 'Must be an integer NumericDate (RFC 7519 §4.1.6)');
     } else if (payload.iat > now + clockSkew) {
@@ -318,10 +330,15 @@ async function validateClaims() {
   }
 
   // exp/iat consistency
+<<<<<<< HEAD
   if (!!payload.exp && 
       !!payload.iat &&
       typeof payload.exp === 'number' && 
       typeof payload.iat === 'number') {
+=======
+  if (payload.exp !== undefined && payload.iat !== undefined &&
+      typeof payload.exp === 'number' && typeof payload.iat === 'number') {
+>>>>>>> master
     if (payload.exp <= payload.iat) {
       fail('exp/iat', 'exp (' + payload.exp + ') must be after iat (' + payload.iat + ')');
     } else {
@@ -330,7 +347,11 @@ async function validateClaims() {
   }
 
   // iss (RFC 7519 §4.1.1; required for OIDC and RFC 9068)
+<<<<<<< HEAD
   if (!!payload.iss) {
+=======
+  if (payload.iss !== undefined) {
+>>>>>>> master
     if (typeof payload.iss !== 'string') {
       fail('iss', 'Must be a StringOrURI (RFC 7519 §4.1.1)');
     } else if (purpose === 'oidc_id_token' && payload.iss.endsWith('#')) {
@@ -349,7 +370,11 @@ async function validateClaims() {
   }
 
   // sub (RFC 7519 §4.1.2; required for OIDC and RFC 9068)
+<<<<<<< HEAD
   if (!!payload.sub) {
+=======
+  if (payload.sub !== undefined) {
+>>>>>>> master
     if (typeof payload.sub !== 'string') {
       fail('sub', 'Must be a StringOrURI (RFC 7519 §4.1.2)');
     } else if (purpose === 'oidc_id_token' && payload.sub.length > 255) {
@@ -364,7 +389,11 @@ async function validateClaims() {
   }
 
   // aud (RFC 7519 §4.1.3; required for OIDC and RFC 9068)
+<<<<<<< HEAD
   if (!!payload.aud) {
+=======
+  if (payload.aud !== undefined) {
+>>>>>>> master
     const audArray = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
     if (expectedAud && !audArray.includes(expectedAud)) {
       fail('aud', 'Expected "' + expectedAud + '" not found in ' + JSON.stringify(payload.aud));
@@ -382,7 +411,11 @@ async function validateClaims() {
   }
 
   // jti (RFC 7519 §4.1.7; required for RFC 9068)
+<<<<<<< HEAD
   if (!!payload.jti) {
+=======
+  if (payload.jti !== undefined) {
+>>>>>>> master
     pass('jti', '"' + payload.jti + '"');
   } else if (purpose === 'oauth2_access_token') {
     fail('jti', 'Missing required claim (RFC 9068 §2.2)');
@@ -392,7 +425,11 @@ async function validateClaims() {
 
   // ---- OIDC ID Token specific (OIDC Core 1.0 §3.1.3.7) ----
   if (purpose === 'oidc_id_token') {
+<<<<<<< HEAD
     const audArray = !!payload.aud
+=======
+    const audArray = payload.aud !== undefined
+>>>>>>> master
       ? (Array.isArray(payload.aud) ? payload.aud : [payload.aud]) : [];
 
     // azp
@@ -404,7 +441,11 @@ async function validateClaims() {
       } else {
         pass('azp', '"' + payload.azp + '"');
       }
+<<<<<<< HEAD
     } else if (!!payload.azp) {
+=======
+    } else if (payload.azp !== undefined) {
+>>>>>>> master
       if (clientId && payload.azp !== clientId) {
         fail('azp', 'Mismatch (expected="' + clientId + '", got="' + payload.azp + '")');
       } else {
@@ -422,7 +463,11 @@ async function validateClaims() {
     }
 
     // auth_time
+<<<<<<< HEAD
     if (!!payload.auth_time) {
+=======
+    if (payload.auth_time !== undefined) {
+>>>>>>> master
       if (typeof payload.auth_time !== 'number' || !Number.isInteger(payload.auth_time)) {
         fail('auth_time', 'Must be an integer NumericDate (OIDC Core §2)');
       } else if (payload.auth_time > now + clockSkew) {
@@ -435,23 +480,37 @@ async function validateClaims() {
     }
 
     // acr
+<<<<<<< HEAD
     if (!!payload.acr) {
+=======
+    if (payload.acr !== undefined) {
+>>>>>>> master
       pass('acr', '"' + payload.acr + '"');
     } else {
       skip('acr', 'Not present');
     }
 
     // amr
+<<<<<<< HEAD
     if (!!payload.amr) {
+=======
+    if (payload.amr !== undefined) {
+>>>>>>> master
       pass('amr', JSON.stringify(payload.amr));
     } else {
       skip('amr', 'Not present');
     }
 
     // at_hash (OIDC Core §3.1.3.6)
+<<<<<<< HEAD
     if (!!payload.at_hash) {
       const accessToken = localStorage.getItem('token_access_token');
       if (!!accessToken) {
+=======
+    if (payload.at_hash !== undefined) {
+      const accessToken = localStorage.getItem('token_access_token');
+      if (accessToken) {
+>>>>>>> master
         try {
           const computed = await computeAtHash(accessToken, header.alg);
           if (computed === null) {
@@ -472,14 +531,22 @@ async function validateClaims() {
     }
 
     // c_hash — cannot validate without the authorization code
+<<<<<<< HEAD
     if (!!payload.c_hash) {
+=======
+    if (payload.c_hash !== undefined) {
+>>>>>>> master
       skip('c_hash', 'Present — cannot validate (authorization code no longer available)');
     } else {
       skip('c_hash', 'Not present');
     }
 
     // s_hash (FAPI) — cannot validate without the state value
+<<<<<<< HEAD
     if (!!payload.s_hash) {
+=======
+    if (payload.s_hash !== undefined) {
+>>>>>>> master
       skip('s_hash', 'Present — cannot validate (state value no longer available)');
     } else {
       skip('s_hash', 'Not present');
@@ -489,7 +556,11 @@ async function validateClaims() {
   // ---- OAuth2 Access Token specific (RFC 9068 §2.2) ----
   if (purpose === 'oauth2_access_token') {
     // client_id
+<<<<<<< HEAD
     if (!!payload.client_id) {
+=======
+    if (payload.client_id !== undefined) {
+>>>>>>> master
       if (clientId && payload.client_id !== clientId) {
         fail('client_id', 'Mismatch (expected="' + clientId + '", got="' + payload.client_id + '")');
       } else {
@@ -500,7 +571,11 @@ async function validateClaims() {
     }
 
     // scope / authorization_details
+<<<<<<< HEAD
     if (!!payload.scope) {
+=======
+    if (payload.scope !== undefined) {
+>>>>>>> master
       if (expectedScope) {
         const tokenScopes = payload.scope.split(' ');
         const requiredScopes = expectedScope.split(' ').filter(s => s.length > 0);
@@ -523,8 +598,12 @@ async function validateClaims() {
 
   // ---- Token age summary ----
   var ageLine = '';
+<<<<<<< HEAD
   if (!!payload.iat && 
       typeof payload.iat === 'number') {
+=======
+  if (payload.iat !== undefined && typeof payload.iat === 'number') {
+>>>>>>> master
     const ageSeconds = now - payload.iat;
     const ageMins = Math.floor(ageSeconds / 60);
     const ageSecs = ageSeconds % 60;
@@ -580,6 +659,31 @@ window.onload = function() {
   else {
     const globalClientId = localStorage.getItem('client_id');
     if (globalClientId) document.getElementById('jwt_claims_client_id').value = globalClientId;
+<<<<<<< HEAD
+=======
+  }
+  const storedScope = localStorage.getItem('jwt_expected_scope') || localStorage.getItem('scope');
+  if (storedScope) document.getElementById('jwt_expected_scope').value = storedScope;
+  const storedSkew = localStorage.getItem('jwt_clock_skew');
+  document.getElementById('jwt_clock_skew').value = (storedSkew !== null && storedSkew !== '') ? storedSkew : '30';
+
+  const type = getParameterByName('type');
+  var jwt = "";
+  if (type == 'access') {
+    jwt = localStorage.getItem("token_access_token");
+  } else if (type == 'refresh') {
+    jwt = localStorage.getItem("token_refresh_token");
+  } else if (type == 'id') {
+    jwt = localStorage.getItem("token_id_token");
+  } else if (type == 'refresh_access') {
+    jwt = localStorage.getItem("refresh_access_token");
+  } else if (type == 'refresh_refresh') {
+    jwt = localStorage.getItem("refresh_refresh_token");
+  } else if (type == 'refresh_id') {
+    jwt = localStorage.getItem('refresh_id_token');
+  } else {
+    log.error('Unknown token type encountered.');
+>>>>>>> master
   }
   const storedScope = localStorage.getItem('jwt_expected_scope') || localStorage.getItem('scope');
   if (storedScope) document.getElementById('jwt_expected_scope').value = storedScope;
@@ -670,6 +774,23 @@ window.onload = function() {
           descCell = '<td class="description-col">' + desc
                    + (url ? ' <a href="' + url + '" target="_blank" rel="noopener noreferrer">[ref]</a>' : '')
                    + '</td>';
+<<<<<<< HEAD
+=======
+        }
+        if (typeof decodedJWT.payload[key] === "object" )
+        {
+          keyPairJWTPayload += '<tr>'
+                            + '<td>' + key + '</td>'
+                            + '<td>' + JSON.stringify(decodedJWT.payload[key]) + '</td>'
+                            + descCell
+                            + '</tr>';
+        } else {
+          keyPairJWTPayload += '<tr>'
+                            + '<td>' + key + '</td>'
+                            + '<td>' + decodedJWT.payload[key] + '</td>'
+                            + descCell
+                            + '</tr>';
+>>>>>>> master
         }
         var valueCell;
         if (typeof decodedJWT.payload[key] === "object") {
@@ -721,7 +842,11 @@ function copyHtmlToClipboard(elementId) {
 }
 
 function buildClaimSourcesFootnote() {
+<<<<<<< HEAD
   var html = '<p><sup>†</sup> <strong>Claim descriptions were gathered from the following sources:</strong></p>';
+=======
+  var html = '<p><sup>†</sup> <strong>Vendor-specific claim descriptions were gathered from the following sources:</strong></p>';
+>>>>>>> master
   Object.keys(vendorClaims).forEach(function(vendor) {
     var data = vendorClaims[vendor];
     var vendorName = data['_vendor_name'] || vendor;
