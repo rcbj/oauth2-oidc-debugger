@@ -18,6 +18,8 @@ init()
     echo "Cannot find ${COMMON_SH}."
     exit 1
   fi
+  common_setup
+  check_return_code $?
   NODEJS_BASE_DIR=tests
 }
 
