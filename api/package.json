@@ -12,7 +12,7 @@
     "body-parser": "^2.2.2",
     "bunyan": "latest",
     "cors": "latest",
-    "express": "^4.22.1",
+    "express": "^4.22.2",
     "express-logging": "latest",
     "express-swagger-generator": "^1.1.17",
     "logops": "latest"
