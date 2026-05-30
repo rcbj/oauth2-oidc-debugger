@@ -203,10 +203,12 @@ function successfulInternalTokenAPICall(data, textStatus, request)
           + ", request=" 
           + JSON.stringify(request));
   var token_endpoint_result_html = "";
-  if (!!data.refresh_token && data.refresh_token != 'undefined') {
+  if (!!data.refresh_token && 
+      data.refresh_token != 'undefined') {
     currentRefreshToken = data.refresh_token;
   }
-  if (data.id_token && data.id_token != 'undefined'){
+  if (!!data.id_token && 
+      data.id_token != 'undefined'){
     $("#logout_id_token_hint").val(data.id_token);
   }
   log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
@@ -305,7 +307,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
     $("#token_endpoint_result").html(token_endpoint_result_html);
     $("#token_endpoint_result").show();
     $("#refresh_refresh_token").val(currentRefreshToken);
-    $("#refresh_client_id").val(localStorage.getItem("client_id"));
+    $("#refresh_client_id").val($("#token_client_id").val());
     $("#refresh_scope").val(localStorage.getItem("scope"));
     $("#refresh_client_secret").val(localStorage.getItem("client_secret"));
     $("#token_fieldset").hide();
@@ -313,6 +315,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
     useRefreshTokens();
     if(!!currentRefreshToken) {
       $("#logout_id_token_hint").val(data.id_token);
+      $("#logout_client_id").val($("#token_client_id").val());
     } else {
       $("#logout_fieldset").hide();
       $("#logout_expand_button").val("Expand");
@@ -596,6 +599,8 @@ function resetUI(value)
       $("#token_endpoint_result").html("");
       $("#display_authz_request_class").hide();
       $("#display_token_request").show();
+      displayOpenIDConnectArtifacts = false;
+      useRefreshTokenTester = $("#useRefreshToken-yes").is(":checked"); 
     }
     if( value == "implicit_grant" &&
         getParameterByName("redirectFromTokenDetail") != "true")

@@ -6,6 +6,7 @@ const assert = require("assert");
 const { Command, Option } = require('commander');
 
 var baseUrl = "http://localhost:3000"
+var logout_post_redirect_uri_value = baseUrl + "/logout.html";
 var headless = true;
 var waitTime = 10000;
 
@@ -42,6 +43,29 @@ async function populateMetadata(driver, discovery_endpoint) {
   console.log("Find & Click btn_oidc_populate_meta_data.");
   await driver.findElement(btn_oidc_populate_meta_data).click();
   console.log("Leaving populateMetadata().");
+}
+
+async function verifyAccessToken(access_token, client_id, scope, user, audience, issuer) {
+  async function compareScopes(scope1, scope2) {
+    scope1 = scope1.split(" ");
+    scope2 = scope2.split(" ");
+
+    return scope2.every(element => scope1.includes(element));
+  }
+
+  let decoded_access_token = jwt.decode(access_token, { complete: true });
+  let response_text = access_token.match(/responseText: (.*)/);
+
+  assert.notStrictEqual(decoded_access_token, null, "Cannot decode access token. Request result: " + (response_text ? response_text[1] : "no response text"));
+  assert.strictEqual(decoded_access_token.payload.azp, client_id, "Access token AZP does not match client ID.");
+  assert.strictEqual(await compareScopes(decoded_access_token.payload.scope, scope), true, "Access token scope does not match scope.");
+  assert.strictEqual(decoded_access_token.payload.sub, user, "Access token SUB does not match user ID: access_token.payload.sub=" + decoded_access_token.payload.sub + " , user=" + user);
+  assert.strictEqual(decoded_access_token.payload.aud, audience, "Access token aud does not match " + audience);
+  assert.strictEqual(decoded_access_token.payload.iss, issuer, "Access token iss does not match " + issuer);
+  assert.strictEqual(decoded_access_token.payload.given_name, client_id, "Access token given_name does not match.");
+  assert.strictEqual(decoded_access_token.payload.family_name, client_id, "Access token family_name does not match.");
+  assert.strictEqual(decoded_access_token.payload.email, `${client_id}@iyasec.io`, "Access token email does not match.");
+  assert.strictEqual(decoded_access_token.payload.typ, "Bearer", "Access Token typ does not match.");
 }
 
 async function getAccessToken(driver, client_id, client_secret, scope, username, password) {
@@ -119,7 +143,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, username,
   await driver.wait(until.elementLocated(token_username), waitTime);
   await driver.wait(until.elementIsVisible(driver.findElement(token_username)), waitTime);
   await driver.findElement(token_username).clear();
-  await driver.findElement(token_username).sendKeys(username);
+  await driver.findElement(token_username).sendKeys(client_id);
 
   console.log("Fill token_password.");
   const token_password = By.id("token_password");
@@ -134,7 +158,75 @@ async function getAccessToken(driver, client_id, client_secret, scope, username,
   await driver.executeScript("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", await driver.findElement(token_btn));
   await driver.findElement(token_btn).click();
 
+  // Get access token result
+  async function waitForVisibility(element) {
+    console.log("Waiting for " + element);
+    await driver.wait(until.elementLocated(element), waitTime);
+    console.log("Waiting for " + element + "is visible.");
+    await driver.wait(until.elementIsVisible(driver.findElement(element)), waitTime);
+    console.log("Returning " + element);
+    return element;
+  }
+
+  console.log("Find token_access_token.");
+  token_access_token = By.id("token_access_token");
+
+  console.log("Find display_token_error_form_texarea1.");
+  display_token_error_form_textarea1 = By.id("display_token_error_form_textarea1");
+
+  let visibleAccessTokenElement = await Promise.any([
+    waitForVisibility(token_access_token),
+    waitForVisibility(display_token_error_form_textarea1)
+  ]);
+
+  console.log("Begin returning token.");
+  return await driver.findElement(visibleAccessTokenElement).getAttribute("value");
+
   console.log("Leaving getAccessToken().");
+}
+
+async function logout(driver) {
+  console.log("Entering logout().");
+  console.log("Find logout Button");
+  logout_button = By.id("logout_btn");
+  console.log("Find logout_post_redirect_uri.");
+  logout_post_redirect_uri = By.id("logout_post_redirect_uri");
+  console.log("Wait for logout_post_redirect_uri.");
+  await driver.wait(until.elementLocated(logout_post_redirect_uri), waitTime);
+  console.log("Wait for logout_post_redirect_uri to be visible.");
+  await driver.findElement(logout_post_redirect_uri).clear();
+  await driver.wait(until.elementIsVisible(driver.findElement(logout_post_redirect_uri)), waitTime);
+  console.log("Set post_redirect_uri for logout.");
+  await driver.findElement(logout_post_redirect_uri).sendKeys(logout_post_redirect_uri_value);
+  console.log("Click logout_btn.");
+  await driver.findElement(logout_button).click();
+
+  console.log("Wait for kc_logout.");
+  kc_logout = By.id("kc-logout");
+  await driver.wait(until.elementLocated(kc_logout), waitTime);
+  console.log("Wait for kc-logout to be visible.");
+  await driver.wait(until.elementIsVisible(driver.findElement(kc_logout)), waitTime);
+
+  console.log("Click kc_logout.");
+  await driver.findElement(kc_logout).click();
+
+  console.log("Click link to return to the front page of the debugger.");
+  returnToDebugLink = By.partialLinkText('Return to debugger');
+  await driver.wait(until.elementLocated(returnToDebugLink), waitTime);
+  await driver.findElement(returnToDebugLink).click();
+
+  console.log("Find authz_expand_button.");
+  authz_expand_button = By.id("authz_expand_button");
+  await driver.wait(until.elementLocated(authz_expand_button), waitTime);
+  console.log("Waiting for authz_expand_button to be visible.");
+  await driver.wait(until.elementIsVisible(driver.findElement(authz_expand_button)), waitTime);
+
+  console.log("Find client_id.");
+  client_id = By.id("client_id");
+  console.log("Wait for client_id");
+  await driver.findElement(client_id);
+  console.log("Wait for client_id to be visible.");
+  await driver.wait(until.elementIsVisible(driver.findElement(client_id)), waitTime);
 }
 
 async function test() {
@@ -152,7 +244,8 @@ async function test() {
     const client_secret = process.env.CLIENT_SECRET;
     const scope = process.env.SCOPE;
     const username = process.env.USER;
-    const password = username;
+    const password = client_id;
+    const audience = process.env.AUDIENCE;
     console.log("Set environment variables.");
 
     assert(discovery_endpoint, "DISCOVERY_ENDPOINT environment variable is not set.");
@@ -160,6 +253,7 @@ async function test() {
     assert(client_secret, "CLIENT_SECRET environment variable is not set.");
     assert(scope, "SCOPE environment variable is not set.");
     assert(username, "USER environment variable is not set.");
+    assert(audience, "AUDIENCE environment variable is not set.");
     console.log("Assertions completed successfully.");
 
     console.log("Starting driver.get() run.");
@@ -169,7 +263,12 @@ async function test() {
     await populateMetadata(driver, discovery_endpoint);
     console.log("Completed populateMetadata().");
     console.log("Retrieve access_token.");
-    await getAccessToken(driver, client_id, client_secret, scope, username, password);
+    const access_token = await getAccessToken(driver, client_id, client_secret, scope, username, password);
+    console.log("Found access_token=" + access_token);
+    console.log("Calling verifyAccessToken().");
+    await verifyAccessToken(access_token, client_id, scope, username, "account", audience);
+    console.log("Logging out.");
+    await logout(driver);
     console.log("Test completed successfully.")
   } catch (error) {
     console.log(error.message);
@@ -198,6 +297,7 @@ program
     if(!!options.url) {
       console.log("Setting url to " + options.url);
       baseUrl = options.url;
+      logout_post_redirect_uri_value = options.url + "/logout.html";
     }
     if(!!options.browser) {
       console.log("Using browser. headless = false.");
