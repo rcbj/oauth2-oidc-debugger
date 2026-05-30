@@ -416,7 +416,6 @@ runTests()
   USER=${RESOURCE_OWNER_CREDENTIAL_USER} \
   node ${NODEJS_BASE_DIR}/oauth2_resource_owner_password_credentials_grant.js --url "${DEBUGGER_BASE_URL}"
   check_return_code $?
-  exit 0
 
   # Test OIDC Authorization Code Flow
   echo "Test OIDC AUthorization Code Flow."
