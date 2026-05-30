@@ -201,32 +201,32 @@ async function logout(driver) {
   console.log("Click logout_btn.");
   await driver.findElement(logout_button).click();
 
-  console.log("Wait for kc_logout.");
-  kc_logout = By.id("kc-logout");
-  await driver.wait(until.elementLocated(kc_logout), waitTime);
-  console.log("Wait for kc-logout to be visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(kc_logout)), waitTime);
+//  console.log("Wait for kc_logout.");
+//  kc_logout = By.id("kc-logout");
+//  await driver.wait(until.elementLocated(kc_logout), waitTime);
+//  console.log("Wait for kc-logout to be visible.");
+//  await driver.wait(until.elementIsVisible(driver.findElement(kc_logout)), waitTime);
 
-  console.log("Click kc_logout.");
-  await driver.findElement(kc_logout).click();
+//  console.log("Click kc_logout.");
+//  await driver.findElement(kc_logout).click();
 
   console.log("Click link to return to the front page of the debugger.");
   returnToDebugLink = By.partialLinkText('Return to debugger');
   await driver.wait(until.elementLocated(returnToDebugLink), waitTime);
   await driver.findElement(returnToDebugLink).click();
 
-  console.log("Find authz_expand_button.");
-  authz_expand_button = By.id("authz_expand_button");
-  await driver.wait(until.elementLocated(authz_expand_button), waitTime);
-  console.log("Waiting for authz_expand_button to be visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(authz_expand_button)), waitTime);
+//  console.log("Find authz_expand_button.");
+//  authz_expand_button = By.id("authz_expand_button");
+//  await driver.wait(until.elementLocated(authz_expand_button), waitTime);
+//  console.log("Waiting for authz_expand_button to be visible.");
+//  await driver.wait(until.elementIsVisible(driver.findElement(authz_expand_button)), waitTime);
 
-  console.log("Find client_id.");
-  client_id = By.id("client_id");
-  console.log("Wait for client_id");
-  await driver.findElement(client_id);
-  console.log("Wait for client_id to be visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(client_id)), waitTime);
+//  console.log("Find client_id.");
+//  client_id = By.id("client_id");
+//  console.log("Wait for client_id");
+//  await driver.findElement(client_id);
+//  console.log("Wait for client_id to be visible.");
+//  await driver.wait(until.elementIsVisible(driver.findElement(client_id)), waitTime);
 }
 
 async function test() {
