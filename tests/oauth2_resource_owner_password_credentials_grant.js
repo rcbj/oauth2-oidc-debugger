@@ -151,7 +151,7 @@ async function test() {
     const client_id = process.env.CLIENT_ID;
     const client_secret = process.env.CLIENT_SECRET;
     const scope = process.env.SCOPE;
-    const username = process.env.USERNAME;
+    const username = process.env.USER;
     const password = username;
     console.log("Set environment variables.");
 
@@ -159,7 +159,7 @@ async function test() {
     assert(client_id, "CLIENT_ID environment variable is not set.");
     assert(client_secret, "CLIENT_SECRET environment variable is not set.");
     assert(scope, "SCOPE environment variable is not set.");
-    assert(username, "USERNAME environment variable is not set.");
+    assert(username, "USER environment variable is not set.");
     console.log("Assertions completed successfully.");
 
     console.log("Starting driver.get() run.");
