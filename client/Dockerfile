@@ -13,7 +13,9 @@ RUN apt-get update
 RUN apt-get -y install curl \
         jq \
         wget \
-        unzip
+        unzip \ 
+        util-linux \
+        bsdextrautils
 
 # Install NVM
 ENV NVM_DIR /usr/local/nvm
