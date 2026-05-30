@@ -407,6 +407,7 @@ runTests()
   check_return_code $?
 
   # OAuth2 Resource Owner Credentials Grant
+  echo "Running oauth2 resource owner credentials grant."
   AUDIENCE=${RESOURCE_OWNER_CREDENTIAL_AUDIENCE} \
   DISCOVERY_ENDPOINT=${RESOURCE_OWNER_CREDENTIAL_DISCOVERY_ENDPOINT} \
   CLIENT_ID=${RESOURCE_OWNER_CREDENTIAL_CLIENT_ID} \
