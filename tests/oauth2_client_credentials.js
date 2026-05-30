@@ -7,6 +7,7 @@ const { Command, Option } = require('commander');
 
 var baseUrl = "http://localhost:3000"
 var headless = true;
+var waitTime = 10000;
 
 async function populateMetadata(driver, discovery_endpoint) {
   console.log("Entering populateMetadata().");
@@ -19,9 +20,9 @@ async function populateMetadata(driver, discovery_endpoint) {
 
   // Wait until page is loaded
   console.log("Wait for oidc_discovery_endpoint.");
-  await driver.wait(until.elementLocated(oidc_discovery_endpoint), 10000);
+  await driver.wait(until.elementLocated(oidc_discovery_endpoint), waitTime);
   console.log("Wait for oidc_discovery_endpoint.");
-  await driver.wait(until.elementIsVisible(driver.findElement(oidc_discovery_endpoint)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(oidc_discovery_endpoint)), waitTime);
 
   // Enter discovery endpointA
   console.log("Find & Clear oidc_discovery_endpoint.");
@@ -33,9 +34,9 @@ async function populateMetadata(driver, discovery_endpoint) {
 
   // Populate metadata
   console.log("Find btn_oidc_populate_meta_data.");
-  await driver.wait(until.elementLocated(btn_oidc_populate_meta_data), 10000);
+  await driver.wait(until.elementLocated(btn_oidc_populate_meta_data), waitTime);
   console.log("Find btn_oidc_populate_meta_data.");
-  await driver.wait(until.elementIsVisible(driver.findElement(btn_oidc_populate_meta_data)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(btn_oidc_populate_meta_data)), waitTime);
   console.log("Execute script.");
   await driver.executeScript("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", await driver.findElement(btn_oidc_populate_meta_data));
   console.log("Find & Click btn_oidc_populate_meta_data.");
@@ -57,11 +58,11 @@ async function getAccessToken(driver, client_id, client_secret, scope) {
 
   console.log("Find token_client_id.");
   token_client_id = By.id("token_client_id");
-  await driver.wait(until.elementLocated(token_client_id), 10000);
+  await driver.wait(until.elementLocated(token_client_id), waitTime);
   console.log("Switch to client_credential grant.");
   await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OAuth2 Client Credential');
   console.log("Wait until element is visible.");
-  await driver.wait(until.elementIsVisible(driver.findElement(token_client_id)), 10000);
+  await driver.wait(until.elementIsVisible(driver.findElement(token_client_id)), waitTime);
 
   console.log("Find token_client_secret.")
   token_client_secret = By.id("token_client_secret");
@@ -92,8 +93,8 @@ async function getAccessToken(driver, client_id, client_secret, scope) {
 
   // Get access token result
   async function waitForVisibility(element) {
-    await driver.wait(until.elementLocated(element), 10000);
-    await driver.wait(until.elementIsVisible(driver.findElement(element)), 10000);
+    await driver.wait(until.elementLocated(element), waitTime);
+    await driver.wait(until.elementIsVisible(driver.findElement(element)), waitTime);
     return element;
   }
 

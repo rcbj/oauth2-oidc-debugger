@@ -207,7 +207,26 @@ function loadValuesFromLocalStorage()
     userinfo_method = localStorage.getItem("userinfo_method");
     userinfo_scope = localStorage.getItem("userinfo_scope");
     userinfo_claims = localStorage.getItem("userinfo_claims");
-    token_access_token = localStorage.getItem("token_access_token");
+    var type = getParameterByName('type');
+    if (type === 'history_access') {
+      var generation = parseInt(getParameterByName('generation'), 10);
+      var history = [];
+      try {
+        history = JSON.parse(localStorage.getItem('token_history') || '[]');
+      } catch (e) {
+        log.error('Failed to parse token_history: ' + e);
+      }
+      if (!isNaN(generation) && generation >= 0 && generation < history.length) {
+        token_access_token = history[generation].access_token || '';
+      } else {
+        log.error('Invalid generation index: ' + generation);
+        token_access_token = '';
+      }
+    } else if (type === 'refresh_access_token') {
+      token_access_token = localStorage.getItem('refresh_access_token');
+    } else {
+      token_access_token = localStorage.getItem("token_access_token");
+    }
   }
   // Set configuration fields
   document.getElementById("userinfo_endpoint").value = userinfo_endpoint;

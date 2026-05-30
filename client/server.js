@@ -6,6 +6,8 @@
 'use strict';
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 var appconfig = require(process.env.CONFIG_FILE);
 const expressLogging = require('express-logging');
 const logger = require('logops');
@@ -20,6 +22,20 @@ const HOST = appconfig.hostname || '0.0.0.0';
 
 // App
 const app = express();
+
+app.use(function(req, res, next) {
+  if (!req.path.endsWith('.html')) { return next(); }
+  const filePath = path.join(__dirname, 'public', req.path);
+  fs.readFile(filePath, 'utf8', function(err, content) {
+    if (err) { return next(); }
+    var processed = content.replace(/<!--#include file="([^"]+)"-->/g, function(match, file) {
+      try { return fs.readFileSync(path.join(__dirname, 'public', file), 'utf8'); }
+      catch(e) { log.error('SSI include failed: ' + file + ' - ' + e); return ''; }
+    });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(processed);
+  });
+});
 
 app.use( function(req, res, next) {
     console.log(req.originalUrl);
