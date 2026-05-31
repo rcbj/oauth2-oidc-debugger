@@ -22,12 +22,32 @@ init()
   NODEJS_BASE_DIR=.
 }
 
+# Run the suite via the report generator instead of runTests(). It executes
+# the same tests once, continues past failures, and writes a timestamped
+# HTML + JUnit + per-test log set under ./report. It exits non-zero if any
+# test failed, so the check_return_code below still gates the success banner.
+runReport()
+{
+  export DEBUGGER_BASE_URL
+  node "${NODEJS_BASE_DIR}/run-report.js"
+}
+
 init
 check_return_code $?
 configureKeycloak
 check_return_code $?
-runTests
+runReport
 check_return_code $?
 node --version
 check_return_code $?
+
+cat <<'EOF'
+   _   _ _   _            _                                  _
+  / \ | | | | |_ ___  ___| |_ ___   _ __   __ _ ___ ___  ___| |
+ / _ \| | | | __/ _ \/ __| __/ __| | '_ \ / _` / __/ __|/ _ \ |
+/ ___ \ | | | ||  __/\__ \ |_\__ \ | |_) | (_| \__ \__ \  __/_|
+/_/   \_\_|_|  \__\___||___/\__|___/ | .__/ \__,_|___/___/\___(_)
+                                     |_|
+EOF
+
 exit 0

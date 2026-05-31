@@ -105,6 +105,9 @@ services:
     build:
       context: .
       dockerfile: tests/Dockerfile
+    # Persist the generated report/logs to the host (gitignored).
+    volumes:
+      - ./tests/report:/usr/src/app/report
     depends_on:
       client:
         condition: service_healthy

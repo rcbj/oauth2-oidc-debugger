@@ -28,6 +28,20 @@ common_setup()
   echo "Leaving common_setup()."
 }
 
+docker_compose() {
+  echo "Entering docker_compose()."
+  if docker compose version >/dev/null 2>&1; then
+    sudo CONFIG_FILE=${CONFIG_FILE} docker compose "$@"
+  elif command -v docker-compose >/dev/null 2>&1; then
+    sudo CONFIG_FILE=${CONFIG_FILE} docker-compose "$@"
+  else
+    echo "Error: Docker Compose not found." >&2
+    return 1
+  fi
+  echo "Leaving docker_compose()."
+  return 0
+}
+
 configureKeycloak()
 {
   echo "Entering configureKeycloak()."
@@ -314,12 +328,13 @@ configureKeycloak()
           }'
     check_return_code $?
 
-    declare -g ${FLOW_VARIABLE}_AUDIENCE="${KEYCLOAK_BASE_URL}/realms/debugger-testing"
-    declare -g ${FLOW_VARIABLE}_DISCOVERY_ENDPOINT="${KEYCLOAK_BASE_URL}/realms/debugger-testing/.well-known/openid-configuration"
-    declare -g ${FLOW_VARIABLE}_CLIENT_ID="${CLIENT_CLIENTID}"
-    declare -g ${FLOW_VARIABLE}_CLIENT_SECRET="${CLIENT_SECRET}"
-    declare -g ${FLOW_VARIABLE}_SCOPE="${SCOPE_NAME}"
-    declare -g ${FLOW_VARIABLE}_USER="${USER_ID}"
+    # -gx (export) so child processes — e.g. tests/run-report.js — inherit these
+    declare -gx ${FLOW_VARIABLE}_AUDIENCE="${KEYCLOAK_BASE_URL}/realms/debugger-testing"
+    declare -gx ${FLOW_VARIABLE}_DISCOVERY_ENDPOINT="${KEYCLOAK_BASE_URL}/realms/debugger-testing/.well-known/openid-configuration"
+    declare -gx ${FLOW_VARIABLE}_CLIENT_ID="${CLIENT_CLIENTID}"
+    declare -gx ${FLOW_VARIABLE}_CLIENT_SECRET="${CLIENT_SECRET}"
+    declare -gx ${FLOW_VARIABLE}_SCOPE="${SCOPE_NAME}"
+    declare -gx ${FLOW_VARIABLE}_USER="${USER_ID}"
 
     VAR_NAME1=${FLOW_VARIABLE}_DISCOVERY_ENDPOINT
     VAR_NAME2=${FLOW_VARIABLE}_CLIENT_ID

@@ -1,5 +1,10 @@
 {
+  "scripts": {
+    "report": "node run-report.js",
+    "report:demo": "node run-report.js --demo"
+  },
   "dependencies": {
+    "bunyan": "latest",
     "commander": "^14.0.2",
     "jsonwebtoken": "^9.0.2",
     "selenium-webdriver": "latest"
