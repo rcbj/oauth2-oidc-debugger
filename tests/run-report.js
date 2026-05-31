@@ -1,0 +1,377 @@
+#!/usr/bin/env node
+//
+// run-report.js — lightweight test runner + report generator for the
+// Selenium tests in this directory.
+//
+// Selenium WebDriver itself produces no reports; these test files are bare
+// Node scripts that exit non-zero on failure. This runner executes each one
+// (continuing past failures, unlike runTests() in common/common.sh which
+// aborts on the first), captures exit code / output / timing, and writes a
+// timestamped run directory tests/report/<timestamp>/ containing:
+//
+//   report.html        — human-readable report
+//   report.xml         — JUnit XML (for CI dashboards)
+//   logs/NN-<test>.log — full stdout+stderr per test
+//
+// Each test's stdout and stderr are streamed live to the console AND written
+// to its log file as they are produced (a tee), so the complete output is
+// captured even for long-running tests that print hundreds of lines.
+//
+// It reproduces the env-var wiring from runTests() so the existing test
+// files run unchanged. Provide the same config vars in the environment
+// (DEBUGGER_BASE_URL, CLIENT_CREDENTIALS_*, AUTHORIZATION_CODE_PUBLIC_*, etc.)
+// that runTests() expects.
+//
+// Usage:
+//   node tests/run-report.js          # run the suite, write reports
+//   node tests/run-report.js --demo   # write a SAMPLE report (no tests run)
+//
+const { spawn } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+
+const TESTS_DIR = __dirname;
+const REPORT_DIR = path.join(TESTS_DIR, "report");
+// Each run gets its own timestamped subdirectory so history is preserved.
+// Filesystem-safe ISO stamp, e.g. 2026-05-30T17-45-00
+const RUN_ID = new Date().toISOString().replace(/:/g, "-").replace(/\..+$/, "");
+const RUN_DIR = path.join(REPORT_DIR, RUN_ID);
+const LOGS_DIR = path.join(RUN_DIR, "logs");
+const BASE_URL = process.env.DEBUGGER_BASE_URL || "http://localhost:3000";
+const env = process.env;
+
+// Mirror of the *active* (non-commented) test invocations in
+// common/common.sh runTests(). Each job maps the suite's config vars onto the
+// generic names (AUDIENCE, CLIENT_ID, ...) each test script reads.
+function buildJobs() {
+  const jobs = [];
+
+  jobs.push({
+    name: "OAuth2 Client Credentials",
+    script: "oauth2_client_credentials.js",
+    env: {
+      AUDIENCE: env.CLIENT_CREDENTIALS_AUDIENCE,
+      DISCOVERY_ENDPOINT: env.CLIENT_CREDENTIALS_DISCOVERY_ENDPOINT,
+      CLIENT_ID: env.CLIENT_CREDENTIALS_CLIENT_ID,
+      CLIENT_SECRET: env.CLIENT_CREDENTIALS_CLIENT_SECRET,
+      SCOPE: env.CLIENT_CREDENTIALS_SCOPE,
+    },
+  });
+
+  for (const PKCE_ENABLED of ["true", "false"]) {
+    jobs.push({
+      name: `OAuth2 Authorization Code (public, PKCE=${PKCE_ENABLED})`,
+      script: "oauth2_authorization_code.js",
+      env: {
+        AUDIENCE: env.AUTHORIZATION_CODE_PUBLIC_AUDIENCE,
+        DISCOVERY_ENDPOINT: env.AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT,
+        CLIENT_ID: env.AUTHORIZATION_CODE_PUBLIC_CLIENT_ID,
+        CLIENT_SECRET: env.AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET,
+        SCOPE: env.AUTHORIZATION_CODE_PUBLIC_SCOPE,
+        USER: env.AUTHORIZATION_CODE_PUBLIC_USER,
+        PKCE_ENABLED,
+      },
+    });
+  }
+
+  jobs.push({
+    name: "OAuth2 Implicit",
+    script: "oauth2_implicit.js",
+    env: {
+      AUDIENCE: env.IMPLICIT_AUDIENCE,
+      DISCOVERY_ENDPOINT: env.IMPLICIT_DISCOVERY_ENDPOINT,
+      CLIENT_ID: env.IMPLICIT_CLIENT_ID,
+      SCOPE: env.IMPLICIT_SCOPE,
+      USER: env.IMPLICIT_USER,
+    },
+  });
+
+  jobs.push({
+    name: "OAuth2 Resource Owner Password Credentials",
+    script: "oauth2_resource_owner_password_credentials_grant.js",
+    env: {
+      AUDIENCE: env.RESOURCE_OWNER_CREDENTIAL_AUDIENCE,
+      DISCOVERY_ENDPOINT: env.RESOURCE_OWNER_CREDENTIAL_DISCOVERY_ENDPOINT,
+      CLIENT_ID: env.RESOURCE_OWNER_CREDENTIAL_CLIENT_ID,
+      CLIENT_SECRET: env.RESOURCE_OWNER_CREDENTIAL_CLIENT_SECRET,
+      SCOPE: env.RESOURCE_OWNER_CREDENTIAL_SCOPE,
+      USER: env.RESOURCE_OWNER_CREDENTIAL_USER,
+    },
+  });
+
+  for (const PKCE_ENABLED of ["true", "false"]) {
+    jobs.push({
+      name: `OIDC Authorization Code (public, PKCE=${PKCE_ENABLED})`,
+      script: "oidc_authorization_code.js",
+      env: {
+        AUDIENCE: env.OIDC_AUTHORIZATION_CODE_PUBLIC_AUDIENCE,
+        DISCOVERY_ENDPOINT: env.OIDC_AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT,
+        CLIENT_ID: env.OIDC_AUTHORIZATION_CODE_PUBLIC_CLIENT_ID,
+        CLIENT_SECRET: env.OIDC_AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET,
+        // matches runTests(): the OIDC scope is prefixed with the std scopes
+        SCOPE: `openid profile email offline_access ${env.OIDC_AUTHORIZATION_CODE_PUBLIC_SCOPE || ""}`.trim(),
+        USER: env.OIDC_AUTHORIZATION_CODE_PUBLIC_USER,
+        PKCE_ENABLED,
+      },
+    });
+  }
+
+  return jobs;
+}
+
+function slug(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+function logPathFor(name, index) {
+  return path.join(LOGS_DIR, `${String(index + 1).padStart(2, "0")}-${slug(name)}.log`);
+}
+
+function logHeader(name, script, startedAt) {
+  return (
+    [
+      `Test:     ${name}`,
+      `Script:   ${script}`,
+      `Base URL: ${BASE_URL}`,
+      `Started:  ${startedAt}`,
+    ].join("\n") +
+    "\n\n===== OUTPUT (stdout + stderr, in the order produced) =====\n"
+  );
+}
+
+// Run one test, streaming its stdout AND stderr live to the console while
+// simultaneously writing them to a per-test log file (a tee). The log is
+// opened and the header written before the child starts, and flushed as
+// output arrives, so the full output survives even if the suite is killed
+// or a test hangs. Returns a Promise resolving to the result.
+function runJob(job, index) {
+  return new Promise((resolve) => {
+    const startedAt = new Date().toISOString();
+    const startMs = Date.now();
+    fs.mkdirSync(LOGS_DIR, { recursive: true });
+    const logPath = logPathFor(job.name, index);
+    const logStream = fs.createWriteStream(logPath);
+    logStream.write(logHeader(job.name, job.script, startedAt));
+
+    let output = "";
+    const tee = (chunk) => {
+      const s = chunk.toString();
+      output += s;
+      logStream.write(s); // capture
+      process.stdout.write(s); // live echo
+    };
+
+    const finish = (code, codeLabel) => {
+      const durationMs = Date.now() - startMs;
+      const passed = code === 0;
+      logStream.end(
+        `\n===== RESULT: ${passed ? "PASS" : "FAIL"} ` +
+          `(exit ${codeLabel}, ${(durationMs / 1000).toFixed(1)}s) =====\n`
+      );
+      resolve({
+        name: job.name,
+        script: job.script,
+        passed,
+        code: codeLabel,
+        durationMs,
+        output,
+        logFile: path.relative(TESTS_DIR, logPath),
+      });
+    };
+
+    const child = spawn("node", [path.join(TESTS_DIR, job.script), "--url", BASE_URL], {
+      env: { ...process.env, ...job.env },
+    });
+    child.stdout.on("data", tee);
+    child.stderr.on("data", tee);
+    child.on("error", (err) => {
+      // e.g. node binary missing — record it instead of crashing the runner
+      tee(`\n[runner] failed to spawn: ${err.message}\n`);
+      finish(1, `spawn error: ${err.message}`);
+    });
+    child.on("close", (code) => finish(code, code));
+  });
+}
+
+// ---- report rendering ------------------------------------------------------
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderHtml(results, generatedAt, demo) {
+  const total = results.length;
+  const passed = results.filter((r) => r.passed).length;
+  const failed = total - passed;
+  const totalMs = results.reduce((a, r) => a + r.durationMs, 0);
+
+  const rows = results
+    .map((r, i) => {
+      const cls = r.passed ? "pass" : "fail";
+      const badge = r.passed ? "PASS" : "FAIL";
+      const log = esc((r.output || "").trim());
+      const logLink = r.logFile
+        ? `<br><a href="logs/${esc(path.basename(r.logFile))}"><code>${esc(r.logFile)}</code></a>`
+        : "";
+      return `
+      <tr class="${cls}">
+        <td><span class="badge ${cls}">${badge}</span></td>
+        <td>${esc(r.name)}<br><code>${esc(r.script)}</code></td>
+        <td class="num">${(r.durationMs / 1000).toFixed(1)}s</td>
+        <td class="num">${esc(r.code)}</td>
+        <td><details><summary>output</summary><pre>${log || "(no output)"}</pre></details>${logLink}</td>
+      </tr>`;
+    })
+    .join("");
+
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>OAuth2/OIDC Debugger — Selenium Test Report</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Helvetica,Arial,sans-serif;margin:2rem;color:#1b1b1b}
+  h1{margin:0 0 .25rem} .sub{color:#666;margin:0 0 1.5rem}
+  .demo{background:#fff3cd;border:1px solid #ffe08a;padding:.6rem 1rem;border-radius:6px;margin-bottom:1rem}
+  .cards{display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap}
+  .card{border:1px solid #e2e2e2;border-radius:8px;padding:1rem 1.4rem;min-width:120px}
+  .card .n{font-size:1.8rem;font-weight:700}
+  .card.ok .n{color:#1a7f37}.card.bad .n{color:#c1121f}
+  table{border-collapse:collapse;width:100%}
+  th,td{border-bottom:1px solid #eee;padding:.55rem .6rem;text-align:left;vertical-align:top}
+  th{background:#fafafa} .num{text-align:right;white-space:nowrap}
+  tr.fail{background:#fff5f5}
+  .badge{font-weight:700;font-size:.75rem;padding:.15rem .5rem;border-radius:4px;color:#fff}
+  .badge.pass{background:#1a7f37}.badge.fail{background:#c1121f}
+  code{background:#f3f3f3;padding:.05rem .3rem;border-radius:3px}
+  pre{background:#0d1117;color:#e6edf3;padding:.8rem;border-radius:6px;overflow:auto;max-height:360px;font-size:.8rem}
+  summary{cursor:pointer;color:#0969da}
+</style></head><body>
+<h1>OAuth2/OIDC Debugger — Selenium Test Report</h1>
+<p class="sub">Generated ${esc(generatedAt)} · base URL <code>${esc(BASE_URL)}</code></p>
+${demo ? '<div class="demo"><strong>SAMPLE REPORT</strong> — generated with <code>--demo</code>. No tests were run; the data below is illustrative only.</div>' : ""}
+<div class="cards">
+  <div class="card"><div class="n">${total}</div><div>total</div></div>
+  <div class="card ok"><div class="n">${passed}</div><div>passed</div></div>
+  <div class="card bad"><div class="n">${failed}</div><div>failed</div></div>
+  <div class="card"><div class="n">${(totalMs / 1000).toFixed(1)}s</div><div>duration</div></div>
+</div>
+<table>
+  <thead><tr><th>Result</th><th>Test</th><th>Time</th><th>Exit</th><th>Output</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+</body></html>`;
+}
+
+function renderJUnit(results, generatedAt) {
+  const total = results.length;
+  const failures = results.filter((r) => !r.passed).length;
+  const totalSec = (results.reduce((a, r) => a + r.durationMs, 0) / 1000).toFixed(3);
+  const cases = results
+    .map((r) => {
+      const time = (r.durationMs / 1000).toFixed(3);
+      const sys = esc((r.output || "").trim());
+      const body = r.passed
+        ? ""
+        : `<failure message="exit ${esc(r.code)}">Test exited with status ${esc(r.code)}</failure>`;
+      return `    <testcase classname="selenium" name="${esc(r.name)}" time="${time}">${body}<system-out>${sys}</system-out></testcase>`;
+    })
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="oauth2-oidc-debugger" tests="${total}" failures="${failures}" time="${totalSec}" timestamp="${esc(generatedAt)}">
+${cases}
+  </testsuite>
+</testsuites>
+`;
+}
+
+function writeReports(results, demo) {
+  const generatedAt = new Date().toISOString();
+  fs.mkdirSync(RUN_DIR, { recursive: true });
+  fs.writeFileSync(path.join(RUN_DIR, "report.html"), renderHtml(results, generatedAt, demo));
+  fs.writeFileSync(path.join(RUN_DIR, "report.xml"), renderJUnit(results, generatedAt));
+  updateLatestPointer();
+}
+
+// Best-effort convenience pointer to the most recent run. Prefers a symlink;
+// falls back to a small text file where symlinks aren't permitted (e.g. Windows).
+function updateLatestPointer() {
+  const link = path.join(REPORT_DIR, "latest");
+  try {
+    if (fs.existsSync(link) || fs.lstatSync(link, { throwIfNoEntry: false })) {
+      fs.rmSync(link, { recursive: true, force: true });
+    }
+  } catch (_) {
+    /* nothing to remove */
+  }
+  try {
+    fs.symlinkSync(RUN_ID, link, "dir");
+  } catch (_) {
+    fs.writeFileSync(path.join(REPORT_DIR, "latest.txt"), RUN_ID + "\n");
+  }
+}
+
+function demoResults() {
+  const startedAt = new Date().toISOString();
+  fs.mkdirSync(LOGS_DIR, { recursive: true });
+  return buildJobs().map((j, i) => {
+    const passed = i !== 2; // pretend one failed, for preview
+    const output =
+      (passed
+        ? "Entering populateMetadata().\nFind oidc_discovery_endpoint.\n... (hundreds of lines in a real run) ...\nToken validated.\nTest completed successfully."
+        : "Entering populateMetadata().\n... (hundreds of lines in a real run) ...\nAssertionError: expected token to contain claim 'aud'") + "\n";
+    const result = {
+      name: j.name,
+      script: j.script,
+      passed,
+      code: passed ? 0 : 1,
+      durationMs: 3000 + i * 1500,
+      output,
+      logFile: path.relative(TESTS_DIR, logPathFor(j.name, i)),
+    };
+    // Write a demo log file mirroring what a real run produces.
+    fs.writeFileSync(
+      logPathFor(j.name, i),
+      logHeader(j.name, j.script, startedAt) +
+        output +
+        `\n===== RESULT: ${passed ? "PASS" : "FAIL"} (exit ${result.code}, ${(result.durationMs / 1000).toFixed(1)}s) =====\n`
+    );
+    return result;
+  });
+}
+
+async function main() {
+  const demo = process.argv.includes("--demo");
+  let results;
+
+  if (demo) {
+    results = demoResults();
+    console.log("Writing SAMPLE report (--demo); no tests executed.");
+  } else {
+    results = [];
+    const jobs = buildJobs();
+    console.log(`Running ${jobs.length} test(s) against ${BASE_URL}\n`);
+    for (const [i, job] of jobs.entries()) {
+      console.log(`\n===== [${i + 1}/${jobs.length}] ${job.name} =====`);
+      const r = await runJob(job, i); // sequential: keep streamed output readable
+      results.push(r);
+      console.log(`----- ${r.passed ? "PASS" : "FAIL"} (${(r.durationMs / 1000).toFixed(1)}s) → ${r.logFile}`);
+    }
+  }
+
+  writeReports(results, demo);
+
+  const failed = results.filter((r) => !r.passed).length;
+  const rel = path.relative(process.cwd(), RUN_DIR);
+  console.log(`\nReport written to ${rel}/report.html (and report.xml, logs/)`);
+  console.log(`Latest run also at ${path.relative(process.cwd(), path.join(REPORT_DIR, "latest"))}`);
+  console.log(`Summary: ${results.length - failed} passed, ${failed} failed, ${results.length} total`);
+
+  // Don't fail the demo run; otherwise signal failures to the caller/CI.
+  process.exit(demo ? 0 : failed > 0 ? 1 : 0);
+}
+
+main();

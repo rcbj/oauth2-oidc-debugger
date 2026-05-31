@@ -54,6 +54,7 @@ RUN npm -v
 
 # Bundle app source
 COPY tests/oauth2_* tests/oidc_* ./
+COPY tests/run-report.js ./
 RUN ls
 RUN wget -q -O chrome-linux64.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/121.0.6167.85/linux64/chrome-linux64.zip && \
     unzip chrome-linux64.zip && \

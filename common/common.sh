@@ -328,12 +328,13 @@ configureKeycloak()
           }'
     check_return_code $?
 
-    declare -g ${FLOW_VARIABLE}_AUDIENCE="${KEYCLOAK_BASE_URL}/realms/debugger-testing"
-    declare -g ${FLOW_VARIABLE}_DISCOVERY_ENDPOINT="${KEYCLOAK_BASE_URL}/realms/debugger-testing/.well-known/openid-configuration"
-    declare -g ${FLOW_VARIABLE}_CLIENT_ID="${CLIENT_CLIENTID}"
-    declare -g ${FLOW_VARIABLE}_CLIENT_SECRET="${CLIENT_SECRET}"
-    declare -g ${FLOW_VARIABLE}_SCOPE="${SCOPE_NAME}"
-    declare -g ${FLOW_VARIABLE}_USER="${USER_ID}"
+    # -gx (export) so child processes — e.g. tests/run-report.js — inherit these
+    declare -gx ${FLOW_VARIABLE}_AUDIENCE="${KEYCLOAK_BASE_URL}/realms/debugger-testing"
+    declare -gx ${FLOW_VARIABLE}_DISCOVERY_ENDPOINT="${KEYCLOAK_BASE_URL}/realms/debugger-testing/.well-known/openid-configuration"
+    declare -gx ${FLOW_VARIABLE}_CLIENT_ID="${CLIENT_CLIENTID}"
+    declare -gx ${FLOW_VARIABLE}_CLIENT_SECRET="${CLIENT_SECRET}"
+    declare -gx ${FLOW_VARIABLE}_SCOPE="${SCOPE_NAME}"
+    declare -gx ${FLOW_VARIABLE}_USER="${USER_ID}"
 
     VAR_NAME1=${FLOW_VARIABLE}_DISCOVERY_ENDPOINT
     VAR_NAME2=${FLOW_VARIABLE}_CLIENT_ID

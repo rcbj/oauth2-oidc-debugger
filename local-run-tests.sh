@@ -37,6 +37,16 @@ startDocker()
   check_return_code $?
 }
 
+# Run the suite via the report generator instead of runTests(). It executes
+# the same tests once, continues past failures, and writes an HTML + JUnit
+# report to tests/report/. It exits non-zero if any test failed, so the
+# check_return_code below still gates the "All tests passed" banner.
+runReport()
+{
+  export DEBUGGER_BASE_URL
+  node "${NODEJS_BASE_DIR}/run-report.js"
+}
+
 init
 check_return_code $?
 prepTestEnv
@@ -47,7 +57,7 @@ sleep 60
 check_return_code $?
 configureKeycloak
 check_return_code $?
-runTests
+runReport
 check_return_code $?
 node --version
 check_return_code $?
