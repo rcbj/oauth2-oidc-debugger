@@ -31,8 +31,10 @@ prepTestEnv()
 startDocker()
 {
   # Start Docker containers
-  sudo CONFIG_FILE=./env/local.js docker-compose -f local-tests.yml build
-  sudo CONFIG_FILE=./env/local.js docker-compose -f local-tests.yml up -d
+  CONFIG_FILE=./env/local.js docker_compose -f local-tests.yml build
+  check_return_code $?
+  CONFIG_FILE=./env/local.js docker_compose -f local-tests.yml up -d
+  check_return_code $?
 }
 
 init

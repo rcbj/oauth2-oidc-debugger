@@ -28,6 +28,20 @@ common_setup()
   echo "Leaving common_setup()."
 }
 
+docker_compose() {
+  echo "Entering docker_compose()."
+  if docker compose version >/dev/null 2>&1; then
+    sudo CONFIG_FILE=${CONFIG_FILE} docker compose "$@"
+  elif command -v docker-compose >/dev/null 2>&1; then
+    sudo CONFIG_FILE=${CONFIG_FILE} docker-compose "$@"
+  else
+    echo "Error: Docker Compose not found." >&2
+    return 1
+  fi
+  echo "Leaving docker_compose()."
+  return 0
+}
+
 configureKeycloak()
 {
   echo "Entering configureKeycloak()."
