@@ -6,6 +6,53 @@ log.info("Log initialized. logLevel=" + log.level());
 
 var useFrontEnd = false;
 
+const OPERATION_HISTORY_LIMIT = 1000;
+
+// Decodes a JWT payload (no verification) so the session nonce can be read
+// from an id_token. Mirrors the helper on the debugger2 page.
+function decodeJwtPayload(token) {
+  try {
+    var parts = token.split('.');
+    if (parts.length < 2) return null;
+    var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    var pad = '==='.slice(0, (4 - b64.length % 4) % 4);
+    return JSON.parse(atob(b64 + pad));
+  } catch (e) {
+    return null;
+  }
+}
+
+function getCurrentSessionNonce() {
+  var idToken = localStorage.getItem('refresh_id_token') || localStorage.getItem('token_id_token');
+  if (idToken) {
+    var payload = decodeJwtPayload(idToken);
+    if (payload && payload.nonce) return payload.nonce;
+  }
+  return localStorage.getItem('nonce_field') || '';
+}
+
+// Appends an entry to the shared operation history shown on the debugger2 page.
+function recordOperation(operation, detail, client_id) {
+  var history = [];
+  try {
+    history = JSON.parse(localStorage.getItem('operation_history') || '[]');
+  } catch (e) {
+    log.error("Failed to parse operation_history: " + e);
+  }
+  if (history.length >= OPERATION_HISTORY_LIMIT) {
+    history = [];
+  }
+  history.push({
+    timestamp: new Date().toISOString(),
+    operation: operation,
+    detail: detail || '',
+    client_id: client_id || '',
+    nonce: getCurrentSessionNonce(),
+    tokenHistoryIndex: null
+  });
+  localStorage.setItem('operation_history', JSON.stringify(history));
+}
+
 function getParameterByName(name, url) {
   log.debug("Entering getParameterByName().");
   if (!url)
@@ -60,6 +107,7 @@ function callIntrospectionEndpoint() {
     success: introspectionSuccess,
     error: introspectionError
   });
+  recordOperation('Introspection Endpoint', introspection_token_type_hint || 'token', introspection_client_id);
   writeValuesToLocalStorage();
   log.debug("Entering callIntrospectionEndpoint().");
 }

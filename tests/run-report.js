@@ -116,6 +116,23 @@ function buildJobs() {
     });
   }
 
+  // Token Revocation (RFC 7009). Uses the OIDC public client with the
+  // offline_access scope so a refresh token is issued and can be revoked
+  // alongside the access token.
+  jobs.push({
+    name: "OAuth2 Token Revocation (RFC 7009)",
+    script: "oauth2_token_revocation.js",
+    env: {
+      AUDIENCE: env.OIDC_AUTHORIZATION_CODE_PUBLIC_AUDIENCE,
+      DISCOVERY_ENDPOINT: env.OIDC_AUTHORIZATION_CODE_PUBLIC_DISCOVERY_ENDPOINT,
+      CLIENT_ID: env.OIDC_AUTHORIZATION_CODE_PUBLIC_CLIENT_ID,
+      CLIENT_SECRET: env.OIDC_AUTHORIZATION_CODE_PUBLIC_CLIENT_SECRET,
+      SCOPE: `openid profile email offline_access ${env.OIDC_AUTHORIZATION_CODE_PUBLIC_SCOPE || ""}`.trim(),
+      USER: env.OIDC_AUTHORIZATION_CODE_PUBLIC_USER,
+      PKCE_ENABLED: "true",
+    },
+  });
+
   return jobs;
 }
 

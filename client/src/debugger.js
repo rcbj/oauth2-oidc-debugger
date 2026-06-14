@@ -319,6 +319,7 @@ function initValuesToLocalStorage()
       localStorage.setItem("authorization_endpoint", "https://localhost/oauth2/authorization");
       localStorage.setItem("token_endpoint","https://localhost/oauth2/token");
       localStorage.setItem("introspection_endpoint","https://localhost/oauth2/token/introspect");
+      localStorage.setItem("revocation_endpoint","https://localhost/oauth2/revoke");
       localStorage.setItem("yesResourceCheck", false);
       localStorage.setItem("noResourceCheck", true);
       localStorage.setItem("yesCheck", true);
@@ -381,6 +382,14 @@ function loadValuesFromLocalStorage()
   } else {
     $("#introspection_endpoint").val("");
     $("#introspection_endpoint").closest('tr').hide();
+  }
+
+  if (localStorage.getItem("revocation_endpoint")) {
+    $("#revocation_endpoint").val(localStorage.getItem("revocation_endpoint"));
+    $("#revocation_endpoint").closest('tr').show();
+  } else {
+    $("#revocation_endpoint").val("");
+    $("#revocation_endpoint").closest('tr').hide();
   }
 
   $("#redirect_uri").val(localStorage.getItem("redirect_uri"));
@@ -761,6 +770,12 @@ function onload() {
         localStorage.setItem("introspection_endpoint", $("#introspection_endpoint").val());
       } else {
         localStorage.setItem("introspection_endpoint", "")
+      }
+
+      if ($("#revocation_endpoint").val()) {
+        localStorage.setItem("revocation_endpoint", $("#revocation_endpoint").val());
+      } else {
+        localStorage.setItem("revocation_endpoint", "")
       }
 
       localStorage.setItem("redirect_uri", $("#redirect_uri").val());
@@ -1162,6 +1177,7 @@ function parseDiscoveryInfo(discoveryInfo) {
   var tokenEndpoint = discoveryInfo["token_endpoint"];
   var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
   var introspectionEndpoint = discoveryInfo["introspection_endpoint"];
+  var revocationEndpoint = discoveryInfo["revocation_endpoint"];
   var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
   var endSessionEndpoint = discoveryInfo["end_session_endpoint"];
 
@@ -1175,6 +1191,7 @@ function parseDiscoveryInfo(discoveryInfo) {
   log.debug("tokenEndpoint: " + tokenEndpoint);
   log.debug("tokenEndpointAuthMethodsSupported: " + JSON.stringify(tokenEndpointAuthMethodsSupported));
   log.debug("introspectionEndpoint: " + introspectionEndpoint);
+  log.debug("revocationEndpoint: " + revocationEndpoint);
   log.debug("userInfoEndpoint: " + userInfoEndpoint);
   log.debug("endSessionEndpoint: " + endSessionEndpoint);
   log.debug("Leaving parseDiscoveryInfo()."); 
@@ -1221,6 +1238,7 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   var tokenEndpoint = discoveryInfo["token_endpoint"];
   var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
   var introspectionEndpoint = discoveryInfo["introspection_endpoint"];
+  var revocationEndpoint = discoveryInfo["revocation_endpoint"];
   var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
   var endSessionEndpoint = discoveryInfo["end_session_endpoint"];
   var issuer = discoveryInfo["issuer"];
@@ -1236,6 +1254,14 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
     $("#introspection_endpoint").closest('tr').hide();
   }
 
+  if (revocationEndpoint) {
+    $("#revocation_endpoint").val(revocationEndpoint);
+    $("#revocation_endpoint").closest('tr').show();
+  } else {
+    $("#revocation_endpoint").val("");
+    $("#revocation_endpoint").closest('tr').hide();
+  }
+
   $("#scope").val(scopesSupported);
   $("#oidc_userinfo_endpoint").val(userInfoEndpoint);
   $("#jwks_endpoint").val(jwksUri);
@@ -1248,6 +1274,12 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
         localStorage.setItem("introspection_endpoint", introspectionEndpoint );
       } else {
         localStorage.setItem("introspection_endpoint", "" );
+      }
+
+      if (revocationEndpoint) {
+        localStorage.setItem("revocation_endpoint", revocationEndpoint );
+      } else {
+        localStorage.setItem("revocation_endpoint", "" );
       }
 
       localStorage.setItem("scope", scopesSupported);
@@ -1272,6 +1304,9 @@ function onSubmitClearAllForms() {
   }
   if ( $("#introspection_endpoint")) {
     $("#introspection_endpoint").val("");
+  }
+  if ( $("#revocation_endpoint")) {
+    $("#revocation_endpoint").val("");
   }
   if ( $("#authorization_grant_type")) {
     $("#authorization_grant_type").val("oidc_authorization_code_flow");

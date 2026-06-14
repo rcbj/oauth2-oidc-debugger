@@ -89,6 +89,15 @@
           </tr>
           <tr>
             <td>
+              <div class="tooltip"><label>Revocation Endpoint: </label><span class="tooltiptext">Enter the Token Revocation Endpoint (RFC 7009) used by the debugger.</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="revocation_endpoint" name="revocation_endpoint" type="text" max="150" />
+            </td>
+          </tr>
+          <tr>
+            <td>
               <div class="tooltip"><label>OIDC UserInfo Endpoint: </label><span class="tooltiptext">Enter the OIDC UserInfo Endpoint used by the debugger.</span>
               </div>
             </td>
@@ -205,8 +214,8 @@
             </div>
           </td>
           <td>Front
-            <input id="token_initiateFromFrontEnd" name="token-initiateFromFrontEnd" checked="true" onclick="debugger2.setInitiateFromEnd();" type="radio" />Back
-            <input id="token_initiateFromBackEnd" name="token-initiateFromFrontEnd" checked="false" onclick="debugger2.setInitiateFromEnd();" type="radio" />
+            <input id="token_initiateFromFrontEnd" name="token-initiateFromFrontEnd" onclick="debugger2.setInitiateFromEnd();" type="radio" />Back
+            <input id="token_initiateFromBackEnd" name="token-initiateFromFrontEnd" checked="checked" onclick="debugger2.setInitiateFromEnd();" type="radio" />
           </td>
         </tr>
         <tr>
@@ -424,8 +433,8 @@
                 </div>
               </td>
               <td>Front
-                <input id="refresh_initiateFromFrontEnd" name="refresh-initiateFromFrontEnd" checked="true" onclick="debugger2.setInitiateRefreshFromEnd();" type="radio" />Back
-                <input id="refresh_initiateFromBackEnd" name="refresh-initiateFromFrontEnd" checked="false" onclick="debugger2.setInitiateRefreshFromEnd();" type="radio" />
+                <input id="refresh_initiateFromFrontEnd" name="refresh-initiateFromFrontEnd" onclick="debugger2.setInitiateRefreshFromEnd();" type="radio" />Back
+                <input id="refresh_initiateFromBackEnd" name="refresh-initiateFromFrontEnd" checked="checked" onclick="debugger2.setInitiateRefreshFromEnd();" type="radio" />
               </td>
             </tr>
             <tr>
@@ -463,6 +472,9 @@
   </div>
 </div>
 
+<!-- RP-initiated Logout (with Operation History) and Token Revocation panes side by side -->
+<div style="display:flex; gap:16px; align-items:stretch; margin-top:8px;">
+  <div class="side-by-side-col" style="flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:16px;">
 <div class="step5" id="step5">
     <legend>RP-initiated Logout
     </legend>
@@ -522,6 +534,113 @@
     </form>
   </fieldset>
 
+</div>
+    <div class="operation-history-panel" id="operation-history-panel" style="margin-top:auto;">&nbsp;
+    </div>
+  </div>
+  <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
+    <div class="step6" id="step6">
+        <legend>Token Revocation (RFC 7009)
+        </legend>
+        <form>
+          <input class="btn2" type="submit" name="revocation_expand_button" id="revocation_expand_button" value="Hide" onclick="return debugger2.onClickShowFieldSet('revocation_expand_button', 'revocation_fieldset');"/>
+        </form>
+        <fieldset id="revocation_fieldset" name="revocation_fieldset" style="display: block;">
+        <form action="" onsubmit="return false;">
+        <table>
+          <tbody>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Revocation Endpoint: </label><span class="tooltiptext">The OAuth2 Token Revocation Endpoint (RFC 7009). Auto-populated from the discovery document.</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="revocation_revocation_endpoint" name="revocation_revocation_endpoint" type="text" value="" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Token: </label><span class="tooltiptext">The access or refresh token to revoke. Use the "Revoke Token" links above each token to auto-populate this field.</span>
+                </div>
+              </td>
+              <td>
+                <textarea rows="3" cols="60" id="revocation_token" name="revocation_token"></textarea>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Token Type Hint: </label><span class="tooltiptext">Optional hint that helps the server look up the token (RFC 7009 Section 2.1).</span>
+                </div>
+              </td>
+              <td>
+                <select class="input" id="revocation_token_type_hint" name="revocation_token_type_hint">
+                  <option value="">(none)</option>
+                  <option value="access_token">access_token</option>
+                  <option value="refresh_token">refresh_token</option>
+                </select>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Client ID: </label><span class="tooltiptext">The client identifier assigned to the client being tested.</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="revocation_client_id" name="revocation_client_id" type="text" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Client Secret: </label><span class="tooltiptext">The client secret assigned to a confidential client. Leave blank for public clients.</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="revocation_client_secret" name="revocation_client_secret" type="text" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Auth Style: </label><span class="tooltiptext">Authenticate the client through post body parameters or the HTTP Basic authorization request header.</span>
+                </div>
+              </td>
+              <td>POST
+                <input id="revocation_postAuthStyleCheckToken" name="revocation-post-authstyle-yesno" checked="true" onclick="debugger2.setPostAuthStyleRevocation();" type="radio" />Header
+                <input id="revocation_headerAuthStyleCheckToken" name="revocation-header-authstyle-yesno" checked="false" onclick="debugger2.setHeaderAuthStyleRevocation();" type="radio" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Initiate Revocation Endpoint Call From front or backend.: </label><span class="tooltiptext">The debugger can initiate the Revocation Endpoint call from either the frontend (browser) or from the backend API component. Certain IdPs make stringent assumptions about CORS and how calls will be originated.</span>
+                </div>
+              </td>
+              <td>Front
+                <input id="revocation_initiateFromFrontEnd" name="revocation-initiateFromFrontEnd" onclick="debugger2.setInitiateRevocationFromEnd();" type="radio" />Back
+                <input id="revocation_initiateFromBackEnd" name="revocation-initiateFromFrontEnd" checked="checked" onclick="debugger2.setInitiateRevocationFromEnd();" type="radio" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <input id="revocation_btn" class="revocation_btn" type="submit" value="Revoke Token" onclick="return debugger2.revokeButtonClick();" />
+              </td>
+              <td>&nbsp;
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label id="display_revocation_request_form_label1" name="display_revocation_request_form_label1" value="">Request</label><span class="tooltiptext">The request to the Revocation Endpoint.</span>
+                </div>
+              </td>
+              <td><textarea cols="100" id="display_revocation_request_form_textarea1" rows="5" readonly></textarea>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        </form>
+      </fieldset>
+    </div>
+    <div class="revocation_endpoint_result" id="revocation_endpoint_result">&nbsp;
+    </div>
+  </div>
 </div>
     </div>
 
