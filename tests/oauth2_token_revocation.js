@@ -152,22 +152,18 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   return { access_token, refresh_token };
 }
 
-// Drive the new Token Revocation pane: click the "Revoke Token" link for the
-// given token type (which populates the pane), submit the revocation, and wait
-// for the results pane to report a successful (HTTP 200) RFC 7009 response.
+// Drive the new Token Revocation pane: click the "Revoke Token" button rendered
+// next to the token of the given type (which populates the pane AND submits the
+// revocation in one action), then wait for the results pane to report a
+// successful (HTTP 200) RFC 7009 response.
 async function revokeTokenViaUI(driver, type) {
   log.info("Revoking token via UI. type=" + type);
-  const link = By.xpath(`//a[contains(@onclick, "loadTokenForRevocation('${type}')")]`);
-  await driver.wait(until.elementLocated(link), waitTime);
-  const linkEl = await driver.findElement(link);
-  await driver.executeScript("arguments[0].scrollIntoView({ block: 'center' });", linkEl);
-  await linkEl.click();
-
-  const revokeBtn = By.id("revocation_btn");
+  const revokeBtn = By.css(`input.revoke_token_btn[data-revoke-type='${type}']`);
   await driver.wait(until.elementLocated(revokeBtn), waitTime);
-  await driver.wait(until.elementIsVisible(driver.findElement(revokeBtn)), waitTime);
-  await driver.executeScript("arguments[0].scrollIntoView({ block: 'center' });", await driver.findElement(revokeBtn));
-  await driver.findElement(revokeBtn).click();
+  const btnEl = await driver.findElement(revokeBtn);
+  await driver.executeScript("arguments[0].scrollIntoView({ block: 'center' });", btnEl);
+  await driver.wait(until.elementIsVisible(btnEl), waitTime);
+  await btnEl.click();
 
   const resultArea = By.id("revocation_result_textarea");
   await driver.wait(until.elementLocated(resultArea), waitTime);
