@@ -13,12 +13,6 @@ var baseUrl = "http://localhost:3000"
 var headless = true;
 var waitTime = 10000;
 
-// The OAuth2/OIDC test IdP (Keycloak) is frequently configured with a
-// self-signed certificate. Token revocation verification below makes direct
-// HTTP calls to the IdP from this test process, so relax TLS validation the
-// same way the debugger lets the user disable SSL validation for testing.
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
 async function populateMetadata(driver, discovery_endpoint) {
   oidc_discovery_endpoint = By.id("oidc_discovery_endpoint");
   btn_oidc_discovery_endpoint = By.className("btn_oidc_discovery_endpoint");
@@ -183,36 +177,88 @@ async function revokeTokenViaUI(driver, type) {
   return finalText;
 }
 
-async function getDiscovery(discovery_endpoint) {
-  const res = await fetch(discovery_endpoint);
-  assert(res.ok, "Failed to fetch discovery document: HTTP " + res.status);
-  return await res.json();
-}
+// Follows the "Introspect Token" link next to the given token (access or
+// refresh) on debugger2.html, runs the introspection on introspection.html
+// (authenticating the client via HTTP Basic, through the backend to avoid
+// browser CORS restrictions), and returns the raw introspection output JSON.
+async function introspectTokenViaUI(driver, type, client_id, client_secret) {
+  log.info("Introspecting token via UI. type=" + type);
 
-// Calls the UserInfo endpoint with the access token. Returns the HTTP status.
-async function callUserInfo(userinfo_endpoint, access_token) {
-  const res = await fetch(userinfo_endpoint, {
-    method: "GET",
-    headers: { "Authorization": "Bearer " + access_token }
-  });
-  return res.status;
-}
+  // Click the "Introspect Token" link rendered next to the token field.
+  const link = By.css(`a[href="/introspection.html?type=${type}"]`);
+  await driver.wait(until.elementLocated(link), waitTime);
+  const linkEl = await driver.findElement(link);
+  await driver.executeScript("arguments[0].scrollIntoView({ block: 'center' });", linkEl);
+  await linkEl.click();
 
-// Attempts a Refresh Token grant. Returns the HTTP status.
-async function callRefreshGrant(token_endpoint, client_id, client_secret, refresh_token) {
-  const params = new URLSearchParams();
-  params.append("grant_type", "refresh_token");
-  params.append("client_id", client_id);
+  // We are now on introspection.html. Configure client authentication.
+  const clientIdField = By.id("introspection_client_id");
+  await driver.wait(until.elementLocated(clientIdField), waitTime);
+  await driver.wait(until.elementIsVisible(driver.findElement(clientIdField)), waitTime);
+
+  // The introspection endpoint should have been populated from the discovery
+  // document when the metadata was loaded.
+  const endpointValue = await driver.findElement(By.id("introspection_endpoint")).getAttribute("value");
+  assert(endpointValue && endpointValue.length > 0,
+    "Introspection endpoint was not populated from the discovery document.");
+
+  // Use the backend to avoid browser CORS restrictions on the IdP.
+  await driver.findElement(By.id("introspection_initiateFromBackEnd")).click();
+
+  // Authenticate the client via HTTP Basic with its credentials.
+  await new Select(await driver.findElement(By.id("introspection_authentication_type"))).selectByValue("basic_auth");
+  await driver.findElement(clientIdField).clear();
+  await driver.findElement(clientIdField).sendKeys(client_id);
+  const clientSecretField = await driver.findElement(By.id("introspection_client_secret"));
+  await clientSecretField.clear();
   if (client_secret) {
-    params.append("client_secret", client_secret);
+    await clientSecretField.sendKeys(client_secret);
   }
-  params.append("refresh_token", refresh_token);
-  const res = await fetch(token_endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString()
-  });
-  return res.status;
+
+  // Trigger the introspection call.
+  await driver.findElement(By.css('input[value="Introspect Token"]')).click();
+
+  // Wait for the output textarea to be populated.
+  const output = By.id("introspection_output");
+  await driver.wait(async () => {
+    try {
+      const v = (await driver.findElement(output).getAttribute("value") || "").trim();
+      return v.length > 0;
+    } catch (e) {
+      return false;
+    }
+  }, waitTime, "Introspection produced no output for type=" + type);
+
+  const outputText = (await driver.findElement(output).getAttribute("value") || "").trim();
+  log.info("Introspection output (" + type + "): " + outputText.replace(/\n/g, " "));
+  return outputText;
+}
+
+// Asserts that an introspection response reports the token as no longer valid
+// (RFC 7662 returns {"active": false} for a revoked/unknown token).
+function assertTokenInactive(outputText, type) {
+  let parsed = null;
+  try {
+    parsed = JSON.parse(outputText);
+  } catch (e) {
+    parsed = null;
+  }
+  assert(parsed !== null,
+    "Introspection output for the " + type + " token was not valid JSON: " + outputText);
+  assert(parsed.active === false,
+    "Introspection reported the " + type + " token as still valid (expected active=false). Output: " + outputText);
+}
+
+// Returns from introspection.html to debugger2.html via the "Return to
+// debugger" link, which re-renders the token panes (and their Introspect/Revoke
+// controls) from local storage.
+async function returnToDebugger(driver) {
+  log.info("Returning to debugger2.html.");
+  const link = By.css('a[href="/debugger2.html?redirectFromTokenDetail=true"]');
+  await driver.wait(until.elementLocated(link), waitTime);
+  await driver.findElement(link).click();
+  // Wait until the token results pane (with its Introspect links) is rendered.
+  await driver.wait(until.elementLocated(By.css('a[href="/introspection.html?type=refresh"]')), waitTime);
 }
 
 async function test() {
@@ -238,12 +284,19 @@ async function test() {
     const scope = process.env.SCOPE;
     const user = process.env.USER;
     let pkce_enabled = process.env.PKCE_ENABLED;
+    // The Token Introspection Endpoint must be called by a client that is
+    // permitted to introspect. The public/PKCE client used to obtain the tokens
+    // is not, so introspection authenticates as the confidential client.
+    const introspection_client_id = process.env.INTROSPECTION_CLIENT_ID;
+    const introspection_client_secret = process.env.INTROSPECTION_CLIENT_SECRET;
 
     assert(discovery_endpoint, "DISCOVERY_ENDPOINT environment variable is not set.");
     assert(client_id, "CLIENT_ID environment variable is not set.");
     assert(scope, "SCOPE environment variable is not set.");
     assert(user, "USER environment variable is not set.");
     assert(pkce_enabled, "PKCE_ENABLED environment variable is not set.");
+    assert(introspection_client_id, "INTROSPECTION_CLIENT_ID environment variable is not set.");
+    assert(introspection_client_secret, "INTROSPECTION_CLIENT_SECRET environment variable is not set.");
 
     if (pkce_enabled === "true") {
       pkce_enabled = true;
@@ -254,54 +307,42 @@ async function test() {
       process.exit(1);
     }
 
-    log.info("Fetching discovery document to resolve token/userinfo/revocation endpoints.");
-    const discovery = await getDiscovery(discovery_endpoint);
-    const token_endpoint = discovery.token_endpoint;
-    const userinfo_endpoint = discovery.userinfo_endpoint;
-    const revocation_endpoint = discovery.revocation_endpoint;
-    assert(token_endpoint, "Discovery document is missing token_endpoint.");
-    assert(userinfo_endpoint, "Discovery document is missing userinfo_endpoint.");
-    assert(revocation_endpoint, "Discovery document is missing revocation_endpoint (RFC 7009 / RFC 8414).");
-    log.info("revocation_endpoint=" + revocation_endpoint);
-
     log.info("Kicking off test.");
     await driver.get(baseUrl);
     log.info("Calling populateMetadata().");
     await populateMetadata(driver, discovery_endpoint);
     log.info("Calling getAccessToken().");
     const { access_token, refresh_token } = await getAccessToken(driver, client_id, client_secret, scope, pkce_enabled);
+    assert(access_token, "No access token was retrieved.");
+    assert(refresh_token, "No refresh token was retrieved.");
 
-    // Sanity check: the freshly issued access token should be valid BEFORE
-    // revocation, so the post-revocation failure is meaningful.
-    log.info("Verifying access token is valid before revocation (UserInfo call).");
-    const preStatus = await callUserInfo(userinfo_endpoint, access_token);
-    log.info("Pre-revocation UserInfo status: " + preStatus);
-    assert.strictEqual(preStatus, 200,
-      "Access token was not valid before revocation (UserInfo returned " + preStatus + ").");
-
-    // Revoke the access token through the new Token Revocation pane.
+    // Revoke both tokens through the new Token Revocation pane.
+    //
+    // Order matters: revoke the REFRESH token first, then the access token.
+    // Revoking the access token terminates the Keycloak user session, which also
+    // invalidates the refresh token's session and makes the subsequent refresh
+    // token revocation call fail. Revoking the refresh token first leaves the
+    // access token (a self-contained JWT) independently revocable afterwards.
+    log.info("Revoking the refresh token via the UI.");
+    await revokeTokenViaUI(driver, "refresh");
     log.info("Revoking the access token via the UI.");
     await revokeTokenViaUI(driver, "access");
 
-    // Revoke the refresh token through the new Token Revocation pane.
-    log.info("Revoking the refresh token via the UI.");
-    await revokeTokenViaUI(driver, "refresh");
+    // Verify the revoked access token is reported as no longer valid by the
+    // Introspection page, reached via its "Introspect Token" link.
+    log.info("Validating the revoked access token via the Introspection page.");
+    const accessIntrospection = await introspectTokenViaUI(driver, "access", introspection_client_id, introspection_client_secret);
+    assertTokenInactive(accessIntrospection, "access");
 
-    // Verify the access token is now rejected by the UserInfo endpoint.
-    log.info("Verifying the access token has been revoked (UserInfo call).");
-    const postUserInfoStatus = await callUserInfo(userinfo_endpoint, access_token);
-    log.info("Post-revocation UserInfo status: " + postUserInfoStatus);
-    assert.notStrictEqual(postUserInfoStatus, 200,
-      "Access token still valid after revocation (UserInfo returned 200).");
+    // Return to the debugger so the refresh token's Introspect link is available.
+    await returnToDebugger(driver);
 
-    // Verify the refresh token can no longer be exchanged for new tokens.
-    log.info("Verifying the refresh token has been revoked (Refresh Token grant).");
-    const refreshStatus = await callRefreshGrant(token_endpoint, client_id, client_secret, refresh_token);
-    log.info("Post-revocation Refresh grant status: " + refreshStatus);
-    assert.notStrictEqual(refreshStatus, 200,
-      "Refresh token still valid after revocation (token endpoint returned 200).");
+    // Verify the revoked refresh token is reported as no longer valid.
+    log.info("Validating the revoked refresh token via the Introspection page.");
+    const refreshIntrospection = await introspectTokenViaUI(driver, "refresh", introspection_client_id, introspection_client_secret);
+    assertTokenInactive(refreshIntrospection, "refresh");
 
-    log.info("Both the access token and refresh token were successfully revoked.");
+    log.info("Both the access token and refresh token were revoked and confirmed invalid via introspection.");
     log.info("Test completed successfully.");
   } catch (error) {
     log.error(error.message);

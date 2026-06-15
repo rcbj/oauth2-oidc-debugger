@@ -130,6 +130,10 @@ function buildJobs() {
       SCOPE: `openid profile email offline_access ${env.OIDC_AUTHORIZATION_CODE_PUBLIC_SCOPE || ""}`.trim(),
       USER: env.OIDC_AUTHORIZATION_CODE_PUBLIC_USER,
       PKCE_ENABLED: "true",
+      // The Token Introspection Endpoint is called as the confidential client,
+      // which is permitted to introspect (the public/PKCE client is not).
+      INTROSPECTION_CLIENT_ID: env.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID,
+      INTROSPECTION_CLIENT_SECRET: env.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET,
     },
   });
 
