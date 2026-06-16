@@ -641,6 +641,203 @@
     </div>
   </div>
 </div>
+
+<!-- Token Exchange (RFC 8693) -->
+<div style="display:flex; gap:16px; align-items:flex-start; margin-top:8px;">
+  <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
+    <div class="step7" id="step7">
+        <form>
+          <input class="btn2" type="submit" name="tokenexchange_expand_button" id="tokenexchange_expand_button" value="Hide" onclick="return debugger2.onClickShowFieldSet('tokenexchange_expand_button', 'tokenexchange_fieldset');"/>
+        </form>
+        <fieldset id="tokenexchange_fieldset" name="tokenexchange_fieldset" style="display: block;">
+        <legend>Token Exchange (RFC 8693)</legend>
+        <form action="" onsubmit="return false;">
+        <table>
+          <tbody>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Token Endpoint: </label><span class="tooltiptext">The OAuth2 Token Endpoint. Token Exchange (RFC 8693) is performed against the Token Endpoint. Auto-populated from the discovery document.</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="tokenexchange_token_endpoint" name="tokenexchange_token_endpoint" type="text" value="" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Grant Type: </label><span class="tooltiptext">The token exchange grant type (RFC 8693 Section 2.1). Fixed value.</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="tokenexchange_grant_type" name="tokenexchange_grant_type" type="text" value="urn:ietf:params:oauth:grant-type:token-exchange" readonly />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Exchange Type: </label><span class="tooltiptext">Impersonation: the requesting client acts as the subject (no actor token). Delegation: the actor acts on behalf of the subject, so an actor token is included (RFC 8693 Section 1.1).</span>
+                </div>
+              </td>
+              <td>Impersonation
+                <input id="tokenexchange_impersonation" name="tokenexchange-exchange-type" checked="checked" onclick="debugger2.setTokenExchangeType();" type="radio" />Delegation
+                <input id="tokenexchange_delegation" name="tokenexchange-exchange-type" onclick="debugger2.setTokenExchangeType();" type="radio" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Subject Token: </label><span class="tooltiptext">REQUIRED. The token representing the identity on whose behalf the request is made. Defaults to the most recent access token obtained from the Token Endpoint (RFC 8693 Section 2.1).</span>
+                </div>
+              </td>
+              <td>
+                <textarea rows="3" cols="60" id="tokenexchange_subject_token" name="tokenexchange_subject_token"></textarea>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Subject Token Type: </label><span class="tooltiptext">REQUIRED. An identifier for the type of the subject token (RFC 8693 Section 3).</span>
+                </div>
+              </td>
+              <td>
+                <select class="input" id="tokenexchange_subject_token_type" name="tokenexchange_subject_token_type">
+                  <option value="urn:ietf:params:oauth:token-type:access_token" selected="selected">access_token</option>
+                  <option value="urn:ietf:params:oauth:token-type:refresh_token">refresh_token</option>
+                  <option value="urn:ietf:params:oauth:token-type:id_token">id_token</option>
+                  <option value="urn:ietf:params:oauth:token-type:jwt">jwt</option>
+                  <option value="urn:ietf:params:oauth:token-type:saml1">saml1</option>
+                  <option value="urn:ietf:params:oauth:token-type:saml2">saml2</option>
+                </select>
+              </td>
+            </tr>
+            <tr id="tokenexchange_actor_token_row">
+              <td>
+                <div class="tooltip"><label>Actor Token: </label><span class="tooltiptext">OPTIONAL (delegation only). A token representing the identity of the acting party (RFC 8693 Section 2.1).</span>
+                </div>
+              </td>
+              <td>
+                <textarea rows="3" cols="60" id="tokenexchange_actor_token" name="tokenexchange_actor_token"></textarea>
+              </td>
+            </tr>
+            <tr id="tokenexchange_actor_token_type_row">
+              <td>
+                <div class="tooltip"><label>Actor Token Type: </label><span class="tooltiptext">REQUIRED when an actor token is present; identifies its type (RFC 8693 Section 2.1).</span>
+                </div>
+              </td>
+              <td>
+                <select class="input" id="tokenexchange_actor_token_type" name="tokenexchange_actor_token_type">
+                  <option value="urn:ietf:params:oauth:token-type:access_token" selected="selected">access_token</option>
+                  <option value="urn:ietf:params:oauth:token-type:refresh_token">refresh_token</option>
+                  <option value="urn:ietf:params:oauth:token-type:id_token">id_token</option>
+                  <option value="urn:ietf:params:oauth:token-type:jwt">jwt</option>
+                  <option value="urn:ietf:params:oauth:token-type:saml1">saml1</option>
+                  <option value="urn:ietf:params:oauth:token-type:saml2">saml2</option>
+                </select>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Requested Token Type: </label><span class="tooltiptext">OPTIONAL. An identifier for the type of token the client wants back. If omitted, the server decides (RFC 8693 Section 2.1).</span>
+                </div>
+              </td>
+              <td>
+                <select class="input" id="tokenexchange_requested_token_type" name="tokenexchange_requested_token_type">
+                  <option value="">(none / server default)</option>
+                  <option value="urn:ietf:params:oauth:token-type:access_token" selected="selected">access_token</option>
+                  <option value="urn:ietf:params:oauth:token-type:refresh_token">refresh_token</option>
+                  <option value="urn:ietf:params:oauth:token-type:id_token">id_token</option>
+                  <option value="urn:ietf:params:oauth:token-type:jwt">jwt</option>
+                  <option value="urn:ietf:params:oauth:token-type:saml1">saml1</option>
+                  <option value="urn:ietf:params:oauth:token-type:saml2">saml2</option>
+                </select>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Resource: </label><span class="tooltiptext">OPTIONAL. URI indicating the target service/resource where the requested token will be used (RFC 8693 Section 2.1). May be repeated; enter one value for now.</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="tokenexchange_resource" name="tokenexchange_resource" type="text" value="" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Audience: </label><span class="tooltiptext">OPTIONAL. The logical name of the target service where the requested token will be used (RFC 8693 Section 2.1).</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="tokenexchange_audience" name="tokenexchange_audience" type="text" value="" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Scope: </label><span class="tooltiptext">OPTIONAL. A space-delimited list of requested scopes for the issued token (RFC 8693 Section 2.1).</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="tokenexchange_scope" name="tokenexchange_scope" type="text" value="" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Client ID: </label><span class="tooltiptext">The client identifier assigned to the client being tested.</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="tokenexchange_client_id" name="tokenexchange_client_id" type="text" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Client Secret: </label><span class="tooltiptext">The client secret assigned to a confidential client. Leave blank for public clients.</span>
+                </div>
+              </td>
+              <td>
+                <input class="input" id="tokenexchange_client_secret" name="tokenexchange_client_secret" type="text" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Auth Style: </label><span class="tooltiptext">Authenticate the client through post body parameters or the HTTP Basic authorization request header.</span>
+                </div>
+              </td>
+              <td>POST
+                <input id="tokenexchange_postAuthStyle" name="tokenexchange-post-authstyle-yesno" checked="checked" onclick="debugger2.setPostAuthStyleTokenExchange();" type="radio" />Header
+                <input id="tokenexchange_headerAuthStyle" name="tokenexchange-header-authstyle-yesno" onclick="debugger2.setHeaderAuthStyleTokenExchange();" type="radio" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label>Initiate Token Endpoint Call From front or backend.: </label><span class="tooltiptext">The debugger can initiate the Token Endpoint call from either the frontend (browser) or from the backend API component. Certain IdPs make stringent assumptions about CORS and how calls will be originated.</span>
+                </div>
+              </td>
+              <td>Front
+                <input id="tokenexchange_initiateFromFrontEnd" name="tokenexchange-initiateFromFrontEnd" onclick="debugger2.setInitiateTokenExchangeFromEnd();" type="radio" />Back
+                <input id="tokenexchange_initiateFromBackEnd" name="tokenexchange-initiateFromFrontEnd" checked="checked" onclick="debugger2.setInitiateTokenExchangeFromEnd();" type="radio" />
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <input id="tokenexchange_btn" class="tokenexchange_btn" type="submit" value="Exchange Token" onclick="return debugger2.tokenExchangeButtonClick();" />
+              </td>
+              <td>&nbsp;
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <div class="tooltip"><label id="display_tokenexchange_request_form_label1" name="display_tokenexchange_request_form_label1" value="">Request</label><span class="tooltiptext">The request to the Token Endpoint.</span>
+                </div>
+              </td>
+              <td><textarea cols="100" id="display_tokenexchange_request_form_textarea1" rows="7" readonly></textarea>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        </form>
+      </fieldset>
+    </div>
+    <div class="tokenexchange_endpoint_result" id="tokenexchange_endpoint_result">&nbsp;
+    </div>
+  </div>
+</div>
     </div>
 
 <div class="footer_debugger">

@@ -18,6 +18,7 @@ var usePKCE = true;
 var useFrontEnd = false;
 var useRefreshFrontEnd = false;
 var useRevocationFrontEnd = false;
+var useTokenExchangeFrontEnd = false;
 var refreshTokenUsed = false;
 
 function OnSubmitTokenEndpointForm()
@@ -68,6 +69,7 @@ function tokenButtonClick() {
   $('#step4').show();
   $('#step5').show();
   $('#step6').show();
+  $('#step7').show();
   $('#operation-history-panel').show();
   log.debug("Updating local storage.");
   writeValuesToLocalStorage();
@@ -334,6 +336,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
     $('#refresh_endpoint_result').show();
     recalculateRefreshRequestDescription();
     populateRevocationTokenWithLatestAccessToken();
+    populateTokenExchangeSubjectWithLatestAccessToken();
     saveOperationToHistory('Token Endpoint', {
       client_id: $("#token_client_id").val(),
       tokenHistoryIndex: getLatestTokenHistoryIndex()
@@ -565,6 +568,7 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
    $("#refresh_endpoint_result").hide();
   }
   populateRevocationTokenWithLatestAccessToken();
+  populateTokenExchangeSubjectWithLatestAccessToken();
   log.debug("Leaving displayRefreshTokenPane().");
 }
 
@@ -603,6 +607,7 @@ function resetUI(value)
       usePKCERFC();
       $("#step5").hide();
       $("#step6").hide();
+      $("#step7").hide();
       $("#operation-history-panel").hide();
       $("#useRefreshToken-yes").prop("checked", false);
       $("#useRefreshToken-no").prop("checked", true);
@@ -720,6 +725,14 @@ function writeValuesToLocalStorage()
       } else {
         localStorage.setItem("revocation_post_auth_style", false);
       }
+      if ($("#tokenexchange_postAuthStyle").is(":checked"))
+      {
+        localStorage.setItem("tokenexchange_post_auth_style", true);
+      } else {
+        localStorage.setItem("tokenexchange_post_auth_style", false);
+      }
+      localStorage.setItem("tokenexchange_initiateFromFrontEnd", $("#tokenexchange_initiateFromFrontEnd").is(":checked"));
+      localStorage.setItem("tokenexchange_initiateFromBackEnd", $("#tokenexchange_initiateFromBackEnd").is(":checked"));
       if ($("#customTokenParametersCheck-yes").is(":checked")) {
         var i = 0;
         var tokenNumberCustomParameters = parseInt($("#tokenNumberCustomParameters").val());
@@ -803,6 +816,25 @@ function loadValuesFromLocalStorage()
     } else {
       $("#revocation_postAuthStyleCheckToken").prop("checked", false);
       $("#revocation_headerAuthStyleCheckToken").prop("checked", true);
+    }
+  }
+
+  // Token Exchange (RFC 8693) pane. The exchange is performed against the Token
+  // Endpoint, so its endpoint field mirrors the configured token_endpoint.
+  $("#tokenexchange_token_endpoint").val(localStorage.getItem("token_endpoint"));
+  $("#tokenexchange_client_id").val(localStorage.getItem("client_id"));
+  $("#tokenexchange_client_secret").val(localStorage.getItem("client_secret"));
+  if (localStorage.getItem("tokenexchange_initiateFromFrontEnd") !== null) {
+    $("#tokenexchange_initiateFromFrontEnd").prop("checked", getLSBooleanItem("tokenexchange_initiateFromFrontEnd"));
+    $("#tokenexchange_initiateFromBackEnd").prop("checked", getLSBooleanItem("tokenexchange_initiateFromBackEnd"));
+  }
+  if (localStorage.getItem("tokenexchange_post_auth_style") !== null) {
+    if (getLSBooleanItem("tokenexchange_post_auth_style")) {
+      $("#tokenexchange_postAuthStyle").prop("checked", true);
+      $("#tokenexchange_headerAuthStyle").prop("checked", false);
+    } else {
+      $("#tokenexchange_postAuthStyle").prop("checked", false);
+      $("#tokenexchange_headerAuthStyle").prop("checked", true);
     }
   }
   $("#token_client_id").val(localStorage.getItem("client_id"));
@@ -1418,6 +1450,12 @@ $(document).ready(function() {
     recreateTokenDisplay();
     recreateRefreshTokenDisplay("", "", ""); // no new token
     $("#logout_id_token_hint").val(localStorage.getItem("token_id_token"));
+    // Tokens already exist on this path, so show the panes that operate on
+    // them (logout, revocation, token exchange) and the operation history.
+    $("#step5").show();
+    $("#step6").show();
+    $("#step7").show();
+    $("#operation-history-panel").show();
   }
 
   recalculateRefreshRequestDescription();
@@ -1439,6 +1477,15 @@ $(document).ready(function() {
   });
   populateRevocationTokenWithLatestAccessToken();
 
+  // Initialize Token Exchange pane state and keep the request preview in sync.
+  useTokenExchangeFrontEnd = $("#tokenexchange_initiateFromFrontEnd").is(":checked");
+  $("#tokenexchange_token_endpoint, #tokenexchange_subject_token, #tokenexchange_actor_token, #tokenexchange_resource, #tokenexchange_audience, #tokenexchange_scope, #tokenexchange_client_id, #tokenexchange_client_secret")
+    .on("keyup change", recalculateTokenExchangeRequestDescription);
+  $("#tokenexchange_subject_token_type, #tokenexchange_actor_token_type, #tokenexchange_requested_token_type")
+    .on("change", recalculateTokenExchangeRequestDescription);
+  setTokenExchangeType();
+  populateTokenExchangeSubjectWithLatestAccessToken();
+
   if (!window.location.search) {
     $('#step3').show();
     $('#token_fieldset').css('display', 'block');
@@ -1448,6 +1495,7 @@ $(document).ready(function() {
     $('#step4').hide();
     $('#step5').hide();
     $('#step6').hide();
+    $('#step7').hide();
     $('#operation-history-panel').hide();
     $('#token-history-panel').hide();
     $('#currently-viewing-panel').hide();
@@ -1468,6 +1516,7 @@ $(document).ready(function() {
     $('#step4').show();
     $('#step5').show();
     $('#step6').show();
+    $('#step7').show();
     $('#operation-history-panel').show();
   }
 
@@ -2250,6 +2299,13 @@ function initFields() {
         $("#revocation_headerAuthStyleCheckToken").prop("checked", false);
     }
     localStorage.setItem("revocation_post_auth_style", true);
+    if ($("#tokenexchange_postAuthStyle")) {
+        $("#tokenexchange_postAuthStyle").prop("checked", true);
+    }
+    if ($("#tokenexchange_headerAuthStyle")) {
+        $("#tokenexchange_headerAuthStyle").prop("checked", false);
+    }
+    localStorage.setItem("tokenexchange_post_auth_style", true);
     if ($("#usePKCE-yes")) {
       $("#usePKCE-yes").prop("checked", true);
     }
@@ -2820,6 +2876,290 @@ function populateRevocationTokenWithLatestAccessToken() {
   log.debug("Leaving populateRevocationTokenWithLatestAccessToken().");
 }
 
+// ---- Token Exchange (RFC 8693) ----
+
+var TOKEN_EXCHANGE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:token-exchange";
+
+// Pre-populates the Token Exchange pane's subject_token with the latest access
+// token (from the initial Token Endpoint call or a Refresh Token call). Used on
+// page load and after every Token/Refresh Endpoint call.
+function populateTokenExchangeSubjectWithLatestAccessToken() {
+  log.debug("Entering populateTokenExchangeSubjectWithLatestAccessToken().");
+  $("#tokenexchange_subject_token").val(getLatestAccessToken());
+  recalculateTokenExchangeRequestDescription();
+  log.debug("Leaving populateTokenExchangeSubjectWithLatestAccessToken().");
+}
+
+// Impersonation: only a subject token is sent. Delegation: an actor token is
+// also sent (RFC 8693 Section 1.1). Shows/hides the actor token rows.
+function setTokenExchangeType() {
+  log.debug("Entering setTokenExchangeType().");
+  var delegation = $("#tokenexchange_delegation").is(":checked");
+  if (delegation) {
+    $("#tokenexchange_actor_token_row").show();
+    $("#tokenexchange_actor_token_type_row").show();
+  } else {
+    $("#tokenexchange_actor_token_row").hide();
+    $("#tokenexchange_actor_token_type_row").hide();
+  }
+  recalculateTokenExchangeRequestDescription();
+  log.debug("Leaving setTokenExchangeType(). delegation=" + delegation);
+}
+
+function buildInternalTokenExchangeRequestMessage() {
+  log.debug("Entering buildInternalTokenExchangeRequestMessage().");
+  var sslValidate;
+  if ($("#SSLValidate-yes").is(":checked")) {
+    sslValidate = $("#SSLValidate-yes").val();
+  } else if ($("#SSLValidate-no").is(":checked")) {
+    sslValidate = $("#SSLValidate-no").val();
+  } else {
+    sslValidate = "true";
+  }
+  var delegation = $("#tokenexchange_delegation").is(":checked");
+  var formData = {
+    token_endpoint: $("#tokenexchange_token_endpoint").val(),
+    grant_type: TOKEN_EXCHANGE_GRANT_TYPE,
+    subject_token: $("#tokenexchange_subject_token").val(),
+    subject_token_type: $("#tokenexchange_subject_token_type").val(),
+    requested_token_type: $("#tokenexchange_requested_token_type").val(),
+    resource: $("#tokenexchange_resource").val(),
+    audience: $("#tokenexchange_audience").val(),
+    scope: $("#tokenexchange_scope").val(),
+    client_id: $("#tokenexchange_client_id").val(),
+    client_secret: $("#tokenexchange_client_secret").val(),
+    auth_style: getLSBooleanItem("tokenexchange_post_auth_style"),
+    sslValidate: sslValidate
+  };
+  // Only include the actor token for delegation (RFC 8693 Section 2.1).
+  if (delegation) {
+    formData.actor_token = $("#tokenexchange_actor_token").val();
+    formData.actor_token_type = $("#tokenexchange_actor_token_type").val();
+  }
+  log.debug("Leaving buildInternalTokenExchangeRequestMessage().");
+  return formData;
+}
+
+// Appends a key=value pair to an x-www-form-urlencoded body string when value
+// is non-empty.
+function appendFormParam(body, key, value) {
+  if (!value) {
+    return body;
+  }
+  return (body ? body + "&" : "") + key + "=" + encodeURIComponent(value);
+}
+
+function tokenExchangeButtonClick() {
+  log.debug("Entering tokenExchangeButtonClick().");
+  writeValuesToLocalStorage();
+  recalculateTokenExchangeRequestDescription();
+  var formData = buildInternalTokenExchangeRequestMessage();
+  if (!formData.token_endpoint) {
+    displayTokenExchangeResult("No token endpoint configured. Populate it from the discovery document " +
+                               "on the previous page, or enter it manually.", true);
+    return false;
+  }
+  if (!formData.subject_token) {
+    displayTokenExchangeResult("No subject token specified. The subject token defaults to the most recent " +
+                               "access token; obtain a token first, or paste one into the Subject Token field.", true);
+    return false;
+  }
+  if ($("#tokenexchange_delegation").is(":checked") && !formData.actor_token) {
+    displayTokenExchangeResult("Delegation is selected but no actor token was provided. Enter an actor token, " +
+                               "or switch to Impersonation.", true);
+    return false;
+  }
+  if (useTokenExchangeFrontEnd) {
+    log.debug("Using frontend to call Token Endpoint for token exchange. auth_style(POST body)=" + formData.auth_style);
+    var headers = { "Content-Type": "application/x-www-form-urlencoded" };
+    var bodyParams = "grant_type=" + encodeURIComponent(formData.grant_type);
+    bodyParams = appendFormParam(bodyParams, "subject_token", formData.subject_token);
+    bodyParams = appendFormParam(bodyParams, "subject_token_type", formData.subject_token_type);
+    bodyParams = appendFormParam(bodyParams, "actor_token", formData.actor_token);
+    bodyParams = appendFormParam(bodyParams, "actor_token_type", formData.actor_token_type);
+    bodyParams = appendFormParam(bodyParams, "requested_token_type", formData.requested_token_type);
+    bodyParams = appendFormParam(bodyParams, "resource", formData.resource);
+    bodyParams = appendFormParam(bodyParams, "audience", formData.audience);
+    bodyParams = appendFormParam(bodyParams, "scope", formData.scope);
+    if (formData.auth_style) {
+      // POST body: send client credentials as request parameters.
+      bodyParams = appendFormParam(bodyParams, "client_id", formData.client_id);
+      bodyParams = appendFormParam(bodyParams, "client_secret", formData.client_secret);
+    } else {
+      // HTTP Basic authorization header.
+      if (!!formData.client_secret) {
+        headers["Authorization"] = "Basic " + btoa(formData.client_id + ":" + formData.client_secret);
+      } else if (!!formData.client_id) {
+        bodyParams = appendFormParam(bodyParams, "client_id", formData.client_id);
+      }
+    }
+    $.ajax({
+      type: "POST",
+      url: formData.token_endpoint,
+      crossDomain: true,
+      headers: headers,
+      data: bodyParams,
+      success: successfulTokenExchangeAPICall,
+      error: errorTokenExchangeAPICall
+    });
+  } else {
+    log.debug("Using backend to call Token Endpoint for token exchange.");
+    $.ajax({
+      type: "POST",
+      url: appconfig.apiUrl + "/tokenexchange",
+      crossDomain: true,
+      contentType: "application/json; charset=utf-8",
+      data: JSON.stringify(formData),
+      success: successfulTokenExchangeAPICall,
+      error: errorTokenExchangeAPICall
+    });
+  }
+  return false;
+}
+
+function successfulTokenExchangeAPICall(data, textStatus, jqXHR) {
+  log.debug("Entering successfulTokenExchangeAPICall(): data=" + JSON.stringify(data) + ", textStatus=" + textStatus);
+  var status = (jqXHR && jqXHR.status) ? jqXHR.status : 200;
+  var statusText = (jqXHR && jqXHR.statusText) ? jqXHR.statusText : "";
+  var bodyText = "";
+  try {
+    bodyText = (typeof data === "string") ? data : JSON.stringify(data, null, 2);
+  } catch (e) {
+    bodyText = String(data);
+  }
+  var message = "Token exchange request succeeded.\n" +
+                "HTTP Status: " + status + " " + statusText + "\n" +
+                "Response Body:\n" + (bodyText && bodyText !== "{}" ? bodyText : "(empty)");
+  displayTokenExchangeResult(message, false);
+  saveOperationToHistory('Token Exchange', {
+    client_id: $("#tokenexchange_client_id").val(),
+    detail: $("#tokenexchange_delegation").is(":checked") ? 'delegation' : 'impersonation'
+  });
+  log.debug("Leaving successfulTokenExchangeAPICall().");
+}
+
+function errorTokenExchangeAPICall(jqXHR, status, error) {
+  log.error("An error occurred calling the token endpoint for token exchange.");
+  log.error("status: " + JSON.stringify(status));
+  log.error("error: " + JSON.stringify(error));
+  var responseText = (jqXHR && jqXHR.responseText) ? jqXHR.responseText : "";
+  var responseObject = {};
+  try {
+    responseObject = JSON.parse(responseText);
+  } catch (e) {
+    responseObject = {};
+  }
+  var message = "An error occurred during token exchange.\n" +
+                "HTTP Status: " + (jqXHR ? jqXHR.status : "") + " " + (jqXHR ? jqXHR.statusText : "") + "\n" +
+                "error: " + (responseObject.error || error || "") + "\n" +
+                "error_description: " + (responseObject.error_description || "") + "\n" +
+                "Response Body: " + responseText;
+  displayTokenExchangeResult(message, true);
+  saveOperationToHistory('Token Exchange', {
+    client_id: $("#tokenexchange_client_id").val(),
+    detail: ($("#tokenexchange_delegation").is(":checked") ? 'delegation' : 'impersonation') + ', error'
+  });
+}
+
+function displayTokenExchangeResult(message, isError) {
+  log.debug("Entering displayTokenExchangeResult(). isError=" + isError);
+  var legend = isError ? "Token Exchange Error" : "Token Exchange Results";
+  var html = "<fieldset>" +
+               "<legend>" + legend + "</legend>" +
+               "<p><em>Most recent result of the Token Exchange (RFC 8693) call.</em></p>" +
+               "<table>" +
+                 "<tr>" +
+                   "<td>" +
+                     "<textarea rows='12' cols='80' readonly id='tokenexchange_result_textarea' name='tokenexchange_result_textarea'></textarea>" +
+                   "</td>" +
+                 "</tr>" +
+               "</table>" +
+             "</fieldset>";
+  $("#tokenexchange_endpoint_result").html(DOMPurify.sanitize(html));
+  // Set the value separately so the (untrusted) token text is never interpreted
+  // as markup.
+  $("#tokenexchange_result_textarea").val(message);
+  $("#tokenexchange_endpoint_result").show();
+  log.debug("Leaving displayTokenExchangeResult().");
+}
+
+function recalculateTokenExchangeRequestDescription() {
+  log.debug("Entering recalculateTokenExchangeRequestDescription().");
+  var ta1 = $("#display_tokenexchange_request_form_textarea1");
+  if (!ta1) {
+    return;
+  }
+  var endpoint = $("#tokenexchange_token_endpoint").val();
+  var clientId = $("#tokenexchange_client_id").val();
+  var clientSecret = $("#tokenexchange_client_secret").val();
+  var postAuthStyle = getLSBooleanItem("tokenexchange_post_auth_style");
+  var delegation = $("#tokenexchange_delegation").is(":checked");
+  var request = "POST " + endpoint + "\n" +
+                "Content-Type: application/x-www-form-urlencoded\n";
+  if (!postAuthStyle && !!clientSecret) {
+    request += "Authorization: Basic base64(" + clientId + ":<client_secret>)\n";
+  }
+  request += "Message Body:\n" +
+             "grant_type=" + TOKEN_EXCHANGE_GRANT_TYPE;
+  var addLine = function (key, value) {
+    if (!!value) {
+      request += "&\n" + key + "=" + value;
+    }
+  };
+  addLine("subject_token", $("#tokenexchange_subject_token").val());
+  addLine("subject_token_type", $("#tokenexchange_subject_token_type").val());
+  if (delegation) {
+    addLine("actor_token", $("#tokenexchange_actor_token").val());
+    addLine("actor_token_type", $("#tokenexchange_actor_token_type").val());
+  }
+  addLine("requested_token_type", $("#tokenexchange_requested_token_type").val());
+  addLine("resource", $("#tokenexchange_resource").val());
+  addLine("audience", $("#tokenexchange_audience").val());
+  addLine("scope", $("#tokenexchange_scope").val());
+  if (postAuthStyle) {
+    addLine("client_id", clientId);
+    if (!!clientSecret) {
+      request += "&\n" + "client_secret=<client_secret>";
+    }
+  } else if (!clientSecret && !!clientId) {
+    addLine("client_id", clientId);
+  }
+  $("#display_tokenexchange_request_form_textarea1").val(request);
+  log.debug("Leaving recalculateTokenExchangeRequestDescription().");
+}
+
+function setInitiateTokenExchangeFromEnd() {
+  log.debug("Entering setInitiateTokenExchangeFromEnd().");
+  var frontEndInitiated = $("#tokenexchange_initiateFromFrontEnd").is(":checked");
+  if (frontEndInitiated) {
+    useTokenExchangeFrontEnd = true;
+  } else {
+    useTokenExchangeFrontEnd = false;
+  }
+  log.debug("useTokenExchangeFrontEnd=" + useTokenExchangeFrontEnd);
+  log.debug("Leaving setInitiateTokenExchangeFromEnd().");
+}
+
+function setPostAuthStyleTokenExchange() {
+  log.debug("Entering setPostAuthStyleTokenExchange().");
+  $("#tokenexchange_postAuthStyle").prop("checked", true);
+  $("#tokenexchange_headerAuthStyle").prop("checked", false);
+  localStorage.setItem("tokenexchange_post_auth_style", true);
+  recalculateTokenExchangeRequestDescription();
+  log.debug("Leaving setPostAuthStyleTokenExchange().");
+  return false;
+}
+
+function setHeaderAuthStyleTokenExchange() {
+  log.debug("Entering setHeaderAuthStyleTokenExchange().");
+  $("#tokenexchange_postAuthStyle").prop("checked", false);
+  $("#tokenexchange_headerAuthStyle").prop("checked", true);
+  localStorage.setItem("tokenexchange_post_auth_style", false);
+  recalculateTokenExchangeRequestDescription();
+  log.debug("Leaving setHeaderAuthStyleTokenExchange().");
+  return false;
+}
+
 module.exports = {
   OnSubmitTokenEndpointForm,
   getParameterByName,
@@ -2863,5 +3203,11 @@ module.exports = {
   recalculateRevocationRequestDescription,
   setInitiateRevocationFromEnd,
   setPostAuthStyleRevocation,
-  setHeaderAuthStyleRevocation
+  setHeaderAuthStyleRevocation,
+  tokenExchangeButtonClick,
+  recalculateTokenExchangeRequestDescription,
+  setInitiateTokenExchangeFromEnd,
+  setPostAuthStyleTokenExchange,
+  setHeaderAuthStyleTokenExchange,
+  setTokenExchangeType
 };

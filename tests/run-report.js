@@ -137,6 +137,27 @@ function buildJobs() {
     },
   });
 
+  // Token Exchange (RFC 8693). The requesting confidential client obtains a
+  // subject token via the auth code flow, exchanges it for a token aimed at the
+  // target audience client, and the issued token is confirmed via introspection.
+  jobs.push({
+    name: "OAuth2 Token Exchange (RFC 8693)",
+    script: "oauth2_token_exchange.js",
+    env: {
+      DISCOVERY_ENDPOINT: env.TOKEN_EXCHANGE_DISCOVERY_ENDPOINT,
+      CLIENT_ID: env.TOKEN_EXCHANGE_CLIENT_ID,
+      CLIENT_SECRET: env.TOKEN_EXCHANGE_CLIENT_SECRET,
+      SCOPE: "openid profile email",
+      USER: env.TOKEN_EXCHANGE_USER,
+      PKCE_ENABLED: "false",
+      // The target client whose audience the exchanged token is aimed at.
+      AUDIENCE_CLIENT_ID: env.TOKEN_EXCHANGE_TARGET_CLIENT_ID,
+      // The confidential client permitted to call the Introspection Endpoint.
+      INTROSPECTION_CLIENT_ID: env.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID,
+      INTROSPECTION_CLIENT_SECRET: env.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET,
+    },
+  });
+
   return jobs;
 }
 

@@ -19,7 +19,7 @@ services:
     networks:
       - keycloak
   keycloak:
-    image: quay.io/keycloak/keycloak:26.1.4
+    image: quay.io/keycloak/keycloak:26.2.5
     command: ["start-dev"]
     environment:
       KC_DB: postgres

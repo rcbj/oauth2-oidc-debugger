@@ -66,7 +66,7 @@ configureKeycloak()
     -d '{"realm": "debugger-testing", "enabled": true}'
   check_return_code $?
   
-  for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_CONFIDENTIAL AUTHORIZATION_CODE_PUBLIC IMPLICIT OIDC_AUTHORIZATION_CODE_CONFIDENTIAL OIDC_AUTHORIZATION_CODE_PUBLIC RESOURCE_OWNER_CREDENTIAL
+  for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_CONFIDENTIAL AUTHORIZATION_CODE_PUBLIC IMPLICIT OIDC_AUTHORIZATION_CODE_CONFIDENTIAL OIDC_AUTHORIZATION_CODE_PUBLIC RESOURCE_OWNER_CREDENTIAL TOKEN_EXCHANGE_TARGET TOKEN_EXCHANGE
   do
     FLOW_NAME=$(echo ${FLOW_VARIABLE} | tr '[:upper:]' '[:lower:]' | tr '_' '-')
 
@@ -254,6 +254,85 @@ configureKeycloak()
                      "access.token.lifespan": 3600
                    }
                 }'
+            check_return_code $?
+            ;;
+        TOKEN_EXCHANGE_TARGET)
+            # Audience (target) client for RFC 8693 token exchange. A token
+            # exchange request can ask for a token aimed at this client via the
+            # "audience" parameter.
+            curl -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing/clients" \
+              -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                   "clientId": "'${FLOW_NAME}'",
+                   "protocol": "openid-connect",
+                   "publicClient": false,
+                   "serviceAccountsEnabled": false,
+                   "authorizationServicesEnabled": false,
+                   "standardFlowEnabled": true,
+                   "directAccessGrantsEnabled": false,
+                   "clientAuthenticatorType": "client-secret",
+                   "frontchannelLogout": true,
+                   "redirectUris": ["'${DEBUGGER_BASE_URL}/callback'"],
+                   "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}'"],
+                   "attributes": {
+                     "access.token.lifespan": 3600
+                   }
+                }'
+            check_return_code $?
+            ;;
+        TOKEN_EXCHANGE)
+            # Requesting client for RFC 8693 Standard Token Exchange (v2). It
+            # obtains a subject token via the Authorization Code flow and then
+            # exchanges it. Keycloak requires the requesting client to be in the
+            # subject token's audience, so an audience mapper adds this client
+            # (and the target client) to the access token's "aud" claim.
+            curl -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing/clients" \
+              -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                   "clientId": "'${FLOW_NAME}'",
+                   "protocol": "openid-connect",
+                   "publicClient": false,
+                   "serviceAccountsEnabled": false,
+                   "authorizationServicesEnabled": false,
+                   "standardFlowEnabled": true,
+                   "directAccessGrantsEnabled": true,
+                   "clientAuthenticatorType": "client-secret",
+                   "frontchannelLogout": true,
+                   "redirectUris": ["'${DEBUGGER_BASE_URL}/callback'"],
+                   "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}'"],
+                   "attributes": {
+                     "frontchannel.logout.url": "'${DEBUGGER_BASE_URL}/logout'",
+                     "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'",
+                     "access.token.lifespan": 3600,
+                     "standard.token.exchange.enabled": "true"
+                   },
+                   "protocolMappers": [
+                     {
+                       "name": "token-exchange-self-audience",
+                       "protocol": "openid-connect",
+                       "protocolMapper": "oidc-audience-mapper",
+                       "config": {
+                         "included.client.audience": "'${FLOW_NAME}'",
+                         "id.token.claim": "false",
+                         "access.token.claim": "true"
+                       }
+                     },
+                     {
+                       "name": "token-exchange-target-audience",
+                       "protocol": "openid-connect",
+                       "protocolMapper": "oidc-audience-mapper",
+                       "config": {
+                         "included.client.audience": "token-exchange-target",
+                         "id.token.claim": "false",
+                         "access.token.claim": "true"
+                       }
+                     }
+                   ]
+                }'
+            check_return_code $?
+            ;;
 
 
     esac

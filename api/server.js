@@ -417,6 +417,114 @@ app.post('/revoke', (req, res) => {
   }
 });
 
+/**
+ * @typedef TokenExchangeRequest
+ * @property {string} token_endpoint.required - The OAuth2 Token Endpoint URL
+ * @property {string} grant_type.required - urn:ietf:params:oauth:grant-type:token-exchange
+ * @property {string} subject_token.required - The token representing the subject
+ * @property {string} subject_token_type.required - The subject token type identifier (URN)
+ * @property {string} actor_token - The token representing the acting party (delegation)
+ * @property {string} actor_token_type - The actor token type identifier (URN)
+ * @property {string} requested_token_type - The requested token type identifier (URN)
+ * @property {string} resource - Target resource URI
+ * @property {string} audience - Target service logical name
+ * @property {string} scope - Requested scope
+ * @property {string} client_id - The OAuth2 client identifier
+ * @property {string} client_secret - The client secret for a confidential client
+ * @property {boolean} sslValidate - Validate the token endpoint SSL/TLS certificate
+ */
+
+/**
+ * Wrapper around the OAuth2 Token Endpoint for Token Exchange (RFC 8693)
+ * @route POST /tokenexchange
+ * @group Debugger - Operations for OAuth2/OIDC Debugger
+ * @param {TokenExchangeRequest.model} req.body.required - Token Exchange Request
+ * @returns {object} 200 - Token Exchange Response
+ * @returns {Error.model} 400 - Syntax error
+ * @returns {Error.model} 500 - Unexpected error
+ */
+app.post('/tokenexchange', (req, res) => {
+  try {
+    log.info('Entering app.post for /tokenexchange.');
+    const body = req.body;
+    log.debug('body: ' + JSON.stringify(body));
+    var headers = {
+      'content-type': 'application/x-www-form-urlencoded'
+    };
+    var clientId = body.client_id;
+    var clientSecret = body.client_secret;
+    // auth_style truthy => send client credentials in the POST body;
+    // falsy => authenticate via the HTTP Basic header (RFC 6749 Section 2.3.1).
+    var auth_style = body.auth_style;
+    // Build the application/x-www-form-urlencoded body (RFC 8693 Section 2.1).
+    var parameters = ['grant_type=' + encodeURIComponent(body.grant_type)];
+    var addParam = function (key, value) {
+      if (!!value) {
+        parameters.push(key + '=' + encodeURIComponent(value));
+      }
+    };
+    addParam('subject_token', body.subject_token);
+    addParam('subject_token_type', body.subject_token_type);
+    addParam('actor_token', body.actor_token);
+    addParam('actor_token_type', body.actor_token_type);
+    addParam('requested_token_type', body.requested_token_type);
+    addParam('resource', body.resource);
+    addParam('audience', body.audience);
+    addParam('scope', body.scope);
+    if (auth_style) {
+      // POST body authentication.
+      addParam('client_id', clientId);
+      addParam('client_secret', clientSecret);
+    } else if (!!clientSecret) {
+      // Confidential client: authenticate via HTTP Basic.
+      headers.authorization = 'Basic ' +
+        Buffer.from(encodeURIComponent(clientId) + ':' + encodeURIComponent(clientSecret)).toString('base64');
+    } else if (!!clientId) {
+      // Public client with no secret: include client_id in the request body.
+      addParam('client_id', clientId);
+    }
+    const parameterString = parameters.join('&');
+    var tokenEndpoint = body.token_endpoint;
+    var sslValidate = body.sslValidate;
+    log.debug("Making Token Exchange call to Token Endpoint.");
+    log.debug("POST " + tokenEndpoint);
+    log.debug("Headers: " + JSON.stringify(headers));
+    log.debug("Body: " + parameterString);
+    axios({
+      method: 'post',
+      url: tokenEndpoint,
+      headers: headers,
+      data: parameterString,
+      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: sslValidate })
+    })
+    .then(function (response) {
+      log.debug('Response from OAuth2 Token Endpoint (token exchange): ' + JSON.stringify(response.data));
+      res.status(response.status);
+      res.json(response.data);
+    })
+    .catch(function (error) {
+      log.error('Error from OAuth2 Token Endpoint (token exchange): ' + error);
+      if(!!error.response) {
+        if(!!error.response.status) {
+          log.error("Error Status: " + error.response.status);
+        }
+        if(!!error.response.data) {
+          log.error("Error Response body: " + JSON.stringify(error.response.data));
+        }
+        res.status(error.response.status);
+        res.json(error.response.data);
+      } else {
+        res.status(STATUS_500);
+        res.json({ error: error.message });
+      }
+    });
+  } catch (e) {
+    log.error('An error occurred: ' + e);
+    res.status(STATUS_500);
+    res.json({ "error": e });
+  }
+});
+
 app.post('/userinfo', (req, res) => {
   log.info('Entering app.post for /userinfo.');
   userinfo_common(req, res);
