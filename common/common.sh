@@ -336,19 +336,6 @@ configureKeycloak()
     declare -gx ${FLOW_VARIABLE}_SCOPE="${SCOPE_NAME}"
     declare -gx ${FLOW_VARIABLE}_USER="${USER_ID}"
 
-    VAR_NAME1=${FLOW_VARIABLE}_DISCOVERY_ENDPOINT
-    VAR_NAME2=${FLOW_VARIABLE}_CLIENT_ID
-    VAR_NAME3=${FLOW_VARIABLE}_CLIENT_SECRET
-    VAR_NAME4=${FLOW_VARIABLE}_SCOPE
-    VAR_NAME5=${FLOW_VARIABLE}_USER
-    VAR_NAME6=${FLOW_VARIABLE}_AUDIENCE
-
-    echo "${VAR_NAME1}=${!VAR_NAME1}"
-    echo "${VAR_NAME2}=${!VAR_NAME2}"
-    echo "${VAR_NAME3}=${!VAR_NAME3}"
-    echo "${VAR_NAME4}=${!VAR_NAME4}"
-    echo "${VAR_NAME5}=${!VAR_NAME5}"
-    echo "${VAR_NAME6}=${!VAR_NAME6}"
   done
   echo "Leaving configureKeycloak()."
 }

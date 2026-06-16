@@ -72,7 +72,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
 
   // Select oauth2 authorization code grant login type
   log.info("Set authorization_grant_type to oauth2 Authorizaton Code Grant.");
-  await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OIDC Authorization Code Flow(code)');
+  await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OAuth2 Authorization Code Grant');
   log.info("Waiting for usePKCE_yes");
   await driver.wait(until.elementLocated(usePKCE_yes), waitTime);
   log.info("Waiting for usePKCE_yes to be visible.");
