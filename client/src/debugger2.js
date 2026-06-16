@@ -8,6 +8,7 @@ log.info("Log initialized. logLevel=" + log.level());
 const { convertToOAuth2Format  } = require('./data.js');
 
 const TOKEN_HISTORY_LIMIT = 1000;
+const OPERATION_HISTORY_LIMIT = 1000;
 
 var displayOpenIDConnectArtifacts = true;
 var useRefreshTokenTester = true;
@@ -16,6 +17,7 @@ var currentRefreshToken = '';
 var usePKCE = true;
 var useFrontEnd = false;
 var useRefreshFrontEnd = false;
+var useRevocationFrontEnd = false;
 var refreshTokenUsed = false;
 
 function OnSubmitTokenEndpointForm()
@@ -65,6 +67,8 @@ function tokenButtonClick() {
   $('#step3').show();
   $('#step4').show();
   $('#step5').show();
+  $('#step6').show();
+  $('#operation-history-panel').show();
   log.debug("Updating local storage.");
   writeValuesToLocalStorage();
   log.debug("Recalculating token request description.");
@@ -222,7 +226,8 @@ function successfulInternalTokenAPICall(data, textStatus, request)
 				     "<tr>" +
                                        '<td>' +
                                          '<P><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></P>' +
-                                         '<P style="font-size:50%;"><a href="/introspection.html?type=access" onclick="debugger2.clickLink()">Introspect Token</a></P>' + 
+                                         '<P style="font-size:50%;"><a href="/introspection.html?type=access" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
+                                         '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="access" /></P>' + 
                                          '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                          ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                        '</td>' +
@@ -237,6 +242,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                           '<td>' +
                                               '<P><a href="/token_detail.html?type=refresh" onclick="debugger2.clickLink()">Refresh Token</a></P>' +
                                               '<P style="font-size:50%;"><a href="/introspection.html?type=refresh" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
+                                         '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="refresh" /></P>' +
                                               '<P><form><input class="btn2" type="submit" value="Copy Token"' + 
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
@@ -275,6 +281,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                         "<tr>" +
                                           '<td>' +
                                             '<p><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></p>' +
+                                            '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="access" /></P>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           '</td>' +
@@ -288,6 +295,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
         token_endpoint_result_html += "<tr>" +
                                           '<td>' +
                                             '<a href="/token_detail.html?type=id" onclick="debugger2.clickLink()">Refresh Token</a>' +
+                                            '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="refresh" /></P>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
@@ -325,6 +333,11 @@ function successfulInternalTokenAPICall(data, textStatus, request)
     $('#currently-viewing-panel').show();
     $('#refresh_endpoint_result').show();
     recalculateRefreshRequestDescription();
+    populateRevocationTokenWithLatestAccessToken();
+    saveOperationToHistory('Token Endpoint', {
+      client_id: $("#token_client_id").val(),
+      tokenHistoryIndex: getLatestTokenHistoryIndex()
+    });
 }
 
 function errorInternalTokenAPICall(request, status, error) {
@@ -333,6 +346,10 @@ function errorInternalTokenAPICall(request, status, error) {
   log.error("status: " + JSON.stringify(status));
   log.error("error: " + JSON.stringify(error));
   recalculateTokenErrorDescription(request);
+  saveOperationToHistory('Token Endpoint', {
+    client_id: $("#token_client_id").val(),
+    detail: 'error'
+  });
 }
 
 function buildInternalRefreshAPIRequestMessage() {
@@ -437,6 +454,10 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
   }
   saveTokenSetToHistory(currentAccessToken, currentRefreshToken, currentIDToken, 'refresh');
   recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, currentIDToken);
+  saveOperationToHistory('Token Endpoint (Refresh)', {
+    client_id: $("#refresh_client_id").val(),
+    tokenHistoryIndex: getLatestTokenHistoryIndex()
+  });
   log.debug("Leaving ajax success function for Refresh Token.");
 }
 
@@ -468,6 +489,7 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
                                           '<td>' +
                                             '<P><a href="/token_detail.html?type=refresh_access" onclick="debugger2.clickLink()">Latest Access Token</a></P>' +
                                             '<P style="font-size:50%;"><a href="/introspection.html?type=refresh_access" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
+                                            '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="refresh_access" /></P>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_access_token\');"/></form></P>' +
                                           "</td>" +
@@ -482,6 +504,7 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
                                           '<td>' +
                                             '<P><a href="/token_detail.html?type=refresh_refresh" onclick="debugger2.clickLink()">Latest Refresh Token</a></P>' +
                                             '<P style="font-size:50%;"><a href="/introspection.html?type=refresh_refresh" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
+                                            '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="refresh_refresh" /></P>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_refresh_token\');"/></form></P>' +
                                           "</td>" +
@@ -537,10 +560,11 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
   }
   recalculateRefreshRequestDescription();
   if (refreshTokenUsed) {
-   $("#refresh_endpoint_result").show(); 
+   $("#refresh_endpoint_result").show();
   } else {
    $("#refresh_endpoint_result").hide();
   }
+  populateRevocationTokenWithLatestAccessToken();
   log.debug("Leaving displayRefreshTokenPane().");
 }
 
@@ -550,7 +574,11 @@ function errorInternalRefreshAPICall(request, status, error) {
   log.error("status: " + JSON.stringify(status));
   log.error("error: " + JSON.stringify(error));
   recalculateRefreshErrorDescription(request);
-} 
+  saveOperationToHistory('Token Endpoint (Refresh)', {
+    client_id: $("#refresh_client_id").val(),
+    detail: 'error'
+  });
+}
 
 function resetUI(value)
 {
@@ -574,6 +602,8 @@ function resetUI(value)
       $("#usePKCE-no").prop("checked", true);
       usePKCERFC();
       $("#step5").hide();
+      $("#step6").hide();
+      $("#operation-history-panel").hide();
       $("#useRefreshToken-yes").prop("checked", false);
       $("#useRefreshToken-no").prop("checked", true);
       useRefreshTokenTester = false;
@@ -684,6 +714,12 @@ function writeValuesToLocalStorage()
       } else {
         localStorage.setItem("refresh_post_auth_style", false);
       }
+      if ($("#revocation_postAuthStyleCheckToken").is(":checked"))
+      {
+        localStorage.setItem("revocation_post_auth_style", true);
+      } else {
+        localStorage.setItem("revocation_post_auth_style", false);
+      }
       if ($("#customTokenParametersCheck-yes").is(":checked")) {
         var i = 0;
         var tokenNumberCustomParameters = parseInt($("#tokenNumberCustomParameters").val());
@@ -705,6 +741,11 @@ function writeValuesToLocalStorage()
       localStorage.setItem("refresh_initiateFromFrontEnd", $("#refresh_initiateFromFrontEnd").is(":checked"));
       localStorage.setItem("refresh_initiateFromBackEnd", $("#refresh_initiateFromBackEnd").is(":checked"));
       localStorage.setItem("refresh_token_used", refreshTokenUsed);
+      if ($("#revocation_revocation_endpoint").val()) {
+        localStorage.setItem("revocation_endpoint", $("#revocation_revocation_endpoint").val());
+      }
+      localStorage.setItem("revocation_initiateFromFrontEnd", $("#revocation_initiateFromFrontEnd").is(":checked"));
+      localStorage.setItem("revocation_initiateFromBackEnd", $("#revocation_initiateFromBackEnd").is(":checked"));
   }
 
   log.debug("Leaving writeValuesToLocalStorage().");
@@ -740,6 +781,30 @@ function loadValuesFromLocalStorage()
     $("#introspection_endpoint").val("");
     $("#introspection_endpoint").closest('tr').hide();
   }
+
+  if (localStorage.getItem("revocation_endpoint")) {
+    $("#revocation_endpoint").val(localStorage.getItem("revocation_endpoint"));
+    $("#revocation_endpoint").closest('tr').show();
+    $("#revocation_revocation_endpoint").val(localStorage.getItem("revocation_endpoint"));
+  } else {
+    $("#revocation_endpoint").val("");
+    $("#revocation_endpoint").closest('tr').hide();
+  }
+  $("#revocation_client_id").val(localStorage.getItem("client_id"));
+  $("#revocation_client_secret").val(localStorage.getItem("client_secret"));
+  if (localStorage.getItem("revocation_initiateFromFrontEnd") !== null) {
+    $("#revocation_initiateFromFrontEnd").prop("checked", getLSBooleanItem("revocation_initiateFromFrontEnd"));
+    $("#revocation_initiateFromBackEnd").prop("checked", getLSBooleanItem("revocation_initiateFromBackEnd"));
+  }
+  if (localStorage.getItem("revocation_post_auth_style") !== null) {
+    if (getLSBooleanItem("revocation_post_auth_style")) {
+      $("#revocation_postAuthStyleCheckToken").prop("checked", true);
+      $("#revocation_headerAuthStyleCheckToken").prop("checked", false);
+    } else {
+      $("#revocation_postAuthStyleCheckToken").prop("checked", false);
+      $("#revocation_headerAuthStyleCheckToken").prop("checked", true);
+    }
+  }
   $("#token_client_id").val(localStorage.getItem("client_id"));
   $("#token_client_secret").val(localStorage.getItem("client_secret"));
   $("#token_redirect_uri").val(localStorage.getItem("redirect_uri"));
@@ -754,10 +819,24 @@ function loadValuesFromLocalStorage()
   $("#noCheckOIDCArtifacts").prop("checked", getLSBooleanItem("noCheckOIDCArtifacts"));
   $("#usePKCE-yes").prop("checked", getLSBooleanItem("usePKCE_yes"));
   $("#usePKCE-no").prop("checked", getLSBooleanItem("usePKCE_no"));
-  $("#token_initiateFromFrontEnd").prop("checked", getLSBooleanItem("token_initiateFromFrontEnd"));
-  $("#token_initiateFromBackEnd").prop("checked", getLSBooleanItem("token_initiateFromBackEnd"));
-  $("#refresh_initiateFromFrontEnd").prop("checked", getLSBooleanItem("refresh_initiateFromFrontEnd"));
-  $("#refresh_initiateFromBackEnd").prop("checked", getLSBooleanItem("refresh_initiateFromBackEnd"));
+  // Default to the "Back" radio when nothing has been stored yet, so a radio
+  // is always selected on first load (otherwise both would be left unchecked).
+  if (localStorage.getItem("token_initiateFromFrontEnd") !== null ||
+      localStorage.getItem("token_initiateFromBackEnd") !== null) {
+    $("#token_initiateFromFrontEnd").prop("checked", getLSBooleanItem("token_initiateFromFrontEnd"));
+    $("#token_initiateFromBackEnd").prop("checked", getLSBooleanItem("token_initiateFromBackEnd"));
+  } else {
+    $("#token_initiateFromFrontEnd").prop("checked", false);
+    $("#token_initiateFromBackEnd").prop("checked", true);
+  }
+  if (localStorage.getItem("refresh_initiateFromFrontEnd") !== null ||
+      localStorage.getItem("refresh_initiateFromBackEnd") !== null) {
+    $("#refresh_initiateFromFrontEnd").prop("checked", getLSBooleanItem("refresh_initiateFromFrontEnd"));
+    $("#refresh_initiateFromBackEnd").prop("checked", getLSBooleanItem("refresh_initiateFromBackEnd"));
+  } else {
+    $("#refresh_initiateFromFrontEnd").prop("checked", false);
+    $("#refresh_initiateFromBackEnd").prop("checked", true);
+  }
 
   $("#refresh_refresh_token").val(localStorage.getItem("refresh_refresh_token"));
   $("#customTokenParametersCheck-no").prop("checked", getLSBooleanItem("customTokenParametersCheck-no"));$("#refresh_client_id").val(localStorage.getItem("refresh_client_id"));
@@ -876,6 +955,7 @@ function recreateUniqueGrantFlowElements()
                                                  "<td>" +
                                                    '<P><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></P>' +
                                                    '<P style="font-size:50%;"><a href="/introspection.html?type=access" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
+                                         '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="access" /></P>' +
                                                    '<P><form><input class="token_btn" type="submit" value="Copy Token"' +
                                                    ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                                  "</td>" +
@@ -1153,13 +1233,17 @@ function processStateParameter()
          !!storedState &&
          state == storedState) {
       log.debug('State matches stored state.');
-      var stateReportHTML = '<h1>State Report</h1>' +
-                            '<P>' + 'State matches: state=' + state + '</P>';
+      var stateReportHTML = '<fieldset>' +
+                            '<legend>State Report</legend>' +
+                            '<P>' + 'State matches: state=' + state + '</P>' +
+                            '</fieldset>';
       $("#state-status").html(DOMPurify.sanitize(stateReportHTML));
     } else {
       log.debug('State does not match: state=' + state + ', storedState=' + storedState);
-      var stateReportHTML = '<h1>State Report</h1>' +
-                            '<P>State does not match: state=' + state + ', storedState=' + storedState + '</P>';
+      var stateReportHTML = '<fieldset>' +
+                            '<legend>State Report</legend>' +
+                            '<P>State does not match: state=' + state + ', storedState=' + storedState + '</P>' +
+                            '</fieldset>';
       $("#state-status").html(DOMPurify.sanitize(stateReportHTML));
     }
   }
@@ -1232,9 +1316,11 @@ $(document).ready(function() {
     $('#step0').hide();
     $('#step3').hide();
     $('#step4').hide();
-    var authzErrorReportHTML = '<h1>Authorization Endpoint Error Report</h1>' +
+    var authzErrorReportHTML = '<fieldset>' +
+                               '<legend>Authorization Endpoint Error Report</legend>' +
                                '<P>' + 'Error: ' + errorParam + '</P>' +
-                               '<P>' + 'Error Description: ' +  errorDescriptionParam + '</P>';
+                               '<P>' + 'Error Description: ' +  errorDescriptionParam + '</P>' +
+                               '</fieldset>';
     $('#authz-error-report').html(DOMPurify.sanitize(authzErrorReportHTML));
     log.debug('errorDescriptionParam=' + errorDescriptionParam + ', errorParam=' + errorParam); 
     return;
@@ -1258,6 +1344,21 @@ $(document).ready(function() {
   recalculateAuthorizationErrorDescription();
   recalculateTokenRequestDescription();
   recalculateRefreshRequestDescription();
+
+  // Record the Authorization Endpoint call once when we return from the IdP
+  // with an authorization response (code, access_token, or id_token). The
+  // signature dedupes so a manual page reload does not record it again.
+  if (getParameterByName("redirectFromTokenDetail") != "true") {
+    var fragmentParams = parseFragment();
+    var authzSignature = getParameterByName('code') || fragmentParams['code'] ||
+                         getParameterByName('access_token') || fragmentParams['access_token'] ||
+                         getParameterByName('id_token') || fragmentParams['id_token'];
+    if (!!authzSignature && localStorage.getItem('last_authz_signature') !== authzSignature) {
+      saveOperationToHistory('Authorization Endpoint', { client_id: localStorage.getItem('client_id') });
+      localStorage.setItem('last_authz_signature', authzSignature);
+    }
+  }
+  renderOperationHistory();
 
   var yesCheckedToken = $("#yesResourceCheckToken").is(":checked");
   if(yesCheckedToken)
@@ -1324,6 +1425,20 @@ $(document).ready(function() {
   $(".token_btn").click(tokenButtonClick);
   $(".refresh_btn").click(refreshButtonClick);
 
+  // Initialize revocation pane state and keep the request preview in sync.
+  useRevocationFrontEnd = $("#revocation_initiateFromFrontEnd").is(":checked");
+  $("#revocation_token, #revocation_revocation_endpoint, #revocation_client_id, #revocation_client_secret")
+    .on("keyup change", recalculateRevocationRequestDescription);
+  $("#revocation_token_type_hint").on("change", recalculateRevocationRequestDescription);
+  // Delegated so it also fires for the dynamically-rendered "Revoke Token"
+  // buttons in the result panes (and survives DOMPurify, which keeps data-*
+  // attributes but strips inline onclick handlers).
+  $(document).on("click", ".revoke_token_btn", function() {
+    revokeTokenDirect($(this).attr("data-revoke-type"), $(this).attr("data-revoke-generation"));
+    return false;
+  });
+  populateRevocationTokenWithLatestAccessToken();
+
   if (!window.location.search) {
     $('#step3').show();
     $('#token_fieldset').css('display', 'block');
@@ -1332,6 +1447,8 @@ $(document).ready(function() {
     $('#config_expand_button').val('Hide');
     $('#step4').hide();
     $('#step5').hide();
+    $('#step6').hide();
+    $('#operation-history-panel').hide();
     $('#token-history-panel').hide();
     $('#currently-viewing-panel').hide();
     $('#token_endpoint_result').hide();
@@ -1350,6 +1467,8 @@ $(document).ready(function() {
     $('#step3').show();
     $('#step4').show();
     $('#step5').show();
+    $('#step6').show();
+    $('#operation-history-panel').show();
   }
 
   log.debug("Leaving document.ready().");
@@ -1756,6 +1875,7 @@ function renderCurrentlyViewing(index, entry) {
                    '<td>' +
                      '<P><a href="/token_detail.html?type=history_access&generation=' + index + '" onclick="debugger2.clickLink()">Access Token</a></P>' +
                      '<P style="font-size:50%;"><a href="/introspection.html?type=history_access&generation=' + index + '" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
+                     '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="history_access" data-revoke-generation="' + index + '" /></P>' +
                      '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                      ' onclick="return debugger2.onClickCopyToken(\'#cv_access_token\');"/></form></P>' +
                    '</td>' +
@@ -1766,6 +1886,7 @@ function renderCurrentlyViewing(index, entry) {
                    '<td>' +
                      '<P><a href="/token_detail.html?type=history_refresh&generation=' + index + '" onclick="debugger2.clickLink()">Refresh Token</a></P>' +
                      '<P style="font-size:50%;"><a href="/introspection.html?type=history_refresh&generation=' + index + '" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
+                     '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="history_refresh" data-revoke-generation="' + index + '" /></P>' +
                      '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                      ' onclick="return debugger2.onClickCopyToken(\'#cv_refresh_token\');"/></form></P>' +
                    '</td>' +
@@ -1887,7 +2008,8 @@ function recreateTokenDisplay()
                                         "<tr>" +
                                           '<td>' +
                                               '<P><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></P>' +
-                                              '<P style="font-size:50%;"><a href="/introspection.html?type=access" onclick="debugger2.clickLink()">Introspect Token</a></P>' + 
+                                              '<P style="font-size:50%;"><a href="/introspection.html?type=access" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
+                                         '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="access" /></P>' + 
                                               '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           "</td>" +
@@ -1903,6 +2025,7 @@ function recreateTokenDisplay()
                                           '<td>' +
                                               '<P><a href="/token_detail.html?type=refresh" onclick="debugger2.clickLink()">Refresh Token</a></P>' +
                                               '<P style="font-size:50%;"><a href="/introspection.html?type=refresh" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
+                                         '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="refresh" /></P>' +
                                               '<P><form><input class="btn2" type="submit" value="Copy Token"' + 
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
@@ -1939,6 +2062,7 @@ function recreateTokenDisplay()
                                         "<tr>" +
                                           '<td>' +
                                             '<p><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></p>' +
+                                            '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="access" /></P>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           '</td>' +
@@ -1952,6 +2076,7 @@ function recreateTokenDisplay()
            token_endpoint_result_html += "<tr>" +
                                           '<td>' +
                                             '<a href="/token_detail.html?type=refresh" onclick="debugger2.clickLink()">Refresh Token</a>' +
+                                            '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="refresh" /></P>' +
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
@@ -1995,6 +2120,7 @@ function displayTokenCustomParametersCheck()
 function generateCustomParametersListUI()
 {
   var customParametersListHTML = "" +
+    "<fieldset>" +
     "<legend>Custom Parameters" +
     "</legend>" +
     "<table>" +
@@ -2022,7 +2148,8 @@ function generateCustomParametersListUI()
         "</tr>";
       }
       customParametersListHTML = customParametersListHTML +
-        "</table>";
+        "</table>" +
+        "</fieldset>";
       $("#token_custom_parameter_list").html(DOMPurify.sanitize(customParametersListHTML));
   if ($("#customTokenParametersCheck-yes").is(":checked")) {
     var i = 0;
@@ -2116,6 +2243,13 @@ function initFields() {
     if ($("#refresh_headerAuthStyleCheckToken")) {
         $("#refresh_headerAuthStyleCheckToken").prop("checked", false);
     }
+    if ($("#revocation_postAuthStyleCheckToken")) {
+        $("#revocation_postAuthStyleCheckToken").prop("checked", true);
+    }
+    if ($("#revocation_headerAuthStyleCheckToken")) {
+        $("#revocation_headerAuthStyleCheckToken").prop("checked", false);
+    }
+    localStorage.setItem("revocation_post_auth_style", true);
     if ($("#usePKCE-yes")) {
       $("#usePKCE-yes").prop("checked", true);
     }
@@ -2123,16 +2257,16 @@ function initFields() {
       $("#usePKCE-no").prop("checked", false);
     }
     if ($("#token_initiateFromFrontEnd")) {
-      $("#token_initiateFromFrontEnd").prop("checked", true);
+      $("#token_initiateFromFrontEnd").prop("checked", false);
     }
     if ($("#token_initiateFromBackEnd")) {
-      $("#token_initiateFromBackEnd").prop("checked", false);
-    } 
+      $("#token_initiateFromBackEnd").prop("checked", true);
+    }
     if ($("#refresh_initiateFromFrontEnd")) {
-      $("#refresh_initiateFromFrontEnd").prop("checked", true);
+      $("#refresh_initiateFromFrontEnd").prop("checked", false);
     }
     if ($("#refresh_initiateFromBackEnd")) {
-      $("#refresh_initiateFromFrontEnd").prop("checked", false);
+      $("#refresh_initiateFromBackEnd").prop("checked", true);
     }
 
     localStorage.setItem("refresh_post_auth_style", true);
@@ -2258,6 +2392,434 @@ function clearTokenHistory() {
   return false;
 }
 
+// ---- Operation History ----
+
+// Escapes text before inserting it into the (non-sanitized) operation history
+// markup. The operation history table is rendered without DOMPurify so its
+// inline onclick handlers survive, so dynamic values must be escaped here.
+function escapeHtmlText(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// The session nonce: preferring the nonce carried in the most recent id_token,
+// falling back to the nonce generated for the authorization request.
+function getCurrentSessionNonce() {
+  var idToken = localStorage.getItem('refresh_id_token') || localStorage.getItem('token_id_token');
+  var n = extractNonce(idToken);
+  if (n) {
+    return n;
+  }
+  return localStorage.getItem('nonce_field') || '';
+}
+
+// Index of the most recently saved token_history entry, or -1 if none.
+function getLatestTokenHistoryIndex() {
+  var history = [];
+  try {
+    history = JSON.parse(localStorage.getItem('token_history') || '[]');
+  } catch (e) {
+    log.error("Failed to parse token_history: " + e);
+  }
+  return history.length - 1;
+}
+
+// Appends an entry to the cumulative operation history. options may include
+// detail, client_id, nonce, and tokenHistoryIndex.
+function saveOperationToHistory(operation, options) {
+  options = options || {};
+  var history = [];
+  try {
+    history = JSON.parse(localStorage.getItem('operation_history') || '[]');
+  } catch (e) {
+    log.error("Failed to parse operation_history: " + e);
+  }
+  if (history.length >= OPERATION_HISTORY_LIMIT) {
+    history = [];
+  }
+  history.push({
+    timestamp: new Date().toISOString(),
+    operation: operation,
+    detail: options.detail || '',
+    client_id: (options.client_id != null) ? options.client_id : '',
+    nonce: (options.nonce != null) ? options.nonce : getCurrentSessionNonce(),
+    tokenHistoryIndex: (typeof options.tokenHistoryIndex === 'number') ? options.tokenHistoryIndex : null
+  });
+  localStorage.setItem('operation_history', JSON.stringify(history));
+  renderOperationHistory();
+}
+
+function renderOperationHistory() {
+  var history = [];
+  try {
+    history = JSON.parse(localStorage.getItem('operation_history') || '[]');
+  } catch (e) {
+    log.error("Failed to parse operation_history: " + e);
+  }
+  var html = '<fieldset>' +
+               '<legend>Operation History</legend>' +
+               '<p><em>Chronological history of every endpoint operation performed.</em></p>' +
+               '<input type="button" value="Clear History" onclick="return debugger2.clearOperationHistory();" />';
+  if (history.length === 0) {
+    html += '<p><em>No operations recorded yet.</em></p></fieldset>';
+    $("#operation-history-panel").html(html);
+    return;
+  }
+  // Cap the visible area to roughly 3-5 rows; a scrollbar appears beyond that.
+  html += '<div style="max-height:200px; overflow-y:auto; margin-top:4px;">';
+  html += '<table border="1" style="width:100%;">';
+  var thStyle = 'position:sticky; top:0; background:#fafafa;';
+  html += '<tr><th style="' + thStyle + ' width:5%">#</th><th style="' + thStyle + ' width:22%">Time</th><th style="' + thStyle + ' width:27%">Operation</th><th style="' + thStyle + ' width:18%">Client ID</th><th style="' + thStyle + ' width:28%">Nonce</th></tr>';
+  history.slice().reverse().forEach(function(item, ridx) {
+    var idx = history.length - 1 - ridx;
+    var datePart = (item.timestamp || '').substring(0, 10);
+    var timePart = (item.timestamp || '').substring(11, 19);
+    var op = escapeHtmlText(item.operation) + (item.detail ? ' (' + escapeHtmlText(item.detail) + ')' : '');
+    html += '<tr>';
+    html += '<td>' + (idx + 1) + '</td>';
+    html += '<td style="font-size:80%;">' + escapeHtmlText(datePart) + '<br>' + escapeHtmlText(timePart) + '</td>';
+    html += '<td style="font-size:90%;">' + op + '</td>';
+    html += '<td style="word-break:break-all; font-size:80%;">' + escapeHtmlText(item.client_id) + '</td>';
+    html += '<td style="word-break:break-all; font-size:75%;">' + escapeHtmlText(item.nonce) + '</td>';
+    html += '</tr>';
+  });
+  html += '</table></div></fieldset>';
+  $("#operation-history-panel").html(html);
+}
+
+function clearOperationHistory() {
+  localStorage.removeItem('operation_history');
+  renderOperationHistory();
+  return false;
+}
+
+// ---- Token Revocation (RFC 7009) ----
+
+// Populate the revocation pane with a token selected via one of the
+// "Revoke Token" links rendered next to each Access/Refresh Token field.
+// type identifies which token to load; generation is the token history index
+// (only used for the history_* types).
+function loadTokenForRevocation(type, generation) {
+  log.debug("Entering loadTokenForRevocation(). type=" + type + ", generation=" + generation);
+  var token = "";
+  var hint = "";
+  if (type == "access") {
+    token = localStorage.getItem("token_access_token");
+    hint = "access_token";
+  } else if (type == "refresh") {
+    token = localStorage.getItem("token_refresh_token");
+    hint = "refresh_token";
+  } else if (type == "refresh_access") {
+    token = localStorage.getItem("refresh_access_token");
+    hint = "access_token";
+  } else if (type == "refresh_refresh") {
+    token = localStorage.getItem("refresh_refresh_token");
+    hint = "refresh_token";
+  } else if (type == "history_access" || type == "history_refresh") {
+    var history = [];
+    try {
+      history = JSON.parse(localStorage.getItem('token_history') || '[]');
+    } catch (e) {
+      log.error("Failed to parse token_history: " + e);
+    }
+    var idx = parseInt(generation, 10);
+    if (!isNaN(idx) && idx >= 0 && idx < history.length) {
+      if (type == "history_access") {
+        token = history[idx].access_token || "";
+        hint = "access_token";
+      } else {
+        token = history[idx].refresh_token || "";
+        hint = "refresh_token";
+      }
+    } else {
+      log.error("Invalid generation index for revocation: " + generation);
+    }
+  } else {
+    log.error("Unknown token type for revocation: " + type);
+  }
+  $("#revocation_token").val(token || "");
+  $("#revocation_token_type_hint").val(hint);
+  // Populate endpoint and client credentials from the most recent values.
+  if (!!localStorage.getItem("revocation_endpoint")) {
+    $("#revocation_revocation_endpoint").val(localStorage.getItem("revocation_endpoint"));
+  }
+  if (!$("#revocation_client_id").val()) {
+    $("#revocation_client_id").val($("#token_client_id").val() || localStorage.getItem("client_id"));
+  }
+  if (!$("#revocation_client_secret").val()) {
+    $("#revocation_client_secret").val($("#token_client_secret").val() || localStorage.getItem("client_secret"));
+  }
+  // Make sure the revocation pane is visible and expanded.
+  $("#step6").show();
+  $("#revocation_fieldset").css("display", "block");
+  $("#revocation_expand_button").val("Hide");
+  recalculateRevocationRequestDescription();
+  var el = document.getElementById("step6");
+  if (el && el.scrollIntoView) {
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  log.debug("Leaving loadTokenForRevocation().");
+  return false;
+}
+
+// Triggered by the "Revoke Token" buttons rendered next to each Access/Refresh
+// token field: populates the Token Revocation pane for the chosen token and
+// immediately submits the revocation request.
+function revokeTokenDirect(type, generation) {
+  log.debug("Entering revokeTokenDirect(). type=" + type + ", generation=" + generation);
+  loadTokenForRevocation(type, generation);
+  return revokeButtonClick();
+}
+
+function buildInternalRevocationRequestMessage() {
+  log.debug("Entering buildInternalRevocationRequestMessage().");
+  var sslValidate;
+  if ($("#SSLValidate-yes").is(":checked")) {
+    sslValidate = $("#SSLValidate-yes").val();
+  } else if ($("#SSLValidate-no").is(":checked")) {
+    sslValidate = $("#SSLValidate-no").val();
+  } else {
+    sslValidate = "true";
+  }
+  var formData = {
+    revocation_endpoint: $("#revocation_revocation_endpoint").val(),
+    token: $("#revocation_token").val(),
+    token_type_hint: $("#revocation_token_type_hint").val(),
+    client_id: $("#revocation_client_id").val(),
+    client_secret: $("#revocation_client_secret").val(),
+    auth_style: getLSBooleanItem("revocation_post_auth_style"),
+    sslValidate: sslValidate
+  };
+  log.debug("Leaving buildInternalRevocationRequestMessage().");
+  return formData;
+}
+
+function revokeButtonClick() {
+  log.debug("Entering revokeButtonClick().");
+  writeValuesToLocalStorage();
+  recalculateRevocationRequestDescription();
+  var formData = buildInternalRevocationRequestMessage();
+  if (!formData.token) {
+    displayRevocationResult("No token specified. Use a \"Revoke Token\" link above a token field, " +
+                            "or paste a token into the Token field, then try again.", true);
+    return false;
+  }
+  if (!formData.revocation_endpoint) {
+    displayRevocationResult("No revocation endpoint configured. Populate it from the discovery document " +
+                            "on the previous page, or enter it manually.", true);
+    return false;
+  }
+  if (useRevocationFrontEnd) {
+    log.debug("Using frontend to call Revocation Endpoint. auth_style(POST body)=" + formData.auth_style);
+    var headers = { "Content-Type": "application/x-www-form-urlencoded" };
+    var bodyParams = "token=" + encodeURIComponent(formData.token);
+    if (!!formData.token_type_hint) {
+      bodyParams += "&token_type_hint=" + encodeURIComponent(formData.token_type_hint);
+    }
+    if (formData.auth_style) {
+      // POST body: send client credentials as request parameters.
+      if (!!formData.client_id) {
+        bodyParams += "&client_id=" + encodeURIComponent(formData.client_id);
+      }
+      if (!!formData.client_secret) {
+        bodyParams += "&client_secret=" + encodeURIComponent(formData.client_secret);
+      }
+    } else {
+      // HTTP Basic authorization header.
+      if (!!formData.client_secret) {
+        headers["Authorization"] = "Basic " + btoa(formData.client_id + ":" + formData.client_secret);
+      } else if (!!formData.client_id) {
+        bodyParams += "&client_id=" + encodeURIComponent(formData.client_id);
+      }
+    }
+    $.ajax({
+      type: "POST",
+      url: formData.revocation_endpoint,
+      crossDomain: true,
+      headers: headers,
+      data: bodyParams,
+      success: successfulRevocationAPICall,
+      error: errorRevocationAPICall
+    });
+  } else {
+    log.debug("Using backend to call Revocation Endpoint.");
+    $.ajax({
+      type: "POST",
+      url: appconfig.apiUrl + "/revoke",
+      crossDomain: true,
+      contentType: "application/json; charset=utf-8",
+      data: JSON.stringify(formData),
+      success: successfulRevocationAPICall,
+      error: errorRevocationAPICall
+    });
+  }
+  return false;
+}
+
+function successfulRevocationAPICall(data, textStatus, jqXHR) {
+  log.debug("Entering successfulRevocationAPICall(): data=" + JSON.stringify(data) + ", textStatus=" + textStatus);
+  var status = (jqXHR && jqXHR.status) ? jqXHR.status : 200;
+  var statusText = (jqXHR && jqXHR.statusText) ? jqXHR.statusText : "";
+  var bodyText = "";
+  try {
+    bodyText = (typeof data === "string") ? data : JSON.stringify(data, null, 2);
+  } catch (e) {
+    bodyText = String(data);
+  }
+  var message = "Token revocation request accepted.\n" +
+                "Per RFC 7009, the authorization server returns HTTP 200 whether or not the token\n" +
+                "previously existed, so a 200 here does not by itself confirm a token was active.\n\n" +
+                "HTTP Status: " + status + " " + statusText + "\n" +
+                "Response Body: " + (bodyText && bodyText !== "{}" ? bodyText : "(empty)");
+  displayRevocationResult(message, false);
+  saveOperationToHistory('Revocation Endpoint', {
+    client_id: $("#revocation_client_id").val(),
+    detail: $("#revocation_token_type_hint").val() || 'token'
+  });
+  log.debug("Leaving successfulRevocationAPICall().");
+}
+
+function errorRevocationAPICall(jqXHR, status, error) {
+  log.error("An error occurred calling the revocation endpoint.");
+  log.error("status: " + JSON.stringify(status));
+  log.error("error: " + JSON.stringify(error));
+  var responseText = (jqXHR && jqXHR.responseText) ? jqXHR.responseText : "";
+  var responseObject = {};
+  try {
+    responseObject = JSON.parse(responseText);
+  } catch (e) {
+    responseObject = {};
+  }
+  var message = "An error occurred during token revocation.\n" +
+                "HTTP Status: " + (jqXHR ? jqXHR.status : "") + " " + (jqXHR ? jqXHR.statusText : "") + "\n" +
+                "error: " + (responseObject.error || error || "") + "\n" +
+                "error_description: " + (responseObject.error_description || "") + "\n" +
+                "Response Body: " + responseText;
+  displayRevocationResult(message, true);
+  saveOperationToHistory('Revocation Endpoint', {
+    client_id: $("#revocation_client_id").val(),
+    detail: ($("#revocation_token_type_hint").val() || 'token') + ', error'
+  });
+}
+
+function displayRevocationResult(message, isError) {
+  log.debug("Entering displayRevocationResult(). isError=" + isError);
+  var legend = isError ? "Token Revocation Error" : "Token Revocation Results";
+  var html = "<fieldset>" +
+               "<legend>" + legend + "</legend>" +
+               "<p><em>Most recent result of the Token Revocation (RFC 7009) call.</em></p>" +
+               "<table>" +
+                 "<tr>" +
+                   "<td>" +
+                     "<textarea rows='9' cols='80' readonly id='revocation_result_textarea' name='revocation_result_textarea'></textarea>" +
+                   "</td>" +
+                 "</tr>" +
+               "</table>" +
+             "</fieldset>";
+  $("#revocation_endpoint_result").html(DOMPurify.sanitize(html));
+  // Set the value separately so the (untrusted) token/endpoint text is never
+  // interpreted as markup.
+  $("#revocation_result_textarea").val(message);
+  $("#revocation_endpoint_result").show();
+  log.debug("Leaving displayRevocationResult().");
+}
+
+function recalculateRevocationRequestDescription() {
+  log.debug("Entering recalculateRevocationRequestDescription().");
+  var ta1 = $("#display_revocation_request_form_textarea1");
+  if (!ta1) {
+    return;
+  }
+  var endpoint = $("#revocation_revocation_endpoint").val();
+  var token = $("#revocation_token").val();
+  var hint = $("#revocation_token_type_hint").val();
+  var clientId = $("#revocation_client_id").val();
+  var clientSecret = $("#revocation_client_secret").val();
+  var postAuthStyle = getLSBooleanItem("revocation_post_auth_style");
+  var request = "POST " + endpoint + "\n" +
+                "Content-Type: application/x-www-form-urlencoded\n";
+  if (!postAuthStyle && !!clientSecret) {
+    request += "Authorization: Basic base64(" + clientId + ":<client_secret>)\n";
+  }
+  request += "Message Body:\n" +
+             "token=" + token;
+  if (!!hint) {
+    request += "&\n" + "token_type_hint=" + hint;
+  }
+  if (postAuthStyle) {
+    if (!!clientId) {
+      request += "&\n" + "client_id=" + clientId;
+    }
+    if (!!clientSecret) {
+      request += "&\n" + "client_secret=<client_secret>";
+    }
+  } else if (!clientSecret && !!clientId) {
+    request += "&\n" + "client_id=" + clientId;
+  }
+  $("#display_revocation_request_form_textarea1").val(request);
+  log.debug("Leaving recalculateRevocationRequestDescription().");
+}
+
+function setInitiateRevocationFromEnd() {
+  log.debug("Entering setInitiateRevocationFromEnd().");
+  var frontEndInitiated = $("#revocation_initiateFromFrontEnd").is(":checked");
+  if (frontEndInitiated) {
+    useRevocationFrontEnd = true;
+  } else {
+    useRevocationFrontEnd = false;
+  }
+  log.debug("useRevocationFrontEnd=" + useRevocationFrontEnd);
+  log.debug("Leaving setInitiateRevocationFromEnd().");
+}
+
+function setPostAuthStyleRevocation() {
+  log.debug("Entering setPostAuthStyleRevocation().");
+  $("#revocation_postAuthStyleCheckToken").prop("checked", true);
+  $("#revocation_headerAuthStyleCheckToken").prop("checked", false);
+  localStorage.setItem("revocation_post_auth_style", true);
+  recalculateRevocationRequestDescription();
+  log.debug("Leaving setPostAuthStyleRevocation(): revocation_post_auth_style=" + localStorage.getItem("revocation_post_auth_style") + ".");
+  return false;
+}
+
+function setHeaderAuthStyleRevocation() {
+  log.debug("Entering setHeaderAuthStyleRevocation().");
+  $("#revocation_postAuthStyleCheckToken").prop("checked", false);
+  $("#revocation_headerAuthStyleCheckToken").prop("checked", true);
+  localStorage.setItem("revocation_post_auth_style", false);
+  recalculateRevocationRequestDescription();
+  log.debug("Leaving setHeaderAuthStyleRevocation(): revocation_post_auth_style=" + localStorage.getItem("revocation_post_auth_style") + ".");
+  return false;
+}
+
+// Returns the most recent access token, preferring one obtained from a Refresh
+// Token call (if one has been made) over the access token from the initial
+// Token Endpoint call.
+function getLatestAccessToken() {
+  if (getLSBooleanItem("refresh_token_used")) {
+    var refreshAccessToken = localStorage.getItem("refresh_access_token");
+    if (!!refreshAccessToken) {
+      return refreshAccessToken;
+    }
+  }
+  return localStorage.getItem("token_access_token") || "";
+}
+
+// Pre-populates the Token Revocation pane with the latest access token and an
+// initial token_type_hint of "access_token". Used on page load and after every
+// Token/Refresh Endpoint call so the pane always targets the current access
+// token by default (a "Revoke Token" link can still override it).
+function populateRevocationTokenWithLatestAccessToken() {
+  log.debug("Entering populateRevocationTokenWithLatestAccessToken().");
+  $("#revocation_token").val(getLatestAccessToken());
+  $("#revocation_token_type_hint").val("access_token");
+  recalculateRevocationRequestDescription();
+  log.debug("Leaving populateRevocationTokenWithLatestAccessToken().");
+}
+
 module.exports = {
   OnSubmitTokenEndpointForm,
   getParameterByName,
@@ -2294,5 +2856,12 @@ module.exports = {
   logoutButtonClick,
   clickLink,
   selectTokenSet,
-  clearTokenHistory
+  clearTokenHistory,
+  clearOperationHistory,
+  loadTokenForRevocation,
+  revokeButtonClick,
+  recalculateRevocationRequestDescription,
+  setInitiateRevocationFromEnd,
+  setPostAuthStyleRevocation,
+  setHeaderAuthStyleRevocation
 };

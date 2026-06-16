@@ -315,6 +315,108 @@ try {
   }
 });
 
+/**
+ * @typedef RevocationRequest
+ * @property {string} revocation_endpoint.required - The OAuth2 Token Revocation Endpoint URL (RFC 7009)
+ * @property {string} token.required - The token (access or refresh) to revoke
+ * @property {string} token_type_hint - Hint about the token type (access_token | refresh_token)
+ * @property {string} client_id - The OAuth2 client identifier
+ * @property {string} client_secret - The client secret for a confidential client
+ * @property {boolean} sslValidate - Validate the revocation endpoint SSL/TLS certificate
+ */
+
+/**
+ * Wrapper around the OAuth2 Token Revocation Endpoint (RFC 7009)
+ * @route POST /revoke
+ * @group Debugger - Operations for OAuth2/OIDC Debugger
+ * @param {RevocationRequest.model} req.body.required - Token Revocation Request
+ * @returns {object} 200 - Token Revocation Response
+ * @returns {Error.model} 400 - Syntax error
+ * @returns {Error.model} 500 - Unexpected error
+ */
+app.post('/revoke', (req, res) => {
+  try {
+    log.info('Entering app.post for /revoke.');
+    const body = req.body;
+    log.debug('body: ' + JSON.stringify(body));
+    var headers = {
+      'content-type': 'application/x-www-form-urlencoded'
+    };
+    var clientId = body.client_id;
+    var clientSecret = body.client_secret;
+    // auth_style truthy => send client credentials in the POST body;
+    // falsy => authenticate via the HTTP Basic header (RFC 6749 Section 2.3.1).
+    var auth_style = body.auth_style;
+    // Build the application/x-www-form-urlencoded body. token is required;
+    // token_type_hint is optional per RFC 7009 Section 2.1.
+    var parameters = ['token=' + encodeURIComponent(body.token)];
+    if (!!body.token_type_hint) {
+      parameters.push('token_type_hint=' + encodeURIComponent(body.token_type_hint));
+    }
+    if (auth_style) {
+      // POST body authentication.
+      if (!!clientId) {
+        parameters.push('client_id=' + encodeURIComponent(clientId));
+      }
+      if (!!clientSecret) {
+        parameters.push('client_secret=' + encodeURIComponent(clientSecret));
+      }
+    } else if (!!clientSecret) {
+      // Confidential client: authenticate via HTTP Basic.
+      headers.authorization = 'Basic ' +
+        Buffer.from(encodeURIComponent(clientId) + ':' + encodeURIComponent(clientSecret)).toString('base64');
+    } else if (!!clientId) {
+      // Public client with no secret: include client_id in the request body.
+      parameters.push('client_id=' + encodeURIComponent(clientId));
+    }
+    const parameterString = parameters.join('&');
+    var revocationEndpoint = body.revocation_endpoint;
+    var sslValidate = body.sslValidate;
+    log.debug("Making call to Revocation Endpoint.");
+    log.debug("POST " + revocationEndpoint);
+    log.debug("Headers: " + JSON.stringify(headers));
+    log.debug("Body: " + parameterString);
+    axios({
+      method: 'post',
+      url: revocationEndpoint,
+      headers: headers,
+      data: parameterString,
+      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: sslValidate })
+    })
+    .then(function (response) {
+      // RFC 7009: a successful revocation returns HTTP 200 with an empty body.
+      log.debug('Response from OAuth2 Revocation Endpoint: ' + JSON.stringify(response.data));
+      res.status(response.status);
+      res.json({
+        message: 'Token revocation request accepted (RFC 7009).',
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data
+      });
+    })
+    .catch(function (error) {
+      log.error('Error from OAuth2 Revocation Endpoint: ' + error);
+      if(!!error.response) {
+        if(!!error.response.status) {
+          log.error("Error Status: " + error.response.status);
+        }
+        if(!!error.response.data) {
+          log.error("Error Response body: " + JSON.stringify(error.response.data));
+        }
+        res.status(error.response.status);
+        res.json(error.response.data);
+      } else {
+        res.status(STATUS_500);
+        res.json({ error: error.message });
+      }
+    });
+  } catch (e) {
+    log.error('An error occurred: ' + e);
+    res.status(STATUS_500);
+    res.json({ "error": e });
+  }
+});
+
 app.post('/userinfo', (req, res) => {
   log.info('Entering app.post for /userinfo.');
   userinfo_common(req, res);
