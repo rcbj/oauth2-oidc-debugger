@@ -145,6 +145,15 @@
           </tr>
           <tr>
             <td>
+              <div class="tooltip"><label>Registration Endpoint: </label><span class="tooltiptext">Enter the OIDC Dynamic Client Registration Endpoint used by the debugger. Auto-populated from the discovery metadata (registration_endpoint).</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="registration_endpoint" name="registration_endpoint" type="text" max="256" />
+            </td>
+          </tr>
+          <tr>
+            <td>
               <div class="tooltip"><label>OIDC UserInfo Endpoint: </label><span class="tooltiptext">Enter the OIDC UserInfo Endpoint used by the debugger.</span>
               </div>
             </td>
@@ -362,6 +371,105 @@
   </form>
   </fieldset>
 </div>
+
+<div class="step_dcr" id="step_dcr">
+  <legend id="dcr_title">OIDC Dynamic Client Registration</legend>
+  <form><input class="btn2" name="dcr_expand_button" id="dcr_expand_button" type="submit" value="Expand" onclick="return debug.onClickShowGenericFieldSet('dcr_fieldset');"/></form>
+  <fieldset id="dcr_fieldset" name="dcr_fieldset" style="display: none;">
+    <form action="" id="dcr_form" name="dcr_form" onsubmit="return false;">
+      <table border="0">
+        <tbody>
+          <tr>
+            <td>&nbsp;</td>
+            <td><p>Create, read, update, and delete a client on the Identity Provider using the OIDC Dynamic Client Registration protocol. See the <a href="https://openid.net/specs/openid-connect-registration-1_0.html" onclick="return debug.clickLink();">OIDC Registration spec</a> (and <a href="https://www.rfc-editor.org/rfc/rfc7591" onclick="return debug.clickLink();">RFC 7591</a> / <a href="https://www.rfc-editor.org/rfc/rfc7592" onclick="return debug.clickLink();">RFC 7592</a>).</p></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Registration Endpoint: </label><span class="tooltiptext">The OIDC Dynamic Client Registration Endpoint. Kept in sync with the Registration Endpoint in the Configuration Parameters pane above, and auto-populated from the discovery metadata (registration_endpoint).</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="dcr_registration_endpoint" name="dcr_registration_endpoint" type="text" max="256" size="64" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Initial Access Token: </label><span class="tooltiptext">Optional bearer token presented when creating a client. Some Identity Providers require an initial access token to register; leave blank for open registration.</span>
+              </div>
+            </td>
+            <td>
+              <input id="dcr_initial_access_token" name="dcr_initial_access_token" type="text" size="64" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Client Metadata (JSON): </label><span class="tooltiptext">The client metadata sent on create (POST) and update (PUT). Populated from the discovery metadata and the Redirect URL above.</span>
+              </div>
+            </td>
+            <td>
+              <textarea id="dcr_client_metadata" name="dcr_client_metadata" rows="14" cols="70"></textarea>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Request: </label><span class="tooltiptext">The HTTP request that "Register New Client" will send to the Registration Endpoint (a POST of the client metadata).</span>
+              </div>
+            </td>
+            <td>
+              <textarea id="dcr_request_textarea" name="dcr_request_textarea" rows="16" cols="70" readonly></textarea>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <input class="btn2" type="submit" value="Register New Client" onclick="return debug.registerClient();" />
+            </td>
+            <td>&nbsp;</td>
+          </tr>
+          <tr><td colspan="2"><hr/></td></tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Registration Client URI: </label><span class="tooltiptext">The client configuration endpoint (registration_client_uri) returned at registration. Used to read, update, and delete the client. Editable so you can manage a previously registered client.</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="registration_client_uri" name="registration_client_uri" type="text" max="256" size="64" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Registration Access Token: </label><span class="tooltiptext">The registration_access_token returned at registration. Presented as a bearer token to read, update, and delete the client (RFC 7592).</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="registration_access_token" name="registration_access_token" type="text" size="64" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <input class="btn2" type="button" value="Read Client" onclick="return debug.readClient();" />
+            </td>
+            <td>
+              <input class="btn2" type="button" value="Update Client" onclick="return debug.updateClient();" />
+              <input class="btn2" type="button" value="Delete Client" onclick="return debug.deleteClient();" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Response: </label><span class="tooltiptext">The response from the Dynamic Client Registration endpoint.</span>
+              </div>
+            </td>
+            <td>
+              <textarea id="dcr_response_textarea" name="dcr_response_textarea" rows="14" cols="70" readonly></textarea>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </form>
+  </fieldset>
+</div>
+<div class="display_dcr_error_class" id="display_dcr_error_class">&nbsp;
+</div>
+
 <div class="display_authz_error_class" id="display_authz_error_class">&nbsp;
 </div>
 

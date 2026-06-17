@@ -617,6 +617,100 @@ app.post('/deviceauthorization', (req, res) => {
   }
 });
 
+/**
+ * @typedef RegistrationRequest
+ * @property {string} method.required - The HTTP method to use against the registration/configuration endpoint (POST | GET | PUT | DELETE)
+ * @property {string} url.required - The target URL (registration_endpoint for create, registration_client_uri for read/update/delete)
+ * @property {string} bearer_token - Bearer token (initial access token for create, or registration_access_token for read/update/delete)
+ * @property {object} metadata - The OIDC/RFC7591 client metadata to send (POST/PUT only)
+ * @property {boolean} sslValidate - Validate the endpoint SSL/TLS certificate
+ */
+
+/**
+ * Wrapper around the OIDC Dynamic Client Registration endpoints
+ * (OpenID Connect Dynamic Client Registration 1.0 / RFC 7591 / RFC 7592).
+ * Proxies create (POST registration_endpoint), read (GET), update (PUT) and
+ * delete (DELETE) against the client configuration endpoint so the browser is
+ * not blocked by CORS.
+ * @route POST /register
+ * @group Debugger - Operations for OAuth2/OIDC Debugger
+ * @param {RegistrationRequest.model} req.body.required - Dynamic Client Registration Request
+ * @returns {object} 200 - Registration Endpoint Response
+ * @returns {Error.model} 400 - Syntax error
+ * @returns {Error.model} 500 - Unexpected error
+ */
+app.post('/register', (req, res) => {
+  try {
+    log.info('Entering app.post for /register.');
+    const body = req.body;
+    log.debug('body: ' + JSON.stringify(body));
+    // Normalize the HTTP method; create=POST, read=GET, update=PUT, delete=DELETE.
+    var method = (body.method || 'POST').toLowerCase();
+    var url = body.url;
+    var bearerToken = body.bearer_token;
+    var sslValidate = body.sslValidate;
+    // Client metadata is only sent on create (POST) and update (PUT).
+    var payload = (method === 'post' || method === 'put') ? body.metadata : undefined;
+    var headers = {
+      'Accept': 'application/json'
+    };
+    if (method === 'post' || method === 'put') {
+      headers['Content-Type'] = 'application/json';
+    }
+    // The registration access token (or an initial access token for create) is
+    // presented as a Bearer token per OIDC Registration 1.0 Section 4 / RFC 7592.
+    if (!!bearerToken) {
+      headers.authorization = 'Bearer ' + bearerToken;
+    }
+    log.debug("Making call to Dynamic Client Registration endpoint.");
+    log.debug(method.toUpperCase() + " " + url);
+    log.debug("Headers: " + JSON.stringify(headers));
+    log.debug("Body: " + JSON.stringify(payload));
+    axios({
+      method: method,
+      url: url,
+      headers: headers,
+      data: payload,
+      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: sslValidate })
+    })
+    .then(function (response) {
+      log.debug('Response from Dynamic Client Registration endpoint: ' + JSON.stringify(response.data));
+      // A successful DELETE (RFC 7592 Section 2.3) returns HTTP 204 with no body.
+      // Normalize that to 200 with a JSON summary so the browser reliably
+      // receives a body (a body sent with 204 is dropped by HTTP clients).
+      if (response.status === 204 || !response.data) {
+        res.status(STATUS_200).json({
+          message: 'Client registration request succeeded.',
+          status: response.status,
+          statusText: response.statusText
+        });
+      } else {
+        res.status(response.status).json(response.data);
+      }
+    })
+    .catch(function (error) {
+      log.error('Error from Dynamic Client Registration endpoint: ' + error);
+      if(!!error.response) {
+        if(!!error.response.status) {
+          log.error("Error Status: " + error.response.status);
+        }
+        if(!!error.response.data) {
+          log.error("Error Response body: " + JSON.stringify(error.response.data));
+        }
+        res.status(error.response.status);
+        res.json(error.response.data);
+      } else {
+        res.status(STATUS_500);
+        res.json({ error: error.message });
+      }
+    });
+  } catch (e) {
+    log.error('An error occurred: ' + e);
+    res.status(STATUS_500);
+    res.json({ "error": e });
+  }
+});
+
 app.post('/userinfo', (req, res) => {
   log.info('Entering app.post for /userinfo.');
   userinfo_common(req, res);

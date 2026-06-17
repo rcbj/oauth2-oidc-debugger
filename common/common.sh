@@ -437,5 +437,39 @@ configureKeycloak()
     declare -gx ${FLOW_VARIABLE}_USER="${USER_ID}"
 
   done
+
+  # ---- OIDC Dynamic Client Registration --------------------------------------
+  # Mint an initial access token so the Dynamic Client Registration test can
+  # create clients. Keycloak requires an initial access token for authenticated
+  # registration (anonymous registration is blocked by the default trusted-hosts
+  # policy). The test then reads/updates/deletes the client it creates using the
+  # registration access token returned at registration (RFC 7592).
+  KEYCLOAK_ACCESS_TOKEN=$(curl \
+    -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "client_id=admin-cli" \
+    -d "username=keycloak" \
+    -d "password=keycloak" \
+    -d "grant_type=password" \
+    | jq -r '.access_token')
+  if [ -z "${KEYCLOAK_ACCESS_TOKEN}" ];
+  then
+    echo "KEYCLOAK_ACCESS_TOKEN is blank."
+    exit 1
+  fi
+  DCR_INITIAL_ACCESS_TOKEN=$(curl \
+    -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing/clients-initial-access" \
+    -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{ "count": 10, "expiration": 86400 }' \
+    | jq -r '.token')
+  if [ -z "${DCR_INITIAL_ACCESS_TOKEN}" ] || [ "${DCR_INITIAL_ACCESS_TOKEN}" = "null" ];
+  then
+    echo "Failed to mint a Dynamic Client Registration initial access token."
+    exit 1
+  fi
+  declare -gx DYNAMIC_CLIENT_REGISTRATION_DISCOVERY_ENDPOINT="${KEYCLOAK_BASE_URL}/realms/debugger-testing/.well-known/openid-configuration"
+  declare -gx DYNAMIC_CLIENT_REGISTRATION_INITIAL_ACCESS_TOKEN="${DCR_INITIAL_ACCESS_TOKEN}"
+
   echo "Leaving configureKeycloak()."
 }

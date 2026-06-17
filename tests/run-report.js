@@ -172,6 +172,18 @@ function buildJobs() {
     },
   });
 
+  // OIDC Dynamic Client Registration (OpenID Connect Registration 1.0 /
+  // RFC 7591 / RFC 7592). Creates a client using an initial access token, then
+  // reads, updates, and deletes it via the client configuration endpoint.
+  jobs.push({
+    name: "OIDC Dynamic Client Registration",
+    script: "oidc_dynamic_client_registration.js",
+    env: {
+      DISCOVERY_ENDPOINT: env.DYNAMIC_CLIENT_REGISTRATION_DISCOVERY_ENDPOINT,
+      INITIAL_ACCESS_TOKEN: env.DYNAMIC_CLIENT_REGISTRATION_INITIAL_ACCESS_TOKEN,
+    },
+  });
+
   return jobs;
 }
 
