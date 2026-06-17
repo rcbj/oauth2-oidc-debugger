@@ -17,6 +17,7 @@ This project currently supports the following specs & features:
 * [OAuth2 Device Authorization Grant - RFC8628](https://www.rfc-editor.org/info/rfc8628/) -- Ever registered an app on your television where it jumped ot your phone? This was probably what was used.
 * [OAuth2 Token Exchange - RFC8693](https://www.rfc-editor.org/rfc/rfc8693.html) -- Basic support. Currently only tested  with Keycloak v26.x.
 * [OAuth2 Token Revocation - RFC7009](https://www.rfc-editor.org/info/rfc7009/)
+* [OIDC Dynamic Client Registration spec and RFC 7591 / RFC 7592)](https://www.rfc-editor.org/info/rfc7591/)
 * With the ability to add custom parameters to the Authorization Endpoint call and Token Endpoint call, numerous other protocols can be supported. We'll eventually get around to adding direct support.
 * Token Endpoint calls can be initiated from the front-end or back-end depending on what the IdP requires in various use cases.
 * The client_id and client_secret can be submitted to the Token Endpoint via POST body or Authorization Request Header.
