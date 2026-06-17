@@ -21,5 +21,34 @@ jobs:
         uses: KengoTODA/actions-setup-docker-compose@v1
         with:
           version: '2.14.2'
-      - name: Run Tests
-        run: sudo CONFIG_FILE=./env/docker-tests.js docker compose -f docker-compose-run-tests.yml up --abort-on-container-exit
+      - name: Run Tests with coverage
+        run: |
+          mkdir -p coverage/frontend/.nyc_output coverage/api
+          sudo CONFIG_FILE=./env/docker-tests.js docker compose \
+            -f docker-compose-run-tests.yml -f docker-compose-coverage.yml \
+            up --build --abort-on-container-exit --exit-code-from tests
+      - name: Generate frontend coverage report
+        if: always()
+        run: |
+          sudo CONFIG_FILE=./env/docker-tests.js docker compose \
+            -f docker-compose-run-tests.yml -f docker-compose-coverage.yml \
+            run --rm --no-deps client \
+            npx nyc report --temp-dir /coverage/frontend/.nyc_output \
+                           --report-dir /coverage/frontend/report \
+                           --reporter=html --reporter=lcov --reporter=text-summary
+      - name: Tear down the stack
+        if: always()
+        run: |
+          sudo CONFIG_FILE=./env/docker-tests.js docker compose \
+            -f docker-compose-run-tests.yml -f docker-compose-coverage.yml down
+      - name: Normalize coverage permissions
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" coverage || true
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          if-no-files-found: warn
+          retention-days: 30

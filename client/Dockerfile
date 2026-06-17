@@ -72,5 +72,23 @@ RUN browserify src/introspection.js -o public/js/introspection.js --debug --stan
 RUN browserify src/logout.js -o public/js/logout.js --debug --standalone logout -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ]
 #COPY src/debugger2_js.js public/js
 
+# ---- Code coverage (opt-in) ----
+# When built with --build-arg COVERAGE=true, re-build the bundles with Istanbul
+# instrumentation (babel-plugin-istanbul) and append the coverage beacon so the
+# browser ships its coverage to the client server. The default build
+# (COVERAGE=false) leaves the bundles produced above completely untouched.
+ARG COVERAGE=false
+RUN if [ "$COVERAGE" = "true" ]; then \
+      npm install --no-save babelify babel-plugin-istanbul @babel/core nyc ; \
+    fi
+RUN if [ "$COVERAGE" = "true" ]; then \
+      for entry in "jwks:jwks" "debugger:debug" "token_detail:token_detail" "debugger2:debugger2" "userinfo:userinfo" "introspection:introspection" "logout:logout"; do \
+        src_name="${entry%%:*}" ; \
+        standalone="${entry##*:}" ; \
+        browserify src/${src_name}.js -o public/js/${src_name}.js --debug --standalone ${standalone} -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ] -t [ babelify --plugins [ istanbul ] ] && \
+        cat src/coverage_beacon.js >> public/js/${src_name}.js ; \
+      done ; \
+    fi
+
 EXPOSE 3000
 CMD [ "npm", "start" ]

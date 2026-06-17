@@ -23,6 +23,26 @@ const HOST = appconfig.hostname || '0.0.0.0';
 // App
 const app = express();
 
+// Code-coverage collection endpoint (opt-in via COVERAGE=true). The
+// Istanbul-instrumented browser bundles POST their window.__coverage__ here on
+// page unload; each payload is written as an Istanbul coverage file that nyc
+// can later report on. Disabled (and absent) unless COVERAGE=true.
+if (process.env.COVERAGE === 'true') {
+  const COVERAGE_DIR = process.env.COVERAGE_DIR || '/coverage/frontend/.nyc_output';
+  app.post('/coverage', express.text({ type: function() { return true; }, limit: '256mb' }), function(req, res) {
+    try {
+      fs.mkdirSync(COVERAGE_DIR, { recursive: true });
+      var fileName = 'frontend-' + Date.now() + '-' + Math.random().toString(36).slice(2) + '.json';
+      fs.writeFileSync(path.join(COVERAGE_DIR, fileName), req.body || '{}');
+      log.info('Wrote browser coverage to ' + path.join(COVERAGE_DIR, fileName));
+    } catch (e) {
+      log.error('Failed to write browser coverage: ' + e);
+    }
+    res.status(204).end();
+  });
+  log.info('Coverage collection enabled: POST /coverage -> ' + COVERAGE_DIR);
+}
+
 app.use(function(req, res, next) {
   if (!req.path.endsWith('.html')) { return next(); }
   const filePath = path.join(__dirname, 'public', req.path);

@@ -66,7 +66,7 @@ configureKeycloak()
     -d '{"realm": "debugger-testing", "enabled": true}'
   check_return_code $?
   
-  for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_CONFIDENTIAL AUTHORIZATION_CODE_PUBLIC IMPLICIT OIDC_AUTHORIZATION_CODE_CONFIDENTIAL OIDC_AUTHORIZATION_CODE_PUBLIC RESOURCE_OWNER_CREDENTIAL TOKEN_EXCHANGE_TARGET TOKEN_EXCHANGE
+  for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_CONFIDENTIAL AUTHORIZATION_CODE_PUBLIC IMPLICIT OIDC_AUTHORIZATION_CODE_CONFIDENTIAL OIDC_AUTHORIZATION_CODE_PUBLIC RESOURCE_OWNER_CREDENTIAL TOKEN_EXCHANGE_TARGET TOKEN_EXCHANGE DEVICE_AUTHORIZATION_GRANT
   do
     FLOW_NAME=$(echo ${FLOW_VARIABLE} | tr '[:upper:]' '[:lower:]' | tr '_' '-')
 
@@ -330,6 +330,29 @@ configureKeycloak()
                        }
                      }
                    ]
+                }'
+            check_return_code $?
+            ;;
+        DEVICE_AUTHORIZATION_GRANT)
+            # Public client with the OAuth 2.0 Device Authorization Grant
+            # (RFC 8628) enabled. The device flow does not use a browser
+            # redirect, so the standard/auth-code flow is disabled.
+            curl -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing/clients" \
+              -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                   "clientId": "'${FLOW_NAME}'",
+                   "protocol": "openid-connect",
+                   "publicClient": true,
+                   "serviceAccountsEnabled": false,
+                   "authorizationServicesEnabled": false,
+                   "standardFlowEnabled": false,
+                   "directAccessGrantsEnabled": false,
+                   "clientAuthenticatorType": null,
+                   "attributes": {
+                     "oauth2.device.authorization.grant.enabled": "true",
+                     "access.token.lifespan": 3600
+                   }
                 }'
             check_return_code $?
             ;;

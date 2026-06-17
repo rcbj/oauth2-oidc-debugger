@@ -24,9 +24,9 @@ function decodeJwtPayload(token) {
 
 function getCurrentSessionNonce() {
   var idToken = localStorage.getItem('refresh_id_token') || localStorage.getItem('token_id_token');
-  if (idToken) {
+  if (!!idToken) {
     var payload = decodeJwtPayload(idToken);
-    if (payload && payload.nonce) return payload.nonce;
+    if (payload && !!payload.nonce) return payload.nonce;
   }
   return localStorage.getItem('nonce_field') || '';
 }

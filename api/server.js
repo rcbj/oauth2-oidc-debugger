@@ -525,6 +525,98 @@ app.post('/tokenexchange', (req, res) => {
   }
 });
 
+/**
+ * @typedef DeviceAuthorizationRequest
+ * @property {string} device_authorization_endpoint.required - The Device Authorization Endpoint URL (RFC 8628)
+ * @property {string} client_id.required - The OAuth2 client identifier
+ * @property {string} client_secret - The client secret for a confidential client
+ * @property {string} scope - The requested scope
+ * @property {boolean} sslValidate - Validate the endpoint SSL/TLS certificate
+ */
+
+/**
+ * Wrapper around the OAuth2 Device Authorization Endpoint (RFC 8628)
+ * @route POST /deviceauthorization
+ * @group Debugger - Operations for OAuth2/OIDC Debugger
+ * @param {DeviceAuthorizationRequest.model} req.body.required - Device Authorization Request
+ * @returns {object} 200 - Device Authorization Response (device_code, user_code, verification_uri, ...)
+ * @returns {Error.model} 400 - Syntax error
+ * @returns {Error.model} 500 - Unexpected error
+ */
+app.post('/deviceauthorization', (req, res) => {
+  try {
+    log.info('Entering app.post for /deviceauthorization.');
+    const body = req.body;
+    log.debug('body: ' + JSON.stringify(body));
+    var headers = {
+      'content-type': 'application/x-www-form-urlencoded'
+    };
+    var clientId = body.client_id;
+    var clientSecret = body.client_secret;
+    var auth_style = body.auth_style;
+    // Build the application/x-www-form-urlencoded body (RFC 8628 Section 3.1).
+    var parameters = [];
+    if (!!body.scope) {
+      parameters.push('scope=' + encodeURIComponent(body.scope));
+    }
+    if (auth_style) {
+      // POST body authentication.
+      if (!!clientId) {
+        parameters.push('client_id=' + encodeURIComponent(clientId));
+      }
+      if (!!clientSecret) {
+        parameters.push('client_secret=' + encodeURIComponent(clientSecret));
+      }
+    } else if (!!clientSecret) {
+      // Confidential client: authenticate via HTTP Basic.
+      headers.authorization = 'Basic ' +
+        Buffer.from(encodeURIComponent(clientId) + ':' + encodeURIComponent(clientSecret)).toString('base64');
+    } else if (!!clientId) {
+      // Public client: include client_id in the request body.
+      parameters.push('client_id=' + encodeURIComponent(clientId));
+    }
+    const parameterString = parameters.join('&');
+    var deviceAuthorizationEndpoint = body.device_authorization_endpoint;
+    var sslValidate = body.sslValidate;
+    log.debug("Making call to Device Authorization Endpoint.");
+    log.debug("POST " + deviceAuthorizationEndpoint);
+    log.debug("Headers: " + JSON.stringify(headers));
+    log.debug("Body: " + parameterString);
+    axios({
+      method: 'post',
+      url: deviceAuthorizationEndpoint,
+      headers: headers,
+      data: parameterString,
+      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: sslValidate })
+    })
+    .then(function (response) {
+      log.debug('Response from OAuth2 Device Authorization Endpoint: ' + JSON.stringify(response.data));
+      res.status(response.status);
+      res.json(response.data);
+    })
+    .catch(function (error) {
+      log.error('Error from OAuth2 Device Authorization Endpoint: ' + error);
+      if(!!error.response) {
+        if(!!error.response.status) {
+          log.error("Error Status: " + error.response.status);
+        }
+        if(!!error.response.data) {
+          log.error("Error Response body: " + JSON.stringify(error.response.data));
+        }
+        res.status(error.response.status);
+        res.json(error.response.data);
+      } else {
+        res.status(STATUS_500);
+        res.json({ error: error.message });
+      }
+    });
+  } catch (e) {
+    log.error('An error occurred: ' + e);
+    res.status(STATUS_500);
+    res.json({ "error": e });
+  }
+});
+
 app.post('/userinfo', (req, res) => {
   log.info('Entering app.post for /userinfo.');
   userinfo_common(req, res);
@@ -616,3 +708,14 @@ let options = {
 expressSwagger(options)
 app.listen(PORT, HOST);
 log.info(`Running on http://${HOST}:${PORT}`);
+
+// When running under coverage (c8), exit cleanly on container stop so the V8
+// coverage is flushed to NODE_V8_COVERAGE before the process is terminated.
+if (process.env.COVERAGE === 'true') {
+  ['SIGTERM', 'SIGINT'].forEach(function (signal) {
+    process.on(signal, function () {
+      log.info('Received ' + signal + '; exiting to flush coverage.');
+      process.exit(0);
+    });
+  });
+}

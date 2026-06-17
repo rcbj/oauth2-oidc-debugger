@@ -1,0 +1,36 @@
+# Opt-in code-coverage overlay for the test stack.
+#
+# Layer it on top of the base test compose file. The simplest way is the
+# helper script ./run-coverage.sh, or manually:
+#
+#   CONFIG_FILE=./env/docker-tests.js \
+#     docker compose -f docker-compose-run-tests.yml -f docker-compose-coverage.yml \
+#     up --build --abort-on-container-exit --exit-code-from tests
+#
+# Frontend (browser) coverage is produced by Istanbul-instrumented bundles and
+# shipped by each page to the client server, which writes it to
+# ./coverage/frontend/.nyc_output. Backend (API) coverage is produced by c8 and
+# written to ./coverage/api. See COVERAGE.md for how to render the reports.
+services:
+  api:
+    build:
+      args:
+        COVERAGE: "true"
+    environment:
+      - COVERAGE=true
+    # Run the API under c8 so HTTP calls made by the Selenium tests are covered.
+    # The server installs a SIGTERM/SIGINT handler (COVERAGE=true) so it exits
+    # cleanly and c8 can flush coverage when the container is stopped.
+    command: ["c8", "--reporter=html", "--reporter=lcov", "--reporter=text-summary", "--reports-dir=/coverage/api", "node", "server.js"]
+    stop_grace_period: 30s
+    volumes:
+      - ./coverage:/coverage
+  client:
+    build:
+      args:
+        COVERAGE: "true"
+    environment:
+      - COVERAGE=true
+      - COVERAGE_DIR=/coverage/frontend/.nyc_output
+    volumes:
+      - ./coverage:/coverage

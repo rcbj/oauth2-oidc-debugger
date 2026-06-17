@@ -14,6 +14,9 @@ This project currently supports the following specs & features:
 * [PKCE - RFC 7636](https://www.rfc-editor.org/rfc/rfc7636)
 * [OIDC RP-Initiated Logout v1.0](https://openid.net/specs/openid-connect-rpinitiated-1_0.html)
 * [OAuth2 Token Introspection Endpoint (RFC7662)](https://www.rfc-editor.org/rfc/rfc7662) -- client_credentials (basic auth) or bearer token [RFC6750](https://www.rfc-editor.org/rfc/rfc6750) authentication.
+* [OAuth2 Device Authorization Grant - RFC8628](https://www.rfc-editor.org/info/rfc8628/) -- Ever registered an app on your television where it jumped ot your phone? This was probably what was used.
+* [OAuth2 Token Exchange - RFC8693](https://www.rfc-editor.org/rfc/rfc8693.html) -- Basic support. Currently only tested  with Keycloak v26.x.
+* [OAuth2 Token Revocation - RFC7009](https://www.rfc-editor.org/info/rfc7009/)
 * With the ability to add custom parameters to the Authorization Endpoint call and Token Endpoint call, numerous other protocols can be supported. We'll eventually get around to adding direct support.
 * Token Endpoint calls can be initiated from the front-end or back-end depending on what the IdP requires in various use cases.
 * The client_id and client_secret can be submitted to the Token Endpoint via POST body or Authorization Request Header.
@@ -26,6 +29,7 @@ The following OAuth2 Authorization Grants are supported:
 * [Resource Owner Password Grant](https://medium.com/@robert.broeckelmann/red-hat-sso-v7-1-oauth2-resource-owner-password-credential-grant-support-6ee40f047f31)
 * [Client Credentials Grant](https://medium.com/@robert.broeckelmann/red-hat-sso-v7-1-oauth2-client-credentials-grant-6c64e5ec8bc1)
 * [Refresh Grant](https://medium.com/@robert.broeckelmann/refresh-token-support-in-oauth2-oidc-debugger-c792b3a3f65a)
+* [Device Authorization Grant](https://www.rfc-editor.org/info/rfc8628/)
 
 # Supported OIDC Authentication Flows
 The following OpenID Connect Authentication Flows are supported
@@ -48,7 +52,7 @@ So far, this tool has been tested with the following OAuth2 or OIDC implementati
 * AWS Cognito (OAuth2 + OIDC)
 * Facebook (OAuth2)
 * Google STS (OAuth2 + OIDC)
-* KeyCloak (reported to work by third-parties, Red Hat SSO v7.1 is KeyCloak under the Red Hat banner, so it should work)
+* KeyCloak (recent versions used in our automated test suite, Red Hat SSO is KeyCloak under the Red Hat banner, so it should work)
 * Okta (OIDC + OAuth2)
 * Auth0 (OIDC + OAuth2)
 
@@ -156,6 +160,7 @@ To run tests locally, run: ```./local-run-tests.sh```
 
 If you need to pop up the browser for troubleshooting, pass in the --browser option to the test scripts.
 
+To generate a code coverage report, run ```./run-coverage.sh```. The report will be under the coverage directory.
 ## Prerequisites
 
 To run this project you will need to install docker.
