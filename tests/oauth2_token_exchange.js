@@ -236,11 +236,7 @@ async function introspectTokenValue(driver, token, client_id, client_secret) {
   await clientIdField.sendKeys(client_id);
   const clientSecretField = await driver.findElement(By.id("introspection_client_secret"));
   await clientSecretField.clear();
-<<<<<<< HEAD
   if (!!client_secret) {
-=======
-  if (client_secret) {
->>>>>>> master
     await clientSecretField.sendKeys(client_secret);
   }
 
