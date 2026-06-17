@@ -172,7 +172,7 @@ async function exchangeTokenViaUI(driver, audience_client_id, client_id, client_
   await clientIdField.sendKeys(client_id);
   const clientSecretField = await driver.findElement(By.id("tokenexchange_client_secret"));
   await clientSecretField.clear();
-  if (client_secret) {
+  if (!!client_secret) {
     await clientSecretField.sendKeys(client_secret);
   }
   const audienceField = await driver.findElement(By.id("tokenexchange_audience"));
@@ -236,7 +236,7 @@ async function introspectTokenValue(driver, token, client_id, client_secret) {
   await clientIdField.sendKeys(client_id);
   const clientSecretField = await driver.findElement(By.id("introspection_client_secret"));
   await clientSecretField.clear();
-  if (client_secret) {
+  if (!!client_secret) {
     await clientSecretField.sendKeys(client_secret);
   }
 

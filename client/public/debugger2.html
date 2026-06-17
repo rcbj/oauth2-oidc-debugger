@@ -56,7 +56,8 @@
                 <option value="oidc_implicit_flow_id_token">OIDC Implicit Flow(id_token)</option>
                 <option value="oidc_hybrid_code_id_token">OIDC Hybrid(code id_token)</option>
                 <option value="oidc_hybrid_code_token">OIDC Hybrid(code token)</option>
-                <option value="oidc_hybrid_code_id_token_token">OIDC Hybrid(code id_token token)</option> 
+                <option value="oidc_hybrid_code_id_token_token">OIDC Hybrid(code id_token token)</option>
+                <option value="device_authorization_grant">OAuth2 Device Authorization Grant</option>
               </select>
             </td>
           </tr>
@@ -94,6 +95,15 @@
             </td>
             <td>
               <input class="stored" id="revocation_endpoint" name="revocation_endpoint" type="text" max="150" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>Device Authorization Endpoint: </label><span class="tooltiptext">Enter the Device Authorization Endpoint (RFC 8628) used by the debugger.</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="device_authorization_endpoint" name="device_authorization_endpoint" type="text" max="150" />
             </td>
           </tr>
           <tr>
@@ -171,13 +181,49 @@
     <input class="input" id="token_grant_type" name="grant_type" type="hidden" value="authorization_code" />
     <table>
       <tbody>
-        <tr>
+        <tr id="authzCodeRow">
           <td>
             <div class="tooltip"><label>Authorization Code: </label><span class="tooltiptext">The authorization code that should be passed to the Token Endpoint. This field is auto-populated based on the authorization endpoint response.</span>
             </div>
           </td>
           <td>
             <input class="input" id="code" name="code" type="text" /><p>This is populated automatically when needed.</p>
+          </td>
+        </tr>
+        <tr id="deviceUserCodeRow" style="display:none">
+          <td>
+            <div class="tooltip"><label>User Code: </label><span class="tooltiptext">RFC 8628 user_code. Enter this code at the Verification URI to authorize the device, then click "Get Token".</span>
+            </div>
+          </td>
+          <td>
+            <input class="input" id="device_user_code" name="device_user_code" type="text" readonly />
+          </td>
+        </tr>
+        <tr id="deviceVerificationUriRow" style="display:none">
+          <td>
+            <div class="tooltip"><label>Verification URI: </label><span class="tooltiptext">RFC 8628 verification_uri. Open this URL in a browser and enter the user code to authorize the device.</span>
+            </div>
+          </td>
+          <td>
+            <input class="input" id="device_verification_uri" name="device_verification_uri" type="text" readonly />
+          </td>
+        </tr>
+        <tr id="deviceVerificationUriCompleteRow" style="display:none">
+          <td>
+            <div class="tooltip"><label>Verification URI (complete): </label><span class="tooltiptext">RFC 8628 verification_uri_complete. The verification URI with the user code already included (if the IdP provides it).</span>
+            </div>
+          </td>
+          <td>
+            <input class="input" id="device_verification_uri_complete" name="device_verification_uri_complete" type="text" readonly />
+          </td>
+        </tr>
+        <tr id="deviceCodeRow" style="display:none">
+          <td>
+            <div class="tooltip"><label>Device Code: </label><span class="tooltiptext">RFC 8628 device_code. Sent to the Token Endpoint when polling for the access token. Auto-populated.</span>
+            </div>
+          </td>
+          <td>
+            <textarea rows="3" cols="60" id="device_code" name="device_code" readonly></textarea>
           </td>
         </tr>
         <tr>

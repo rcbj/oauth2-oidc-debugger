@@ -164,6 +164,16 @@ function buildInternalTokenAPIRequestMessage() {
           sslValidate: sslValidate,
           auth_style: auth_style
     };
+  } else if( grant_type == "urn:ietf:params:oauth:grant-type:device_code") {
+    // RFC 8628 Device Access Token Request.
+    formData = {
+          grant_type: grant_type,
+          client_id: client_id,
+          device_code: $("#device_code").val(),
+          token_endpoint: token_endpoint,
+          sslValidate: sslValidate,
+          auth_style: auth_style
+    };
   }
   log.debug("formData=" + JSON.stringify(formData));
   var yesCheck = $("#yesResourceCheckToken").is(":checked");
@@ -653,7 +663,44 @@ function resetUI(value)
       $("#config_expand_button").val("Expand");
       $("#step3").hide();
     }
-    
+    if( value == "device_authorization_grant")
+    {
+      // RFC 8628 device access token request only needs grant_type, device_code
+      // and client_id; hide the fields that do not apply to it.
+      $("#authzCodeRow").hide();
+      $("#authzUsernameRow").hide();
+      $("#authzPasswordRow").hide();
+      $("#token_redirect_uri").closest('tr').hide();
+      $("#token_scope").closest('tr').hide();
+      $("#yesResourceCheckToken").closest('tr').hide();
+      $("#authzTokenResourceRow").hide();
+      $("#customTokenParametersCheck-yes").closest('tr').hide();
+      $("#tokenCustomParametersRow").hide();
+      $("#token_custom_parameter_list").closest('tr').hide();
+      $("#usePKCE-yes").prop("checked", false);
+      $("#usePKCE-no").prop("checked", true);
+      usePKCE = false;
+      usePKCERFC();
+      // Show and populate the device flow fields from the device authorization
+      // response stored by debugger.js.
+      $("#deviceUserCodeRow").show();
+      $("#deviceVerificationUriRow").show();
+      $("#deviceVerificationUriCompleteRow").show();
+      $("#deviceCodeRow").show();
+      $("#device_code").val(localStorage.getItem("device_code"));
+      $("#device_user_code").val(localStorage.getItem("user_code"));
+      $("#device_verification_uri").val(localStorage.getItem("verification_uri"));
+      $("#device_verification_uri_complete").val(localStorage.getItem("verification_uri_complete"));
+      $("#step2").hide();
+      $("#step3").show();
+      $("#token_grant_type").val("urn:ietf:params:oauth:grant-type:device_code");
+      $("#h2_title_2").html("Exchange Device Code for Access Token");
+      $("#authorization_endpoint_result").html("");
+      $("#display_token_request").show();
+      recalculateTokenRequestDescription();
+      recalculateRefreshRequestDescription();
+    }
+
     resetErrorDisplays();
     $("#yesResourceCheckToken").prop("checked", false);
     $("#noResourceCheckToken").prop("checked", true);
@@ -754,7 +801,7 @@ function writeValuesToLocalStorage()
       localStorage.setItem("refresh_initiateFromFrontEnd", $("#refresh_initiateFromFrontEnd").is(":checked"));
       localStorage.setItem("refresh_initiateFromBackEnd", $("#refresh_initiateFromBackEnd").is(":checked"));
       localStorage.setItem("refresh_token_used", refreshTokenUsed);
-      if ($("#revocation_revocation_endpoint").val()) {
+      if (!!$("#revocation_revocation_endpoint").val()) {
         localStorage.setItem("revocation_endpoint", $("#revocation_revocation_endpoint").val());
       }
       localStorage.setItem("revocation_initiateFromFrontEnd", $("#revocation_initiateFromFrontEnd").is(":checked"));
@@ -795,13 +842,21 @@ function loadValuesFromLocalStorage()
     $("#introspection_endpoint").closest('tr').hide();
   }
 
-  if (localStorage.getItem("revocation_endpoint")) {
+  if (!!localStorage.getItem("revocation_endpoint")) {
     $("#revocation_endpoint").val(localStorage.getItem("revocation_endpoint"));
     $("#revocation_endpoint").closest('tr').show();
     $("#revocation_revocation_endpoint").val(localStorage.getItem("revocation_endpoint"));
   } else {
     $("#revocation_endpoint").val("");
     $("#revocation_endpoint").closest('tr').hide();
+  }
+
+  if (!!localStorage.getItem("device_authorization_endpoint")) {
+    $("#device_authorization_endpoint").val(localStorage.getItem("device_authorization_endpoint"));
+    $("#device_authorization_endpoint").closest('tr').show();
+  } else {
+    $("#device_authorization_endpoint").val("");
+    $("#device_authorization_endpoint").closest('tr').hide();
   }
   $("#revocation_client_id").val(localStorage.getItem("client_id"));
   $("#revocation_client_secret").val(localStorage.getItem("client_secret"));
@@ -1192,6 +1247,12 @@ function recalculateTokenRequestDescription()
                                                                       "username=" + $("#token_username").val() + "&" + "\n" +
                                                                       "password=" + $("#token_password").val() + "&" + "\n" +
                                                                       "scope=" + $("#token_scope").val());
+    } else if (grant_type == "urn:ietf:params:oauth:grant-type:device_code") {
+      $("#display_token_request_form_textarea1").val(                 "POST " + $("#token_endpoint").val() + "\n" +
+                                                                      "Message Body:\n" +
+                                                                      "grant_type=" + $("#token_grant_type").val() + "&" + "\n" +
+                                                                      "device_code=" + $("#device_code").val() + "&" + "\n" +
+                                                                      "client_id=" + $("#token_client_id").val());
     }
     if ( resourceComponent.length > 0) {
        $("#display_token_request_form_textarea1").val( $("#display_token_request_form_textarea1").val() + "&\n" + resourceComponent + "\n");
@@ -1701,6 +1762,27 @@ function recalculateTokenErrorDescription(data)
                                                                             "error: " + responseObject.error + "\n" +
                                                                             "error_description: " + responseObject.error_description +"\n");
     } else if (grant_type == "password") {
+      var status = data.status;
+      var statusText = data.statusText;
+      var readyState = data.readyState;
+      var responseText = data.responseText;
+      var responseObject = {};
+      try {
+        responseObject = JSON.parse(responseText);
+      } catch (e) {
+        log.warn("Unable to parse response text.");
+        responseObject = {};
+      }
+      $("#display_token_error_form_textarea1").val(                         "status: " + status + "\n" +
+                                                                            "statusText: " + statusText + "\n" +
+                                                                            "readyState: " + readyState + "\n" +
+                                                                            "responseText: " + responseText +"\n" +
+                                                                            "OAuth2 Response Error Details:" + "\n" +
+                                                                            "error: " + responseObject.error + "\n" +
+                                                                            "error_description: " + responseObject.error_description +"\n");
+    } else if (grant_type == "urn:ietf:params:oauth:grant-type:device_code") {
+      // RFC 8628 polling errors: authorization_pending, slow_down,
+      // access_denied, expired_token.
       var status = data.status;
       var statusText = data.statusText;
       var readyState = data.readyState;
@@ -2466,7 +2548,7 @@ function escapeHtmlText(s) {
 function getCurrentSessionNonce() {
   var idToken = localStorage.getItem('refresh_id_token') || localStorage.getItem('token_id_token');
   var n = extractNonce(idToken);
-  if (n) {
+  if (!!n) {
     return n;
   }
   return localStorage.getItem('nonce_field') || '';

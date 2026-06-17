@@ -59,5 +59,11 @@ COPY api/. .
 COPY api/env/ /usr/src/app/env/
 COPY common/data.js .
 
+# ---- Code coverage (opt-in) ----
+# When built with --build-arg COVERAGE=true, install c8 so the coverage compose
+# override can launch the server under it. No-op for the default build.
+ARG COVERAGE=false
+RUN if [ "$COVERAGE" = "true" ]; then npm install -g c8; fi
+
 EXPOSE 4000
 CMD [ "npm", "start" ]

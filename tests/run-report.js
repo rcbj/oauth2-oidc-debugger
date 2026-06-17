@@ -158,6 +158,20 @@ function buildJobs() {
     },
   });
 
+  // Device Authorization Grant (RFC 8628). Requests a device/user code, approves
+  // the device at the Keycloak verification URI, then polls for the access token.
+  jobs.push({
+    name: "OAuth2 Device Authorization Grant (RFC 8628)",
+    script: "oauth2_device_authorization.js",
+    env: {
+      DISCOVERY_ENDPOINT: env.DEVICE_AUTHORIZATION_GRANT_DISCOVERY_ENDPOINT,
+      CLIENT_ID: env.DEVICE_AUTHORIZATION_GRANT_CLIENT_ID,
+      CLIENT_SECRET: env.DEVICE_AUTHORIZATION_GRANT_CLIENT_SECRET,
+      SCOPE: "openid profile email",
+      USER: env.DEVICE_AUTHORIZATION_GRANT_USER,
+    },
+  });
+
   return jobs;
 }
 

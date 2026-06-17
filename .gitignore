@@ -3,3 +3,6 @@ client/node_modules
 node_modules
 .idea
 tests/report
+tests/node_modules
+# Code coverage output
+coverage/

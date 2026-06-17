@@ -123,6 +123,30 @@ function initializeUIPostDebuggerInitialization()
 function resetUI(value)
 {
     log.debug("Entering resetUI().");
+    // Re-show the fields that the Device Authorization Grant hides, so that
+    // switching back to another grant restores them.
+    $("#state").closest('tr').show();
+    $("#nonce_field").closest('tr').show();
+    $("#redirect_uri").closest('tr').show();
+    if( value == "device_authorization_grant")
+    {
+      $("#step2").show();
+      $("#response_type").val("");
+      // The device authorization request (RFC 8628 Section 3.1) only needs
+      // client_id and scope; hide the fields that do not apply.
+      $("#state").closest('tr').hide();
+      $("#nonce_field").closest('tr').hide();
+      $("#redirect_uri").closest('tr').hide();
+      $("#usePKCE-yes").prop("checked", false);
+      $("#usePKCE-no").prop("checked", true);
+      usePKCE = false;
+      usePKCERFC();
+      $("#h2_title_1").html("Request Device Authorization");
+      $("#authorization_endpoint_result").html("");
+      $("#display_authz_request_class").show();
+      recalculateAuthorizationRequestDescription();
+      recalculateAuthorizationErrorDescription();
+    }
     if( value == "implicit_grant" )
     {
       $("#code").hide();
@@ -320,6 +344,7 @@ function initValuesToLocalStorage()
       localStorage.setItem("token_endpoint","https://localhost/oauth2/token");
       localStorage.setItem("introspection_endpoint","https://localhost/oauth2/token/introspect");
       localStorage.setItem("revocation_endpoint","https://localhost/oauth2/revoke");
+      localStorage.setItem("device_authorization_endpoint","https://localhost/oauth2/device");
       localStorage.setItem("yesResourceCheck", false);
       localStorage.setItem("noResourceCheck", true);
       localStorage.setItem("yesCheck", true);
@@ -384,12 +409,20 @@ function loadValuesFromLocalStorage()
     $("#introspection_endpoint").closest('tr').hide();
   }
 
-  if (localStorage.getItem("revocation_endpoint")) {
+  if (!!localStorage.getItem("revocation_endpoint")) {
     $("#revocation_endpoint").val(localStorage.getItem("revocation_endpoint"));
     $("#revocation_endpoint").closest('tr').show();
   } else {
     $("#revocation_endpoint").val("");
     $("#revocation_endpoint").closest('tr').hide();
+  }
+
+  if (!!localStorage.getItem("device_authorization_endpoint")) {
+    $("#device_authorization_endpoint").val(localStorage.getItem("device_authorization_endpoint"));
+    $("#device_authorization_endpoint").closest('tr').show();
+  } else {
+    $("#device_authorization_endpoint").val("");
+    $("#device_authorization_endpoint").closest('tr').hide();
   }
 
   $("#redirect_uri").val(localStorage.getItem("redirect_uri"));
@@ -638,6 +671,18 @@ function recalculateAuthorizationRequestDescription()
   log.debug("update request field");
   var ta1 =$("#display_authz_request_form_textarea1");
   log.debug("ta1=" + JSON.stringify(ta1));
+  if ($("#authorization_grant_type").val() == "device_authorization_grant") {
+    if (ta1 != null) {
+      $("#display_authz_request_form_textarea1").val(
+        "POST " + $("#device_authorization_endpoint").val() + "\n" +
+        "Content-Type: application/x-www-form-urlencoded\n" +
+        "Message Body:\n" +
+        "client_id=" + $("#client_id").val() + "&\n" +
+        "scope=" + $("#scope").val());
+    }
+    log.debug("Leaving recalculateAuthorizationRequestDescription().");
+    return;
+  }
   var yesCheck = $("#yesResourceCheck").is(":checked");
   log.debug("yesCheck=" + yesCheck);
   var resourceComponent = "";
@@ -723,12 +768,76 @@ function recalculateAuthorizationRequestDescription()
 function triggerAuthZEndpointCall()
 {
   log.debug("Entering triggerAuthZEndpointCall().");
+  // The Device Authorization Grant (RFC 8628) is not a browser redirect; it is
+  // an HTTP POST to the device authorization endpoint.
+  if ($("#authorization_grant_type").val() == "device_authorization_grant") {
+    return triggerDeviceAuthorizationCall();
+  }
   writeValuesToLocalStorage();
   recalculateAuthorizationRequestDescription();
-  window.location.href = DOMPurify.sanitize($("#display_authz_request_form_textarea1").val().substring(4, 
+  window.location.href = DOMPurify.sanitize($("#display_authz_request_form_textarea1").val().substring(4,
     $("#display_authz_request_form_textarea1").val().length
   ).replace("\n",""));
   log.debug("Leaving triggerAuthZEndpointCall().");
+}
+
+// Performs the RFC 8628 Device Authorization Request (POST to the device
+// authorization endpoint, via the backend proxy to avoid browser CORS),
+// stashes the resulting device_code/user_code/verification_uri in local
+// storage, and proceeds to the token exchange page.
+function triggerDeviceAuthorizationCall()
+{
+  log.debug("Entering triggerDeviceAuthorizationCall().");
+  writeValuesToLocalStorage();
+  recalculateAuthorizationRequestDescription();
+  var sslValidate = "true";
+  if ($("#SSLValidate-yes").is(":checked")) {
+    sslValidate = $("#SSLValidate-yes").val();
+  } else if ($("#SSLValidate-no").is(":checked")) {
+    sslValidate = $("#SSLValidate-no").val();
+  }
+  var formData = {
+    device_authorization_endpoint: $("#device_authorization_endpoint").val(),
+    client_id: $("#client_id").val(),
+    scope: $("#scope").val(),
+    sslValidate: sslValidate
+  };
+  $.ajax({
+    type: "POST",
+    url: appconfig.apiUrl + "/deviceauthorization",
+    crossDomain: true,
+    contentType: "application/json; charset=utf-8",
+    data: JSON.stringify(formData),
+    success: function(data) {
+      log.debug("Device Authorization Endpoint Response: " + JSON.stringify(data));
+      if (localStorage) {
+        localStorage.setItem("device_code", data.device_code || "");
+        localStorage.setItem("user_code", data.user_code || "");
+        localStorage.setItem("verification_uri", data.verification_uri || "");
+        localStorage.setItem("verification_uri_complete", data.verification_uri_complete || "");
+        localStorage.setItem("device_expires_in", data.expires_in || "");
+        localStorage.setItem("device_interval", data.interval || "");
+      }
+      window.location.href = "/debugger2.html";
+    },
+    error: function(request, status, error) {
+      log.error("An error occurred calling the device authorization endpoint.");
+      log.error("request: " + JSON.stringify(request));
+      log.error("status: " + JSON.stringify(status));
+      var errorHtml = "<fieldset>" +
+                        "<legend>Device Authorization Endpoint Error</legend>" +
+                        "<table><tr><td>" +
+                          "<textarea rows='6' cols='80' readonly id='device_authz_error_textarea' name='device_authz_error_textarea'></textarea>" +
+                        "</td></tr></table>" +
+                      "</fieldset>";
+      $("#display_authz_error_class").html(DOMPurify.sanitize(errorHtml));
+      $("#device_authz_error_textarea").val(
+        "HTTP Status: " + (request ? request.status : "") + " " + (request ? request.statusText : "") + "\n" +
+        "Response Body: " + (request ? request.responseText : ""));
+    }
+  });
+  log.debug("Leaving triggerDeviceAuthorizationCall().");
+  return false;
 }
 
 function onload() {
@@ -772,10 +881,16 @@ function onload() {
         localStorage.setItem("introspection_endpoint", "")
       }
 
-      if ($("#revocation_endpoint").val()) {
+      if (!!$("#revocation_endpoint").val()) {
         localStorage.setItem("revocation_endpoint", $("#revocation_endpoint").val());
       } else {
         localStorage.setItem("revocation_endpoint", "")
+      }
+
+      if (!!$("#device_authorization_endpoint").val()) {
+        localStorage.setItem("device_authorization_endpoint", $("#device_authorization_endpoint").val());
+      } else {
+        localStorage.setItem("device_authorization_endpoint", "")
       }
 
       localStorage.setItem("redirect_uri", $("#redirect_uri").val());
@@ -1239,6 +1354,7 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
   var introspectionEndpoint = discoveryInfo["introspection_endpoint"];
   var revocationEndpoint = discoveryInfo["revocation_endpoint"];
+  var deviceAuthorizationEndpoint = discoveryInfo["device_authorization_endpoint"];
   var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
   var endSessionEndpoint = discoveryInfo["end_session_endpoint"];
   var issuer = discoveryInfo["issuer"];
@@ -1254,12 +1370,20 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
     $("#introspection_endpoint").closest('tr').hide();
   }
 
-  if (revocationEndpoint) {
+  if (!!revocationEndpoint) {
     $("#revocation_endpoint").val(revocationEndpoint);
     $("#revocation_endpoint").closest('tr').show();
   } else {
     $("#revocation_endpoint").val("");
     $("#revocation_endpoint").closest('tr').hide();
+  }
+
+  if (!!deviceAuthorizationEndpoint) {
+    $("#device_authorization_endpoint").val(deviceAuthorizationEndpoint);
+    $("#device_authorization_endpoint").closest('tr').show();
+  } else {
+    $("#device_authorization_endpoint").val("");
+    $("#device_authorization_endpoint").closest('tr').hide();
   }
 
   $("#scope").val(scopesSupported);
@@ -1276,10 +1400,16 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
         localStorage.setItem("introspection_endpoint", "" );
       }
 
-      if (revocationEndpoint) {
+      if (!!revocationEndpoint) {
         localStorage.setItem("revocation_endpoint", revocationEndpoint );
       } else {
         localStorage.setItem("revocation_endpoint", "" );
+      }
+
+      if (!!deviceAuthorizationEndpoint) {
+        localStorage.setItem("device_authorization_endpoint", deviceAuthorizationEndpoint );
+      } else {
+        localStorage.setItem("device_authorization_endpoint", "" );
       }
 
       localStorage.setItem("scope", scopesSupported);
@@ -1307,6 +1437,9 @@ function onSubmitClearAllForms() {
   }
   if ( $("#revocation_endpoint")) {
     $("#revocation_endpoint").val("");
+  }
+  if ( $("#device_authorization_endpoint")) {
+    $("#device_authorization_endpoint").val("");
   }
   if ( $("#authorization_grant_type")) {
     $("#authorization_grant_type").val("oidc_authorization_code_flow");

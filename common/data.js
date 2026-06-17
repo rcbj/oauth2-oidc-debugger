@@ -23,6 +23,7 @@ function convertToOAuth2Format(formData) {
     var username = body.username || "";
     var password = body.password || "";
     var refreshToken = body.refresh_token || "";
+    var deviceCode = body.device_code || "";
     var resource = body.resource || "";
     var customParams = body.customParams || {};
     var code_verifier = body.code_verifier;
@@ -82,6 +83,19 @@ function convertToOAuth2Format(formData) {
         grant_type: grantType,
         client_id: clientId,
         refresh_token: refreshToken,
+      };
+      log.debug("clientSecret: " + clientSecret);
+      log.debug("auth_style: " + auth_style);
+      if (!!clientSecret
+         && auth_style) {
+        parameterObject.client_secret = clientSecret;
+      }
+    } else if(grantType == "urn:ietf:params:oauth:grant-type:device_code") {
+      // RFC 8628 Device Access Token Request.
+      parameterObject = {
+        grant_type: grantType,
+        client_id: clientId,
+        device_code: deviceCode,
       };
       log.debug("clientSecret: " + clientSecret);
       log.debug("auth_style: " + auth_style);
