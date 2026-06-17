@@ -344,6 +344,7 @@ function initValuesToLocalStorage()
       localStorage.setItem("token_endpoint","https://localhost/oauth2/token");
       localStorage.setItem("introspection_endpoint","https://localhost/oauth2/token/introspect");
       localStorage.setItem("revocation_endpoint","https://localhost/oauth2/revoke");
+      localStorage.setItem("registration_endpoint","https://localhost/oauth2/register");
       localStorage.setItem("device_authorization_endpoint","https://localhost/oauth2/device");
       localStorage.setItem("yesResourceCheck", false);
       localStorage.setItem("noResourceCheck", true);
@@ -416,6 +417,10 @@ function loadValuesFromLocalStorage()
     $("#revocation_endpoint").val("");
     $("#revocation_endpoint").closest('tr').hide();
   }
+
+  // The Registration Endpoint is always listed in the Configuration pane.
+  $("#registration_endpoint").val(localStorage.getItem("registration_endpoint") || "");
+  $("#registration_endpoint").closest('tr').show();
 
   if (!!localStorage.getItem("device_authorization_endpoint")) {
     $("#device_authorization_endpoint").val(localStorage.getItem("device_authorization_endpoint"));
@@ -661,6 +666,8 @@ function loadValuesFromLocalStorage()
   localStorage.setItem('state', $("#state").val());
   $("#nonce_field").val(generateUUID());
   localStorage.setItem('nonce_field', $("#nonce_field").val());
+  loadDcrValuesFromLocalStorage();
+  recalculateDcrRequestDescription();
   recalculateAuthorizationRequestDescription();
   log.debug("Leaving loadValuesFromLocalStorage().");
 }
@@ -862,6 +869,28 @@ function onload() {
   $("#usePKCE-yes").on("click", usePKCERFC);
   $("#usePKCE-no").on("click", usePKCERFC);
 
+  // Keep the Registration Endpoint in the Configuration pane and its copy in the
+  // Dynamic Client Registration pane in sync (mirrors the revocation_endpoint /
+  // revocation_revocation_endpoint pattern), and refresh the request preview.
+  $("#registration_endpoint").on("input", function () {
+    $("#dcr_registration_endpoint").val($(this).val());
+    recalculateDcrRequestDescription();
+    writeDcrValuesToLocalStorage();
+  });
+  $("#dcr_registration_endpoint").on("input", function () {
+    $("#registration_endpoint").val($(this).val());
+    recalculateDcrRequestDescription();
+    writeDcrValuesToLocalStorage();
+  });
+  $("#dcr_initial_access_token").on("input", function () {
+    recalculateDcrRequestDescription();
+    writeDcrValuesToLocalStorage();
+  });
+  $("#dcr_client_metadata").on("input", function () {
+    recalculateDcrRequestDescription();
+    writeDcrValuesToLocalStorage();
+  });
+
   // Set initial values in case this is the first time the page was hit
   onSubmitClearAllForms(); 
   initValuesToLocalStorage();
@@ -885,6 +914,12 @@ function onload() {
         localStorage.setItem("revocation_endpoint", $("#revocation_endpoint").val());
       } else {
         localStorage.setItem("revocation_endpoint", "")
+      }
+
+      if (!!$("#registration_endpoint").val()) {
+        localStorage.setItem("registration_endpoint", $("#registration_endpoint").val());
+      } else {
+        localStorage.setItem("registration_endpoint", "")
       }
 
       if (!!$("#device_authorization_endpoint").val()) {
@@ -1354,6 +1389,7 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   var tokenEndpointAuthMethodsSupported = discoveryInfo["token_endpoint_auth_methods_supported"];
   var introspectionEndpoint = discoveryInfo["introspection_endpoint"];
   var revocationEndpoint = discoveryInfo["revocation_endpoint"];
+  var registrationEndpoint = discoveryInfo["registration_endpoint"];
   var deviceAuthorizationEndpoint = discoveryInfo["device_authorization_endpoint"];
   var userInfoEndpoint = discoveryInfo["userinfo_endpoint"];
   var endSessionEndpoint = discoveryInfo["end_session_endpoint"];
@@ -1377,6 +1413,13 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
     $("#revocation_endpoint").val("");
     $("#revocation_endpoint").closest('tr').hide();
   }
+
+  // Auto-populate the Registration Endpoint from the discovery metadata in both
+  // the Configuration pane and the Dynamic Client Registration pane copy. The
+  // row is always shown.
+  $("#registration_endpoint").val(registrationEndpoint || "");
+  $("#dcr_registration_endpoint").val(registrationEndpoint || "");
+  $("#registration_endpoint").closest('tr').show();
 
   if (!!deviceAuthorizationEndpoint) {
     $("#device_authorization_endpoint").val(deviceAuthorizationEndpoint);
@@ -1406,6 +1449,12 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
         localStorage.setItem("revocation_endpoint", "" );
       }
 
+      if (!!registrationEndpoint) {
+        localStorage.setItem("registration_endpoint", registrationEndpoint );
+      } else {
+        localStorage.setItem("registration_endpoint", "" );
+      }
+
       if (!!deviceAuthorizationEndpoint) {
         localStorage.setItem("device_authorization_endpoint", deviceAuthorizationEndpoint );
       } else {
@@ -1419,6 +1468,9 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
       localStorage.setItem("debugger_initialized", true);
       localStorage.setItem("issuer", issuer);
   }
+  // Pre-fill the Dynamic Client Registration pane (registration_endpoint and a
+  // default client metadata document) from the discovery metadata.
+  populateClientMetadataFromDiscovery();
   log.debug('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
   return true;
 }
@@ -1516,6 +1568,30 @@ function onSubmitClearAllForms() {
   }
   if ( $("#discovery_info_table") ) {
     $("#discovery_info_table").html("");
+  }
+  if ( $("#registration_endpoint") ) {
+    $("#registration_endpoint").val("");
+  }
+  if ( $("#dcr_registration_endpoint") ) {
+    $("#dcr_registration_endpoint").val("");
+  }
+  if ( $("#dcr_initial_access_token") ) {
+    $("#dcr_initial_access_token").val("");
+  }
+  if ( $("#dcr_request_textarea") ) {
+    $("#dcr_request_textarea").val("");
+  }
+  if ( $("#dcr_client_metadata") ) {
+    $("#dcr_client_metadata").val("");
+  }
+  if ( $("#registration_client_uri") ) {
+    $("#registration_client_uri").val("");
+  }
+  if ( $("#registration_access_token") ) {
+    $("#registration_access_token").val("");
+  }
+  if ( $("#dcr_response_textarea") ) {
+    $("#dcr_response_textarea").val("");
   }
   log.debug("Leaving onSubmitClearAllForms().");
 }
@@ -1701,6 +1777,323 @@ function clickLink() {
   return true;
 }
 
+// ---- OIDC Dynamic Client Registration ----
+// Implements create/read/update/delete against the OIDC Dynamic Client
+// Registration endpoints (OpenID Connect Dynamic Client Registration 1.0,
+// RFC 7591 for registration and RFC 7592 for the management protocol). All
+// calls are proxied through the API service (POST /register) to avoid browser
+// CORS restrictions, mirroring the other endpoint wrappers on this page.
+
+// Reuse the page's SSL Certificate Validation setting for registration calls.
+function getDcrSslValidate() {
+  return $("#SSLValidate-no").is(":checked") ? false : true;
+}
+
+// Build a default client metadata object, populated as much as possible from the
+// OIDC discovery metadata (discoveryInfo) and the Redirect URL field above.
+function buildDefaultClientMetadata() {
+  log.debug("Entering buildDefaultClientMetadata().");
+  var redirectUri = $("#redirect_uri").val();
+  if (!redirectUri) {
+    redirectUri = (appconfig.uiUrl ? appconfig.uiUrl : "http://localhost:3000") + "/callback";
+  }
+  // A generic, spec-aligned default client metadata document. The field names
+  // and the placeholder client.example.org values follow the client metadata and
+  // registration request example in OpenID Connect Dynamic Client Registration
+  // 1.0 (Sections 2 and 3.1). Discovery-derived values are overlaid below.
+  var md = {
+    application_type: "web",
+    redirect_uris: [ redirectUri ],
+    client_name: "OAuth2 OIDC Debugger Client",
+    client_uri: "https://client.example.org/",
+    logo_uri: "https://client.example.org/logo.png",
+    policy_uri: "https://client.example.org/policy.html",
+    tos_uri: "https://client.example.org/tos.html",
+    contacts: ["admin@example.org"],
+    subject_type: "public",
+    token_endpoint_auth_method: "client_secret_basic",
+    grant_types: ["authorization_code", "refresh_token"],
+    response_types: ["code"],
+    scope: "openid profile email",
+    jwks_uri: "https://client.example.org/my_public_keys.jwks",
+    id_token_signed_response_alg: "RS256",
+    default_max_age: 3600,
+    require_auth_time: true
+  };
+  if (discoveryInfo) {
+    if (discoveryInfo.token_endpoint_auth_methods_supported &&
+        discoveryInfo.token_endpoint_auth_methods_supported.length) {
+      // Prefer a secret-based method that works without extra material (a JWKS
+      // for private_key_jwt, a cert for tls_client_auth). Fall back to whatever
+      // the provider lists first.
+      var methods = discoveryInfo.token_endpoint_auth_methods_supported;
+      var preferred = ["client_secret_basic", "client_secret_post", "client_secret_jwt"];
+      var chosen = preferred.filter(function (m) { return methods.indexOf(m) >= 0; })[0];
+      md.token_endpoint_auth_method = chosen || methods[0];
+    }
+    if (discoveryInfo.subject_types_supported &&
+        discoveryInfo.subject_types_supported.length) {
+      md.subject_type = discoveryInfo.subject_types_supported[0];
+    }
+    if (discoveryInfo.id_token_signing_alg_values_supported &&
+        discoveryInfo.id_token_signing_alg_values_supported.length) {
+      var algs = discoveryInfo.id_token_signing_alg_values_supported;
+      var nonNone = algs.filter(function (a) { return a !== "none"; });
+      md.id_token_signed_response_alg = algs.indexOf("RS256") >= 0 ? "RS256" : (nonNone[0] || algs[0]);
+    }
+    if (discoveryInfo.scopes_supported &&
+        discoveryInfo.scopes_supported.length) {
+      md.scope = discoveryInfo.scopes_supported.join(" ");
+    }
+  }
+  log.debug("Leaving buildDefaultClientMetadata().");
+  return md;
+}
+
+// Fill the Registration Endpoint and Client Metadata fields from discovery.
+function populateClientMetadataFromDiscovery() {
+  log.debug("Entering populateClientMetadataFromDiscovery().");
+  if (discoveryInfo && discoveryInfo.registration_endpoint) {
+    // Keep the Configuration-pane field and the DCR-pane copy in sync.
+    $("#registration_endpoint").val(discoveryInfo.registration_endpoint);
+    $("#dcr_registration_endpoint").val(discoveryInfo.registration_endpoint);
+  }
+  $("#dcr_client_metadata").val(JSON.stringify(buildDefaultClientMetadata(), null, 2));
+  writeDcrValuesToLocalStorage();
+  recalculateDcrRequestDescription();
+  log.debug("Leaving populateClientMetadataFromDiscovery().");
+  return false;
+}
+
+// Parse the Client Metadata textarea as JSON; surfaces a friendly error on
+// failure and returns null.
+function parseDcrMetadata() {
+  try {
+    return JSON.parse($("#dcr_client_metadata").val());
+  } catch (e) {
+    displayDcrError(null, "Client Metadata is not valid JSON: " + e.message);
+    return null;
+  }
+}
+
+// Capture the client configuration endpoint and the (possibly rotated)
+// registration access token from a registration response. Identity providers
+// such as Keycloak rotate the registration_access_token on every read/update,
+// returning the new value, so this must run after every successful operation
+// that returns one or the subsequent call would fail to authenticate.
+function captureRegistrationArtifacts(data) {
+  if (!data) {
+    return;
+  }
+  if (data.registration_client_uri) {
+    $("#registration_client_uri").val(data.registration_client_uri);
+  }
+  if (data.registration_access_token) {
+    $("#registration_access_token").val(data.registration_access_token);
+  }
+  writeDcrValuesToLocalStorage();
+}
+
+// Common proxy invocation for all four registration operations.
+function callRegistrationProxy(method, url, bearerToken, metadataObj, successHandler) {
+  log.debug("Entering callRegistrationProxy(). method=" + method + ", url=" + url);
+  if (!url) {
+    displayDcrError(null, "No target URL. For create, set the Registration Endpoint; " +
+      "for read/update/delete, set the Registration Client URI.");
+    return false;
+  }
+  var payload = {
+    method: method,
+    url: url,
+    bearer_token: bearerToken,
+    sslValidate: getDcrSslValidate()
+  };
+  if (metadataObj) {
+    payload.metadata = metadataObj;
+  }
+  $("#display_dcr_error_class").html("");
+  $.ajax({
+    type: "POST",
+    url: appconfig.apiUrl + "/register",
+    crossDomain: true,
+    contentType: "application/json; charset=utf-8",
+    data: JSON.stringify(payload),
+    success: function (data) {
+      log.debug("Registration endpoint response: " + JSON.stringify(data));
+      if (successHandler) {
+        successHandler(data);
+      }
+      displayDcrResponse(data);
+    },
+    error: function (request, status, error) {
+      log.error("Error calling registration endpoint. status=" + JSON.stringify(status));
+      displayDcrError(request, null);
+    }
+  });
+  log.debug("Leaving callRegistrationProxy().");
+  return false;
+}
+
+// Create (register) a new client: POST the client metadata to the Registration
+// Endpoint (OIDC Registration 1.0 Section 3.1 / RFC 7591 Section 3.1).
+function registerClient() {
+  log.debug("Entering registerClient().");
+  writeDcrValuesToLocalStorage();
+  var md = parseDcrMetadata();
+  if (!md) {
+    return false;
+  }
+  return callRegistrationProxy("POST", $("#dcr_registration_endpoint").val(),
+    $("#dcr_initial_access_token").val(), md, function (data) {
+      // Capture the issued credentials and the client configuration endpoint.
+      captureRegistrationArtifacts(data);
+      if (data.client_id) {
+        // Make the new client immediately usable by the flow above.
+        $("#client_id").val(data.client_id);
+        recalculateAuthorizationRequestDescription();
+        if (localStorage) {
+          localStorage.setItem("client_id", data.client_id);
+        }
+      }
+      if (localStorage && typeof data.client_secret !== "undefined") {
+        localStorage.setItem("client_secret", data.client_secret);
+      }
+    });
+}
+
+// Read the current client registration: GET the client configuration endpoint
+// (RFC 7592 Section 2.1) using the registration_access_token.
+function readClient() {
+  log.debug("Entering readClient().");
+  writeDcrValuesToLocalStorage();
+  return callRegistrationProxy("GET", $("#registration_client_uri").val(),
+    $("#registration_access_token").val(), null, function (data) {
+      // Reflect the current registration back into the metadata editor and pick
+      // up any rotated registration access token.
+      captureRegistrationArtifacts(data);
+      $("#dcr_client_metadata").val(JSON.stringify(data, null, 2));
+      recalculateDcrRequestDescription();
+    });
+}
+
+// Update the client registration: PUT the full client metadata to the client
+// configuration endpoint (RFC 7592 Section 2.2).
+function updateClient() {
+  log.debug("Entering updateClient().");
+  writeDcrValuesToLocalStorage();
+  var md = parseDcrMetadata();
+  if (!md) {
+    return false;
+  }
+  return callRegistrationProxy("PUT", $("#registration_client_uri").val(),
+    $("#registration_access_token").val(), md, function (data) {
+      // Reflect the updated registration and pick up any rotated token.
+      captureRegistrationArtifacts(data);
+      $("#dcr_client_metadata").val(JSON.stringify(data, null, 2));
+      recalculateDcrRequestDescription();
+    });
+}
+
+// Delete the client registration: DELETE the client configuration endpoint
+// (RFC 7592 Section 2.3).
+function deleteClient() {
+  log.debug("Entering deleteClient().");
+  writeDcrValuesToLocalStorage();
+  return callRegistrationProxy("DELETE", $("#registration_client_uri").val(),
+    $("#registration_access_token").val(), null, null);
+}
+
+function displayDcrResponse(data) {
+  $("#dcr_response_textarea").val(JSON.stringify(data, null, 2));
+}
+
+function displayDcrError(request, message) {
+  var text;
+  if (message) {
+    text = message;
+  } else if (request) {
+    text = "HTTP Status: " + (request.status || "") + " " + (request.statusText || "") + "\n" +
+           "Response Body: " + (request.responseText || "");
+  } else {
+    text = "An unknown error occurred.";
+  }
+  var errorHtml = "<fieldset>" +
+                    "<legend>Dynamic Client Registration Error</legend>" +
+                    "<table><tr><td>" +
+                      "<textarea rows='8' cols='100' readonly id='dcr_error_textarea' name='dcr_error_textarea'></textarea>" +
+                    "</td></tr></table>" +
+                  "</fieldset>";
+  $("#display_dcr_error_class").html(DOMPurify.sanitize(errorHtml));
+  $("#dcr_error_textarea").val(text);
+}
+
+function writeDcrValuesToLocalStorage() {
+  if (localStorage) {
+    // The Registration Endpoint shares the "registration_endpoint" key with the
+    // Configuration pane; only persist it when set so a blank DCR copy does not
+    // wipe a value entered in the Configuration pane.
+    var dcrRegistrationEndpoint = $("#dcr_registration_endpoint").val();
+    if (!!dcrRegistrationEndpoint) {
+      localStorage.setItem("registration_endpoint", dcrRegistrationEndpoint);
+    }
+    localStorage.setItem("registration_client_uri", $("#registration_client_uri").val());
+    localStorage.setItem("registration_access_token", $("#registration_access_token").val());
+    localStorage.setItem("dcr_initial_access_token", $("#dcr_initial_access_token").val());
+    localStorage.setItem("dcr_client_metadata", $("#dcr_client_metadata").val());
+  }
+}
+
+function loadDcrValuesFromLocalStorage() {
+  if (localStorage) {
+    if (localStorage.getItem("registration_endpoint")) {
+      $("#dcr_registration_endpoint").val(localStorage.getItem("registration_endpoint"));
+    }
+    if (localStorage.getItem("registration_client_uri")) {
+      $("#registration_client_uri").val(localStorage.getItem("registration_client_uri"));
+    }
+    if (localStorage.getItem("registration_access_token")) {
+      $("#registration_access_token").val(localStorage.getItem("registration_access_token"));
+    }
+    // Initial access token: use the stored value if present (default is blank).
+    $("#dcr_initial_access_token").val(localStorage.getItem("dcr_initial_access_token") || "");
+    // Client metadata: prefer the stored document; otherwise seed a default one.
+    // Persist whatever value ends up in the field so it is available next time.
+    var clientMetadata = localStorage.getItem("dcr_client_metadata");
+    if (!clientMetadata) {
+      clientMetadata = JSON.stringify(buildDefaultClientMetadata(), null, 2);
+    }
+    $("#dcr_client_metadata").val(clientMetadata);
+    localStorage.setItem("dcr_client_metadata", clientMetadata);
+  }
+}
+
+// Render a preview of the HTTP request that "Register New Client" will send to
+// the Registration Endpoint (a POST of the client metadata, RFC 7591 Section 3.1),
+// analogous to the request preview in the Request Authorization Code pane.
+function recalculateDcrRequestDescription() {
+  var ta = $("#dcr_request_textarea");
+  if (!ta || ta.length === 0) {
+    return;
+  }
+  var endpoint = $("#dcr_registration_endpoint").val() || $("#registration_endpoint").val() || "";
+  var token = $("#dcr_initial_access_token").val();
+  var request = "POST " + endpoint + "\n";
+  if (!!token) {
+    request += "Authorization: Bearer " + token + "\n";
+  }
+  request += "Content-Type: application/json\n" +
+             "Accept: application/json\n" +
+             "\n";
+  // Pretty-print the metadata body when it is valid JSON; otherwise show it as-is.
+  var body = $("#dcr_client_metadata").val();
+  try {
+    body = JSON.stringify(JSON.parse(body), null, 2);
+  } catch (e) {
+    // Leave the body verbatim so the user can see/fix invalid JSON.
+  }
+  ta.val(request + body);
+}
+
 module.exports = {
   OnSubmitForm,
   OnSubmitTokenEndpointForm,
@@ -1731,5 +2124,9 @@ module.exports = {
   onClickShowGenericFieldSet,
   onClickClearLocalStorage,
   usePKCERFC,
-  clickLink
+  clickLink,
+  registerClient,
+  readClient,
+  updateClient,
+  deleteClient
 };

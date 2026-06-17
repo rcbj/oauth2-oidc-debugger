@@ -804,6 +804,9 @@ function writeValuesToLocalStorage()
       if (!!$("#revocation_revocation_endpoint").val()) {
         localStorage.setItem("revocation_endpoint", $("#revocation_revocation_endpoint").val());
       }
+      if (!!$("#registration_endpoint").val()) {
+        localStorage.setItem("registration_endpoint", $("#registration_endpoint").val());
+      }
       localStorage.setItem("revocation_initiateFromFrontEnd", $("#revocation_initiateFromFrontEnd").is(":checked"));
       localStorage.setItem("revocation_initiateFromBackEnd", $("#revocation_initiateFromBackEnd").is(":checked"));
   }
@@ -849,6 +852,14 @@ function loadValuesFromLocalStorage()
   } else {
     $("#revocation_endpoint").val("");
     $("#revocation_endpoint").closest('tr').hide();
+  }
+
+  if (!!localStorage.getItem("registration_endpoint")) {
+    $("#registration_endpoint").val(localStorage.getItem("registration_endpoint"));
+    $("#registration_endpoint").closest('tr').show();
+  } else {
+    $("#registration_endpoint").val("");
+    $("#registration_endpoint").closest('tr').hide();
   }
 
   if (!!localStorage.getItem("device_authorization_endpoint")) {
