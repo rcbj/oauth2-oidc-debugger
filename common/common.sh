@@ -356,8 +356,6 @@ configureKeycloak()
                 }'
             check_return_code $?
             ;;
-
-
     esac
 
     CLIENT_ID=$(curl \
