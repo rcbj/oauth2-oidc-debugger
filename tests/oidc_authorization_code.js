@@ -77,7 +77,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   log.info("Find display_token_error_form_texarea1.");
   display_token_error_form_textarea1 = By.id("display_token_error_form_textarea1");
 
-  // Select client credential login type
+  // Select OIDC Authorization Code Flow 
   log.info("Set authorization_grant_type to OIDC Authorizaton Code Authentication Flow.");
   await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OIDC Authorization Code Flow(code)');
   log.info("Waiting for usePKCE_yes");
