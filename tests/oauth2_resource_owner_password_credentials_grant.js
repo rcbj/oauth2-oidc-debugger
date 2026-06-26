@@ -16,6 +16,7 @@ var waitTime = 10000;
 
 async function populateMetadata(driver, discovery_endpoint) {
   log.info("Entering populateMetadata().");
+  // Locate the discovery endpoint field and its related buttons
   log.info("Find oidc_discovery_endpoint.");
   oidc_discovery_endpoint = By.id("oidc_discovery_endpoint");
   log.info("Find btn_oidc_discovery_endpoint.");
@@ -50,6 +51,7 @@ async function populateMetadata(driver, discovery_endpoint) {
 }
 
 async function verifyAccessToken(access_token, client_id, scope, user, audience, issuer) {
+  // Helper to confirm every requested scope is present in the token's scopes
   async function compareScopes(scope1, scope2) {
     scope1 = scope1.split(" ");
     scope2 = scope2.split(" ");
@@ -57,6 +59,7 @@ async function verifyAccessToken(access_token, client_id, scope, user, audience,
     return scope2.every(element => scope1.includes(element));
   }
 
+  // Decode the JWT and assert its claims match the expected client, scopes, user, audience and issuer
   let decoded_access_token = jwt.decode(access_token, { complete: true });
   let response_text = access_token.match(/responseText: (.*)/);
 
@@ -162,7 +165,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, username,
   await driver.executeScript("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", await driver.findElement(token_btn));
   await driver.findElement(token_btn).click();
 
-  // Get access token result
+  // Get access token result: wait for either the token or the error field to appear, then return its value
   async function waitForVisibility(element) {
     log.info("Waiting for " + element);
     await driver.wait(until.elementLocated(element), waitTime);
@@ -191,6 +194,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, username,
 
 async function logout(driver) {
   log.info("Entering logout().");
+  // Locate the logout controls, set the post-logout redirect URI and trigger logout
   log.info("Find logout Button");
   logout_button = By.id("logout_btn");
   log.info("Find logout_post_redirect_uri.");
@@ -205,32 +209,11 @@ async function logout(driver) {
   log.info("Click logout_btn.");
   await driver.findElement(logout_button).click();
 
-//  console.log("Wait for kc_logout.");
-//  kc_logout = By.id("kc-logout");
-//  await driver.wait(until.elementLocated(kc_logout), waitTime);
-//  console.log("Wait for kc-logout to be visible.");
-//  await driver.wait(until.elementIsVisible(driver.findElement(kc_logout)), waitTime);
-
-//  console.log("Click kc_logout.");
-//  await driver.findElement(kc_logout).click();
-
+  // Follow the link back to the debugger's front page
   log.info("Click link to return to the front page of the debugger.");
   returnToDebugLink = By.partialLinkText('Return to debugger');
   await driver.wait(until.elementLocated(returnToDebugLink), waitTime);
   await driver.findElement(returnToDebugLink).click();
-
-//  console.log("Find authz_expand_button.");
-//  authz_expand_button = By.id("authz_expand_button");
-//  await driver.wait(until.elementLocated(authz_expand_button), waitTime);
-//  console.log("Waiting for authz_expand_button to be visible.");
-//  await driver.wait(until.elementIsVisible(driver.findElement(authz_expand_button)), waitTime);
-
-//  console.log("Find client_id.");
-//  client_id = By.id("client_id");
-//  console.log("Wait for client_id");
-//  await driver.findElement(client_id);
-//  console.log("Wait for client_id to be visible.");
-//  await driver.wait(until.elementIsVisible(driver.findElement(client_id)), waitTime);
 }
 
 async function test() {
@@ -243,6 +226,7 @@ async function test() {
 
   try {
     log.info("Starting Test run.");
+    // Read test configuration from environment variables
     const discovery_endpoint = process.env.DISCOVERY_ENDPOINT;
     const client_id = process.env.CLIENT_ID;
     const client_secret = process.env.CLIENT_SECRET;
@@ -252,6 +236,7 @@ async function test() {
     const audience = process.env.AUDIENCE;
     log.info("Set environment variables.");
 
+    // Verify all required environment variables are present
     assert(discovery_endpoint, "DISCOVERY_ENDPOINT environment variable is not set.");
     assert(client_id, "CLIENT_ID environment variable is not set.");
     assert(client_secret, "CLIENT_SECRET environment variable is not set.");
@@ -260,6 +245,7 @@ async function test() {
     assert(audience, "AUDIENCE environment variable is not set.");
     log.info("Assertions completed successfully.");
 
+    // Drive the full flow: load the app, populate IdP metadata, obtain and verify a token, then log out
     log.info("Starting driver.get() run.");
     await driver.get(baseUrl);
     log.info("Completed driver.get() run.");
@@ -298,6 +284,7 @@ program
       "Display browser (only works within device).")
   )
   .action((options) => {
+    // Apply CLI overrides for the base URL and headless/visible browser mode
     if(!!options.url) {
       log.info("Setting url to " + options.url);
       baseUrl = options.url;

@@ -15,6 +15,7 @@ var waitTime = 10000;
 
 async function populateMetadata(driver, discovery_endpoint) {
   log.info("Entering populateMetadata().");
+  // Resolve locators for the discovery endpoint field and its action buttons
   log.info("Find oidc_discovery_endpoint.");
   oidc_discovery_endpoint = By.id("oidc_discovery_endpoint");
   log.info("Find btn_oidc_discovery_endpoint.");
@@ -28,7 +29,7 @@ async function populateMetadata(driver, discovery_endpoint) {
   log.info("Wait for oidc_discovery_endpoint.");
   await driver.wait(until.elementIsVisible(driver.findElement(oidc_discovery_endpoint)), waitTime);
 
-  // Enter discovery endpointA
+  // Enter discovery endpoint
   log.info("Find & Clear oidc_discovery_endpoint.");
   await driver.findElement(oidc_discovery_endpoint).clear();
   log.info("Find & Send Keys discovery_endpoint.");
@@ -50,6 +51,7 @@ async function populateMetadata(driver, discovery_endpoint) {
 
 async function getAccessToken(driver, client_id, client_secret, scope) {
   log.info("Entering getAccessToken().");
+  // Resolve locators for the grant type selector and client ID field
   log.info("Find authorization_grant_type.");
   authorization_grant_type = By.id("authorization_grant_type");
   log.info("Find token_client_id.");
@@ -68,6 +70,7 @@ async function getAccessToken(driver, client_id, client_secret, scope) {
   log.info("Wait until element is visible.");
   await driver.wait(until.elementIsVisible(driver.findElement(token_client_id)), waitTime);
 
+  // Resolve locators for the credential inputs, submit button, and result/error fields
   log.info("Find token_client_secret.")
   token_client_secret = By.id("token_client_secret");
   log.info("Find token_scope.");
@@ -140,18 +143,21 @@ async function test() {
 
   try {
     log.info("Starting Test run.");
+    // Read test configuration from environment variables
     const discovery_endpoint = process.env.DISCOVERY_ENDPOINT;
     const client_id = process.env.CLIENT_ID;
     const client_secret = process.env.CLIENT_SECRET;
     const scope = process.env.SCOPE;
     log.info("Set environment variables.");
 
+    // Ensure all required environment variables are present before proceeding
     assert(discovery_endpoint, "DISCOVERY_ENDPOINT environment variable is not set.");
     assert(client_id, "CLIENT_ID environment variable is not set.");
     assert(client_secret, "CLIENT_SECRET environment variable is not set.");
     assert(scope, "SCOPE environment variable is not set.");
     log.info("Assertions completed successfully.");
 
+    // Load the debugger, populate IdP metadata, then request and validate the access token
     log.info("Starting driver.get() run.");
     await driver.get(baseUrl);
     log.info("Completed driver.get() run.");

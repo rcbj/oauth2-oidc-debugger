@@ -113,6 +113,8 @@ async function test() {
 
     assert(discovery_endpoint, "DISCOVERY_ENDPOINT environment variable is not set.");
 
+    // Open the debugger and seed the Dynamic Client Registration pane from the
+    // provider's discovery metadata, then expand the pane for editing.
     log.info("Kicking off test.");
     await driver.get(baseUrl);
 
