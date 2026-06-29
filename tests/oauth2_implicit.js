@@ -36,6 +36,7 @@ async function populateMetadata(driver, discovery_endpoint) {
 }
 
 async function getAccessToken(driver, client_id, scope) {
+  // Resolve locators for the authorization form, the Keycloak login form, and the token/error result fields
   log.info("Entering getAccessToken().");
   log.info("Find authorization_grant_type.");
   authorization_grant_type = By.id("authorization_grant_type");
@@ -66,6 +67,7 @@ async function getAccessToken(driver, client_id, scope) {
   log.info("Set authorization_grant_type to OAuth2 Implicit Grant.");
   await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OAuth2 Implicit Grant');
 
+  // Expand the authorization section and wait for the client_id field to render
   log.info("Find authz_expand_button.");
   await driver.wait(until.elementLocated(authz_expand_button), waitTime);
   log.info("Waiting for authz_expand_button to be visible.");
@@ -77,7 +79,7 @@ async function getAccessToken(driver, client_id, scope) {
   log.info("Find client_id_.");
   await driver.wait(until.elementIsVisible(driver.findElement(client_id_)), waitTime);
 
-  // Submit credentials
+  // Fill in the client_id, scope, and redirect_uri, then submit the authorization request
   log.info("Clear client_id_.");
   await driver.findElement(client_id_).clear();
   log.info("Set client_id value.");
@@ -95,7 +97,7 @@ async function getAccessToken(driver, client_id, scope) {
   log.info("Click btn_authorize button.");
   await driver.findElement(btn_authorize).click();
 
-  // Login to Keycloak
+  // Wait for the Keycloak login form, reporting any authorization error if it never appears
   try {
     log.info("Wait for keycloak_username.");
     await driver.wait(until.elementLocated(keycloak_username), waitTime);
@@ -108,6 +110,7 @@ async function getAccessToken(driver, client_id, scope) {
     throw new Error(await authz_error_report_paragraphs[authz_error_report_paragraphs.length - 1].getText());
   }
 
+  // Enter the Keycloak username/password and submit the login form
   log.info("Clear keycloak_username.");
   await driver.findElement(keycloak_username).clear();
   log.info("Set keycloak_username value.");
@@ -120,7 +123,7 @@ async function getAccessToken(driver, client_id, scope) {
   await driver.findElement(keycloak_kc_login).click();
 
   
-  // Get access token result
+  // Wait for whichever appears first: the access token field or the token error field, then return its value
   async function waitForVisibility(element) {
     log.info("Waiting for " + element);
     await driver.wait(until.elementLocated(element), waitTime);
@@ -160,6 +163,7 @@ async function verifyAccessToken(access_token, client_id, scope, user) {
 }
 
 async function logout(driver) {
+  // Set the post-logout redirect URI and trigger the OIDC logout
   log.info("Entering logout().");
   log.info("Find logout Button");
   logout_button = By.id("logout_btn");
@@ -175,6 +179,7 @@ async function logout(driver) {
   log.info("Click logout_btn.");
   await driver.findElement(logout_button).click();
 
+  // Confirm logout on the Keycloak logout page
   log.info("Wait for kc_logout.");
   kc_logout = By.id("kc-logout");
   await driver.wait(until.elementLocated(kc_logout), waitTime);
@@ -184,11 +189,13 @@ async function logout(driver) {
   log.info("Click kc_logout.");
   await driver.findElement(kc_logout).click();
 
+  // Follow the link back to the debugger front page
   log.info("Click link to return to the front page of the debugger.");
   returnToDebugLink = By.partialLinkText('Return to debugger');
   await driver.wait(until.elementLocated(returnToDebugLink), waitTime);
   await driver.findElement(returnToDebugLink).click();
 
+  // Verify the debugger has reloaded by waiting for the authorization form's expand button and client_id field
   log.info("Find authz_expand_button.");
   authz_expand_button = By.id("authz_expand_button");
   await driver.wait(until.elementLocated(authz_expand_button), waitTime);
@@ -229,6 +236,7 @@ async function test() {
     assert(scope, "SCOPE environment variable is not set.");
     assert(user, "USER environment variable is not set.");
 
+    // Run the end-to-end implicit flow: load metadata, obtain and verify the access token, then log out
     log.info("Kicking off test.");
     await driver.get(baseUrl);
     log.info("Calling populateMetadata().");

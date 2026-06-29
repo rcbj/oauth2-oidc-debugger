@@ -157,6 +157,8 @@ async function test() {
     assert(scope, "SCOPE environment variable is not set.");
     assert(user, "USER environment variable is not set.");
 
+    // Load the debugger, populate IdP metadata from discovery, and initiate the
+    // device authorization request.
     log.info("Kicking off test.");
     await driver.get(baseUrl);
     log.info("Calling populateMetadata().");

@@ -44,6 +44,7 @@ async function populateMetadata(driver, discovery_endpoint) {
 
 async function getAccessToken(driver, client_id, client_secret, scope, pkce_enabled) {
   log.info("Entering getAccessToken().");
+  // Locate all the form/login elements used across this flow up front
   log.info("Find authorization_grant_type.");
   authorization_grant_type = By.id("authorization_grant_type");
   log.info("Find usePKCE-yes.");
@@ -77,7 +78,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   log.info("Find display_token_error_form_texarea1.");
   display_token_error_form_textarea1 = By.id("display_token_error_form_textarea1");
 
-  // Select client credential login type
+  // Select OIDC Authorization Code Flow 
   log.info("Set authorization_grant_type to OIDC Authorizaton Code Authentication Flow.");
   await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OIDC Authorization Code Flow(code)');
   log.info("Waiting for usePKCE_yes");
@@ -89,6 +90,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   log.info("Waiting for usePKCE to be visible");
   await driver.wait(until.elementIsVisible(driver.findElement(usePKCE_no)), waitTime);
 
+  // Toggle PKCE on or off depending on the test configuration
   if (pkce_enabled) {
     log.info("Click usePKCE_yes.");
     await driver.findElement(usePKCE_yes).click();
@@ -97,6 +99,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
     await driver.findElement(usePKCE_no).click();
   }
 
+  // Expand the advanced authorization section and wait for client_id to appear
   log.info("Find authz_expand_button.");
   await driver.wait(until.elementLocated(authz_expand_button), waitTime);
   log.info("Waiting for authz_expand_button to be visible.");
@@ -222,6 +225,7 @@ async function verifyAccessToken(access_token, client_id, scope, user, audience,
 async function getIDToken(driver)
 {
   log.info("Entering getIDToken().");
+  // Read the ID token value from the token_id_token field on debugger2.html
   log.info("Find token_id_token.");
   token_id_token = By.id("token_id_token");
   log.info("Find token_id_token element.");
@@ -231,6 +235,7 @@ async function getIDToken(driver)
 async function getRefreshToken(driver)
 {
   log.info("Entering getRefreshToken().");
+  // Read the refresh token value from the token_refresh_token field on debugger2.html
   log.info("Find token_refresh_token.");
   let token_refresh_token = By.id("token_refresh_token");
   log.info("Find token_refresh_token element.");
@@ -319,7 +324,6 @@ async function tokenDetailPage(driver, type)
     log.info("jwt_payload_element: " + JSON.stringify(jwt_payload_element));
     const fromJWTPayloadJWT= await jwt_payload_element.getAttribute("value");
     log.info("jwt_payload_element.text(): " + fromJWTPayloadJWT);
-    // await driver.wait(until.elementTextIs( jwt_payload_element, JSON.stringify(decodedJWT.payload, null, 2)), waitTime);
     if (fromJWTPayloadJWT === JSON.stringify(decodedJWT.payload, null, 2)) {
       log.info("jwt_payload_element has expected value.");
     } else {
@@ -392,10 +396,9 @@ async function tokenDetailPage(driver, type)
     const validationOutput = await driver.findElement(By.id("jwt_claims_validation_output")).getAttribute("value");
     log.info("Claims validation output:\n" + validationOutput);
 
-    // Fail if no check failures are reported.
-    //assert(validationOutput.includes("check(s) failed"),
-    //  "Expected claims validation to report at least one check failure, but got: " + validationOutput);
-    log.info("Claims validation correctly reported check failures.");
+    // Claims validation output is logged above for inspection; no assertion is
+    // made on its contents.
+    log.info("Claims validation completed.");
 
     // Return to the debugger.
     log.info("Find return to debugger link.");
@@ -421,6 +424,7 @@ async function tokenDetailPage(driver, type)
 
 async function refresh_token_call(driver, client_id, scope, user, access, audience) {
   log.info("Entering refresh_token_call().");
+  // Locate and click the refresh button to exchange the refresh token for new tokens
   log.info("Find Refresh Button");
   refresh_btn = By.id("refresh_btn");
   log.info("Locate refresh_btn.");
@@ -431,6 +435,7 @@ async function refresh_token_call(driver, client_id, scope, user, access, audien
   await driver.findElement(refresh_btn).click();
   log.info("Waiting for call to complete.");
   await wait(4000);
+  // Read and verify the newly issued access token
   log.info("Finding refresh_access_token.");
   var refresh_access_token = By.id("refresh_access_token");
   log.info("Locate refresh_access_token.");
@@ -442,6 +447,7 @@ async function refresh_token_call(driver, client_id, scope, user, access, audien
   log.info("Calling verifyAccessToken().");
   await verifyAccessToken(refresh_access_token_value, client_id, scope, user, access, audience);
 
+  // Read and verify the newly issued refresh token
   var refresh_refresh_token = By.id("refresh_refresh_token");
   log.info("Locate refresh_refresh_token.");
   await driver.wait(until.elementLocated(refresh_refresh_token), waitTime);
@@ -452,6 +458,7 @@ async function refresh_token_call(driver, client_id, scope, user, access, audien
   log.info("Calling verifyRefreshToken().");
   await verifyRefreshToken(refresh_refresh_token_value, client_id, user, audience, audience);
 
+  // Read and verify the newly issued ID token
   var refresh_id_token = By.id("refresh_id_token");
   log.info("Locate refresh_id_token.");
   await driver.wait(until.elementLocated(refresh_id_token), waitTime);
@@ -467,6 +474,7 @@ async function refresh_token_call(driver, client_id, scope, user, access, audien
 
 async function logout(driver) {
   log.info("Entering logout().");
+  // Locate the post-logout redirect field and set it to the logout landing page
   log.info("Find logout Button");
   logout_post_redirect_uri = By.id("logout_post_redirect_uri");
   log.info("Wait for logout_post_redirect_uri.");
@@ -476,6 +484,7 @@ async function logout(driver) {
   await driver.wait(until.elementIsVisible(driver.findElement(logout_post_redirect_uri)), waitTime);
   log.info("Set post_redirect_uri for logout.");
   await driver.findElement(logout_post_redirect_uri).sendKeys(logout_post_redirect_uri_value);
+  // Locate and click the logout button to trigger the OIDC logout
   logout_button = By.id("logout_btn");
   log.info("Locate logout_button.");
   await driver.wait(until.elementLocated(logout_button), waitTime);
@@ -484,12 +493,14 @@ async function logout(driver) {
   log.info("Click logout_btn.");
   await driver.findElement(logout_button).click();
 
+  // Follow the link back to the debugger front page
   returnToDebugLink = By.partialLinkText('Return to debugger');
   log.info("Locate returnToDebugLink.");
   await driver.wait(until.elementLocated(returnToDebugLink), waitTime);
   log.info("Click link to return to the front page of the debugger.");
   await driver.findElement(returnToDebugLink).click();
 
+  // Confirm the debugger form is back by waiting for the expand button and client_id
   log.info("Find authz_expand_button.");
   authz_expand_button = By.id("authz_expand_button");
   await driver.wait(until.elementLocated(authz_expand_button), waitTime);

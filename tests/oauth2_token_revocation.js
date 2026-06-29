@@ -100,7 +100,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   await driver.findElement(keycloak_password).sendKeys(client_id);
   await driver.findElement(keycloak_kc_login).click();
 
-  // Submit credentials (again) on the token exchange form
+  // Submit credentials (again) on the token endpoint form
   await driver.wait(until.elementLocated(token_client_id), waitTime);
   await driver.wait(until.elementIsVisible(driver.findElement(token_client_id)), waitTime);
 
@@ -307,6 +307,8 @@ async function test() {
       process.exit(1);
     }
 
+    // Load the debugger, populate IdP metadata from discovery, and run the
+    // OIDC Authorization Code flow to obtain an access token and refresh token.
     log.info("Kicking off test.");
     await driver.get(baseUrl);
     log.info("Calling populateMetadata().");

@@ -15,6 +15,7 @@ var headless = true;
 var waitTime = 10000;
 
 async function populateMetadata(driver, discovery_endpoint) {
+  // Locate the discovery/metadata form controls on the debugger page
   oidc_discovery_endpoint = By.id("oidc_discovery_endpoint");
   btn_oidc_discovery_endpoint = By.className("btn_oidc_discovery_endpoint");
   btn_oidc_populate_meta_data = By.className("btn_oidc_populate_meta_data");
@@ -37,6 +38,9 @@ async function populateMetadata(driver, discovery_endpoint) {
 
 async function getAccessToken(driver, client_id, client_secret, scope, pkce_enabled) {
   log.info("Entering getAccessToken().");
+
+  // Build the By locators for every form element used across the flow:
+  // grant type selector, PKCE toggle, authorize/token forms, and the Keycloak login page
   log.info("Find authorization_grant_type.");
   authorization_grant_type = By.id("authorization_grant_type");
   log.info("Find usePKCE-yes.");
@@ -70,7 +74,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   log.info("Find display_token_error_form_texarea1.");
   display_token_error_form_textarea1 = By.id("display_token_error_form_textarea1");
 
-  // Select oauth2 authorization code grant login type
+  // Select the OAuth2 Authorization Code Grant and wait for the PKCE radio buttons to render
   log.info("Set authorization_grant_type to oauth2 Authorizaton Code Grant.");
   await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OAuth2 Authorization Code Grant');
   log.info("Waiting for usePKCE_yes");
@@ -82,6 +86,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   log.info("Waiting for usePKCE to be visible");
   await driver.wait(until.elementIsVisible(driver.findElement(usePKCE_no)), waitTime);
 
+  // Toggle PKCE on or off depending on the test parameter
   if (pkce_enabled) {
     log.info("Click usePKCE_yes.");
     await driver.findElement(usePKCE_yes).click();
@@ -90,6 +95,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
     await driver.findElement(usePKCE_no).click();
   }
 
+  // Expand the authorization section to reveal the client_id field
   log.info("Find authz_expand_button.");
   await driver.wait(until.elementLocated(authz_expand_button), waitTime);
   log.info("Waiting for authz_expand_button to be visible.");
@@ -170,7 +176,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   log.info("Click token_btn button.");
   await driver.findElement(token_btn).click();
 
-  // Get access token result
+  // Get access token result: helper that resolves once an element is located and visible
   async function waitForVisibility(element) {
     log.info("Waiting for " + element);
     await driver.wait(until.elementLocated(element), waitTime);
@@ -180,6 +186,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
     return element;
   }
 
+  // Race the success token field against the error textarea, then return whichever appeared first
   let visibleAccessTokenElement = await Promise.any([
     waitForVisibility(token_access_token),
     waitForVisibility(display_token_error_form_textarea1)
@@ -197,6 +204,7 @@ async function verifyAccessToken(access_token, client_id, scope, user) {
     return scope2.every(element => scope1.includes(element));
   }
 
+  // Decode the JWT and assert its claims match the expected client, scope, and user
   let decoded_access_token = jwt.decode(access_token, { complete: true });
   let response_text = access_token.match(/responseText: (.*)/);
 
@@ -211,6 +219,8 @@ async function verifyAccessToken(access_token, client_id, scope, user) {
 
 async function logout(driver) {
   log.info("Entering logout().");
+
+  // Locate the logout controls and set the post-logout redirect URI, then trigger logout
   log.info("Find logout Button");
   logout_button = By.id("logout_btn");
   log.info("Find logout_post_redirect_uri.");
@@ -225,6 +235,7 @@ async function logout(driver) {
   log.info("Click logout_btn.");
   await driver.findElement(logout_button).click();
 
+  // Confirm logout on the Keycloak logout page
   log.info("Wait for kc_logout.");
   kc_logout = By.id("kc-logout");
   await driver.wait(until.elementLocated(kc_logout), waitTime);
@@ -234,11 +245,13 @@ async function logout(driver) {
   log.info("Click kc_logout.");
   await driver.findElement(kc_logout).click();
 
+  // Follow the link back to the debugger front page
   log.info("Click link to return to the front page of the debugger.");
   returnToDebugLink = By.partialLinkText('Return to debugger');
   await driver.wait(until.elementLocated(returnToDebugLink), waitTime);
   await driver.findElement(returnToDebugLink).click();
 
+  // Re-expand the authorization section and confirm the client_id field is back, verifying we returned to the debugger
   log.info("Find authz_expand_button.");
   authz_expand_button = By.id("authz_expand_button");
   await driver.wait(until.elementLocated(authz_expand_button), waitTime);
@@ -259,6 +272,8 @@ async function test() {
     options.addArguments("--headless");
   }
   options.addArguments("--no-sandbox");
+
+  // Enable browser-level logging and build the Chrome WebDriver
   log.info("Enabling selinium logging.");
   const loggingPrefs = new logging.Preferences();
   loggingPrefs.setLevel(logging.Type.BROWSER, logging.Level.ALL);
@@ -270,6 +285,7 @@ async function test() {
     .build();
 
   try {
+    // Read test configuration from environment variables and assert all are present
     const discovery_endpoint = process.env.DISCOVERY_ENDPOINT;
     const client_id = process.env.CLIENT_ID;
     const client_secret = process.env.CLIENT_SECRET;
@@ -284,6 +300,7 @@ async function test() {
     assert(user, "USER environment variable is not set.");
     assert(pkce_enabled, "PKCE_ENABLED environment variable is not set.");
 
+    // Coerce the PKCE_ENABLED string into a boolean, aborting on an invalid value
     if (pkce_enabled === "true") {
       pkce_enabled = true;
     } else if (pkce_enabled === "false") {
@@ -293,6 +310,8 @@ async function test() {
       process.exit(1);
     }
 
+    // Drive the full flow: load the app, populate IdP metadata, run the auth code grant,
+    // verify the resulting token, then log out
     log.info("Kicking off test.");
     await driver.get(baseUrl);
     log.info("Calling populateMetadata().");

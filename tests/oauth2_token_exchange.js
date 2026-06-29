@@ -55,6 +55,8 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   token_access_token = By.id("token_access_token");
   display_token_error_form_textarea1 = By.id("display_token_error_form_textarea1");
 
+  // Select the OIDC Authorization Code grant, choose whether to use PKCE, then
+  // expand the authorization form and enter the client_id, scope, and redirect_uri.
   log.info("Set authorization_grant_type to OIDC Authorization Code Flow(code).");
   await new Select(await driver.findElement(authorization_grant_type)).selectByVisibleText('OIDC Authorization Code Flow(code)');
   await driver.wait(until.elementLocated(usePKCE_yes), waitTime);
@@ -100,7 +102,7 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
   await driver.findElement(keycloak_password).sendKeys(client_id);
   await driver.findElement(keycloak_kc_login).click();
 
-  // Submit credentials (again) on the token exchange form
+  // Submit credentials (again) on the token endpoint form
   await driver.wait(until.elementLocated(token_client_id), waitTime);
   await driver.wait(until.elementIsVisible(driver.findElement(token_client_id)), waitTime);
 
@@ -121,6 +123,8 @@ async function getAccessToken(driver, client_id, client_secret, scope, pkce_enab
     return element;
   }
 
+  // Wait for either the access token field or the error textarea, then assert a
+  // decodable JWT was returned and hand back the subject access token.
   let visibleAccessTokenElement = await Promise.any([
     waitForVisibility(token_access_token),
     waitForVisibility(display_token_error_form_textarea1)
