@@ -19,9 +19,9 @@ RUN apt-get -y install curl \
 
 # Install NVM
 ENV NVM_DIR /usr/local/nvm
-ENV NODE_VERSION=22.13.0
+ENV NODE_VERSION=24.16.0
 RUN mkdir -p ${NVM_DIR}
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.5/install.sh | bash
 
 # Load NVM and install Node.js
 RUN . $NVM_DIR/nvm.sh && nvm version && echo -e ". $NVM_DIR/nvm.sh\nexport PATH=\$NVM_DIR/versions/node/\$(nvm version)/bin:\$PATH" >> ~/.bashrc

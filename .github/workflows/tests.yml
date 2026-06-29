@@ -16,11 +16,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Install docker-compose
         uses: KengoTODA/actions-setup-docker-compose@v1
         with:
-          version: '2.14.2'
+          version: '5.2.0'
       - name: Run Tests with coverage
         run: |
           mkdir -p coverage/frontend/.nyc_output coverage/api
@@ -46,7 +46,7 @@ jobs:
         run: sudo chown -R "$(id -u):$(id -g)" coverage || true
       - name: Upload coverage report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage/
@@ -54,7 +54,7 @@ jobs:
           retention-days: 30
       - name: Upload Test Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-report
           path: tests/report/latest
