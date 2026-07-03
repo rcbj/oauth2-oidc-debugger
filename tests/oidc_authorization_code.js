@@ -4,6 +4,7 @@ const chrome = require("selenium-webdriver/chrome");
 const jwt = require("jsonwebtoken");
 const assert = require("assert");
 const { Command, Option } = require('commander');
+var appconfig = require(process.env.CONFIG_FILE);
 
 var bunyan = require("bunyan");
 var log = bunyan.createLogger({ name: 'oidc_authorization_code',
@@ -13,7 +14,7 @@ var baseUrl = "http://localhost:3000"
 var logout_post_redirect_uri_value = baseUrl + "/logout.html";
 var headless = true;
 var audience = "http://localhost:8080/realms/debugger-testing";
-var waitTime = 10000;
+var waitTime = appconfig.waitTime;
 
 function decodeJWT(jwt_) {
   return jwt.decode(jwt_, {complete: true});

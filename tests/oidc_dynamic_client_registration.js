@@ -2,6 +2,7 @@ const { Builder, By, until, logging } = require("selenium-webdriver");
 const chrome = require("selenium-webdriver/chrome");
 const assert = require("assert");
 const { Command, Option } = require('commander');
+var appconfig = require(process.env.CONFIG_FILE);
 
 var bunyan = require("bunyan");
 var log = bunyan.createLogger({ name: 'oidc_dynamic_client_registration',
@@ -9,7 +10,7 @@ var log = bunyan.createLogger({ name: 'oidc_dynamic_client_registration',
 log.info("Log initialized. logLevel=" + log.level());
 var baseUrl = "http://localhost:3000"
 var headless = true;
-var waitTime = 10000;
+var waitTime = appconfig.waitTime;
 
 // Drive the OIDC Discovery pane: enter the discovery endpoint, retrieve the
 // metadata, and click "Populate Meta Data". This also fills the Dynamic Client
