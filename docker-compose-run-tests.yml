@@ -1,9 +1,12 @@
 #version: '3'
 services:
   postgres:
-    image: postgres:17
+    image: postgres:18
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # postgres:18+ stores data in a major-version subdirectory and expects the
+      # mount at /var/lib/postgresql (not /var/lib/postgresql/data). See
+      # https://github.com/docker-library/postgres/pull/1259
+      - postgres_data:/var/lib/postgresql
     environment:
       POSTGRES_USER: keycloak
       POSTGRES_PASSWORD: keycloak
@@ -19,7 +22,7 @@ services:
     networks:
       - keycloak
   keycloak:
-    image: quay.io/keycloak/keycloak:26.2.5
+    image: quay.io/keycloak/keycloak:26.6.4
     command: ["start-dev"]
     environment:
       KC_DB: postgres
