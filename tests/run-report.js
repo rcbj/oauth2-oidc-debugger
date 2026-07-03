@@ -152,9 +152,12 @@ function buildJobs() {
       PKCE_ENABLED: "false",
       // The target client whose audience the exchanged token is aimed at.
       AUDIENCE_CLIENT_ID: env.TOKEN_EXCHANGE_TARGET_CLIENT_ID,
-      // The confidential client permitted to call the Introspection Endpoint.
-      INTROSPECTION_CLIENT_ID: env.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_ID,
-      INTROSPECTION_CLIENT_SECRET: env.AUTHORIZATION_CODE_CONFIDENTIAL_CLIENT_SECRET,
+      // Introspect as the target (audience) client. As of Keycloak 26.2 the
+      // introspection endpoint returns {"active": false} unless the
+      // authenticated client is present in the token's "aud" claim, and the
+      // exchanged token is aimed solely at the target client's audience.
+      INTROSPECTION_CLIENT_ID: env.TOKEN_EXCHANGE_TARGET_CLIENT_ID,
+      INTROSPECTION_CLIENT_SECRET: env.TOKEN_EXCHANGE_TARGET_CLIENT_SECRET,
     },
   });
 
