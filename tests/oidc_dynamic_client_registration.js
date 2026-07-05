@@ -6,7 +6,7 @@ var appconfig = require(process.env.CONFIG_FILE);
 
 var bunyan = require("bunyan");
 var log = bunyan.createLogger({ name: 'oidc_dynamic_client_registration',
-                                level: process.env.LOG_LEVEL || 'info' });
+                                level: appconfig.LOG_LEVEL || 'info' });
 log.info("Log initialized. logLevel=" + log.level());
 var baseUrl = "http://localhost:3000"
 var headless = true;
