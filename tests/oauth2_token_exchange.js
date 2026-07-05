@@ -4,14 +4,15 @@ const chrome = require("selenium-webdriver/chrome");
 const jwt = require("jsonwebtoken");
 const assert = require("assert");
 const { Command, Option } = require('commander');
+var appconfig = require(process.env.CONFIG_FILE);
 
 var bunyan = require("bunyan");
 var log = bunyan.createLogger({ name: 'oauth2_token_exchange',
-                                level: process.env.LOG_LEVEL || 'info' });
+                                level: appconfig.LOG_LEVEL || 'info' });
 log.info("Log initialized. logLevel=" + log.level());
 var baseUrl = "http://localhost:3000"
 var headless = true;
-var waitTime = 10000;
+var waitTime = appconfig.waitTime;
 
 async function populateMetadata(driver, discovery_endpoint) {
   oidc_discovery_endpoint = By.id("oidc_discovery_endpoint");

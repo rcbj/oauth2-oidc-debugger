@@ -44,6 +44,9 @@ startDocker()
 runReport()
 {
   export DEBUGGER_BASE_URL
+  # Export so run-report.js (and the test scripts it spawns) can
+  # require(process.env.CONFIG_FILE) for centralized config (e.g. waitTime).
+  export CONFIG_FILE
   node "${NODEJS_BASE_DIR}/run-report.js"
 }
 
