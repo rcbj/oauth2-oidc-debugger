@@ -66,7 +66,7 @@ configureKeycloak()
     -d '{"realm": "debugger-testing", "enabled": true}'
   check_return_code $?
   
-  for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_CONFIDENTIAL AUTHORIZATION_CODE_PUBLIC IMPLICIT OIDC_AUTHORIZATION_CODE_CONFIDENTIAL OIDC_AUTHORIZATION_CODE_PUBLIC RESOURCE_OWNER_CREDENTIAL TOKEN_EXCHANGE_TARGET TOKEN_EXCHANGE DEVICE_AUTHORIZATION_GRANT
+  for FLOW_VARIABLE in CLIENT_CREDENTIALS AUTHORIZATION_CODE_CONFIDENTIAL AUTHORIZATION_CODE_PUBLIC IMPLICIT OIDC_AUTHORIZATION_CODE_CONFIDENTIAL OIDC_AUTHORIZATION_CODE_PUBLIC RESOURCE_OWNER_CREDENTIAL TOKEN_EXCHANGE_TARGET TOKEN_EXCHANGE DEVICE_AUTHORIZATION_GRANT TOKEN_INTROSPECTION
   do
     FLOW_NAME=$(echo ${FLOW_VARIABLE} | tr '[:upper:]' '[:lower:]' | tr '_' '-')
 
@@ -354,6 +354,57 @@ configureKeycloak()
                      "access.token.lifespan": 3600
                    }
                 }'
+            check_return_code $?
+            ;;
+        TOKEN_INTROSPECTION)
+            # Confidential Authorization Code client used by the Token
+            # Introspection test. It is BOTH the client that signs in (via the
+            # OIDC Authorization Code flow, to obtain the tokens) AND the client
+            # that authenticates the RFC 7662 introspection calls. This is
+            # required because Keycloak gates token introspection on the calling
+            # client:
+            #   - Access tokens: the client must be in the token's "aud", so an
+            #     audience mapper adds this client to its own access tokens.
+            #   - Refresh tokens: the client must be the one the token was issued
+            #     to (azp); no audience mapper or role grants cross-client
+            #     refresh-token introspection. A public client cannot call the
+            #     introspection endpoint at all.
+            # A single confidential client that owns the tokens and is in their
+            # audience is therefore the only setup for which all of the debugger's
+            # Introspect Token links report "active": true.
+            curl -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing/clients" \
+              -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "clientId": "'${FLOW_NAME}'",
+                "protocol": "openid-connect",
+                "publicClient": false,
+                "serviceAccountsEnabled": false,
+                "authorizationServicesEnabled": false,
+                "standardFlowEnabled": true,
+                "directAccessGrantsEnabled": false,
+                "clientAuthenticatorType": "client-secret",
+                "frontchannelLogout": true,
+                "redirectUris": ["'${DEBUGGER_BASE_URL}/callback'"],
+                "webOrigins": ["/*", "'${DEBUGGER_BASE_URL}'"],
+                "attributes": {
+                  "frontchannel.logout.url": "'${DEBUGGER_BASE_URL}/logout'",
+                  "post.logout.redirect.uris": "'${DEBUGGER_BASE_URL}/logout.html'",
+                  "access.token.lifespan": 3600
+                },
+                "protocolMappers": [
+                  {
+                    "name": "token-introspection-self-audience",
+                    "protocol": "openid-connect",
+                    "protocolMapper": "oidc-audience-mapper",
+                    "config": {
+                      "included.client.audience": "'${FLOW_NAME}'",
+                      "id.token.claim": "false",
+                      "access.token.claim": "true"
+                    }
+                  }
+                ]
+             }'
             check_return_code $?
             ;;
     esac

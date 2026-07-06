@@ -137,6 +137,37 @@ function buildJobs() {
     },
   });
 
+  // Token Introspection (RFC 7662). Signs in via the OIDC Authorization Code
+  // flow, then exercises all six "Introspect Token" links on the debugger
+  // (initial access/refresh, refresh-call access/refresh, and Token History
+  // access/refresh), confirming each reports the token as active.
+  //
+  // A single confidential client (TOKEN_INTROSPECTION, created in
+  // common/common.sh) is used for BOTH the sign-in and the introspection
+  // calls. Keycloak only returns active=true when the introspecting client is
+  // in an access token's audience AND is the client a refresh token was issued
+  // to, so the same client must own the tokens and introspect them. It carries
+  // a self-audience mapper so its own access tokens introspect as active.
+  jobs.push({
+    name: "OAuth2 Token Introspection (RFC 7662)",
+    script: "token_introspection.js",
+    env: {
+      AUDIENCE: env.TOKEN_INTROSPECTION_AUDIENCE,
+      DISCOVERY_ENDPOINT: env.TOKEN_INTROSPECTION_DISCOVERY_ENDPOINT,
+      CLIENT_ID: env.TOKEN_INTROSPECTION_CLIENT_ID,
+      CLIENT_SECRET: env.TOKEN_INTROSPECTION_CLIENT_SECRET,
+      SCOPE: `openid profile email offline_access ${env.TOKEN_INTROSPECTION_SCOPE || ""}`.trim(),
+      USER: env.TOKEN_INTROSPECTION_USER,
+      // Confidential client, so no PKCE — it authenticates with its secret.
+      PKCE_ENABLED: "false",
+      // Introspect as the same confidential client that obtained the tokens: it
+      // is in its own access tokens' audience and owns its refresh tokens, so
+      // Keycloak reports active=true for both.
+      INTROSPECTION_CLIENT_ID: env.TOKEN_INTROSPECTION_CLIENT_ID,
+      INTROSPECTION_CLIENT_SECRET: env.TOKEN_INTROSPECTION_CLIENT_SECRET,
+    },
+  });
+
   // Token Exchange (RFC 8693). The requesting confidential client obtains a
   // subject token via the auth code flow, exchanges it for a token aimed at the
   // target audience client, and the issued token is confirmed via introspection.
