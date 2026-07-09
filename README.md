@@ -121,7 +121,7 @@ On other systems, the commands needed to start the debugger in a local docker co
 * Enter the Token Endpoint.
 #### OAuth2 AUthorization Grant:
 * Enter the client identifier.
-* Enter the Redirect URI.
+* Enter the Redirect URI (use http://localhost:3000/callback by default)
 * Enter the scope information.
 * If you need to provide a resource parameter, click the radio button.  Then, enter the desired resource parameter.
 * Click the Authorize button.  
@@ -137,7 +137,7 @@ On other systems, the commands needed to start the debugger in a local docker co
 * The standard tokens that are returned from the token endpoint are displayed at the bottom.
 #### OAuth2 Implicit Grant:
 * Enter the client identifier.
-* Enter the Redirect URI.
+* Enter the Redirect URI  (use http://localhost:3000/callback by default)
 * Enter the scope information.
 * If you need to provide a resource parameter, click the radio button.  Then, enter the desired resource parameter.
 * Click the Authorize button.
