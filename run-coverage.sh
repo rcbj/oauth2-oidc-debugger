@@ -10,7 +10,12 @@
 #
 set -x
 
-CONFIG_FILE=./env/local.js
+# The tests run inside the containerized stack (docker-compose-run-tests.yml),
+# so the browser bundles must be built with the in-container hostnames
+# (api:4000 / client:3000). Using local.js here bakes http://localhost:4000
+# into the bundle, which is unreachable from inside the Selenium container and
+# makes every token call fail with status:0.
+CONFIG_FILE=./env/docker-tests.js
 CURRENT_DIR=`echo "$(dirname "$(realpath "$0")")"`
 COMMON_SH=${CURRENT_DIR}/common/common.sh
 if [ -r "${COMMON_SH}" ];

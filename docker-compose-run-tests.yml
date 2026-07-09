@@ -1,12 +1,9 @@
 #version: '3'
 services:
   postgres:
-    image: postgres:18
+    image: postgres:17
     volumes:
-      # postgres:18+ stores data in a major-version subdirectory and expects the
-      # mount at /var/lib/postgresql (not /var/lib/postgresql/data). See
-      # https://github.com/docker-library/postgres/pull/1259
-      - postgres_data:/var/lib/postgresql
+      - postgres_data:/var/lib/postgresql/data
     environment:
       POSTGRES_USER: keycloak
       POSTGRES_PASSWORD: keycloak
