@@ -50,6 +50,39 @@
   color: #333;
 }
 
+/* Compose pane: Header+Payload (left) beside a tall Encoded JWT (right) */
+.jt-compose-top {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  margin-bottom: 8px;
+}
+.jt-compose-left {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.jt-compose-right {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+}
+.jt-compose-right .jt-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  width: 100%;
+}
+.jt-compose-right .jt-field textarea {
+  flex: 1 1 auto;
+  min-height: 120px;
+}
+@media (max-width: 700px) {
+  .jt-compose-top { flex-direction: column; }
+}
+
 .jt-field { margin: 0 0 8px; }
 .jt-field > label {
   display: block;

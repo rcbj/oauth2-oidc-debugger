@@ -32,14 +32,23 @@
   <fieldset id="step_compose">
     <legend>1. Compose</legend>
 
-    <div class="jt-field">
-      <label class="jt-has-copy" title="The JOSE header. Edit freely — the Encoded JWT stays in sync.">JWT Header <button type="button" class="jt-copy" onclick="return jwt_tools.copyField('jwt_tools_header');" title="Copy to clipboard">Copy</button></label>
-      <textarea rows="5" id="jwt_tools_header" name="jwt_tools_header" oninput="return jwt_tools.updateEncoded();"></textarea>
-    </div>
-
-    <div class="jt-field">
-      <label class="jt-has-copy" title="The claims set. Pre-populated with RFC 7519 registered claims and placeholder values.">JWT Payload <button type="button" class="jt-copy" onclick="return jwt_tools.copyField('jwt_tools_payload');" title="Copy to clipboard">Copy</button></label>
-      <textarea rows="9" id="jwt_tools_payload" name="jwt_tools_payload" oninput="return jwt_tools.updateEncoded();"></textarea>
+    <div class="jt-compose-top">
+      <div class="jt-compose-left">
+        <div class="jt-field">
+          <label class="jt-has-copy" title="The JOSE header. Edit freely — the Encoded JWT stays in sync.">JWT Header <button type="button" class="jt-copy" onclick="return jwt_tools.copyField('jwt_tools_header');" title="Copy to clipboard">Copy</button></label>
+          <textarea rows="5" id="jwt_tools_header" name="jwt_tools_header" oninput="return jwt_tools.updateEncoded();"></textarea>
+        </div>
+        <div class="jt-field">
+          <label class="jt-has-copy" title="The claims set. Pre-populated with RFC 7519 registered claims and placeholder values.">JWT Payload <button type="button" class="jt-copy" onclick="return jwt_tools.copyField('jwt_tools_payload');" title="Copy to clipboard">Copy</button></label>
+          <textarea rows="9" id="jwt_tools_payload" name="jwt_tools_payload" oninput="return jwt_tools.updateEncoded();"></textarea>
+        </div>
+      </div>
+      <div class="jt-compose-right">
+        <div class="jt-field">
+          <label class="jt-has-copy" title="The compact-serialized token. Editable: paste a JWT here to decode its header & payload into the fields on the left (and populate the Sign pane if it is signed).">Encoded JWT <button type="button" class="jt-copy" onclick="return jwt_tools.copyField('jwt_tools_encoded');" title="Copy to clipboard">Copy</button></label>
+          <textarea rows="16" id="jwt_tools_encoded" name="jwt_tools_encoded" oninput="return jwt_tools.onEncodedInput();"></textarea>
+        </div>
+      </div>
     </div>
 
     <div class="jt-sub-title">Add Custom Claim</div>
@@ -69,10 +78,6 @@
       <textarea rows="5" id="compliance_output" name="compliance_output" readonly></textarea>
     </div>
 
-    <div class="jt-field">
-      <label title="The compact-serialized token. Unsigned (header.payload.) until you sign or encrypt.">Encoded JWT</label>
-      <textarea rows="4" id="jwt_tools_encoded" name="jwt_tools_encoded" readonly></textarea>
-    </div>
     <input class="jt-status" type="text" id="jwt_tools_sync_status" name="jwt_tools_sync_status" readonly />
   </fieldset>
 

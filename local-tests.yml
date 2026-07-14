@@ -5,7 +5,7 @@
 version: '2.4'
 services:
   postgres:
-    image: postgres:17
+    image: postgres:18
     hostname: postgres
     network_mode: "host" 
     volumes:

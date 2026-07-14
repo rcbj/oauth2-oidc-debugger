@@ -152,6 +152,43 @@ function updateEncoded() {
   return false;
 }
 
+// The Encoded JWT field is editable: when the user pastes/types a token, decode
+// its header and payload into those fields. If it carries a signature (third
+// segment), capture the whole token into the Sign pane's "Signed JWT" and
+// "JWT to Verify" fields. Programmatic setVal() does not fire oninput, so this
+// does not loop with updateEncoded().
+function onEncodedInput() {
+  var encoded = val('jwt_tools_encoded').trim();
+  if (!encoded) {
+    setVal('jwt_tools_sync_status', 'Encoded JWT is empty.');
+    return false;
+  }
+  var parts = encoded.split('.');
+  if (parts.length < 2 || !parts[0] || !parts[1]) {
+    setVal('jwt_tools_sync_status', 'Not a JWT — expected header.payload[.signature].');
+    return false;
+  }
+  try {
+    var header = JSON.parse(b64uToStr(parts[0]));
+    var payload = JSON.parse(b64uToStr(parts[1]));
+    setVal('jwt_tools_header', JSON.stringify(header, null, 2));
+    setVal('jwt_tools_payload', JSON.stringify(payload, null, 2));
+
+    var signature = parts.length >= 3 ? parts[2] : '';
+    if (signature) {
+      // Signed token: hand the whole thing to the Sign pane.
+      setVal('jwt_tools_signed', encoded);
+      setVal('verify_input', encoded);
+      setVal('jwt_tools_sync_status', 'Decoded header & payload; signature captured (populated Signed JWT and JWT to Verify in the Sign pane).');
+    } else {
+      setVal('jwt_tools_sync_status', 'Decoded header & payload (no signature present).');
+    }
+  } catch (e) {
+    setVal('jwt_tools_sync_status', 'Cannot decode JWT: ' + e.message);
+  }
+  return false;
+}
+
 // Add a custom claim to either the Header or the Payload object.
 function addClaim() {
   var name = val('custom_claim_name').trim();
@@ -981,6 +1018,7 @@ window.onload = function () {
 
 module.exports = {
   updateEncoded,
+  onEncodedInput,
   addClaim,
   checkCompliance,
   generateSigningKeys,
