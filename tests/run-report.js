@@ -218,6 +218,16 @@ function buildJobs() {
     },
   });
 
+  // JWT Tools page (client-side only; no IdP needed). Opens the Tools pane on
+  // the debugger, follows the JWT Tools link, adds string/number/boolean claims
+  // and checks RFC compliance, then exercises signing + X.509 verification and
+  // JWE encryption + decryption, including the PEM/JWK format toggle and the
+  // key-download buttons.
+  jobs.push({
+    name: "JWT Tools (compose, sign/verify, encrypt/decrypt)",
+    script: "jwt_tools.js",
+  });
+
   return jobs;
 }
 
