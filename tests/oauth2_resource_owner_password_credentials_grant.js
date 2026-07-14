@@ -15,41 +15,7 @@ var logout_post_redirect_uri_value = baseUrl + "/logout.html";
 var headless = true;
 var waitTime = appconfig.waitTime;
 
-async function populateMetadata(driver, discovery_endpoint) {
-  log.info("Entering populateMetadata().");
-  // Locate the discovery endpoint field and its related buttons
-  log.info("Find oidc_discovery_endpoint.");
-  oidc_discovery_endpoint = By.id("oidc_discovery_endpoint");
-  log.info("Find btn_oidc_discovery_endpoint.");
-  btn_oidc_discovery_endpoint = By.className("btn_oidc_discovery_endpoint");
-  log.info("Find btn_oidc_populate_meta_data.");
-  btn_oidc_populate_meta_data = By.className("btn_oidc_populate_meta_data");
-
-  // Wait until page is loaded
-  log.info("Wait for oidc_discovery_endpoint.");
-  await driver.wait(until.elementLocated(oidc_discovery_endpoint), waitTime);
-  log.info("Wait for oidc_discovery_endpoint.");
-  await driver.wait(until.elementIsVisible(driver.findElement(oidc_discovery_endpoint)), waitTime);
-
-  // Enter discovery endpoint
-  log.info("Find & Clear oidc_discovery_endpoint.");
-  await driver.findElement(oidc_discovery_endpoint).clear();
-  log.info("Find & Send Keys discovery_endpoint.");
-  await driver.findElement(oidc_discovery_endpoint).sendKeys(discovery_endpoint);
-  log.info("Find & Click btn_oidc_discovery_endpoint.");
-  await driver.findElement(btn_oidc_discovery_endpoint).click();
-
-  // Populate metadata
-  log.info("Find btn_oidc_populate_meta_data.");
-  await driver.wait(until.elementLocated(btn_oidc_populate_meta_data), waitTime);
-  log.info("Find btn_oidc_populate_meta_data.");
-  await driver.wait(until.elementIsVisible(driver.findElement(btn_oidc_populate_meta_data)), waitTime);
-  log.info("Execute script.");
-  await driver.executeScript("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", await driver.findElement(btn_oidc_populate_meta_data));
-  log.info("Find & Click btn_oidc_populate_meta_data.");
-  await driver.findElement(btn_oidc_populate_meta_data).click();
-  log.info("Leaving populateMetadata().");
-}
+const { populateMetadata } = require("../common/tests.js")({ By, until, waitTime, log });
 
 async function verifyAccessToken(access_token, client_id, scope, user, audience, issuer) {
   // Helper to confirm every requested scope is present in the token's scopes
