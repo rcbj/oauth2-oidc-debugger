@@ -3,13 +3,29 @@ name: Terraform
 # Runs Terraform inside the same container image used locally
 # (infra/terraform-local.sh). State is remote (S3).
 #
-# Manual dispatch ONLY — deliberately does not run on pull_request, so untrusted
-# PR content is never executed with AWS credentials. Choose environment + action.
+# Triggers:
+#   - workflow_run after "Selenium Tests" succeeds on develop -> automatically
+#     `apply` the TEST environment. On a develop push the pipeline is:
+#     Selenium Tests -> Terraform (this) -> Deploy test.idptools.com.
+#   - workflow_dispatch -> manual run; choose environment (test|prod) and
+#     action (plan|apply), e.g. to apply prod.
 #
-# CI authenticates with static-key secrets (same pattern as the deploy pipeline);
-# local runs use your AWS SSO session.
+# Deliberately NOT triggered on push/pull_request directly: develop changes go
+# through the test suite first, and PR content is never run with credentials.
+#
+# CI authenticates with static-key secrets (same pattern as the deploy
+# pipeline); local runs use your AWS SSO session.
+#
+# NOTE: workflow_run triggers only fire when this workflow file exists on the
+# repository's DEFAULT branch (master). Merge to the default branch for the
+# chain to take effect.
 
 on:
+  # Run after the Selenium Tests suite passes for a develop push.
+  workflow_run:
+    workflows: ["Selenium Tests"]
+    types: [completed]
+    branches: [develop]
   workflow_dispatch:
     inputs:
       environment:
@@ -26,17 +42,39 @@ on:
 permissions:
   contents: read
 
+# Serialize runs per environment so two applies never overlap (in addition to
+# the S3-native state lock). Do not cancel an in-flight apply.
+concurrency:
+  group: terraform-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'test' }}
+  cancel-in-progress: false
+
 jobs:
   terraform:
     runs-on: ubuntu-latest
+    # For a workflow_run trigger, only proceed if the test suite succeeded on
+    # develop. Manual dispatch always proceeds.
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event.workflow_run.conclusion == 'success' &&
+           github.event.workflow_run.head_branch == 'develop') }}
+    # Resolve environment/action from the trigger: the develop chain applies
+    # test; a manual dispatch uses the chosen inputs.
+    env:
+      TF_ENV: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || 'test' }}
+      TF_ACTION: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.action || 'apply' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v5
+        with:
+          # A workflow_run-triggered job checks out the default branch by
+          # default; check out the exact commit the suite ran against. Manual
+          # dispatch uses its own ref.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
 
       - name: Build terraform image
         run: docker build -t idptools-terraform -f infra/Dockerfile .
 
-      - name: Terraform ${{ github.event.inputs.action }} (${{ github.event.inputs.environment }})
+      - name: Terraform ${{ env.TF_ACTION }} (${{ env.TF_ENV }})
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -45,6 +83,6 @@ jobs:
             -e AWS_ACCESS_KEY_ID \
             -e AWS_SECRET_ACCESS_KEY \
             -e AWS_REGION=us-west-2 \
-            -e TF_ENV="${{ github.event.inputs.environment }}" \
-            -e TF_ACTION="${{ github.event.inputs.action }}" \
+            -e TF_ENV="${TF_ENV}" \
+            -e TF_ACTION="${TF_ACTION}" \
             idptools-terraform
