@@ -52,6 +52,7 @@ const BUNDLES = [
   ['logout', 'logout'],
   ['jwt_tools', 'jwt_tools'],
   ['encoding_tools', 'encoding_tools'],
+  ['digital_signature', 'digital_signature'],
 ];
 
 const CALLBACK_HTML = `<!DOCTYPE html>

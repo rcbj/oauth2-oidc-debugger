@@ -251,6 +251,18 @@ function buildJobs() {
     env: {},
   });
 
+  // Digital Signature page. A fully client-side page needing no IdP. For every
+  // pane it sets a value, generates a key pair, signs, confirms the signature
+  // validates, and exercises the keystore-format downloads: SLH-DSA (12 sets);
+  // RSA (PKCS#1 v1.5 & PSS × every hash); ECC (ECDSA over P-256/P-384/P-521/
+  // secp256k1 × every hash, EdDSA Ed25519/Ed448, Schnorr BIP-340, BLS12-381);
+  // and ML-DSA (44/65/87).
+  jobs.push({
+    name: "Digital Signature (SLH-DSA, RSA, ECC, ML-DSA — sign, validate, download)",
+    script: "digital_signature.js",
+    env: {},
+  });
+
   return jobs;
 }
 
