@@ -24,13 +24,19 @@
 
 <p class="ds-return"><a id="return_link" href="/debugger.html">&larr; Return to debugger</a></p>
 
-<p class="ds-intro">Generate key pairs, sign any value, and validate signatures &mdash; all in your browser. Pane 1 uses the post-quantum <strong>SLH-DSA</strong> (FIPS 205, formerly SPHINCS+) scheme; pane 2 uses <strong>RSA</strong> (PKCS#1 v1.5 and PSS); pane 3 uses <strong>ECC</strong> (ECDSA over P-256/P-384/P-521/secp256k1, EdDSA over Ed25519/Ed448, Schnorr over secp256k1, and BLS over BLS12-381); pane 4 uses the post-quantum <strong>ML-DSA</strong> (FIPS 204, formerly CRYSTALS-Dilithium). The RSA and ECDSA panes let you pair the signature with a wide range of hash algorithms &mdash; SHA-2, SHA-3, BLAKE2b, BLAKE3, and the legacy RIPEMD-160 / SHA-1 / MD5. <strong>No key material is stored:</strong> keys live only in this page and are never written to local storage.</p>
+<p class="ds-intro">Generate key pairs, sign any value, and validate signatures &mdash; all in your browser. Pane 1 uses the post-quantum <strong>SLH-DSA</strong> (FIPS 205, formerly SPHINCS+) scheme; pane 2 uses <strong>RSA</strong> (PKCS#1 v1.5 and PSS); pane 3 uses <strong>ECC</strong> (ECDSA over P-256/P-384/P-521/secp256k1, EdDSA over Ed25519/Ed448, Schnorr over secp256k1, and BLS over BLS12-381); pane 4 uses the post-quantum <strong>ML-DSA</strong> (FIPS 204, formerly CRYSTALS-Dilithium). The RSA and ECDSA panes let you pair the signature with a wide range of hash algorithms &mdash; SHA-2, SHA-3, BLAKE2b, BLAKE3, and the legacy RIPEMD-160 / SHA-1 / MD5. Those four panes are <strong>asymmetric</strong> digital signatures; the panes below them are <strong>symmetric MACs</strong> (keyed-hash: HMAC / KMAC / keyed-BLAKE; block-cipher: AES-CMAC / CBC-MAC / GMAC; universal-hash: Poly1305 / SipHash), labelled separately because a MAC uses a shared secret and is <em>not</em> a true digital signature. <strong>No key material is stored:</strong> keys live only in this page and are never written to local storage.</p>
+
+<p class="ds-controls">
+  <input type="button" class="ds-ctl-btn" value="Expand all" onclick="return digital_signature.expandAll();" title="Expand every pane." />
+  <input type="button" class="ds-ctl-btn" value="Collapse all" onclick="return digital_signature.collapseAll();" title="Collapse every pane to its title bar." />
+  <span class="ds-controls-hint">Tip: click a pane's title to collapse/expand it.</span>
+</p>
 
 <div class="ds-grid">
 
   <!-- ===================== SLH-DSA Digital Signature ===================== -->
   <fieldset id="pane_signature">
-    <legend>SLH-DSA Digital Signature</legend>
+    <legend>SLH-DSA Digital Signature <span class="ds-badge ds-asym">Asymmetric</span></legend>
 
     <p class="ds-note" title="SLH-DSA runs entirely in JavaScript in your browser.">&#9203; <strong>Heads up:</strong> SLH-DSA runs entirely in JavaScript, so key generation and especially <em>signing</em> can take several seconds &mdash; the small-signature (<code>s</code>) and 256-bit parameter sets are the slowest. This is expected; give each operation a moment to finish.</p>
 
@@ -98,7 +104,7 @@
 
   <!-- ===================== RSA Digital Signature ===================== -->
   <fieldset id="pane_rsa_signature">
-    <legend>RSA Digital Signature</legend>
+    <legend>RSA Digital Signature <span class="ds-badge ds-asym">Asymmetric</span></legend>
 
     <p class="ds-note" title="These panes use pure-JS crypto, not the Web Crypto API.">Pick a padding scheme and any hash. Hashes marked <em>legacy</em>/<em>insecure</em>/<em>broken</em> are supported for interop/testing only &mdash; don't use them for real signatures. <code>BLAKE2b-512</code> and <code>BLAKE3-256</code> have no PKCS#1 v1.5 identifier, so use <strong>PSS</strong> with them.</p>
 
@@ -182,7 +188,7 @@
 
   <!-- ===================== ECC Digital Signature ===================== -->
   <fieldset id="pane_ecc_signature">
-    <legend>ECC Digital Signature</legend>
+    <legend>ECC Digital Signature <span class="ds-badge ds-asym">Asymmetric</span></legend>
 
     <p class="ds-note" title="These panes use pure-JS crypto, not the Web Crypto API.">ECDSA over any curve can use any hash. EdDSA (Ed25519 / Ed448), Schnorr (BIP-340) and BLS (BLS12-381) hash the message themselves, so the Hash selection is ignored for those. Schnorr and BLS keys export only as hex (no standard JWK). Hashes marked <em>legacy</em>/<em>insecure</em>/<em>broken</em> are for interop/testing only.</p>
 
@@ -263,7 +269,7 @@
 
   <!-- ===================== ML-DSA Digital Signature ===================== -->
   <fieldset id="pane_mldsa_signature">
-    <legend>ML-DSA Digital Signature</legend>
+    <legend>ML-DSA Digital Signature <span class="ds-badge ds-asym">Asymmetric</span></legend>
 
     <p class="ds-note" title="ML-DSA is a lattice scheme — fast, unlike SLH-DSA.">Post-quantum <strong>ML-DSA</strong> (FIPS 204, formerly CRYSTALS-Dilithium). The primary NIST post-quantum signature standard; fast lattice-based signing.</p>
 
@@ -317,6 +323,133 @@
     </div>
 
     <input class="ds-status" type="text" id="ds_ml_status" name="ds_ml_status" title="Status / result of the last operation." readonly />
+  </fieldset>
+
+  <!-- ===================== Keyed-Hash MACs ===================== -->
+  <fieldset id="pane_khmac">
+    <legend>Keyed-Hash MACs <span class="ds-badge ds-sym">Symmetric (MAC)</span></legend>
+    <p class="ds-note" title="A MAC is not a digital signature.">A <strong>MAC</strong> authenticates with a single shared secret &mdash; it proves integrity and origin but gives <em>no non-repudiation</em> (both parties hold the same key), so it is not a digital signature. Compute a tag, or Verify a pasted tag.</p>
+
+    <div class="ds-field">
+      <label class="ds-has-copy" title="The value to MAC, or whose tag you want to verify.">Value <button type="button" class="ds-copy" onclick="return digital_signature.copyField('ds_khmac_value');" title="Copy to clipboard">Copy</button></label>
+      <textarea rows="3" id="ds_khmac_value" name="ds_khmac_value" title="Message to MAC / verify."></textarea>
+    </div>
+    <div class="ds-field">
+      <label class="ds-has-copy" title="The Base64 MAC tag. Produced by Compute MAC; paste one here to Verify.">MAC (Base64) <button type="button" class="ds-copy" onclick="return digital_signature.copyField('ds_khmac_mac');" title="Copy to clipboard">Copy</button></label>
+      <textarea rows="2" id="ds_khmac_mac" name="ds_khmac_mac" title="Base64 MAC tag."></textarea>
+    </div>
+
+    <div class="ds-sub">
+      <div class="ds-sub-title">Secret Key</div>
+      <div class="ds-row">
+        <div class="ds-grow">
+          <label title="HMAC over a hash, Keccak-based KMAC, or a keyed BLAKE hash.">Algorithm</label>
+          <select id="ds_khmac_alg" name="ds_khmac_alg" onchange="return digital_signature.macGenerateKey('khmac');" title="Keyed-hash MAC algorithm.">
+            <option value="HMAC-SHA256" selected="selected">HMAC-SHA256</option>
+            <option value="HMAC-SHA384">HMAC-SHA384</option>
+            <option value="HMAC-SHA512">HMAC-SHA512</option>
+            <option value="HMAC-SHA3-256">HMAC-SHA3-256</option>
+            <option value="HMAC-SHA3-512">HMAC-SHA3-512</option>
+            <option value="HMAC-SHA1">HMAC-SHA1 (insecure)</option>
+            <option value="KMAC128">KMAC128</option>
+            <option value="KMAC256">KMAC256</option>
+            <option value="BLAKE2b">BLAKE2b (keyed)</option>
+            <option value="BLAKE2s">BLAKE2s (keyed)</option>
+            <option value="BLAKE3">BLAKE3 (keyed)</option>
+          </select>
+        </div>
+        <input type="submit" value="Generate Key" onclick="return digital_signature.macGenerateKey('khmac');" title="Generate a random key of a length appropriate to the selected algorithm." />
+      </div>
+      <div class="ds-field">
+        <label class="ds-has-copy" title="Shared secret key, hex. BLAKE3 requires exactly 32 bytes.">Secret Key (hex) <button type="button" class="ds-copy" onclick="return digital_signature.copyField('ds_khmac_key');" title="Copy to clipboard">Copy</button></label>
+        <textarea rows="2" id="ds_khmac_key" name="ds_khmac_key" title="Shared secret key in hex."></textarea>
+      </div>
+    </div>
+
+    <div class="ds-row">
+      <input type="submit" value="Compute MAC" onclick="return digital_signature.macCompute('khmac');" title="Compute the MAC tag over the Value with the Secret Key." />
+      <input type="submit" value="Verify MAC" onclick="return digital_signature.macVerify('khmac');" title="Recompute the tag and compare it to the MAC field." />
+    </div>
+    <input class="ds-status" type="text" id="ds_khmac_status" name="ds_khmac_status" title="Status / result of the last operation." readonly />
+  </fieldset>
+
+  <!-- ===================== Block-Cipher MACs ===================== -->
+  <fieldset id="pane_bcmac">
+    <legend>Block-Cipher MACs <span class="ds-badge ds-sym">Symmetric (MAC)</span></legend>
+    <p class="ds-note" title="A MAC is not a digital signature.">AES-based MACs. <code>AES-CBC-MAC</code> is legacy (insecure for variable-length messages). <code>AES-GMAC</code> here uses a fixed all-zero nonce for a deterministic demo tag &mdash; real GMAC needs a unique nonce per message.</p>
+
+    <div class="ds-field">
+      <label class="ds-has-copy" title="The value to MAC, or whose tag you want to verify.">Value <button type="button" class="ds-copy" onclick="return digital_signature.copyField('ds_bcmac_value');" title="Copy to clipboard">Copy</button></label>
+      <textarea rows="3" id="ds_bcmac_value" name="ds_bcmac_value" title="Message to MAC / verify."></textarea>
+    </div>
+    <div class="ds-field">
+      <label class="ds-has-copy" title="The Base64 MAC tag. Produced by Compute MAC; paste one here to Verify.">MAC (Base64) <button type="button" class="ds-copy" onclick="return digital_signature.copyField('ds_bcmac_mac');" title="Copy to clipboard">Copy</button></label>
+      <textarea rows="2" id="ds_bcmac_mac" name="ds_bcmac_mac" title="Base64 MAC tag."></textarea>
+    </div>
+
+    <div class="ds-sub">
+      <div class="ds-sub-title">Secret Key</div>
+      <div class="ds-row">
+        <div class="ds-grow">
+          <label title="AES block-cipher MAC construction.">Algorithm</label>
+          <select id="ds_bcmac_alg" name="ds_bcmac_alg" onchange="return digital_signature.macGenerateKey('bcmac');" title="Block-cipher MAC algorithm (AES).">
+            <option value="AES-CMAC" selected="selected">AES-CMAC</option>
+            <option value="AES-CBC-MAC">AES-CBC-MAC (legacy)</option>
+            <option value="AES-GMAC">AES-GMAC (fixed nonce)</option>
+          </select>
+        </div>
+        <input type="submit" value="Generate Key" onclick="return digital_signature.macGenerateKey('bcmac');" title="Generate a random AES-256 key (256-bit)." />
+      </div>
+      <div class="ds-field">
+        <label class="ds-has-copy" title="AES key, hex. 16/24/32 bytes (AES-128/192/256).">Secret Key (hex) <button type="button" class="ds-copy" onclick="return digital_signature.copyField('ds_bcmac_key');" title="Copy to clipboard">Copy</button></label>
+        <textarea rows="2" id="ds_bcmac_key" name="ds_bcmac_key" title="AES key in hex (16/24/32 bytes)."></textarea>
+      </div>
+    </div>
+
+    <div class="ds-row">
+      <input type="submit" value="Compute MAC" onclick="return digital_signature.macCompute('bcmac');" title="Compute the MAC tag over the Value with the Secret Key." />
+      <input type="submit" value="Verify MAC" onclick="return digital_signature.macVerify('bcmac');" title="Recompute the tag and compare it to the MAC field." />
+    </div>
+    <input class="ds-status" type="text" id="ds_bcmac_status" name="ds_bcmac_status" title="Status / result of the last operation." readonly />
+  </fieldset>
+
+  <!-- ===================== Universal-Hash MACs ===================== -->
+  <fieldset id="pane_uhmac">
+    <legend>Universal-Hash MACs <span class="ds-badge ds-sym">Symmetric (MAC)</span></legend>
+    <p class="ds-note" title="A MAC is not a digital signature."><code>Poly1305</code> is a <em>one-time</em> authenticator &mdash; its 32-byte key must be unique per message. <code>UMAC</code>, <code>VMAC</code>, and <code>PMAC</code> are not offered: no maintained pure-JS implementation exists.</p>
+
+    <div class="ds-field">
+      <label class="ds-has-copy" title="The value to MAC, or whose tag you want to verify.">Value <button type="button" class="ds-copy" onclick="return digital_signature.copyField('ds_uhmac_value');" title="Copy to clipboard">Copy</button></label>
+      <textarea rows="3" id="ds_uhmac_value" name="ds_uhmac_value" title="Message to MAC / verify."></textarea>
+    </div>
+    <div class="ds-field">
+      <label class="ds-has-copy" title="The Base64 MAC tag. Produced by Compute MAC; paste one here to Verify.">MAC (Base64) <button type="button" class="ds-copy" onclick="return digital_signature.copyField('ds_uhmac_mac');" title="Copy to clipboard">Copy</button></label>
+      <textarea rows="2" id="ds_uhmac_mac" name="ds_uhmac_mac" title="Base64 MAC tag."></textarea>
+    </div>
+
+    <div class="ds-sub">
+      <div class="ds-sub-title">Secret Key</div>
+      <div class="ds-row">
+        <div class="ds-grow">
+          <label title="Universal-hashing MAC.">Algorithm</label>
+          <select id="ds_uhmac_alg" name="ds_uhmac_alg" onchange="return digital_signature.macGenerateKey('uhmac');" title="Universal-hash MAC algorithm.">
+            <option value="Poly1305" selected="selected">Poly1305 (one-time key)</option>
+            <option value="SipHash-2-4">SipHash-2-4</option>
+          </select>
+        </div>
+        <input type="submit" value="Generate Key" onclick="return digital_signature.macGenerateKey('uhmac');" title="Generate a random key (Poly1305 = 32 bytes, SipHash = 16 bytes)." />
+      </div>
+      <div class="ds-field">
+        <label class="ds-has-copy" title="Key, hex. Poly1305 = 32 bytes (one-time), SipHash = 16 bytes.">Secret Key (hex) <button type="button" class="ds-copy" onclick="return digital_signature.copyField('ds_uhmac_key');" title="Copy to clipboard">Copy</button></label>
+        <textarea rows="2" id="ds_uhmac_key" name="ds_uhmac_key" title="Key in hex."></textarea>
+      </div>
+    </div>
+
+    <div class="ds-row">
+      <input type="submit" value="Compute MAC" onclick="return digital_signature.macCompute('uhmac');" title="Compute the MAC tag over the Value with the Secret Key." />
+      <input type="submit" value="Verify MAC" onclick="return digital_signature.macVerify('uhmac');" title="Recompute the tag and compare it to the MAC field." />
+    </div>
+    <input class="ds-status" type="text" id="ds_uhmac_status" name="ds_uhmac_status" title="Status / result of the last operation." readonly />
   </fieldset>
 
 </div>

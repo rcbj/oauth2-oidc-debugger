@@ -252,13 +252,14 @@ function buildJobs() {
   });
 
   // Digital Signature page. A fully client-side page needing no IdP. For every
-  // pane it sets a value, generates a key pair, signs, confirms the signature
-  // validates, and exercises the keystore-format downloads: SLH-DSA (12 sets);
-  // RSA (PKCS#1 v1.5 & PSS × every hash); ECC (ECDSA over P-256/P-384/P-521/
-  // secp256k1 × every hash, EdDSA Ed25519/Ed448, Schnorr BIP-340, BLS12-381);
-  // and ML-DSA (44/65/87).
+  // pane it sets a value, generates a key, produces a signature/MAC, confirms it
+  // validates, and exercises the keystore downloads. Asymmetric: SLH-DSA (12
+  // sets); RSA (v1.5 & PSS × every hash × 2048/3072); ECC (ECDSA over
+  // P-256/384/521/secp256k1 × every hash, EdDSA, Schnorr, BLS); ML-DSA (44/65/87).
+  // Symmetric MACs: keyed-hash (HMAC/KMAC/BLAKE), block-cipher (CMAC/CBC-MAC/
+  // GMAC), universal-hash (Poly1305/SipHash) — compute + verify + tamper check.
   jobs.push({
-    name: "Digital Signature (SLH-DSA, RSA, ECC, ML-DSA — sign, validate, download)",
+    name: "Digital Signature (asymmetric sigs + symmetric MACs — generate, sign/MAC, validate, download)",
     script: "digital_signature.js",
     env: {},
   });

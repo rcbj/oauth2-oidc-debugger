@@ -31,7 +31,11 @@ var nobleSha1 = require("@noble/hashes/sha1").sha1;
 var nobleSha3 = require("@noble/hashes/sha3");
 var nobleRipemd160 = require("@noble/hashes/ripemd160").ripemd160;
 var nobleBlake2b = require("@noble/hashes/blake2b").blake2b;
+var nobleBlake2s = require("@noble/hashes/blake2s").blake2s;
 var nobleBlake3 = require("@noble/hashes/blake3").blake3;
+var nobleHmac = require("@noble/hashes/hmac").hmac;
+var nobleKmac128 = require("@noble/hashes/sha3-addons").kmac128;
+var nobleKmac256 = require("@noble/hashes/sha3-addons").kmac256;
 var log = bunyan.createLogger({ name: 'digital_signature',
                                 level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
@@ -726,6 +730,178 @@ function eccValidate() {
   return false;
 }
 
+// ===========================================================================
+// Symmetric MACs (NOT digital signatures — a MAC uses one shared secret, so it
+// gives integrity + origin but no non-repudiation / public verifiability).
+// Grouped into panes by family: keyed-hash, block-cipher, universal-hash.
+// ===========================================================================
+
+// --- AES single 16-byte block (raw ECB via forge), for CMAC/CBC-MAC ---
+function aesBlock(keyBytes, block16) {
+  var c = forge.cipher.createCipher('AES-ECB', forge.util.createBuffer(forge.util.binary.raw.encode(keyBytes)));
+  c.start(); c.update(forge.util.createBuffer(forge.util.binary.raw.encode(block16))); c.finish();
+  return forge.util.binary.raw.decode(c.output.getBytes()).slice(0, 16);
+}
+function xorBytes(a, b) { var o = new Uint8Array(a.length); for (var i = 0; i < a.length; i++) o[i] = a[i] ^ b[i]; return o; }
+function shl1(b) { var o = new Uint8Array(16), carry = 0; for (var i = 15; i >= 0; i--) { o[i] = ((b[i] << 1) | carry) & 0xff; carry = (b[i] & 0x80) ? 1 : 0; } return o; }
+
+// AES-CMAC (RFC 4493), verified against the RFC test vectors.
+function aesCmac(key, msg) {
+  var Rb = new Uint8Array(16); Rb[15] = 0x87;
+  var L = aesBlock(key, new Uint8Array(16));
+  var K1 = shl1(L); if (L[0] & 0x80) K1 = xorBytes(K1, Rb);
+  var K2 = shl1(K1); if (K1[0] & 0x80) K2 = xorBytes(K2, Rb);
+  var n = Math.ceil(msg.length / 16) || 1;
+  var complete = msg.length > 0 && msg.length % 16 === 0;
+  var last;
+  if (complete) { last = xorBytes(msg.slice((n - 1) * 16), K1); }
+  else { var pad = new Uint8Array(16); var rem = msg.slice((n - 1) * 16); pad.set(rem); pad[rem.length] = 0x80; last = xorBytes(pad, K2); }
+  var x = new Uint8Array(16);
+  for (var i = 0; i < n - 1; i++) x = aesBlock(key, xorBytes(x, msg.slice(i * 16, i * 16 + 16)));
+  return aesBlock(key, xorBytes(x, last));
+}
+
+// AES-CBC-MAC (legacy; zero IV, last block). Insecure for variable-length msgs.
+function aesCbcMac(key, msg) {
+  var n = Math.ceil(msg.length / 16) || 1;
+  var x = new Uint8Array(16);
+  for (var i = 0; i < n; i++) {
+    var blk = new Uint8Array(16); blk.set(msg.slice(i * 16, i * 16 + 16));
+    x = aesBlock(key, xorBytes(x, blk));
+  }
+  return x;
+}
+
+// AES-GMAC via forge GCM (empty plaintext, message as AAD). DEMO NOTE: uses a
+// fixed all-zero nonce for a deterministic key+value->tag; real GMAC needs a
+// unique nonce per message per key.
+function aesGmac(key, msg) {
+  var g = forge.cipher.createCipher('AES-GCM', forge.util.createBuffer(forge.util.binary.raw.encode(key)));
+  g.start({ iv: forge.util.binary.raw.encode(new Uint8Array(12)), additionalData: forge.util.binary.raw.encode(msg), tagLength: 128 });
+  g.finish();
+  return forge.util.binary.raw.decode(g.mode.tag.getBytes()).slice(0, 16);
+}
+
+// Poly1305 (RFC 8439), verified against the RFC vector. One-time authenticator:
+// the 32-byte key MUST be unique per message.
+function poly1305(key, msg) {
+  var P = (BigInt(1) << BigInt(130)) - BigInt(5), M128 = (BigInt(1) << BigInt(128)) - BigInt(1);
+  var r = BigInt(0), i;
+  for (i = 15; i >= 0; i--) r = (r << BigInt(8)) | BigInt(key[i]);
+  r &= BigInt('0x0ffffffc0ffffffc0ffffffc0fffffff');
+  var s = BigInt(0); for (i = 15; i >= 0; i--) s = (s << BigInt(8)) | BigInt(key[16 + i]);
+  var acc = BigInt(0);
+  for (i = 0; i < msg.length; i += 16) {
+    var ch = msg.slice(i, i + 16), n = BigInt(0), j;
+    for (j = ch.length - 1; j >= 0; j--) n = (n << BigInt(8)) | BigInt(ch[j]);
+    n += (BigInt(1) << BigInt(8 * ch.length));
+    acc = ((acc + n) * r) % P;
+  }
+  acc = (acc + s) & M128;
+  var out = new Uint8Array(16); for (i = 0; i < 16; i++) { out[i] = Number(acc & BigInt(0xff)); acc >>= BigInt(8); }
+  return out;
+}
+
+// SipHash-2-4 (reference), verified against the reference vector.
+function siphash24(key, msg) {
+  var M = (BigInt(1) << BigInt(64)) - BigInt(1);
+  function rotl(x, b) { return ((x << BigInt(b)) | (x >> BigInt(64 - b))) & M; }
+  function rd(b, o) { var v = BigInt(0); for (var i = 7; i >= 0; i--) v = (v << BigInt(8)) | BigInt(b[o + i]); return v; }
+  var k0 = rd(key, 0), k1 = rd(key, 8);
+  var v0 = BigInt('0x736f6d6570736575') ^ k0, v1 = BigInt('0x646f72616e646f6d') ^ k1,
+      v2 = BigInt('0x6c7967656e657261') ^ k0, v3 = BigInt('0x7465646279746573') ^ k1;
+  function round() {
+    v0 = (v0 + v1) & M; v1 = rotl(v1, 13); v1 ^= v0; v0 = rotl(v0, 32);
+    v2 = (v2 + v3) & M; v3 = rotl(v3, 16); v3 ^= v2;
+    v0 = (v0 + v3) & M; v3 = rotl(v3, 21); v3 ^= v0;
+    v2 = (v2 + v1) & M; v1 = rotl(v1, 17); v1 ^= v2; v2 = rotl(v2, 32);
+  }
+  var len = msg.length, end = len - (len % 8), off, i;
+  for (off = 0; off < end; off += 8) { var m = rd(msg, off); v3 ^= m; round(); round(); v0 ^= m; }
+  var b = BigInt(len & 0xff) << BigInt(56);
+  for (i = 0; i < (len % 8); i++) b |= BigInt(msg[end + i]) << BigInt(8 * i);
+  v3 ^= b; round(); round(); v0 ^= b;
+  v2 ^= BigInt(0xff); round(); round(); round(); round();
+  var outv = (v0 ^ v1 ^ v2 ^ v3) & M;
+  var o = new Uint8Array(8); for (i = 0; i < 8; i++) { o[i] = Number(outv & BigInt(0xff)); outv >>= BigInt(8); }
+  return o;
+}
+
+// MAC registry. fn(keyBytes, msgBytes) -> tag bytes; keyBytes = length to
+// generate with "Generate Key".
+var MACS = {
+  // Keyed-hash family
+  'HMAC-SHA256':  { fn: function (k, m) { return nobleHmac(nobleSha256, k, m); },        keyBytes: 32 },
+  'HMAC-SHA384':  { fn: function (k, m) { return nobleHmac(nobleSha512.sha384, k, m); }, keyBytes: 48 },
+  'HMAC-SHA512':  { fn: function (k, m) { return nobleHmac(nobleSha512.sha512, k, m); }, keyBytes: 64 },
+  'HMAC-SHA3-256':{ fn: function (k, m) { return nobleHmac(nobleSha3.sha3_256, k, m); }, keyBytes: 32 },
+  'HMAC-SHA3-512':{ fn: function (k, m) { return nobleHmac(nobleSha3.sha3_512, k, m); }, keyBytes: 64 },
+  'HMAC-SHA1':    { fn: function (k, m) { return nobleHmac(nobleSha1, k, m); },          keyBytes: 20 }, // insecure
+  'KMAC128':      { fn: function (k, m) { return nobleKmac128(k, m, { dkLen: 32 }); },   keyBytes: 32 },
+  'KMAC256':      { fn: function (k, m) { return nobleKmac256(k, m, { dkLen: 64 }); },   keyBytes: 32 },
+  'BLAKE2b':      { fn: function (k, m) { return nobleBlake2b(m, { key: k }); },         keyBytes: 32 },
+  'BLAKE2s':      { fn: function (k, m) { return nobleBlake2s(m, { key: k }); },         keyBytes: 32 },
+  'BLAKE3':       { fn: function (k, m) { return nobleBlake3(m, { key: k }); },          keyBytes: 32 }, // key must be 32B
+  // Block-cipher family (AES)
+  'AES-CMAC':     { fn: function (k, m) { return aesCmac(k, m); },                       keyBytes: 32 },
+  'AES-CBC-MAC':  { fn: function (k, m) { return aesCbcMac(k, m); },                     keyBytes: 32 }, // legacy
+  'AES-GMAC':     { fn: function (k, m) { return aesGmac(k, m); },                       keyBytes: 32 },
+  // Universal-hash family
+  'Poly1305':     { fn: function (k, m) { return poly1305(k, m); },                      keyBytes: 32 }, // one-time key
+  'SipHash-2-4':  { fn: function (k, m) { return siphash24(k, m); },                     keyBytes: 16 }
+};
+
+// Pane handlers — one set, parameterized by pane prefix (khmac/bcmac/uhmac).
+function macGenerateKey(prefix) {
+  var alg = val('ds_' + prefix + '_alg'), mac = MACS[alg];
+  if (!mac) { setVal('ds_' + prefix + '_status', 'Unknown MAC: ' + alg); return false; }
+  setVal('ds_' + prefix + '_key', bytesToHex(randomBytes(mac.keyBytes)));
+  setVal('ds_' + prefix + '_status', 'Generated ' + (mac.keyBytes * 8) + '-bit key for ' + alg + '.');
+  return false;
+}
+function macCompute(prefix) {
+  var alg = val('ds_' + prefix + '_alg');
+  try {
+    var mac = MACS[alg]; if (!mac) throw new Error('Unknown MAC: ' + alg);
+    var tag = mac.fn(hexToBytes(val('ds_' + prefix + '_key')), strBytes(val('ds_' + prefix + '_value')));
+    setVal('ds_' + prefix + '_mac', bytesToB64(tag));
+    setVal('ds_' + prefix + '_status', 'Computed ' + alg + ' — ' + tag.length + '-byte tag.');
+  } catch (e) {
+    log.error('macCompute: ' + e.message);
+    setVal('ds_' + prefix + '_status', 'MAC error: ' + e.message + ' (check the key length for this algorithm).');
+  }
+  return false;
+}
+function macVerify(prefix) {
+  var alg = val('ds_' + prefix + '_alg');
+  try {
+    var mac = MACS[alg]; if (!mac) throw new Error('Unknown MAC: ' + alg);
+    var tag = mac.fn(hexToBytes(val('ds_' + prefix + '_key')), strBytes(val('ds_' + prefix + '_value')));
+    var ok = bytesEqual(tag, b64ToBytes(val('ds_' + prefix + '_mac')));
+    setVal('ds_' + prefix + '_status', ok
+      ? 'MAC VALID ✓ — recomputed tag matches the value and key.'
+      : 'MAC INVALID ✗ — the tag does not match.');
+  } catch (e) {
+    log.error('macVerify: ' + e.message);
+    setVal('ds_' + prefix + '_status', 'Verify error: ' + e.message);
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Collapse / expand all panes.
+// ---------------------------------------------------------------------------
+function setAllCollapsed(collapsed) {
+  var panes = document.querySelectorAll('.ds-grid > fieldset');
+  for (var i = 0; i < panes.length; i++) {
+    if (collapsed) panes[i].classList.add('ds-collapsed');
+    else panes[i].classList.remove('ds-collapsed');
+  }
+  return false;
+}
+function expandAll() { return setAllCollapsed(false); }
+function collapseAll() { return setAllCollapsed(true); }
+
 // ---------------------------------------------------------------------------
 // Copy a field's contents to the clipboard.
 // ---------------------------------------------------------------------------
@@ -759,6 +935,16 @@ window.onload = function () {
   setVal('ds_rsa_value', 'Sign me with RSA!');
   setVal('ds_ecc_value', 'Sign me with ECC!');
   setVal('ds_ml_value', 'Sign me with ML-DSA!');
+  // Symmetric MAC panes: seed a value and an initial random key.
+  setVal('ds_khmac_value', 'MAC me with a keyed hash!'); macGenerateKey('khmac');
+  setVal('ds_bcmac_value', 'MAC me with a block cipher!'); macGenerateKey('bcmac');
+  setVal('ds_uhmac_value', 'MAC me with a universal hash!'); macGenerateKey('uhmac');
+
+  // Make each pane collapsible: clicking its legend toggles the fieldset.
+  var legends = document.querySelectorAll('.ds-grid > fieldset > legend');
+  for (var i = 0; i < legends.length; i++) {
+    legends[i].addEventListener('click', function () { this.parentNode.classList.toggle('ds-collapsed'); });
+  }
 };
 
 module.exports = {
@@ -778,5 +964,10 @@ module.exports = {
   mldsaDownloadKeys,
   mldsaSign,
   mldsaValidate,
+  macGenerateKey,
+  macCompute,
+  macVerify,
+  expandAll,
+  collapseAll,
   copyField
 };

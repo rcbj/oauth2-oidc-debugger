@@ -37,6 +37,14 @@ var ML_PARAMS = ['ML-DSA-44', 'ML-DSA-65', 'ML-DSA-87'];
 // via their parameter set / curve. Two common sizes (3072 keygen is the slower,
 // pure-JS one); 4096 is available in the app but omitted here to bound runtime.
 var RSA_KEY_SIZES = ['2048', '3072'];
+// Symmetric MAC panes (prefix + algorithms), grouped by family.
+var MAC_FAMILIES = [
+  { name: 'Keyed-Hash MACs', prefix: 'khmac',
+    algs: ['HMAC-SHA256', 'HMAC-SHA384', 'HMAC-SHA512', 'HMAC-SHA3-256', 'HMAC-SHA3-512',
+           'HMAC-SHA1', 'KMAC128', 'KMAC256', 'BLAKE2b', 'BLAKE2s', 'BLAKE3'] },
+  { name: 'Block-Cipher MACs', prefix: 'bcmac', algs: ['AES-CMAC', 'AES-CBC-MAC', 'AES-GMAC'] },
+  { name: 'Universal-Hash MACs', prefix: 'uhmac', algs: ['Poly1305', 'SipHash-2-4'] }
+];
 
 // ===========================================================================
 // UI helpers
@@ -72,6 +80,10 @@ async function selectValue(driver, id, value) {
 // "digital_signature." prefix so e.g. "sign" does not also match "rsaSign".
 function onclickBtn(fn) {
   return By.xpath("//input[contains(@onclick, \"digital_signature." + fn + "(\")]");
+}
+// MAC buttons pass a pane prefix, e.g. digital_signature.macCompute('khmac').
+function macBtn(fn, prefix) {
+  return By.xpath("//input[contains(@onclick, \"digital_signature." + fn + "('" + prefix + "')\")]");
 }
 
 // Generate a key pair for a pane and wait until both key fields populate.
@@ -197,6 +209,51 @@ async function testMldsa(driver) {
   }
 }
 
+// Symmetric MAC panes: for every algorithm, generate a key, compute a tag, and
+// verify it (positive). For the first algorithm in each family, also confirm a
+// modified value fails verification (tamper / negative).
+async function testMacs(driver) {
+  for (var f = 0; f < MAC_FAMILIES.length; f++) {
+    var fam = MAC_FAMILIES[f];
+    log.info("=== Symmetric " + fam.name + " — " + fam.algs.length + " algorithm(s) ===");
+    for (var a = 0; a < fam.algs.length; a++) {
+      var alg = fam.algs[a], label = fam.name + " / " + alg;
+      // Selecting the algorithm auto-generates a key (onchange); click the
+      // button too to exercise it explicitly.
+      await selectValue(driver, 'ds_' + fam.prefix + '_alg', alg);
+      await click(driver, macBtn('macGenerateKey', fam.prefix));
+      await waitForValue(driver, By.id('ds_' + fam.prefix + '_key'),
+        function (v) { return v.trim().length > 0; }, "[" + label + "] key was not generated.", cryptoWait);
+
+      await setInput(driver, By.id('ds_' + fam.prefix + '_value'),
+        "MAC test :: " + alg + " :: " + new Date().toISOString());
+      await driver.findElement(By.id('ds_' + fam.prefix + '_mac')).clear();
+      await click(driver, macBtn('macCompute', fam.prefix));
+      var tag = await waitForValue(driver, By.id('ds_' + fam.prefix + '_mac'),
+        function (v) { return v.trim().length > 0; }, "[" + label + "] MAC tag was not produced.", cryptoWait);
+
+      await click(driver, macBtn('macVerify', fam.prefix));
+      var st = await waitForValue(driver, By.id('ds_' + fam.prefix + '_status'),
+        function (v) { return v.indexOf("✓") !== -1 || v.indexOf("✗") !== -1; },
+        "[" + label + "] verify did not complete.", cryptoWait);
+      assert.ok(st.indexOf("VALID ✓") !== -1, "[" + label + "] MAC did not validate. Status: " + st);
+      log.info("[" + label + "] OK — tag (" + tag.length + " b64 chars) verified.");
+
+      if (a === 0) {
+        // Tamper: change the value, re-verify against the old tag -> INVALID.
+        await setInput(driver, By.id('ds_' + fam.prefix + '_value'), "tampered — different message");
+        await click(driver, macBtn('macVerify', fam.prefix));
+        var st2 = await waitForValue(driver, By.id('ds_' + fam.prefix + '_status'),
+          function (v) { return v.indexOf("✓") !== -1 || v.indexOf("✗") !== -1; },
+          "[" + label + " tamper] verify did not complete.", cryptoWait);
+        assert.ok(st2.indexOf("INVALID ✗") !== -1,
+          "[" + label + " tamper] expected INVALID, got: " + st2);
+        log.info("[" + label + " tamper] correctly rejected.");
+      }
+    }
+  }
+}
+
 // Select a keystore format, optionally set a password, click Download Keys, and
 // assert the status line reports the expected outcome. (Consistent with the
 // jwt_tools test, this verifies the reported result — not the file on disk.)
@@ -270,10 +327,14 @@ async function digitalSignatureActivities(driver) {
   await waitForValue(driver, By.id("ds_value"), function (v) { return v.length > 0; },
     "Digital Signature page did not load / defaults not populated.");
 
+  // Panes are collapsible; expand them all so every field is visible/interactable.
+  await click(driver, onclickBtn("expandAll"));
+
   await testSlhDsa(driver);
   await testRsa(driver);
   await testEcc(driver);
   await testMldsa(driver);
+  await testMacs(driver);
   await testDownloads(driver);
 }
 

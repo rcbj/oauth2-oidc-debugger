@@ -51,6 +51,32 @@
   color: #333;
 }
 
+/* Expand-all / collapse-all control row. */
+.ds-controls { margin: 0 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ds-ctl-btn { font-size: 0.78em; padding: 3px 10px; cursor: pointer; }
+.ds-controls-hint { font-size: 0.72em; color: #777; }
+
+/* Collapsible panes — click a legend to collapse/expand its fieldset. */
+.ds-grid legend { cursor: pointer; user-select: none; }
+.ds-grid legend::before { content: "\25be\00a0"; color: #666; font-size: 0.9em; } /* down triangle */
+.ds-grid fieldset.ds-collapsed legend::before { content: "\25b8\00a0"; }            /* right triangle */
+.ds-grid fieldset.ds-collapsed > *:not(legend) { display: none; }
+.ds-grid fieldset.ds-collapsed { padding-bottom: 4px; }
+
+/* Asymmetric / Symmetric badge on each pane legend */
+.ds-badge {
+  font-size: 0.62em;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  vertical-align: middle;
+  margin-left: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.ds-asym { background: #e6f0ff; color: #1b4b8f; border: 1px solid #b9d3f2; }
+.ds-sym  { background: #f3e9ff; color: #5a2a8f; border: 1px solid #d8bef0; }
+
 /* In-pane performance note (SLH-DSA) */
 .ds-note {
   font-size: 0.72em;

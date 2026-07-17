@@ -394,20 +394,30 @@ SHA hashing uses the Web Crypto API (`crypto.subtle.digest`), which is only avai
 * **No persistence** — all values live only in the page for the current session.
 
 ## Digital Signature
-The **Digital Signature** page (`/digital_signature.html`) is a standalone, browser-only workbench for generating key pairs, signing arbitrary values, and validating signatures across classical, elliptic-curve, and post-quantum schemes.
+The **Digital Signature** page (`/digital_signature.html`) is a standalone, browser-only workbench for generating keys, signing/MACing arbitrary values, and validating them across classical, elliptic-curve, and post-quantum signature schemes — plus symmetric MACs.
 
-**All cryptography runs in your browser** using pure-JavaScript libraries — [node-forge](https://github.com/digitalbazaar/forge) (RSA), [`@noble/curves`](https://github.com/paulmillr/noble-curves) (ECC), and [`@noble/post-quantum`](https://github.com/paulmillr/noble-post-quantum) (SLH-DSA / ML-DSA). Signing deliberately does **not** use the Web Crypto API: `crypto.subtle` supports only the SHA family, whereas these panes let you pair RSA/ECDSA with a wide range of hashes. **No key material is stored:** keys live only in this page and are never written to local storage.
+**All cryptography runs in your browser** using pure-JavaScript libraries — [node-forge](https://github.com/digitalbazaar/forge) (RSA, AES), [`@noble/curves`](https://github.com/paulmillr/noble-curves) (ECC), [`@noble/post-quantum`](https://github.com/paulmillr/noble-post-quantum) (SLH-DSA / ML-DSA), and [`@noble/hashes`](https://github.com/paulmillr/noble-hashes) (hashes, HMAC, KMAC, keyed BLAKE). Signing deliberately does **not** use the Web Crypto API: `crypto.subtle` supports only the SHA family, whereas these panes let you pair RSA/ECDSA with a wide range of hashes. **No key material is stored:** keys live only in this page and are never written to local storage.
 
-Reach it from the **Tools** pane on `debugger.html` or `debugger2.html`, or browse directly to `/digital_signature.html`. Every field has a **Copy** button and a hover tooltip, and the "← Return to debugger" link goes back to whichever page you came from.
+Reach it from the **Tools** pane on `debugger.html` or `debugger2.html`, or browse directly to `/digital_signature.html`. Every field has a **Copy** button and a hover tooltip, and the "← Return to debugger" link goes back to whichever page you came from. Each pane is **collapsible** — click its title to collapse/expand it, or use the **Expand all** / **Collapse all** buttons at the top — to save screen space on this long page.
 
-The page is four panes, one per algorithm family:
+Each pane carries an **Asymmetric** or **Symmetric (MAC)** badge. The asymmetric panes are true digital signatures (public/private key pair, non-repudiation); the symmetric panes are **MACs** — a shared secret gives integrity + origin but **no** non-repudiation or public verifiability, so a MAC is *not* a digital signature.
+
+**Asymmetric — digital signatures:**
 
 | Pane | Scheme | Algorithms |
 |---|---|---|
-| **#1** | SLH-DSA (FIPS 205, post-quantum) | 12 parameter sets (SHA2/SHAKE × 128/192/256 × s/f) |
-| **#2** | RSA | PKCS#1 v1.5 & PSS, any hash |
-| **#3** | ECC | ECDSA (P-256/384/521, secp256k1) any hash; EdDSA (Ed25519/Ed448); Schnorr (BIP-340); BLS (BLS12-381) |
-| **#4** | ML-DSA (FIPS 204, post-quantum) | ML-DSA-44 / 65 / 87 |
+| SLH-DSA (FIPS 205, post-quantum) | hash-based | 12 parameter sets (SHA2/SHAKE × 128/192/256 × s/f) |
+| RSA | PKCS#1 v1.5 & PSS, any hash | 2048/3072/4096/1024-bit keys |
+| ECC | ECDSA (P-256/384/521, secp256k1) any hash; EdDSA (Ed25519/Ed448); Schnorr (BIP-340); BLS (BLS12-381) | |
+| ML-DSA (FIPS 204, post-quantum) | lattice-based | ML-DSA-44 / 65 / 87 |
+
+**Symmetric — MACs:**
+
+| Pane | Family | Algorithms |
+|---|---|---|
+| Keyed-Hash MACs | keyed hashing | HMAC (SHA-256/384/512, SHA3-256/512, SHA-1); KMAC128/256; keyed BLAKE2b/BLAKE2s/BLAKE3 |
+| Block-Cipher MACs | AES | AES-CMAC; AES-CBC-MAC (legacy); AES-GMAC (fixed-nonce demo) |
+| Universal-Hash MACs | universal hashing | Poly1305 (one-time key); SipHash-2-4 |
 
 ### Common layout
 Every pane has the same controls:
@@ -452,6 +462,15 @@ Keys are shown as raw hex. Signatures are Base64.
 ### Pane #4 — ML-DSA
 Post-quantum, lattice-based signatures (FIPS 204, formerly CRYSTALS-Dilithium) — the primary NIST post-quantum signature standard. Choose `ML-DSA-44`, `65`, or `87`, Generate Keys, then Sign / Validate. Unlike SLH-DSA, signing is fast.
 
+### Symmetric MAC panes
+Three panes (badged **Symmetric (MAC)**) authenticate with a single shared secret. Each has a Value box, a MAC (Base64) box, an algorithm dropdown, a Secret Key (hex) field with **Generate Key** (which sizes the key to the algorithm; changing the algorithm re-generates it), and **Compute MAC** / **Verify MAC** buttons. *Verify* recomputes the tag over the current value + key and compares it to the MAC box.
+
+* **Keyed-Hash MACs** — HMAC over SHA-256/384/512, SHA3-256/512, or SHA-1 (insecure); KMAC128/256; and keyed BLAKE2b / BLAKE2s / BLAKE3 (BLAKE3 needs a 32-byte key).
+* **Block-Cipher MACs** — AES-CMAC (RFC 4493); AES-CBC-MAC (legacy — insecure for variable-length messages); AES-GMAC (uses a fixed all-zero nonce here for a deterministic demo tag; real GMAC needs a unique nonce per message).
+* **Universal-Hash MACs** — Poly1305 (RFC 8439; a *one-time* authenticator — its 32-byte key must be unique per message) and SipHash-2-4. **UMAC, VMAC, and PMAC are not offered** — no maintained pure-JS implementation exists.
+
+The hand-rolled/derived MACs (CMAC, GMAC, Poly1305, SipHash) are verified against their official test vectors (RFC 4493, Node/OpenSSL, RFC 8439, and the SipHash reference).
+
 ### Keystore download support
 An optional password encrypts the private material: PBES2 for PEM/DER (RSA), a PBES2 JWE for JWK, and native for PKCS#12. Not every key type supports every format — unsupported combinations report a clear status message rather than emit a broken file:
 
@@ -463,10 +482,11 @@ An optional password encrypts the private material: PBES2 for PEM/DER (RSA), a P
 | SLH-DSA / ML-DSA | ✓ (raw, unencrypted) | ✗ | ✓ | ✗ |
 
 ### Notes & limitations
+* **Signatures vs MACs** — the asymmetric panes are digital signatures (non-repudiation, public verifiability); the symmetric MAC panes use a shared secret and provide neither, so they are *not* signatures despite living on the same page. They're grouped and badged separately.
 * **Pure JS, not Web Crypto** — chosen so RSA/ECDSA can use non-SHA hashes. (PBES2 for JWK password protection does use Web Crypto, which is fine — it's unrelated to the signing hash.)
-* **Interoperability** — standard combinations (RSA/ECDSA with SHA-2/SHA-3, EdDSA) verify against other tools; exotic ones (RIPEMD-160, BLAKE2b, BLAKE3, some curve+hash pairings) may not be accepted elsewhere, as they go beyond the JOSE/PKIX registries.
-* **Not offered** (no maintained pure-JS/CJS support): Falcon/FN-DSA, finite-field DSA, Brainpool curves, SM2, GOST.
-* **No persistence** — keys and signatures live only in the page for the current session.
+* **Interoperability** — standard combinations (RSA/ECDSA with SHA-2/SHA-3, EdDSA, HMAC/KMAC) verify against other tools; exotic ones (RIPEMD-160, BLAKE2b, BLAKE3, keyed-BLAKE MACs, some curve+hash pairings) may not be accepted elsewhere, as they go beyond the JOSE/PKIX registries.
+* **Not offered** (no maintained pure-JS/CJS support): Falcon/FN-DSA, finite-field DSA, Brainpool curves, SM2, GOST (signatures); UMAC, VMAC, PMAC (MACs).
+* **No persistence** — keys, signatures, and MACs live only in the page for the current session.
 
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
