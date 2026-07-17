@@ -51,6 +51,7 @@ const BUNDLES = [
   ['introspection', 'introspection'],
   ['logout', 'logout'],
   ['jwt_tools', 'jwt_tools'],
+  ['encoding_tools', 'encoding_tools'],
 ];
 
 const CALLBACK_HTML = `<!DOCTYPE html>

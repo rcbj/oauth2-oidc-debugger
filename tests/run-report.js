@@ -239,6 +239,18 @@ function buildJobs() {
     },
   });
 
+  // Encoding / Hashing Tools page. A fully client-side page needing no IdP:
+  // opens it from the debugger Tools pane, confirms the on-load defaults, then
+  // exercises every button — Base64 Encode/Decode (verifying the decoded value
+  // round-trips to the original), URI Encode/Decode, the one-way CRC-32
+  // Checksum, and SHA hashing across all four digest sizes — validating each
+  // output against an independently computed reference value.
+  jobs.push({
+    name: "Encoding / Hashing Tools (Base64, URI, CRC-32, SHA)",
+    script: "encoding_tools.js",
+    env: {},
+  });
+
   return jobs;
 }
 
