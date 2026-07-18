@@ -67,6 +67,13 @@ echo "==> Syncing dist/ -> s3://${S3_BUCKET} (region ${AWS_REGION})"
 # read is granted by the bucket policy, not per-object ACLs.
 aws s3 sync dist "s3://${S3_BUCKET}" --delete --region "${AWS_REGION}"
 
+# The claim-registry object has no file extension, so `s3 sync` gives it a
+# generic content-type. Serve it as XML (cosmetic — the client fetches it with
+# response.text() — but correct for anything inspecting the type).
+echo "==> Setting content-type on claimdescription"
+aws s3 cp "s3://${S3_BUCKET}/claimdescription" "s3://${S3_BUCKET}/claimdescription" \
+  --metadata-directive REPLACE --content-type "application/xml" --region "${AWS_REGION}"
+
 echo "==> Invalidating CloudFront distribution ${CLOUDFRONT_DISTRIBUTION_ID}"
 aws cloudfront create-invalidation \
   --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
