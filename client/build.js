@@ -97,6 +97,17 @@ fs.mkdirSync(path.join(DIST, 'js'), { recursive: true });
 log('copying public/ -> dist/');
 fs.cpSync(PUBLIC, DIST, { recursive: true });
 
+// 2b. Ship the IANA JWT claim registry as a static object at /claimdescription.
+//     On api-backed deployments Express serves GET /claimdescription from
+//     api/jwt.xml; the static site has no backend, so the client's fetch of
+//     appconfig.apiUrl + "/claimdescription" (apiUrl == the site's own origin
+//     here) 404s. Emit the same bytes at that exact path so claim descriptions
+//     resolve. The client reads it via response.text() + DOMParser, so the
+//     object's content-type does not matter for parsing.
+const CLAIM_XML_SRC = path.join(CLIENT_DIR, '..', 'api', 'jwt.xml');
+log('copying api/jwt.xml -> dist/claimdescription');
+fs.copyFileSync(CLAIM_XML_SRC, path.join(DIST, 'claimdescription'));
+
 // 3. Bundle. debugger2 requires('./data.js'), so stage common/data.js into src/
 //    (the Docker build does the same COPY). Removed again afterward.
 const stagedData = path.join(SRC, 'data.js');

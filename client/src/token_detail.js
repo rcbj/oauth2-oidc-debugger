@@ -8,7 +8,11 @@
 var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var $ = require("jquery");
-const { DOMParser } = require('xmldom');
+// DOMParser is the browser-native global here (token_detail runs only in the
+// browser). Do not bundle an xmldom implementation: besides being redundant,
+// strict parsers throw on the non-XML body returned when /claimdescription is
+// absent (e.g. the static site), which would break JWT payload rendering. The
+// native parser is lenient and simply yields no <record> elements in that case.
 var log = bunyan.createLogger({ name: 'token_detail',
                                 level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
