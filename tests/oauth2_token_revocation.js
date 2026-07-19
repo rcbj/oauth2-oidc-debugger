@@ -30,7 +30,6 @@ function isStaticContentSite(url) {
   }
 }
 
-
 // Drive the new Token Revocation pane: click the "Revoke Token" button rendered
 // next to the token of the given type (which populates the pane AND submits the
 // revocation in one action), then wait for the results pane to report a
