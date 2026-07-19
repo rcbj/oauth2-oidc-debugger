@@ -50,6 +50,9 @@ const BUNDLES = [
   ['userinfo', 'userinfo'],
   ['introspection', 'introspection'],
   ['logout', 'logout'],
+  ['jwt_tools', 'jwt_tools'],
+  ['encoding_tools', 'encoding_tools'],
+  ['digital_signature', 'digital_signature'],
 ];
 
 const CALLBACK_HTML = `<!DOCTYPE html>
@@ -93,6 +96,17 @@ fs.mkdirSync(path.join(DIST, 'js'), { recursive: true });
 // 2. Copy static assets
 log('copying public/ -> dist/');
 fs.cpSync(PUBLIC, DIST, { recursive: true });
+
+// 2b. Ship the IANA JWT claim registry as a static object at /claimdescription.
+//     On api-backed deployments Express serves GET /claimdescription from
+//     api/jwt.xml; the static site has no backend, so the client's fetch of
+//     appconfig.apiUrl + "/claimdescription" (apiUrl == the site's own origin
+//     here) 404s. Emit the same bytes at that exact path so claim descriptions
+//     resolve. The client reads it via response.text() + DOMParser, so the
+//     object's content-type does not matter for parsing.
+const CLAIM_XML_SRC = path.join(CLIENT_DIR, '..', 'api', 'jwt.xml');
+log('copying api/jwt.xml -> dist/claimdescription');
+fs.copyFileSync(CLAIM_XML_SRC, path.join(DIST, 'claimdescription'));
 
 // 3. Bundle. debugger2 requires('./data.js'), so stage common/data.js into src/
 //    (the Docker build does the same COPY). Removed again afterward.
@@ -146,6 +160,25 @@ function resolveIncludes(dir) {
   }
 }
 resolveIncludes(DIST);
+
+// 4b. Stamp the current year into the copyright notice. The {{YEAR}} placeholder
+//     ships in the footer partial (now inlined into every page above) and in the
+//     error pages. Done at build time so each build/deploy refreshes the year.
+//     server.js does the same substitution at request time for the local build.
+const YEAR = String(new Date().getFullYear());
+function stampYear(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) { stampYear(full); continue; }
+    if (!entry.name.endsWith('.html')) continue;
+    const html = fs.readFileSync(full, 'utf8');
+    if (!html.includes('{{YEAR}}')) continue;
+    fs.writeFileSync(full, html.split('{{YEAR}}').join(YEAR));
+    log('stamped year in ' + path.relative(DIST, full));
+  }
+}
+log('stamping copyright year ' + YEAR);
+stampYear(DIST);
 
 // 5. Inject Google Analytics into each page's <head> (hosted build only)
 if (GA_MEASUREMENT_ID) {

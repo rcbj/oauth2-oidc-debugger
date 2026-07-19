@@ -3,11 +3,17 @@ name: Terraform
 # Runs Terraform inside the same container image used locally
 # (infra/terraform-local.sh). State is remote (S3).
 #
-# Manual dispatch ONLY — deliberately does not run on pull_request, so untrusted
-# PR content is never executed with AWS credentials. Choose environment + action.
+# Manual dispatch ONLY: choose environment (test|prod) and action (plan|apply),
+# e.g. to apply prod, or plan/apply test on demand.
 #
-# CI authenticates with static-key secrets (same pattern as the deploy pipeline);
-# local runs use your AWS SSO session.
+# The AUTOMATIC develop pipeline (apply TEST infra, then deploy the test site)
+# lives in the "Deploy Static Site (test.idptools.com)" workflow, which runs
+# terraform + deploy as ordered jobs after the Selenium Tests suite passes.
+# Terraform is NOT auto-run here on develop: doing so would apply the TEST state
+# concurrently with that workflow's terraform job, and the two would race for
+# the S3 state lock (one wins, the other fails with 412 PreconditionFailed).
+#
+# CI authenticates with static-key secrets; local runs use your AWS SSO session.
 
 on:
   workflow_dispatch:
@@ -26,9 +32,18 @@ on:
 permissions:
   contents: read
 
+# Serialize runs per environment so two applies never overlap (in addition to
+# the S3-native state lock). Do not cancel an in-flight apply.
+concurrency:
+  group: terraform-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
 jobs:
   terraform:
     runs-on: ubuntu-latest
+    env:
+      TF_ENV: ${{ github.event.inputs.environment }}
+      TF_ACTION: ${{ github.event.inputs.action }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v5
@@ -36,7 +51,7 @@ jobs:
       - name: Build terraform image
         run: docker build -t idptools-terraform -f infra/Dockerfile .
 
-      - name: Terraform ${{ github.event.inputs.action }} (${{ github.event.inputs.environment }})
+      - name: Terraform ${{ env.TF_ACTION }} (${{ env.TF_ENV }})
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -45,6 +60,6 @@ jobs:
             -e AWS_ACCESS_KEY_ID \
             -e AWS_SECRET_ACCESS_KEY \
             -e AWS_REGION=us-west-2 \
-            -e TF_ENV="${{ github.event.inputs.environment }}" \
-            -e TF_ACTION="${{ github.event.inputs.action }}" \
+            -e TF_ENV="${TF_ENV}" \
+            -e TF_ACTION="${TF_ACTION}" \
             idptools-terraform

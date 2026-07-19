@@ -232,8 +232,9 @@ function successfulInternalTokenAPICall(data, textStatus, request)
   if(displayOpenIDConnectArtifacts == true)
   {
     // Display OAuth2/OIDC Artifacts
-    token_endpoint_result_html = "<fieldset>" +
-                                 "<legend>Token Endpoint Results:</legend>" +
+    token_endpoint_result_html = '<div class="dbg-pane">' +
+                                 '<legend class="dbg-legend" data-target="token_result_fieldset">Token Endpoint Results:</legend>' +
+                                 '<fieldset id="token_result_fieldset">' +
                                  "<p><em>Most recent results of the OAuth2 Grant or OIDC Authentication Flow call.</em></p>" +
 				   "<table>" +
 				     "<tr>" +
@@ -280,15 +281,17 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                           '</td>' +
                                         "</tr>" +
                                       "</table>" +
-                                      "</fieldset>";
+                                      "</fieldset>" +
+                                      "</div>";
       localStorage.setItem("token_access_token", data.access_token);
       localStorage.setItem("token_refresh_token", data.refresh_token);
       localStorage.setItem("token_id_token", data.id_token);
       saveTokenSetToHistory(data.access_token, data.refresh_token, data.id_token, 'token');
     } else {
       log.debug("Displaying Access Token. No OIDC ID Token: data.access_token=" + data.access_token);
-      token_endpoint_result_html = "<fieldset>" +
-                                      "<legend>Token Endpoint Results:</legend>" +
+      token_endpoint_result_html = '<div class="dbg-pane">' +
+                                      '<legend class="dbg-legend" data-target="token_result_fieldset">Token Endpoint Results:</legend>' +
+                                      '<fieldset id="token_result_fieldset">' +
                                  "<p><em>Most recent results of the OAuth2 Grant or OIDC Authentication Flow call.</em></p>" +
                                       "<table>" +
                                         "<tr>" +
@@ -319,7 +322,8 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                         "</tr>";
       }
       token_endpoint_result_html += "</table>" +
-                                    "</fieldset>";
+                                    "</fieldset>" +
+                                    "</div>";
       localStorage.setItem("token_access_token", data.access_token);
       localStorage.setItem("token_refresh_token", data.refresh_token);
       saveTokenSetToHistory(data.access_token, data.refresh_token, null, 'token');
@@ -495,8 +499,9 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
   if (!!!currentIDToken) {
     currentIDToken = localStorage.getItem("refresh_id_token");
   }
-  refresh_endpoint_result_html = "<fieldset>" +
-                                      "<legend>Token Endpoint Results for Refresh Token Call:</legend>" +
+  refresh_endpoint_result_html = '<div class="dbg-pane">' +
+                                      '<legend class="dbg-legend" data-target="refresh_result_fieldset">Token Endpoint Results for Refresh Token Call:</legend>' +
+                                      '<fieldset id="refresh_result_fieldset">' +
                                       "<p><em>Most recent results of the Refresh Token call.</em></p>" +
 				      "<table>" +
 				        "<tr>" +
@@ -551,7 +556,8 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
                                           "</td>" +
                                         "</tr>" +
                                       "</table>" +
-                                      "</fieldset>";
+                                      "</fieldset>" +
+                                      "</div>";
   //$("#refresh_endpoint_result").html(DOMPurify.sanitize(refresh_endpoint_result_html));
   $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
   // Update refresh token field in the refresh token grant pane
@@ -1577,6 +1583,15 @@ $(document).ready(function() {
     revokeTokenDirect($(this).attr("data-revoke-type"), $(this).attr("data-revoke-generation"));
     return false;
   });
+  // Collapse/expand for the ds-style panes that are rendered dynamically (the
+  // result and history panes). Delegated so it fires for markup inserted after
+  // load; keyed on data-target (which survives DOMPurify) rather than inline
+  // onclick. The static panes use their own inline title onclick handlers.
+  $(document).on("click", ".dbg-legend[data-target]", function() {
+    var fs = document.getElementById($(this).attr("data-target"));
+    if (fs) { fs.style.display = (fs.style.display === "none") ? "block" : "none"; }
+    return false;
+  });
   populateRevocationTokenWithLatestAccessToken();
 
   // Initialize Token Exchange pane state and keep the request preview in sync.
@@ -2052,8 +2067,9 @@ function selectTokenSet(index) {
 }
 
 function renderCurrentlyViewing(index, entry) {
-  var html = '<fieldset>' +
-               '<legend>Currently Viewing</legend>' +
+  var html = '<div class="dbg-pane">' +
+               '<legend class="dbg-legend" data-target="currently_viewing_fieldset">Currently Viewing</legend>' +
+               '<fieldset id="currently_viewing_fieldset">' +
                '<p><em>Token set selected from Token History.</em></p>' +
                '<table>' +
                  '<tr>' +
@@ -2102,7 +2118,8 @@ function renderCurrentlyViewing(index, entry) {
                  '<td><input type="text" readonly value="' + (entry.sid || '') + '" style="width:100%;" /></td>' +
                '</tr>' +
              '</table>' +
-             '</fieldset>';
+             '</fieldset>' +
+             '</div>';
   $('#currently-viewing-panel').html(html);
   $('#currently-viewing-panel').show();
 }
@@ -2131,7 +2148,7 @@ function renderTokenHistory() {
     sessions[key].push({ index: idx, entry: entry });
   });
 
-  var html = '<fieldset><legend>Token History</legend>';
+  var html = '<div class="dbg-pane"><legend class="dbg-legend" data-target="token_history_fieldset">Token History</legend><fieldset id="token_history_fieldset">';
   html += '<input type="button" value="Clear History" onclick="return debugger2.clearTokenHistory();" />';
   html += '<div style="max-height:450px; overflow-y:auto;">';
   sessionOrder.slice().reverse().forEach(function(sid) {
@@ -2169,6 +2186,7 @@ function renderTokenHistory() {
   });
   html += '</div>';
   html += '</fieldset>';
+  html += '</div>';
 
   $("#token-history-panel").html(html);
   $("#token-history-panel").show();
@@ -2194,8 +2212,9 @@ function recreateTokenDisplay()
          log.debug("Displaying full OIDC Token results.");
          // Display OAuth2/OIDC Artifacts
          log.debug("RCBJ0001");
-         token_endpoint_result_html = "<fieldset>" +
-                                      "<legend>Token Endpoint Results:</legend>" +
+         token_endpoint_result_html = '<div class="dbg-pane">' +
+                                      '<legend class="dbg-legend" data-target="token_result_fieldset">Token Endpoint Results:</legend>' +
+                                      '<fieldset id="token_result_fieldset">' +
                                  "<p><em>Most recent results of the OAuth2 Grant or OIDC Authentication Flow call.</em></p>" +
                                       "<table>" +
                                         "<tr>" +
@@ -2281,7 +2300,8 @@ function recreateTokenDisplay()
                                         "</tr>";
          }
          token_endpoint_result_html += "</table>" +
-                                      "</fieldset>";
+                                      "</fieldset>" +
+                                      "</div>";
       }
       //$("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
       $("#token_endpoint_result").html(token_endpoint_result_html);
@@ -2659,12 +2679,13 @@ function renderOperationHistory() {
   } catch (e) {
     log.error("Failed to parse operation_history: " + e);
   }
-  var html = '<fieldset>' +
-               '<legend>Operation History</legend>' +
+  var html = '<div class="dbg-pane">' +
+               '<legend class="dbg-legend" data-target="operation_history_fieldset">Operation History</legend>' +
+               '<fieldset id="operation_history_fieldset">' +
                '<p><em>Chronological history of every endpoint operation performed.</em></p>' +
                '<input type="button" value="Clear History" onclick="return debugger2.clearOperationHistory();" />';
   if (history.length === 0) {
-    html += '<p><em>No operations recorded yet.</em></p></fieldset>';
+    html += '<p><em>No operations recorded yet.</em></p></fieldset></div>';
     $("#operation-history-panel").html(html);
     return;
   }
@@ -2686,7 +2707,7 @@ function renderOperationHistory() {
     html += '<td style="word-break:break-all; font-size:75%;">' + escapeHtmlText(item.nonce) + '</td>';
     html += '</tr>';
   });
-  html += '</table></div></fieldset>';
+  html += '</table></div></fieldset></div>';
   $("#operation-history-panel").html(html);
 }
 

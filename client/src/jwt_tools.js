@@ -116,7 +116,10 @@ var SIGN_ALGS = {
   PS512: { kind: 'rsa', name: 'RSA-PSS', hash: 'SHA-512', saltLength: 64 },
   ES256: { kind: 'ec', name: 'ECDSA', hash: 'SHA-256', namedCurve: 'P-256' },
   ES384: { kind: 'ec', name: 'ECDSA', hash: 'SHA-384', namedCurve: 'P-384' },
-  ES512: { kind: 'ec', name: 'ECDSA', hash: 'SHA-512', namedCurve: 'P-521' }
+  ES512: { kind: 'ec', name: 'ECDSA', hash: 'SHA-512', namedCurve: 'P-521' },
+  // RFC 8037 — EdDSA over the Edwards curve. Web Crypto supports Ed25519
+  // (Ed448 is spec-defined but not available in the Web Crypto API).
+  EdDSA: { kind: 'okp', name: 'Ed25519' }
 };
 
 // JWE content-encryption key sizes (bytes)
@@ -124,6 +127,11 @@ var ENC_KEY_BYTES = { A128GCM: 16, A192GCM: 24, A256GCM: 32 };
 
 // JWE key-management (asymmetric) hash for RSA-OAEP variants
 var JWE_RSA_HASH = { 'RSA-OAEP': 'SHA-1', 'RSA-OAEP-256': 'SHA-256' };
+
+// ECDH-ES key-agreement key-wrap variants (RFC 7518 §4.6) -> AES key-wrap size
+// in bytes. Plain "ECDH-ES" (direct key agreement) is handled separately.
+var ECDH_KW_BYTES = { 'ECDH-ES+A128KW': 16, 'ECDH-ES+A192KW': 24, 'ECDH-ES+A256KW': 32 };
+function isEcdh(alg) { return alg === 'ECDH-ES' || ECDH_KW_BYTES[alg] !== undefined; }
 
 // ---------------------------------------------------------------------------
 // Composition: keep header / payload / encoded in sync
@@ -316,6 +324,140 @@ function checkCompliance() {
   return false;
 }
 
+// Validate the composed header/payload as an OAuth 2.0 JWT access token per
+// RFC 9068 (JWT Profile for OAuth 2.0 Access Tokens). Output goes to the same
+// Compliance Output box. Header (§2.1): typ MUST be "at+jwt" and the token MUST
+// be signed (alg present, not "none"). Required claims (§2.2): iss, exp, aud,
+// sub, client_id, iat, jti. scope is conditionally recommended (§2.2.3);
+// auth_time/acr/amr are optional (§2.2.1) and only type-checked if present.
+function checkRfc9068Compliance() {
+  var results = [];
+  function pass(c, m) { results.push('PASS  ' + c + ': ' + m); }
+  function fail(c, m) { results.push('FAIL  ' + c + ': ' + m); }
+  function skip(c, m) { results.push('SKIP  ' + c + ': ' + m); }
+
+  var header, payload;
+  try {
+    header = parseJson('jwt_tools_header', 'JWT Header');
+  } catch (e) {
+    setVal('compliance_output', 'FAIL  header: ' + e.message);
+    return false;
+  }
+  try {
+    payload = parseJson('jwt_tools_payload', 'JWT Payload');
+  } catch (e) {
+    setVal('compliance_output', 'FAIL  payload: ' + e.message);
+    return false;
+  }
+
+  results.push('RFC 9068 — OAuth 2.0 JWT Access Token');
+
+  // ---- Header (RFC 9068 §2.1) ----
+  // typ is REQUIRED and MUST be "at+jwt" (the "application/" prefix is allowed).
+  if (header.typ === undefined) {
+    fail('typ', 'Missing — MUST be "at+jwt" (RFC 9068 §2.1)');
+  } else if (typeof header.typ !== 'string') {
+    fail('typ', '"typ" must be a string');
+  } else if (header.typ === 'at+jwt' || header.typ === 'application/at+jwt') {
+    pass('typ', '"' + header.typ + '"');
+  } else {
+    fail('typ', '"' + header.typ + '" — MUST be "at+jwt" (RFC 9068 §2.1)');
+  }
+
+  // The token MUST be signed; alg is REQUIRED and MUST NOT be "none".
+  if (!header.alg) {
+    fail('alg', 'Missing — access tokens MUST be signed (RFC 9068 §2.1)');
+  } else if (typeof header.alg !== 'string') {
+    fail('alg', '"alg" must be a string');
+  } else if (header.alg === 'none') {
+    fail('alg', '"none" is not permitted — access tokens MUST be signed (RFC 9068 §2.1)');
+  } else {
+    pass('alg', header.alg);
+  }
+
+  // ---- Required claims (RFC 9068 §2.2) ----
+  function requireString(name) {
+    if (payload[name] === undefined) fail(name, 'Missing required claim (RFC 9068 §2.2)');
+    else if (typeof payload[name] !== 'string') fail(name, 'Must be a string');
+    else pass(name, '"' + payload[name] + '"');
+  }
+  function requireNumericDate(name) {
+    if (payload[name] === undefined) fail(name, 'Missing required claim (RFC 9068 §2.2)');
+    else if (typeof payload[name] !== 'number' || !Number.isInteger(payload[name])) fail(name, 'Must be an integer NumericDate');
+    else pass(name, new Date(payload[name] * 1000).toISOString());
+  }
+
+  requireString('iss');
+  requireNumericDate('exp');
+
+  // aud is REQUIRED: a StringOrURI or a non-empty array of them.
+  if (payload.aud === undefined) {
+    fail('aud', 'Missing required claim (RFC 9068 §2.2)');
+  } else if (typeof payload.aud === 'string') {
+    pass('aud', '"' + payload.aud + '"');
+  } else if (Array.isArray(payload.aud) && payload.aud.length > 0 && payload.aud.every(function (a) { return typeof a === 'string'; })) {
+    pass('aud', payload.aud.length + ' value(s)');
+  } else {
+    fail('aud', 'Must be a string or non-empty array of strings');
+  }
+
+  requireString('sub');
+  requireString('client_id');
+  requireNumericDate('iat');
+  requireString('jti');
+
+  // ---- Conditional / optional claims ----
+  // scope SHOULD be present when a scope was requested (RFC 9068 §2.2.3).
+  if (payload.scope === undefined) {
+    skip('scope', 'Not present (SHOULD be present if a scope was requested — RFC 9068 §2.2.3)');
+  } else if (typeof payload.scope !== 'string') {
+    fail('scope', 'Must be a space-delimited string (RFC 9068 §2.2.3)');
+  } else {
+    pass('scope', '"' + payload.scope + '"');
+  }
+
+  // Authentication information claims are optional (RFC 9068 §2.2.1).
+  if (payload.auth_time !== undefined) {
+    if (typeof payload.auth_time !== 'number' || !Number.isInteger(payload.auth_time)) fail('auth_time', 'Must be an integer NumericDate');
+    else pass('auth_time', new Date(payload.auth_time * 1000).toISOString());
+  }
+  if (payload.acr !== undefined) {
+    if (typeof payload.acr !== 'string') fail('acr', 'Must be a string');
+    else pass('acr', '"' + payload.acr + '"');
+  }
+  if (payload.amr !== undefined) {
+    if (Array.isArray(payload.amr) && payload.amr.every(function (a) { return typeof a === 'string'; })) pass('amr', payload.amr.length + ' value(s)');
+    else fail('amr', 'Must be an array of strings');
+  }
+
+  setVal('compliance_output', results.join('\n'));
+  return false;
+}
+
+// Populate Header, Payload, and the Encoded JWT with a sample RFC 9068 access
+// token: header carries alg + typ "at+jwt"; payload carries the required claims
+// (iss, exp, aud, sub, client_id, iat, jti) plus a scope. Produced unsigned
+// (header.payload.) — sign it in the Sign pane to complete it.
+function generateRfc9068Token() {
+  var now = Math.floor(Date.now() / 1000);
+  var header = { alg: 'RS256', typ: 'at+jwt' };
+  var payload = {
+    iss: 'https://as.example.com',
+    sub: 'user-1234',
+    aud: 'https://api.example.com',
+    client_id: 'example-client',
+    iat: now,
+    exp: now + 3600,
+    jti: bytesToB64u(crypto.getRandomValues(new Uint8Array(12))),
+    scope: 'read write'
+  };
+  setVal('jwt_tools_header', JSON.stringify(header, null, 2));
+  setVal('jwt_tools_payload', JSON.stringify(payload, null, 2));
+  updateEncoded(); // fills the Encoded JWT field (header.payload.) from the above
+  setVal('jwt_tools_sync_status', 'Generated a sample RFC 9068 access token (unsigned). Sign it in the Sign (JWS) pane to complete it.');
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Digital signatures (JWS)
 // ---------------------------------------------------------------------------
@@ -330,11 +472,16 @@ async function generateSigningKeys() {
       setVal('sign_private_key', bytesToB64u(secret));
       setVal('sign_public_key', '(HMAC is symmetric — the secret above is used for both signing and verification.)');
     } else if (meta.kind === 'rsa') {
+      var signBits = parseInt(val('sign_rsa_bits'), 10) || 2048;
       var rsaPair = await crypto.subtle.generateKey(
-        { name: meta.name, modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: meta.hash },
+        { name: meta.name, modulusLength: signBits, publicExponent: new Uint8Array([1, 0, 1]), hash: meta.hash },
         true, ['sign', 'verify']);
       setVal('sign_private_key', derToPem(await crypto.subtle.exportKey('pkcs8', rsaPair.privateKey), 'PRIVATE KEY'));
       setVal('sign_public_key', derToPem(await crypto.subtle.exportKey('spki', rsaPair.publicKey), 'PUBLIC KEY'));
+    } else if (meta.kind === 'okp') {
+      var edPair = await crypto.subtle.generateKey({ name: meta.name }, true, ['sign', 'verify']);
+      setVal('sign_private_key', derToPem(await crypto.subtle.exportKey('pkcs8', edPair.privateKey), 'PRIVATE KEY'));
+      setVal('sign_public_key', derToPem(await crypto.subtle.exportKey('spki', edPair.publicKey), 'PUBLIC KEY'));
     } else {
       var ecPair = await crypto.subtle.generateKey(
         { name: 'ECDSA', namedCurve: meta.namedCurve }, true, ['sign', 'verify']);
@@ -359,7 +506,9 @@ async function importSigningKey(meta, keyText) {
   }
   var params = meta.kind === 'rsa'
     ? { name: meta.name, hash: meta.hash }
-    : { name: 'ECDSA', namedCurve: meta.namedCurve };
+    : meta.kind === 'okp'
+      ? { name: meta.name }
+      : { name: 'ECDSA', namedCurve: meta.namedCurve };
   return importKeyFlexible(keyText, 'pkcs8', params, ['sign']);
 }
 
@@ -381,6 +530,7 @@ async function signJWT() {
     if (meta.kind === 'hmac') signParams = { name: 'HMAC' };
     else if (meta.kind === 'rsa' && meta.name === 'RSA-PSS') signParams = { name: 'RSA-PSS', saltLength: meta.saltLength };
     else if (meta.kind === 'rsa') signParams = { name: 'RSASSA-PKCS1-v1_5' };
+    else if (meta.kind === 'okp') signParams = { name: meta.name };
     else signParams = { name: 'ECDSA', hash: meta.hash };
 
     var sig = await crypto.subtle.sign(signParams, key, new TextEncoder().encode(signingInput));
@@ -412,13 +562,16 @@ async function verifyHMAC(jwt_, secret, alg) {
 
 async function verifyX509(jwt_, pem, alg) {
   var meta = SIGN_ALGS[alg];
-  if (!meta || (meta.kind !== 'rsa' && meta.kind !== 'ec')) {
+  if (!meta || (meta.kind !== 'rsa' && meta.kind !== 'ec' && meta.kind !== 'okp')) {
     throw new Error('Unsupported asymmetric algorithm: ' + alg);
   }
   var importParams, verifyParams;
   if (meta.kind === 'ec') {
     importParams = { name: 'ECDSA', namedCurve: meta.namedCurve };
     verifyParams = { name: 'ECDSA', hash: meta.hash };
+  } else if (meta.kind === 'okp') {
+    importParams = { name: meta.name };
+    verifyParams = { name: meta.name };
   } else {
     importParams = { name: meta.name, hash: meta.hash };
     verifyParams = meta.name === 'RSA-PSS' ? { name: 'RSA-PSS', saltLength: meta.saltLength } : { name: 'RSASSA-PKCS1-v1_5' };
@@ -480,17 +633,18 @@ async function generateEncryptionKeys() {
   setVal('jwe_status', 'Generating ' + alg + ' key material...');
   try {
     var pair;
-    if (alg === 'ECDH-ES') {
+    if (isEcdh(alg)) {
       pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: ECDH_CURVE }, true, ['deriveBits']);
     } else {
+      var jweBits = parseInt(val('jwe_rsa_bits'), 10) || 2048;
       pair = await crypto.subtle.generateKey(
-        { name: 'RSA-OAEP', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: JWE_RSA_HASH[alg] },
+        { name: 'RSA-OAEP', modulusLength: jweBits, publicExponent: new Uint8Array([1, 0, 1]), hash: JWE_RSA_HASH[alg] },
         true, ['encrypt', 'decrypt']);
     }
     setVal('jwe_public_key', derToPem(await crypto.subtle.exportKey('spki', pair.publicKey), 'PUBLIC KEY'));
     setVal('jwe_private_key', derToPem(await crypto.subtle.exportKey('pkcs8', pair.privateKey), 'PRIVATE KEY'));
     await applyKeyFormat('enc'); // honor the PEM/JWK toggle
-    setVal('jwe_status', 'Generated ' + alg + ' key material' + (alg === 'ECDH-ES' ? ' (P-256).' : '.'));
+    setVal('jwe_status', 'Generated ' + alg + ' key material' + (isEcdh(alg) ? ' (P-256).' : '.'));
   } catch (e) {
     log.error('generateEncryptionKeys: ' + e.message);
     setVal('jwe_status', 'Error: ' + e.message);
@@ -515,17 +669,28 @@ async function concatKdf(z, keyBytes, algId) {
 
 async function deriveEncryptionCek(alg, enc, protectedHeader, recipientPublicPem) {
   var keyBytes = ENC_KEY_BYTES[enc];
-  if (alg === 'ECDH-ES') {
+  if (isEcdh(alg)) {
     var recipientPub = await importKeyFlexible(recipientPublicPem, 'spki',
       { name: 'ECDH', namedCurve: ECDH_CURVE }, []);
     var ephemeral = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: ECDH_CURVE }, true, ['deriveBits']);
     var z = await crypto.subtle.deriveBits({ name: 'ECDH', public: recipientPub }, ephemeral.privateKey, ECDH_CURVE_BITS);
     var epk = await crypto.subtle.exportKey('jwk', ephemeral.publicKey);
     protectedHeader.epk = { kty: epk.kty, crv: epk.crv, x: epk.x, y: epk.y };
-    // For ECDH-ES "direct", the agreed key IS the CEK and encrypted_key is empty.
-    var cekBytes = await concatKdf(z, keyBytes, enc);
-    var cek = await crypto.subtle.importKey('raw', cekBytes, { name: 'AES-GCM' }, false, ['encrypt']);
-    return { cek: cek, encryptedKey: '' };
+    if (alg === 'ECDH-ES') {
+      // "direct": the agreed key IS the CEK; encrypted_key is empty. The Concat
+      // KDF AlgorithmID is the content-encryption "enc" value.
+      var cekBytes = await concatKdf(z, keyBytes, enc);
+      var cek = await crypto.subtle.importKey('raw', cekBytes, { name: 'AES-GCM' }, false, ['encrypt']);
+      return { cek: cek, encryptedKey: '' };
+    }
+    // ECDH-ES+A*KW: derive a key-wrapping key (Concat KDF AlgorithmID is the
+    // full "alg", keydatalen is the AES-KW size), then wrap a fresh random CEK.
+    var kwBytes = ECDH_KW_BYTES[alg];
+    var kekBytes = await concatKdf(z, kwBytes, alg);
+    var kek = await crypto.subtle.importKey('raw', kekBytes, { name: 'AES-KW' }, false, ['wrapKey']);
+    var cekKey = await crypto.subtle.generateKey({ name: 'AES-GCM', length: keyBytes * 8 }, true, ['encrypt']);
+    var wrapped = await crypto.subtle.wrapKey('raw', cekKey, kek, 'AES-KW');
+    return { cek: cekKey, encryptedKey: bytesToB64u(wrapped) };
   }
   // RSA-OAEP / RSA-OAEP-256: random CEK wrapped with the recipient public key.
   var cekBytes2 = new Uint8Array(keyBytes);
@@ -568,6 +733,27 @@ async function encryptJWT() {
     setVal('jwt_tools_jwe', jwe);
     setVal('jwe_decrypt_input', jwe);
     setVal('jwt_tools_encoded', jwe);
+
+    // Reflect the header parameters added by encryption in the Compose pane's
+    // JWT Header box. Per RFC 7515/7516/7519, a JWS/JWT "alg" (the signing
+    // algorithm) and a JWE "alg" (the key-management algorithm) are distinct
+    // header parameters belonging to distinct (JWS vs JWE) headers, so the
+    // existing signing "alg" MUST NOT be overwritten by the JWE "alg". Only the
+    // newly-introduced JWE parameters (enc, cty [RFC 7519 §5.2], epk, ...) are
+    // added; the JWT's own signing "alg" is preserved.
+    var composeHeader;
+    try {
+      composeHeader = JSON.parse(val('jwt_tools_header'));
+      if (composeHeader === null || typeof composeHeader !== 'object' || Array.isArray(composeHeader)) composeHeader = {};
+    } catch (e) {
+      composeHeader = {};
+    }
+    Object.keys(protectedHeader).forEach(function (k) {
+      if (k === 'alg') return; // preserve the JWS signing "alg"
+      composeHeader[k] = protectedHeader[k];
+    });
+    setVal('jwt_tools_header', JSON.stringify(composeHeader, null, 2));
+
     setVal('jwe_status', 'JWE produced with ' + alg + ' / ' + enc + '.');
     setVal('jwt_tools_sync_status', 'Encoded field now holds the JWE encrypted token.');
   } catch (e) {
@@ -579,7 +765,7 @@ async function encryptJWT() {
 
 async function decryptCek(alg, enc, protectedHeader, encryptedKey, recipientPrivatePem) {
   var keyBytes = ENC_KEY_BYTES[enc];
-  if (alg === 'ECDH-ES') {
+  if (isEcdh(alg)) {
     if (!protectedHeader.epk) throw new Error('ECDH-ES JWE is missing the "epk" header.');
     var recipientPriv = await importKeyFlexible(recipientPrivatePem, 'pkcs8',
       { name: 'ECDH', namedCurve: protectedHeader.epk.crv }, ['deriveBits']);
@@ -587,8 +773,16 @@ async function decryptCek(alg, enc, protectedHeader, encryptedKey, recipientPriv
       { name: 'ECDH', namedCurve: protectedHeader.epk.crv }, false, []);
     var bits = protectedHeader.epk.crv === 'P-256' ? 256 : (protectedHeader.epk.crv === 'P-384' ? 384 : 521);
     var z = await crypto.subtle.deriveBits({ name: 'ECDH', public: epk }, recipientPriv, bits);
-    var cekBytes = await concatKdf(z, keyBytes, enc);
-    return crypto.subtle.importKey('raw', cekBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+    if (alg === 'ECDH-ES') {
+      var cekBytes = await concatKdf(z, keyBytes, enc);
+      return crypto.subtle.importKey('raw', cekBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+    }
+    // ECDH-ES+A*KW: re-derive the key-wrapping key and AES-KW unwrap the CEK.
+    var kwBytes = ECDH_KW_BYTES[alg];
+    var kekBytes = await concatKdf(z, kwBytes, alg);
+    var kek = await crypto.subtle.importKey('raw', kekBytes, { name: 'AES-KW' }, false, ['unwrapKey']);
+    return crypto.subtle.unwrapKey('raw', b64uToBytes(encryptedKey), kek, 'AES-KW',
+      { name: 'AES-GCM' }, false, ['decrypt']);
   }
   var rsaPriv = await importKeyFlexible(recipientPrivatePem, 'pkcs8',
     { name: 'RSA-OAEP', hash: JWE_RSA_HASH[alg] }, ['decrypt']);
@@ -643,8 +837,9 @@ function certDescriptor(alg) {
   var ecCurve = { ES256: 'P-256', ES384: 'P-384', ES512: 'P-521' };
   var ecHash = { ES256: 'SHA-256', ES384: 'SHA-384', ES512: 'SHA-512' };
   if (alg[0] === 'H') return { kind: 'hmac' };
-  if (alg[0] === 'E' && alg !== 'ECDH-ES') return { kind: 'ec', curve: ecCurve[alg], hash: ecHash[alg] };
-  if (alg === 'ECDH-ES') return { kind: 'ec', curve: 'P-256', hash: 'SHA-256' };
+  if (alg === 'EdDSA') return { kind: 'okp', name: 'Ed25519' };
+  if (alg.indexOf('ECDH-ES') === 0) return { kind: 'ec', curve: 'P-256', hash: 'SHA-256' }; // ECDH-ES[+A*KW]
+  if (alg[0] === 'E') return { kind: 'ec', curve: ecCurve[alg], hash: ecHash[alg] };         // ES256/384/512
   return { kind: 'rsa', hash: 'SHA-256' }; // RS*/PS*/RSA-OAEP*
 }
 
@@ -666,9 +861,9 @@ function stripJwkForImport(jwk) {
 }
 
 function convParams(desc) {
-  return desc.kind === 'rsa'
-    ? { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }
-    : { name: 'ECDSA', namedCurve: desc.curve };
+  if (desc.kind === 'rsa') return { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' };
+  if (desc.kind === 'okp') return { name: desc.name };
+  return { name: 'ECDSA', namedCurve: desc.curve };
 }
 
 async function privToJwk(pem, desc, jwtAlg, use) {
@@ -832,7 +1027,9 @@ async function buildPkcs12(privPem, pubPem, desc, password) {
 async function keysToJwk(privPem, pubPem, desc, jwtAlg, use) {
   var importParams = desc.kind === 'rsa'
     ? { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }
-    : { name: 'ECDSA', namedCurve: desc.curve };
+    : desc.kind === 'okp'
+      ? { name: desc.name }
+      : { name: 'ECDSA', namedCurve: desc.curve };
   var privKey = await crypto.subtle.importKey('pkcs8', pemToDer(privPem), importParams, true, ['sign']);
   var pubKey = await crypto.subtle.importKey('spki', pemToDer(pubPem), importParams, true, ['verify']);
   var jp = await crypto.subtle.exportKey('jwk', privKey);
@@ -909,6 +1106,7 @@ async function downloadKeys(step) {
     if (isJwk(cfg.pub)) cfg.pub = await pubToPem(cfg.pub, desc);
 
     if (cfg.fmt === 'pkcs12') {
+      if (desc.kind === 'okp') { fail('PKCS#12 export is not supported for EdDSA (Ed25519) keys in-browser. Use PEM, DER, or JWK.'); return false; }
       if (!cfg.pw) { fail('PKCS#12 requires a password. Enter one in the password field.'); return false; }
       var p12 = await buildPkcs12(cfg.priv, cfg.pub, desc, cfg.pw);
       triggerDownload(cfg.base + '.p12', p12, 'application/x-pkcs12');
@@ -1021,6 +1219,8 @@ module.exports = {
   onEncodedInput,
   addClaim,
   checkCompliance,
+  checkRfc9068Compliance,
+  generateRfc9068Token,
   generateSigningKeys,
   signJWT,
   verifyJWT,

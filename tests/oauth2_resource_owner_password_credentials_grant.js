@@ -18,7 +18,6 @@ var waitTime = appconfig.waitTime;
 const { populateMetadata, getAccessTokenPassword, verifyAccessToken } = require("../common/tests.js")({ By, until, Select, waitTime, log, jwt, assert });
 
 
-
 async function logout(driver) {
   log.info("Entering logout().");
   // Locate the logout controls, set the post-logout redirect URI and trigger logout

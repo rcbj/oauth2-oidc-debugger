@@ -9,6 +9,7 @@
     <link href="/css/footer.css" rel="stylesheet">
     <link href="/css/common.css" rel="stylesheet">
     <link href="/css/bootstrap-responsive.css" rel="stylesheet">
+    <link href="/css/debugger.css" rel="stylesheet">
   </head>
 
   <body>
@@ -26,12 +27,36 @@
 <P><a href="https://www.rfc-editor.org/rfc/rfc6749" onclick="return debugger.clickLink();">OAuth2 RFC</a></P>
 <P><a hreef="https://openid.net/specs/openid-connect-core-1_0.html#UserInfoRequest">OIDC Spec</a></P>
 <p>This page manages interaction with the OAuth2 Authorization Endpoint.</p>
-<div class="step0" id="step0">
-    <legend>OpenID Connect Discovery Endpoint Information
+
+<p class="dbg-controls">
+  <label class="dbg-toggle" title="Expand or collapse every pane.">
+    <input type="checkbox" id="dbg_toggle_all" onchange="dbgSetAllPanes(this.checked);" />
+    <span class="dbg-toggle-slider"></span>
+    <span class="dbg-toggle-text">Expand all panes</span>
+  </label>
+  <span class="dbg-controls-hint">Tip: click a pane's title to collapse/expand it.</span>
+</p>
+
+<script type="text/javascript">
+// Expand / collapse every pane by toggling the inline display of its inner
+// fieldset (the same state a pane's clickable title toggles). Each pane's
+// collapse triangle tracks this via a CSS :has() rule. The switch label flips
+// to reflect what the switch now represents.
+function dbgSetAllPanes(expand) {
+  var fieldsets = ['oidc_fieldset', 'config_fieldset', 'tools_fieldset', 'authz_fieldset', 'dcr_fieldset'];
+  for (var i = 0; i < fieldsets.length; i++) {
+    var fs = document.getElementById(fieldsets[i]);
+    if (fs) fs.style.display = expand ? 'block' : 'none';
+  }
+  var text = document.querySelector('.dbg-toggle-text');
+  if (text) text.textContent = expand ? 'Collapse all panes' : 'Expand all panes';
+  return false;
+}
+</script>
+
+<div class="step0 dbg-pane" id="step0">
+    <legend class="dbg-legend" id="oidc_expand_button" onclick="return debug.onClickShowGenericFieldSet('oidc_fieldset');">OpenID Connect Discovery Endpoint Information
     </legend>
-    <form>
-      <input class="btn2" type="submit" name="oidc_expand_button" id="oidc_expand_button" value="Hide" onClick="return debug.onClickShowGenericFieldSet('oidc_fieldset');"/>
-    </form>
     <fieldset name="oidc_fieldset" id="oidc_fieldset" style="display: block;">
     <form action="" id="oidc_discovery_endpoint_form" name="oidc_discovery_endpoint_form" method="get" onsubmit="return false;" onclick="return debug.OnSubmitOIDCDiscoveryEndpointForm();">
       <table border="0">
@@ -72,10 +97,9 @@
 
 <!-- Configuration Parameters and Tools side by side -->
 <div style="display:flex; gap:16px; align-items:flex-start; margin-top:8px;">
-  <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
-    <legend>Configuration Parameters
+  <div class="side-by-side-col dbg-pane" style="flex:1 1 0; min-width:0;">
+    <legend class="dbg-legend" id="config_expand_button" onclick="return debug.onClickShowGenericFieldSet('config_fieldset');">Configuration Parameters
     </legend>
-    <form><input class="btn2" type="submit" name="config_expand_button" id="config_expand_button" value="Hide" onclick="return debug.onClickShowGenericFieldSet('config_fieldset');"/></form>
     <fieldset name="config_fieldset" id="config_fieldset" style="display: block;">
     <form action="" id="endpoints" name="endpoints">
       <table border="0">
@@ -219,9 +243,8 @@
   </fieldset>
   </div>
   <div class="side-by-side-col" style="flex:0 0 300px;">
-    <div class="step_tools" id="step_tools">
-      <legend style="width:auto;">Tools</legend>
-      <form><input class="btn2" type="submit" name="tools_expand_button" id="tools_expand_button" value="Expand" onclick="var f=document.getElementById('tools_fieldset');var c=f.style.display==='none';f.style.display=c?'block':'none';this.value=c?'Collapse':'Expand';return false;"/></form>
+    <div class="step_tools dbg-pane" id="step_tools">
+      <legend class="dbg-legend" id="tools_expand_button" onclick="var f=document.getElementById('tools_fieldset');f.style.display=(f.style.display==='none')?'block':'none';return false;">Tools</legend>
       <fieldset id="tools_fieldset" name="tools_fieldset" style="display: none;">
         <table border="0">
           <tbody>
@@ -231,6 +254,12 @@
             <tr>
               <td><a href="/jwt_tools.html?from=debugger.html" onclick="return debug.clickLink();">JWT Tools</a> — compose, sign (JWS), and encrypt (JWE) JWTs; generate key pairs; verify signatures and decrypt tokens.</td>
             </tr>
+            <tr>
+              <td><a href="/encoding_tools.html?from=debugger.html" onclick="return debug.clickLink();">Encoding / Hashing Tools</a> — Base64 and URI encode/decode, CRC-32 checksums, and SHA hashing.</td>
+            </tr>
+            <tr>
+              <td><a href="/digital_signature.html?from=debugger.html" onclick="return debug.clickLink();">Digital Signature</a> — generate an SLH-DSA (post-quantum) key pair, sign a value, and validate the signature.</td>
+            </tr>
           </tbody>
         </table>
       </fieldset>
@@ -238,11 +267,9 @@
   </div>
 </div>
 
-<div class="step2" id="step2">
+<div class="step2 dbg-pane" id="step2">
   <form name="auth_step" id="auth_step">
-    <legend id="h2_title_1" name="">Request Authorization Code
-    </legend>
-  <form><input class="btn2" name="authz_expand_button" id="authz_expand_button" type="submit" value="Expand" onclick="return debug.onClickShowGenericFieldSet('authz_fieldset');"/></form>
+    <legend class="dbg-legend" id="authz_expand_button" onclick="return debug.onClickShowGenericFieldSet('authz_fieldset');"><span id="h2_title_1" name="">Request Authorization Code</span></legend>
   <fieldset id="authz_fieldset" name="authz_fieldset" style="display: none;">
     <table>
       <tbody>
@@ -395,9 +422,8 @@
   </fieldset>
 </div>
 
-<div class="step_dcr" id="step_dcr">
-  <legend id="dcr_title">OIDC Dynamic Client Registration</legend>
-  <form><input class="btn2" name="dcr_expand_button" id="dcr_expand_button" type="submit" value="Expand" onclick="return debug.onClickShowGenericFieldSet('dcr_fieldset');"/></form>
+<div class="step_dcr dbg-pane" id="step_dcr">
+  <legend class="dbg-legend" id="dcr_expand_button" onclick="return debug.onClickShowGenericFieldSet('dcr_fieldset');">OIDC Dynamic Client Registration</legend>
   <fieldset id="dcr_fieldset" name="dcr_fieldset" style="display: none;">
     <form action="" id="dcr_form" name="dcr_form" onsubmit="return false;">
       <table border="0">
@@ -494,6 +520,8 @@
 </div>
 
 <div class="display_authz_error_class" id="display_authz_error_class">&nbsp;
+</div>
+
 </div>
 
 <div class="footer_debugger">

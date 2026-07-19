@@ -53,6 +53,9 @@ RUN cd client && npm ci && npm cache clean --force
 # --- Bundle sources needed for the build ---
 COPY client/ /usr/src/app/client/
 COPY common/ /usr/src/app/common/
+# build.js stages api/jwt.xml -> dist/claimdescription so the static site serves
+# the IANA claim registry (the static site has no api backend to serve it).
+COPY api/jwt.xml /usr/src/app/api/jwt.xml
 COPY deploy/entrypoint.sh /usr/src/app/deploy/entrypoint.sh
 RUN chmod +x /usr/src/app/deploy/entrypoint.sh
 
