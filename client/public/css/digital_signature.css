@@ -52,9 +52,37 @@
 }
 
 /* Expand-all / collapse-all control row. */
-.ds-controls { margin: 0 0 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ds-ctl-btn { font-size: 0.78em; padding: 3px 10px; cursor: pointer; }
+.ds-controls { margin: 0 0 10px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .ds-controls-hint { font-size: 0.72em; color: #777; }
+
+/* A single toggle switch that expands / collapses every pane. Checked = all
+   expanded. The checkbox is visually hidden; the slider span is the switch. */
+.ds-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.ds-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.ds-toggle-slider {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 20px;
+  background: #bbb;
+  border-radius: 20px;
+  transition: background 0.15s ease;
+}
+.ds-toggle-slider::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.15s ease;
+}
+.ds-toggle input:checked + .ds-toggle-slider { background: #2680eb; }
+.ds-toggle input:checked + .ds-toggle-slider::before { transform: translateX(18px); }
+.ds-toggle input:focus-visible + .ds-toggle-slider { outline: 2px solid #2680eb; outline-offset: 2px; }
+.ds-toggle-text { font-size: 0.8em; color: #333; }
 
 /* Collapsible panes — click a legend to collapse/expand its fieldset. */
 .ds-grid legend { cursor: pointer; user-select: none; }

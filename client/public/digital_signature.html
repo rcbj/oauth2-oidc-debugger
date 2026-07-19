@@ -27,8 +27,11 @@
 <p class="ds-intro">Generate key pairs, sign any value, and validate signatures &mdash; all in your browser. Pane 1 uses the post-quantum <strong>SLH-DSA</strong> (FIPS 205, formerly SPHINCS+) scheme; pane 2 uses <strong>RSA</strong> (PKCS#1 v1.5 and PSS); pane 3 uses <strong>ECC</strong> (ECDSA over P-256/P-384/P-521/secp256k1, EdDSA over Ed25519/Ed448, Schnorr over secp256k1, and BLS over BLS12-381); pane 4 uses the post-quantum <strong>ML-DSA</strong> (FIPS 204, formerly CRYSTALS-Dilithium). The RSA and ECDSA panes let you pair the signature with a wide range of hash algorithms &mdash; SHA-2, SHA-3, BLAKE2b, BLAKE3, and the legacy RIPEMD-160 / SHA-1 / MD5. Those four panes are <strong>asymmetric</strong> digital signatures; the panes below them are <strong>symmetric MACs</strong> (keyed-hash: HMAC / KMAC / keyed-BLAKE; block-cipher: AES-CMAC / CBC-MAC / GMAC; universal-hash: Poly1305 / SipHash), labelled separately because a MAC uses a shared secret and is <em>not</em> a true digital signature. <strong>No key material is stored:</strong> keys live only in this page and are never written to local storage.</p>
 
 <p class="ds-controls">
-  <input type="button" class="ds-ctl-btn" value="Expand all" onclick="return digital_signature.expandAll();" title="Expand every pane." />
-  <input type="button" class="ds-ctl-btn" value="Collapse all" onclick="return digital_signature.collapseAll();" title="Collapse every pane to its title bar." />
+  <label class="ds-toggle" title="Expand or collapse every pane.">
+    <input type="checkbox" id="ds_toggle_all" onchange="this.checked ? digital_signature.expandAll() : digital_signature.collapseAll(); document.querySelector('.ds-toggle-text').textContent = this.checked ? 'Collapse all panes' : 'Expand all panes';" />
+    <span class="ds-toggle-slider" id="ds_toggle_all_switch"></span>
+    <span class="ds-toggle-text">Expand all panes</span>
+  </label>
   <span class="ds-controls-hint">Tip: click a pane's title to collapse/expand it.</span>
 </p>
 

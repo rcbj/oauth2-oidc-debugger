@@ -9,6 +9,7 @@
     <link href="/css/footer.css" rel="stylesheet">
     <link href="/css/debugger2.css" rel="stylesheet">
     <link href="/css/bootstrap-responsive.css" rel="stylesheet">
+    <link href="/css/debugger.css" rel="stylesheet">
   </head>
 
   <body>
@@ -24,17 +25,54 @@
 <p>This is a simple Client to use with any <a href="https://medium.com/@robert.broeckelmann/saml2-vs-jwt-understanding-oauth2-4abde9e7ec8b" onclick="debugger2.clickLink();">OAuth2</a> or <a href="https://medium.com/@robert.broeckelmann/understanding-openid-connect-series-37c93d25e92b" onclick="debugger2.clickLink();">OpenID Connect</a> compliant identity provider..
 </p>
 <p>This page manages interaction with the OAuth2 Token Endpoint.</p>
+
+<div class="privacy-warning" role="note">
+  <strong>&#9888; Privacy &amp; Security Notice:</strong>
+  This debugger is built with your privacy and security in mind. However, because the public site is served as
+  <strong>static content</strong> (there is no application backend), the authorization code &mdash; along with the
+  other OAuth2/OIDC response parameters and the redirect URI &mdash; is delivered to this page <em>through the
+  hosting provider</em> as part of the normal page request. <strong>We do not log</strong> any of the query
+  parameters or redirect URIs sent to the site as part of normal debugger operations, and all token handling
+  happens client-side in your browser. If this is a concern, we encourage you to
+  <a href="https://rcbj.github.io/oauth2-oidc-debugger/#privacy--security" target="_blank" rel="noopener noreferrer">run a local build of the debugger</a>.
+</div>
+
 <div class="state-status" id="state-status"></div>
 <div class="authz-error-report" id="authz-error-report"></div>
+
+<p class="dbg-controls">
+  <label class="dbg-toggle" title="Expand or collapse every pane.">
+    <input type="checkbox" id="dbg_toggle_all" onchange="dbgSetAllPanes(this.checked);" />
+    <span class="dbg-toggle-slider"></span>
+    <span class="dbg-toggle-text">Expand all panes</span>
+  </label>
+  <span class="dbg-controls-hint">Tip: click a pane's title to collapse/expand it.</span>
+</p>
+
+<script type="text/javascript">
+// Expand / collapse every pane by toggling the inline display of its inner
+// fieldset (the same state a pane's clickable title toggles). Each pane's
+// collapse triangle tracks this via a CSS :has() rule. The switch label flips
+// to reflect what the switch now represents.
+function dbgSetAllPanes(expand) {
+  var fieldsets = ['config_fieldset', 'tools_fieldset', 'token_fieldset', 'refresh_fieldset', 'logout_fieldset', 'revocation_fieldset', 'tokenexchange_fieldset',
+    // Dynamically-rendered result/history panes (skipped when not yet present).
+    'token_result_fieldset', 'refresh_result_fieldset', 'currently_viewing_fieldset', 'token_history_fieldset', 'operation_history_fieldset'];
+  for (var i = 0; i < fieldsets.length; i++) {
+    var fs = document.getElementById(fieldsets[i]);
+    if (fs) fs.style.display = expand ? 'block' : 'none';
+  }
+  var text = document.querySelector('.dbg-toggle-text');
+  if (text) text.textContent = expand ? 'Collapse all panes' : 'Expand all panes';
+  return false;
+}
+</script>
 
 <!-- Configuration Parameters and Token Exchange forms side by side -->
 <div style="display:flex; gap:16px; align-items:flex-start; margin-top:8px;">
   <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
-    <div class="step0" id="step0">
-    <legend>Configuration Parameters</legend>
-    <form id="step0_expand_form">
-      <input class="btn2" type="submit" name="config_expand_button" id="config_expand_button" value="Expand" onclick="return debugger2.onClickShowFieldSet('config_expand_button', 'config_fieldset');"/>
-    </form>
+    <div class="step0 dbg-pane" id="step0">
+    <legend class="dbg-legend" id="config_expand_button" onclick="return debugger2.onClickShowFieldSet('config_expand_button', 'config_fieldset');">Configuration Parameters</legend>
     <fieldset id="config_fieldset" name="config_fieldset" style="display: none;">
     <form action="" id="endpoints" name="endpoints">
       <input type="hidden" name="response_type" value="" id="response_type" />
@@ -180,9 +218,8 @@
 </div>
   </div>
   <div class="side-by-side-col" style="flex:0 0 300px;">
-    <div class="step_tools" id="step_tools">
-      <legend style="width:auto;">Tools</legend>
-      <form id="tools_expand_form"><input class="btn2" type="submit" name="tools_expand_button" id="tools_expand_button" value="Expand" onclick="var f=document.getElementById('tools_fieldset');var c=f.style.display==='none';f.style.display=c?'block':'none';this.value=c?'Collapse':'Expand';return false;"/></form>
+    <div class="step_tools dbg-pane" id="step_tools">
+      <legend class="dbg-legend" id="tools_expand_button" onclick="var f=document.getElementById('tools_fieldset');f.style.display=(f.style.display==='none')?'block':'none';return false;">Tools</legend>
       <fieldset id="tools_fieldset" name="tools_fieldset" style="display: none;">
         <table border="0">
           <tbody>
@@ -204,12 +241,8 @@
     </div>
   </div>
   <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
-    <div class="step3" id="step3">
-    <legend id="h2_title_2" name="h2_title_2">Exchange Authorization Code for Access Token
-    </legend>
-    <form id="step3_expand_form">
-      <input class="btn2" type="submit" name="token_expand_button" id="token_expand_button" value="Expand" onclick="return debugger2.onClickShowFieldSet('token_expand_button', 'token_fieldset');"/>
-    </form>
+    <div class="step3 dbg-pane" id="step3">
+    <legend class="dbg-legend" id="token_expand_button" onclick="return debugger2.onClickShowFieldSet('token_expand_button', 'token_fieldset');"><span id="h2_title_2" name="h2_title_2">Exchange Authorization Code for Access Token</span></legend>
     <fieldset id="token_fieldset" name="token_fieldset" style="display: none;">
     <input class="input" id="token_grant_type" name="grant_type" type="hidden" value="authorization_code" />
     <table>
@@ -459,12 +492,9 @@
 <!-- Refresh Token controls and Token History side by side -->
 <div style="display:flex; gap:16px; align-items:flex-start; margin-top:8px;">
   <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
-    <div class="step4" id="step4">
-        <form>
-          <input class="btn2" type="submit" name="refresh_expand_button" id="refresh_expand_button" value="Collapse" onclick="return debugger2.onClickShowFieldSet('refresh_expand_button', 'refresh_fieldset');"/>
-        </form>
+    <div class="step4 dbg-pane" id="step4">
+        <legend class="dbg-legend" id="refresh_expand_button" onclick="return debugger2.onClickShowFieldSet('refresh_expand_button', 'refresh_fieldset');">Obtain New Access Token Using Refresh Token</legend>
         <fieldset id="refresh_fieldset" name="refresh_fieldset">
-        <legend>Obtain New Access Token Using Refresh Token</legend>
         <input class="input" id="refresh_grant_type" name="refresh_grant_type" type="hidden" value="refresh_token" />
         <table>
           <tbody>
@@ -553,12 +583,8 @@
 <!-- RP-initiated Logout (with Operation History) and Token Revocation panes side by side -->
 <div style="display:flex; gap:16px; align-items:stretch; margin-top:8px;">
   <div class="side-by-side-col" style="flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:16px;">
-<div class="step5" id="step5">
-    <legend>RP-initiated Logout
-    </legend>
-    <form>
-      <input class="btn2" type="submit" name="logout_expand_button" id="logout_expand_button" value="Collapse" onclick="return debugger2.onClickShowFieldSet('logout_expand_button', 'logout_fieldset');"/>
-    </form>
+<div class="step5 dbg-pane" id="step5">
+    <legend class="dbg-legend" id="logout_expand_button" onclick="return debugger2.onClickShowFieldSet('logout_expand_button', 'logout_fieldset');">RP-initiated Logout</legend>
     <fieldset id="logout_fieldset" name="logout_fieldset" style="display: block;">
     <form action="" onsubmit="return false;">
     <table>
@@ -617,12 +643,8 @@
     </div>
   </div>
   <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
-    <div class="step6" id="step6">
-        <legend>Token Revocation (RFC 7009)
-        </legend>
-        <form>
-          <input class="btn2" type="submit" name="revocation_expand_button" id="revocation_expand_button" value="Collapse" onclick="return debugger2.onClickShowFieldSet('revocation_expand_button', 'revocation_fieldset');"/>
-        </form>
+    <div class="step6 dbg-pane" id="step6">
+        <legend class="dbg-legend" id="revocation_expand_button" onclick="return debugger2.onClickShowFieldSet('revocation_expand_button', 'revocation_fieldset');">Token Revocation (RFC 7009)</legend>
         <fieldset id="revocation_fieldset" name="revocation_fieldset" style="display: block;">
         <form action="" onsubmit="return false;">
         <table>
@@ -724,12 +746,9 @@
 <!-- Token Exchange (RFC 8693) -->
 <div style="display:flex; gap:16px; align-items:flex-start; margin-top:8px;">
   <div class="side-by-side-col" style="flex:1 1 0; min-width:0;">
-    <div class="step7" id="step7">
-        <form>
-          <input class="btn2" type="submit" name="tokenexchange_expand_button" id="tokenexchange_expand_button" value="Collapse" onclick="return debugger2.onClickShowFieldSet('tokenexchange_expand_button', 'tokenexchange_fieldset');"/>
-        </form>
+    <div class="step7 dbg-pane" id="step7">
+        <legend class="dbg-legend" id="tokenexchange_expand_button" onclick="return debugger2.onClickShowFieldSet('tokenexchange_expand_button', 'tokenexchange_fieldset');">Token Exchange (RFC 8693)</legend>
         <fieldset id="tokenexchange_fieldset" name="tokenexchange_fieldset" style="display: block;">
-        <legend>Token Exchange (RFC 8693)</legend>
         <form action="" onsubmit="return false;">
         <table>
           <tbody>

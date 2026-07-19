@@ -2,7 +2,7 @@
 .header_debugger {
   overflow: hidden;
   background-color: #f1f1f1;
-  padding: 20px 10px;
+  padding: 4px 10px;
 }
 
 /* Style the header links */
@@ -21,6 +21,22 @@
 .header_debugger a.logo {
   font-size: 25px;
   font-weight: bold;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+}
+
+/* The header logo image: constrain its height so the header stays compact and
+   the image lines up with the nav links regardless of the source resolution. */
+.header_debugger a.logo img {
+  height: 64px;
+  width: auto;
+  display: block;
+}
+
+/* Don't draw the hover box behind the logo image. */
+.header_debugger a.logo:hover {
+  background-color: transparent;
 }
 
 /* Change the background color on mouse-over */
