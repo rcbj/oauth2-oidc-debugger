@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/oauth2oidcdebugger+iyasec-logo.png" alt="OAuth2 + OpenID Connect (OIDC) Debugger — iyasec" width="640">
+</p>
+
 # OAuth2 + OpenID Connect (OIDC) Debugger
 [This](https://github.com/rcbj/oauth2-oidc-debugger) is the official home of the community Project.
 
@@ -37,6 +41,24 @@ The following OpenID Connect Authentication Flows are supported
 * Authorization Code Flow (could also use Authorization Code Grant option and scope="openid profile")
 * Implicit Flow (2 variants)
 * Hybrid Flow (3 variants)
+
+# Privacy & Security
+This project is built with your privacy and security as a priority. There is, however, one consequence of how the public site is hosted that you should be aware of.
+
+The public site (for example, the hosted `idptools.com` / `test.idptools.com` deployments) is served as **static content** — there is no application backend. Because of this, when your Identity Provider redirects back to the debugger, the **authorization code** (along with the other OAuth2/OIDC response parameters and the redirect URI) is delivered to the debugger page *through the static hosting provider* as part of the normal page request. This is an unavoidable property of a static, backend-less build of an OAuth2/OIDC client.
+
+To be clear about what we do with that data:
+
+* **We do not log** any of the query parameters, fragments, authorization codes, tokens, or redirect URIs that are sent to the site as part of normal debugger operations.
+* All token handling, decoding, and validation happens **client-side in your browser**; your configuration is stored only in your browser's `localStorage`.
+
+If sending authorization codes to a third-party hosting provider is not acceptable for your use case (for example, when testing against a production Identity Provider), we strongly encourage you to **run a local build of the debugger** so that nothing leaves your machine. See [Getting Started / running locally](#general-usage-notes) below — in short:
+
+```bash
+sudo CONFIG_FILE=./env/local.js docker-compose up
+```
+
+Then use the debugger at `http://localhost:3000`, and register `http://localhost:3000/callback` as your redirect URI with your Identity Provider. In a local build, the authorization code is delivered to the debugger running on your own machine and never transits a third-party host.
 
 # AI Coding Tool Disclosure
 As of Q1, 2026, Anthropic Claude was used to implement some new features of this project. All code is reviewed by a human before being merged into the main branch.

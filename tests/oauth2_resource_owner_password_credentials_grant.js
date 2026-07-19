@@ -106,15 +106,15 @@ async function getAccessToken(driver, client_id, client_secret, scope, username,
   await driver.executeScript("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", await driver.findElement(usePKCENo));
   await driver.findElement(usePKCENo).click();
 
-  // Collapse config pane
+  // Collapse config pane. The pane's clickable title (id config_expand_button)
+  // toggles the config_fieldset, so collapse only when it is currently shown.
   log.info("Collapse config pane.");
   const config_expand_button = By.id("config_expand_button");
   await driver.wait(until.elementLocated(config_expand_button), waitTime);
-  const configBtnEl = await driver.findElement(config_expand_button);
-  const configBtnVal = await configBtnEl.getAttribute("value");
-  if (configBtnVal === "Hide") {
-    await driver.executeScript("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", configBtnEl);
-    await configBtnEl.click();
+  const configTitleEl = await driver.findElement(config_expand_button);
+  if (await driver.findElement(By.id("config_fieldset")).isDisplayed()) {
+    await driver.executeScript("arguments[0].scrollIntoView({ behavior: 'smooth', block: 'center' });", configTitleEl);
+    await configTitleEl.click();
   }
 
   // Select POST auth style

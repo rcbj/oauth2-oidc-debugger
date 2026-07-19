@@ -161,6 +161,25 @@ function resolveIncludes(dir) {
 }
 resolveIncludes(DIST);
 
+// 4b. Stamp the current year into the copyright notice. The {{YEAR}} placeholder
+//     ships in the footer partial (now inlined into every page above) and in the
+//     error pages. Done at build time so each build/deploy refreshes the year.
+//     server.js does the same substitution at request time for the local build.
+const YEAR = String(new Date().getFullYear());
+function stampYear(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) { stampYear(full); continue; }
+    if (!entry.name.endsWith('.html')) continue;
+    const html = fs.readFileSync(full, 'utf8');
+    if (!html.includes('{{YEAR}}')) continue;
+    fs.writeFileSync(full, html.split('{{YEAR}}').join(YEAR));
+    log('stamped year in ' + path.relative(DIST, full));
+  }
+}
+log('stamping copyright year ' + YEAR);
+stampYear(DIST);
+
 // 5. Inject Google Analytics into each page's <head> (hosted build only)
 if (GA_MEASUREMENT_ID) {
   const snippet = gaSnippet(GA_MEASUREMENT_ID);

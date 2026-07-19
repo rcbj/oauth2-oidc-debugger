@@ -1,0 +1,99 @@
+/* Digital-signature-style panes for the OAuth2 / OIDC debugger page. Mirrors the
+   pane look from digital_signature.css (a bordered, rounded, light-grey box with
+   a clickable legend that collapses/expands via a triangle indicator) without
+   changing the page's existing pane layout. Loaded last so it overrides
+   common.css (legend width) and bootstrap. */
+
+/* Top-of-page Expand-all / Collapse-all control row. */
+.dbg-controls {
+  margin: 8px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.dbg-controls-hint { font-size: 0.78em; color: #777; }
+
+/* A single toggle switch that expands / collapses every pane. Checked = all
+   expanded. The checkbox is visually hidden; the slider is drawn by the span. */
+.dbg-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.dbg-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.dbg-toggle-slider {
+  position: relative;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 20px;
+  background: #bbb;
+  border-radius: 20px;
+  transition: background 0.15s ease;
+}
+.dbg-toggle-slider::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.15s ease;
+}
+.dbg-toggle input:checked + .dbg-toggle-slider { background: #2680eb; }
+.dbg-toggle input:checked + .dbg-toggle-slider::before { transform: translateX(18px); }
+.dbg-toggle input:focus-visible + .dbg-toggle-slider { outline: 2px solid #2680eb; outline-offset: 2px; }
+.dbg-toggle-text { font-size: 0.85em; color: #333; }
+
+/* Each pane rendered as a bordered, rounded, light-grey box. */
+.dbg-pane {
+  border: 1px solid #aaa;
+  border-radius: 6px;
+  padding: 4px 12px 10px;
+  margin: 0 0 12px;
+  background: #fafafa;
+  box-sizing: border-box;
+}
+
+/* Drop the inner fieldset's own frame — bootstrap gives every fieldset a silver
+   border, radius, margin, and padding, which would draw a redundant box nested
+   inside the pane. The fieldset stays (it is the collapse target toggled by the
+   title, the Expand/collapse-all switch, and the tests) but renders frameless. */
+.dbg-pane fieldset {
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+
+/* Clickable pane title carrying a collapse/expand triangle. Overrides the shared
+   common.css `legend { width: 540px }`. */
+.dbg-legend {
+  width: auto;
+  display: block;
+  font-weight: bold;
+  font-size: 1em;
+  color: #333;
+  cursor: pointer;
+  user-select: none;
+  border: none;
+  margin: 0 0 4px;
+  padding: 4px 0;
+}
+.dbg-legend::before { content: "\25be\00a0"; color: #666; font-size: 0.9em; } /* down triangle = expanded */
+
+/* Right triangle when this pane's fieldset is collapsed (display:none). Uses
+   :has() so the indicator tracks the real state regardless of which control
+   (legend, per-pane button, or Expand/Collapse all) last toggled it. Each pane
+   holds exactly one fieldset, so the descendant match is unambiguous. */
+.dbg-pane:has(fieldset[style*="display: none"]) .dbg-legend::before { content: "\25b8\00a0"; }

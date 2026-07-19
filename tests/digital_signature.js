@@ -332,8 +332,11 @@ async function digitalSignatureActivities(driver) {
   await waitForValue(driver, By.id("ds_value"), function (v) { return v.length > 0; },
     "Digital Signature page did not load / defaults not populated.");
 
-  // Panes are collapsible; expand them all so every field is visible/interactable.
-  await click(driver, onclickBtn("expandAll"));
+  // Panes are collapsible; flip the "Expand all panes" switch so every field is
+  // visible/interactable. Click the visible slider (the checkbox itself is
+  // visually hidden); as a <label> descendant it toggles the checkbox, whose
+  // onchange calls digital_signature.expandAll().
+  await click(driver, By.id("ds_toggle_all_switch"));
 
   await testSlhDsa(driver);
   await testRsa(driver);
