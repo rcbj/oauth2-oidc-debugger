@@ -52,6 +52,10 @@ app.use(function(req, res, next) {
       try { return fs.readFileSync(path.join(__dirname, 'public', file), 'utf8'); }
       catch(e) { log.error('SSI include failed: ' + file + ' - ' + e); return ''; }
     });
+    // Stamp the copyright year ({{YEAR}} in the footer partial / error pages).
+    // The static build (build.js) does this at build time; do it here at request
+    // time for the local (non-built) server so the year is always current.
+    processed = processed.split('{{YEAR}}').join(String(new Date().getFullYear()));
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(processed);
   });

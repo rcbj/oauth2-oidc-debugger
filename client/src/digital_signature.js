@@ -945,6 +945,10 @@ window.onload = function () {
   for (var i = 0; i < legends.length; i++) {
     legends[i].addEventListener('click', function () { this.parentNode.classList.toggle('ds-collapsed'); });
   }
+
+  // Default to all panes minimized on load; the user expands the ones they need
+  // (or clicks "Expand all"). Clicking a pane's title toggles it individually.
+  collapseAll();
 };
 
 module.exports = {
