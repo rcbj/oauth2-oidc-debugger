@@ -289,6 +289,19 @@ function buildJobs() {
     });
   }
 
+  // SAML 2.0 Single Logout: log in via SSO (to establish the Keycloak session and
+  // capture the NameID/SessionIndex), then send a signed LogoutRequest and confirm
+  // the LogoutResponse renders with a Success status on the response page.
+  jobs.push({
+    name: "SAML 2.0 Single Logout (login → LogoutRequest → LogoutResponse Success)",
+    script: "saml_logout.js",
+    env: {
+      SAML_METADATA_URL: env.SAML_METADATA_URL,
+      SAML_SP_ENTITY_ID: env.SAML_SP_ENTITY_ID,
+      SAML_USER: env.SAML_USER,
+    },
+  });
+
   return jobs;
 }
 

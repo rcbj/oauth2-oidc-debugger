@@ -517,9 +517,20 @@ configureKeycloak()
   SAML_API_BASE_URL="${API_BASE_URL:-http://localhost:4000}"
   SAML_ACS_URL="${SAML_API_BASE_URL}/samlacs"
   SAML_SLO_URL="${SAML_API_BASE_URL}/samlslo"
-  if [ -z "${SAML_SP_SIGNING_CERT}" ]; then
-    echo "SAML_SP_SIGNING_CERT is blank. The run script must export the SP signing certificate (base64 DER of tests/fixtures/sp-cert.pem) so Keycloak can validate the AuthnRequest signature."
-    exit 1
+  # AuthnRequest signature validation. Enabled by default (registers the fixed SP
+  # signing cert so the signed requests from tests/saml_sso.js validate). Set
+  # SAML_SIG_VALIDATION=false (local-run-tests.sh --saml-dev) to turn it off so a
+  # browser-generated / unregistered SP key can drive the SAML flow manually.
+  SAML_SIG_VALIDATION="${SAML_SIG_VALIDATION:-true}"
+  if [ "${SAML_SIG_VALIDATION}" = "false" ] || [ "${SAML_SIG_VALIDATION}" = "0" ]; then
+    echo "SAML: AuthnRequest signature validation DISABLED on the Keycloak client."
+    SAML_SIG_ATTRS='"saml.authnrequest.signed": "false", "saml.client.signature": "false",'
+  else
+    if [ -z "${SAML_SP_SIGNING_CERT}" ]; then
+      echo "SAML_SP_SIGNING_CERT is blank. The run script must export the SP signing certificate (base64 DER of tests/fixtures/sp-cert.pem) so Keycloak can validate the AuthnRequest signature."
+      exit 1
+    fi
+    SAML_SIG_ATTRS='"saml.authnrequest.signed": "true", "saml.client.signature": "true", "saml.signing.certificate": "'"${SAML_SP_SIGNING_CERT}"'",'
   fi
 
   KEYCLOAK_ACCESS_TOKEN=$(curl \
@@ -543,9 +554,7 @@ configureKeycloak()
           "frontchannelLogout": true,
           "redirectUris": ["'"${SAML_ACS_URL}"'", "'"${SAML_API_BASE_URL}"'/*"],
           "attributes": {
-            "saml.authnrequest.signed": "true",
-            "saml.client.signature": "true",
-            "saml.signing.certificate": "'"${SAML_SP_SIGNING_CERT}"'",
+            '"${SAML_SIG_ATTRS}"'
             "saml.server.signature": "true",
             "saml.assertion.signature": "true",
             "saml_name_id_format": "username",

@@ -18,6 +18,11 @@ log.info("Log initialized. logLevel=" + log.level());
 // the certificate-details page via localStorage when "View" is clicked.
 var responseSignerCertPem = '';
 
+// The last successfully-rendered SAMLResponse/LogoutResponse XML, cached in
+// localStorage so returning to this page (e.g. from the certificate-details
+// page, which drops the ?id= query param) can repopulate the fields.
+var SAML_RESP_KEY = 'saml_last_response';
+
 function el(id) { return document.getElementById(id); }
 function setVal(id, v) { var e = el(id); if (e) e.value = (v == null ? '' : v); }
 function setStatus(msg) { setVal('saml_resp_status', msg); }
@@ -57,15 +62,27 @@ function render(responseXml) {
     return;
   }
 
+  // Cache so a return trip to this page (which may lack the ?id=) repopulates.
+  try { if (window.localStorage) localStorage.setItem(SAML_RESP_KEY, responseXml); } catch (e) { /* ignore */ }
+
+  // The root element is the protocol message: <Response> (login) or
+  // <LogoutResponse> (SLO) — both carry Version/IssueInstant/InResponseTo/ID/
+  // Issuer/Signature/Status; only a login Response carries an <Assertion>.
+  var msgType = doc.documentElement ? doc.documentElement.localName : '';
+  var isLogout = msgType === 'LogoutResponse';
+
   buildResponseDetailsTable(doc);
 
   var assertion = tags(doc, 'Assertion')[0];
   var assertionXml = assertion ? serialize(assertion) : '';
-  setVal('saml_assertion_xml', assertionXml ? formatXml(assertionXml) : '(no <Assertion> — the response may be an error or encrypted)');
+  var noAssertionNote = isLogout
+    ? '(LogoutResponse carries no assertion — see the Details tab for the logout status.)'
+    : '(no <Assertion> — the response may be an error or encrypted)';
+  setVal('saml_assertion_xml', assertionXml ? formatXml(assertionXml) : noAssertionNote);
 
   buildAttributesTable(assertion);
   saveSubjectForLogout(assertion);
-  setStatus('Response loaded.');
+  setStatus((msgType || 'Response') + ' loaded.');
 }
 
 // Persist the NameID + SessionIndex so the config page's Single Logout can build
@@ -186,13 +203,11 @@ function responseSignerCert(responseEl) {
 
 function buildResponseDetailsTable(doc) {
   var container = el('saml_resp_details');
-  var resp = tags(doc, 'Response')[0];
-  if (!resp) { container.innerHTML = '<em>No &lt;Response&gt; element found.</em>'; return; }
+  // The document root is the protocol message (Response / LogoutResponse / …).
+  var msg = doc.documentElement;
+  if (!msg) { container.innerHTML = '<em>No SAML message element found.</em>'; return; }
 
-  var status = tags(resp, 'StatusCode')[0];
-  var statusVal = status ? (status.getAttribute('Value') || '') : '';
-  var statusMsg = tags(resp, 'StatusMessage')[0];
-  var certB64 = responseSignerCert(resp);
+  var certB64 = responseSignerCert(msg);
   responseSignerCertPem = certB64; // saml_cert.js accepts bare base64 DER
 
   var certCell;
@@ -201,19 +216,49 @@ function buildResponseDetailsTable(doc) {
       '<div style="word-break:break-all; font-size:0.85em; margin-top:4px;">' +
       esc(certB64.substring(0, 96)) + (certB64.length > 96 ? '…' : '') + '</div>';
   } else {
-    certCell = '<em>(response not signed / no certificate)</em>';
+    certCell = '<em>(not signed / no certificate)</em>';
   }
 
   var html = '<table class="saml-table">';
-  html += kv('SAML Protocol Version', esc(resp.getAttribute('Version') || ''));
-  html += kv('Issue Date (IssueInstant)', esc(resp.getAttribute('IssueInstant') || ''));
-  html += kv('In Response To', esc(resp.getAttribute('InResponseTo') || ''));
-  html += kv('ID', esc(resp.getAttribute('ID') || ''));
-  html += kv('Issuer', esc(directChildText(resp, 'Issuer')));
+  html += kv('Message Type', esc(msg.localName || ''));
+  html += kv('SAML Version', esc(msg.getAttribute('Version') || ''));
+  html += kv('Issue Date (IssueInstant)', esc(msg.getAttribute('IssueInstant') || ''));
+  html += kv('In Response To', esc(msg.getAttribute('InResponseTo') || ''));
+  html += kv('ID', esc(msg.getAttribute('ID') || ''));
+  var dest = msg.getAttribute('Destination') || '';
+  if (dest) html += kv('Destination', esc(dest));
+  html += kv('Issuer', esc(directChildText(msg, 'Issuer')));
   html += kv('Signer Certificate', certCell);
-  html += kv('SAML Status', esc(statusVal) + (statusMsg ? '<br>' + esc((statusMsg.textContent || '').trim()) : ''));
+  html += kv('SAML Status', statusHtml(msg));
   html += '</table>';
   container.innerHTML = html;
+}
+
+// Render <samlp:Status>: a colored friendly label for the top-level StatusCode,
+// the full code URI, an optional nested (second-level) StatusCode, and any
+// StatusMessage — this is the key result for a LogoutResponse and error responses.
+function statusHtml(msg) {
+  var statusEl = tags(msg, 'Status')[0];
+  if (!statusEl) return '<em>(no Status)</em>';
+  var codes = tags(statusEl, 'StatusCode');
+  var top = codes[0] ? (codes[0].getAttribute('Value') || '') : '';
+  var sub = codes[1] ? (codes[1].getAttribute('Value') || '') : '';
+  var smEl = tags(statusEl, 'StatusMessage')[0];
+  var sm = smEl ? (smEl.textContent || '').trim() : '';
+
+  var isSuccess = top.indexOf(':status:Success') >= 0;
+  var out = '<strong style="color:' + (isSuccess ? '#2e7d32' : '#b00') + ';">' + esc(shortStatus(top)) + '</strong>';
+  if (top) out += ' <span style="color:#888; word-break:break-all;">' + esc(top) + '</span>';
+  if (sub) out += '<br>Sub-status: ' + esc(sub);
+  if (sm) out += '<br>Message: ' + esc(sm);
+  return out;
+}
+
+// Last segment of a SAML status URI (…:status:Success -> "Success").
+function shortStatus(uri) {
+  if (!uri) return '(none)';
+  var i = uri.lastIndexOf(':');
+  return i >= 0 ? uri.substring(i + 1) : uri;
 }
 
 function viewSignerCert() {
@@ -249,6 +294,16 @@ function copyField(id) {
   return false;
 }
 
+// Repopulate from the last response saved in localStorage. Returns true if a
+// cached response was found and rendered.
+function renderFromStorage(msgIfMissing) {
+  var saved = null;
+  try { saved = window.localStorage && localStorage.getItem(SAML_RESP_KEY); } catch (e) { saved = null; }
+  if (saved) { render(saved); return true; }
+  if (msgIfMissing) setStatus(msgIfMissing);
+  return false;
+}
+
 window.onload = function () {
   var id = qp('id');
   var direct = qp('SAMLResponse');
@@ -257,15 +312,24 @@ window.onload = function () {
     fetch(appconfig.apiUrl + '/samlresponse?id=' + encodeURIComponent(id))
       .then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); })
       .then(function (j) {
-        if (!j || !j.responseXml) { setStatus('No response found for that id (it may have expired).'); return; }
+        // Stash expired/unknown — fall back to the last response we cached.
+        if (!j || !j.responseXml) {
+          if (!renderFromStorage()) setStatus('No response found for that id (it may have expired).');
+          return;
+        }
         render(j.responseXml);
       })
-      .catch(function (e) { log.error('fetch response: ' + e.message); setStatus('Failed to load response: ' + e.message); });
+      .catch(function (e) {
+        log.error('fetch response: ' + e.message);
+        if (!renderFromStorage()) setStatus('Failed to load response: ' + e.message);
+      });
   } else if (direct) {
     try { render(decodeURIComponent(escape(atob(direct)))); }
     catch (e) { setStatus('Could not decode SAMLResponse parameter: ' + e.message); }
   } else {
-    setStatus('No response id in the URL. Start from the SAML Test Tools page and click "Call IdP".');
+    // No id/param (e.g. returned from the certificate-details page, which drops
+    // the ?id=) — repopulate the fields from the last cached response.
+    renderFromStorage('No response id in the URL. Start from the SAML Test Tools page and click "Call IdP".');
   }
 };
 

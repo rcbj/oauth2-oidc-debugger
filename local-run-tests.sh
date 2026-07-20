@@ -3,6 +3,40 @@ set -x
 #
 # This script runs tests locally.
 #
+# Options:
+#   --saml-dev   Build + start Keycloak and the debugger (api + client) and
+#                provision Keycloak with SAML AuthnRequest signature validation
+#                DISABLED, then leave the stack running WITHOUT running the tests
+#                (for manual SAML testing with a browser-generated SP key).
+#   -h|--help    Show usage.
+#
+SKIP_TESTS=0
+SAML_SIG_VALIDATION=true
+
+usage()
+{
+  cat <<USAGE
+Usage: $(basename "$0") [--saml-dev] [-h|--help]
+
+  (default)    Build + start the stack, provision Keycloak (SAML AuthnRequest
+               signature validation ENABLED), and run the full test suite.
+
+  --saml-dev   Build + start Keycloak and the debugger (api + client), provision
+               Keycloak with SAML AuthnRequest signature validation DISABLED, and
+               leave the stack running WITHOUT running the tests.
+USAGE
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --saml-dev) SKIP_TESTS=1; SAML_SIG_VALIDATION=false ;;
+    -h|--help)  usage; exit 0 ;;
+    *) echo "Unknown option: $1"; usage; exit 1 ;;
+  esac
+  shift
+done
+export SAML_SIG_VALIDATION
+
 init()
 {
   DEBUGGER_BASE_URL=http://localhost:3000
@@ -67,6 +101,23 @@ sleep 60
 check_return_code $?
 configureKeycloak
 check_return_code $?
+
+if [ "${SKIP_TESTS}" = "1" ]; then
+  cat <<EOF
+============================================================================
+Dev stack is UP — tests were NOT run.
+  Debugger : ${DEBUGGER_BASE_URL}
+  API      : ${API_BASE_URL}
+  Keycloak : ${KEYCLOAK_BASE_URL}
+SAML AuthnRequest signature validation is DISABLED on the Keycloak SAML client,
+so a browser-generated (unregistered) SP key can drive the SAML flow.
+Stop the stack with:
+  CONFIG_FILE=./env/local.js docker compose -f local-tests.yml down
+============================================================================
+EOF
+  exit 0
+fi
+
 runReport
 check_return_code $?
 node --version
