@@ -8,6 +8,7 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@xmldom/xmldom": "^0.9.8",
     "axios": "^1.16.0",
     "body-parser": "^2.2.2",
     "bunyan": "latest",
@@ -15,7 +16,9 @@
     "express": "^4.22.2",
     "express-logging": "latest",
     "express-swagger-generator": "^1.1.17",
-    "logops": "latest"
+    "logops": "latest",
+    "xml-crypto": "^6.0.0",
+    "xpath": "^0.0.34"
   },
   "overrides": {
     "express-swagger-generator": {

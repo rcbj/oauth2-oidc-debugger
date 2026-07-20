@@ -107,6 +107,10 @@ services:
   tests:
     container_name: tests
     image: rcbj/test
+    # Chrome crashes tabs on heavy pages when limited to Docker's default 64MB
+    # /dev/shm. The tests also pass --disable-dev-shm-usage; this raises the cap
+    # as a belt-and-suspenders mitigation.
+    shm_size: '2gb'
     build:
       context: .
       dockerfile: tests/Dockerfile

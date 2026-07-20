@@ -8,6 +8,9 @@ init()
   DEBUGGER_BASE_URL=http://localhost:3000
   KEYCLOAK_BASE_URL=http://localhost:8080
   KEYCLOAK_LOCALHOST_BASE_URL=http://localhost:8080
+  # SAML: must match the client bundle's baked env (client/src/env/local.js).
+  API_BASE_URL=http://localhost:4000
+  SAML_SP_ENTITY_ID=http://localhost:3000/saml/sp
   CONFIG_FILE=./env/local.js
   CURRENT_DIR=`echo "$(dirname "$(realpath "$0")")"`
   COMMON_SH=${CURRENT_DIR}/common/common.sh

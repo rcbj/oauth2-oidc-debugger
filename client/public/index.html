@@ -1,15 +1,60 @@
 <!DOCTYPE html>
-<html>
-   <head>
-      <title>IDPTools</title>
-      <meta http-equiv = "refresh" content = "1; url = debugger.html" />
-   </head>
-   <body>
-      <p>Redirecting to debugger</p>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>IDPTools — Choose a Debugger</title>
+    <link href="/css/bootstrap.css" rel="stylesheet">
+    <link href="/css/header.css" rel="stylesheet">
+    <link href="/css/bottom.css" rel="stylesheet">
+    <link href="/css/footer.css" rel="stylesheet">
+    <link href="/css/common.css" rel="stylesheet">
+    <link href="/css/bootstrap-responsive.css" rel="stylesheet">
+    <link href="/css/landing.css" rel="stylesheet">
+  </head>
+
+  <body>
+
+<div class="header_debugger">
+<!--#include file="/partials/header.html"-->
+</div>
+
+    <div class="container">
+
+<div class="landing">
+  <h1 class="landing-title">Choose a debugger</h1>
+  <p class="landing-sub">Which identity protocol do you want to debug?</p>
+
+  <div class="landing-choices">
+    <a class="landing-card" href="/debugger.html">
+      <span class="landing-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="8" cy="8" r="5"/>
+          <path d="M11.5 11.5 21 21"/>
+          <path d="M18.5 18.5 21 16"/>
+          <path d="M15.5 15.5 18 13"/>
+        </svg>
+      </span>
+      <span class="landing-card-title">OAuth2 / OIDC Debugger</span>
+      <span class="landing-card-desc">Authorization Code, Implicit, Client Credentials, Resource Owner, Device, and Token Exchange grants plus all OIDC flows &mdash; with JWT, JWKS, introspection, and userinfo tools.</span>
+    </a>
+
+    <a class="landing-card" href="/saml_tools.html">
+      <span class="landing-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2 20 5v6c0 5-3.5 8.4-8 11-4.5-2.6-8-6-8-11V5l8-3Z"/>
+          <path d="M8.5 12 11 14.5 15.5 10"/>
+        </svg>
+      </span>
+      <span class="landing-card-title">SAML Debugger</span>
+      <span class="landing-card-desc">SAML 2.0 SP-initiated SSO: load IdP metadata, build and sign an AuthnRequest, capture the SAMLResponse at the ACS, and inspect the assertion and its attributes.</span>
+    </a>
+  </div>
+</div>
+
+    </div>
 <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">
 <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png">
 <link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png">
-<link rel="apple-touch-icon" sizes="76x76" href="/apple-icon-76x76.png">
 <link rel="apple-touch-icon" sizes="114x114" href="/apple-icon-114x114.png">
 <link rel="apple-touch-icon" sizes="120x120" href="/apple-icon-120x120.png">
 <link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png">
@@ -23,5 +68,8 @@
 <meta name="msapplication-TileColor" content="#ffffff">
 <meta name="msapplication-TileImage" content="/ms-icon-144x144.png">
 <meta name="theme-color" content="#ffffff">
-   </body>
+<div class="footer_debugger">
+<!--#include file="/partials/footer.html"-->
+</div>
+</body>
 </html>

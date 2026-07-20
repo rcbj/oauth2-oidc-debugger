@@ -11,6 +11,9 @@ init()
   DEBUGGER_BASE_URL="${DEBUGGER_BASE_URL:-http://client:3000}"
   KEYCLOAK_BASE_URL="${KEYCLOAK_BASE_URL:-http://keycloak:8080}"
   KEYCLOAK_LOCALHOST_BASE_URL="${KEYCLOAK_LOCALHOST_BASE_URL:-http://keycloak:8080}"
+  # SAML: must match the client bundle's baked env (service DNS names).
+  API_BASE_URL="${API_BASE_URL:-http://api:4000}"
+  SAML_SP_ENTITY_ID="${SAML_SP_ENTITY_ID:-http://client:3000/saml/sp}"
   CONFIG_FILE="${CONFIG_FILE:-./env/local.js}"
   CURRENT_DIR=`echo "$(dirname "$(realpath "$0")")"`
   COMMON_SH=${CURRENT_DIR}/common.sh

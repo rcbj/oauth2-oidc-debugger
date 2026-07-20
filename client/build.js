@@ -53,6 +53,9 @@ const BUNDLES = [
   ['jwt_tools', 'jwt_tools'],
   ['encoding_tools', 'encoding_tools'],
   ['digital_signature', 'digital_signature'],
+  ['saml_tools', 'saml_tools'],
+  ['saml_cert', 'saml_cert'],
+  ['saml_response', 'saml_response'],
 ];
 
 const CALLBACK_HTML = `<!DOCTYPE html>

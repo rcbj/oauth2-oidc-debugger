@@ -30,19 +30,27 @@ common_setup()
 
 docker_compose() {
   echo "Entering docker_compose()."
+  # Capture the real exit code of the compose command. sudo propagates the
+  # child's status, but the trailing echo would reset $?, so stash it first and
+  # return it — otherwise a failed `up --exit-code-from tests` (a failing test)
+  # is masked and callers (e.g. run-coverage.sh) wrongly see success.
+  local rc
   if [ -x ~/.local/bin/docker-compose ];
-  then 
+  then
     sudo CONFIG_FILE=${CONFIG_FILE} docker-compose "$@"
+    rc=$?
   elif docker compose version >/dev/null 2>&1; then
     sudo CONFIG_FILE=${CONFIG_FILE} docker compose "$@"
+    rc=$?
   elif command -v docker-compose >/dev/null 2>&1; then
     sudo CONFIG_FILE=${CONFIG_FILE} docker-compose "$@"
+    rc=$?
   else
     echo "Error: Docker Compose not found." >&2
     return 1
   fi
-  echo "Leaving docker_compose()."
-  return 0
+  echo "Leaving docker_compose(). rc=${rc}"
+  return ${rc}
 }
 
 configureKeycloak()
@@ -493,6 +501,79 @@ configureKeycloak()
     declare -gx ${FLOW_VARIABLE}_USER="${USER_ID}"
 
   done
+
+  # ---- SAML 2.0 client + user -----------------------------------------------
+  # Provisioned outside the loop above (which is OIDC-specific: it requires a
+  # client secret and attaches OIDC client-scopes). This SAML SP client is used
+  # by the SAML Test Tools workflow / tests/saml_sso.js.
+  #
+  # The client's clientId IS the SP entityID (must equal the AuthnRequest Issuer
+  # the client sends — client env spEntityId). Client signature verification is
+  # disabled so the tool's per-session SP key need not be pre-registered; the IdP
+  # still signs the response/assertion so they can be inspected.
+  SAML_SP_ENTITY_ID="${SAML_SP_ENTITY_ID:-http://localhost:3000/saml/sp}"
+  SAML_API_BASE_URL="${API_BASE_URL:-http://localhost:4000}"
+  SAML_ACS_URL="${SAML_API_BASE_URL}/samlacs"
+  SAML_SLO_URL="${SAML_API_BASE_URL}/samlslo"
+
+  KEYCLOAK_ACCESS_TOKEN=$(curl \
+    -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "client_id=admin-cli" -d "username=keycloak" -d "password=keycloak" \
+    -d "grant_type=password" | jq -r '.access_token')
+  if [ -z "${KEYCLOAK_ACCESS_TOKEN}" ]; then
+    echo "KEYCLOAK_ACCESS_TOKEN is blank (SAML)."
+    exit 1
+  fi
+
+  curl -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing/clients" \
+    -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{
+          "clientId": "'"${SAML_SP_ENTITY_ID}"'",
+          "name": "saml",
+          "protocol": "saml",
+          "enabled": true,
+          "frontchannelLogout": true,
+          "redirectUris": ["'"${SAML_ACS_URL}"'", "'"${SAML_API_BASE_URL}"'/*"],
+          "attributes": {
+            "saml.authnrequest.signed": "false",
+            "saml.client.signature": "false",
+            "saml.server.signature": "true",
+            "saml.assertion.signature": "true",
+            "saml_name_id_format": "username",
+            "saml.force.post.binding": "false",
+            "saml_assertion_consumer_url_post": "'"${SAML_ACS_URL}"'",
+            "saml_assertion_consumer_url_redirect": "'"${SAML_ACS_URL}"'",
+            "saml_single_logout_service_url_post": "'"${SAML_SLO_URL}"'",
+            "saml_single_logout_service_url_redirect": "'"${SAML_SLO_URL}"'"
+          }
+       }'
+  check_return_code $?
+
+  SAML_USER_ID=$(curl \
+    -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing/users" \
+    -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{ "username": "saml", "firstName": "saml", "lastName": "saml",
+          "email": "saml@iyasec.io", "enabled": true, "emailVerified": true }' \
+    -i | grep Location | rev | cut -d '/' -f 1 | rev | tr -d ' \n\r')
+  if [ -z "${SAML_USER_ID}" ]; then
+    echo "Failed to create SAML user."
+    exit 1
+  fi
+  curl -X PUT \
+    "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing/users/${SAML_USER_ID}/reset-password" \
+    -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{ "type": "password", "value": "saml", "temporary": false }'
+  check_return_code $?
+
+  declare -gx SAML_METADATA_URL="${KEYCLOAK_BASE_URL}/realms/debugger-testing/protocol/saml/descriptor"
+  declare -gx SAML_SP_ENTITY_ID
+  declare -gx SAML_ACS_URL
+  declare -gx SAML_SLO_URL
+  declare -gx SAML_USER="saml"
 
   # ---- OIDC Dynamic Client Registration --------------------------------------
   # Mint an initial access token so the Dynamic Client Registration test can

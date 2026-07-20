@@ -281,6 +281,9 @@ async function test() {
     options.addArguments("--headless");
   }
   options.addArguments("--no-sandbox");
+  // Use /tmp instead of the container's tiny (64MB) /dev/shm, which otherwise
+  // crashes the Chrome tab on heavy pages (e.g. jwt_tools) under coverage.
+  options.addArguments("--disable-dev-shm-usage");
   // Test-only: allow a deployed HTTPS debugger (e.g. https://test.idptools.com)
   // to make discovery/token XHRs to a plaintext http://localhost Keycloak, which
   // browsers otherwise block (mixed content / Private Network Access).
@@ -328,7 +331,7 @@ async function test() {
     }
 
     log.info("Kicking off test.");
-    await driver.get(baseUrl);
+    await driver.get(baseUrl + "/debugger.html");
     log.info("Calling populateMetadata().");
     await populateMetadata(driver, discovery_endpoint);
     log.info("Calling getAccessToken() to obtain the subject token.");

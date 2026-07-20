@@ -46,6 +46,13 @@ const env = process.env;
 function buildJobs() {
   const jobs = [];
 
+  // Basic navigation: landing page -> OAuth2/OIDC debugger -> Home -> SAML -> Home.
+  jobs.push({
+    name: "Navigation (landing page → OAuth2/OIDC → Home → SAML → Home)",
+    script: "navigation.js",
+    env: {},
+  });
+
   jobs.push({
     name: "OAuth2 Client Credentials",
     script: "oauth2_client_credentials.js",
@@ -262,6 +269,19 @@ function buildJobs() {
     name: "Digital Signature (asymmetric sigs + symmetric MACs — generate, sign/MAC, validate, download)",
     script: "digital_signature.js",
     env: {},
+  });
+
+  // SAML 2.0 SP-initiated SSO: load IdP metadata, generate an SP key pair, send a
+  // signed AuthnRequest (redirect binding), log in at Keycloak, and confirm the
+  // ACS-captured SAMLResponse / assertion / NameID render on the response page.
+  jobs.push({
+    name: "SAML 2.0 SSO (metadata → signed AuthnRequest → login → ACS → assertion)",
+    script: "saml_sso.js",
+    env: {
+      SAML_METADATA_URL: env.SAML_METADATA_URL,
+      SAML_SP_ENTITY_ID: env.SAML_SP_ENTITY_ID,
+      SAML_USER: env.SAML_USER,
+    },
   });
 
   return jobs;
