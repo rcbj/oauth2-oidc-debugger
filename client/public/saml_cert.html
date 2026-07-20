@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>OAuth2 & OpenID Connect Debugger — SAML Signer Certificate</title>
+    <link href="/css/bootstrap.css" rel="stylesheet">
+    <link href="/css/header.css" rel="stylesheet">
+    <link href="/css/bottom.css" rel="stylesheet">
+    <link href="/css/footer.css" rel="stylesheet">
+    <link href="/css/common.css" rel="stylesheet">
+    <link href="/css/bootstrap-responsive.css" rel="stylesheet">
+    <link href="/css/saml_tools.css" rel="stylesheet">
+  </head>
+
+  <body>
+
+<div class="header_debugger">
+<!--#include file="/partials/header.html"-->
+</div>
+
+    <div class="container">
+<script type="text/javascript" src="/js/saml_cert.js">
+</script>
+
+<p class="saml-return"><a id="return_link" href="/saml_tools.html">&larr; Return to SAML Test Tools</a></p>
+
+<p class="saml-intro">Full details of the IdP's <strong>signer certificate</strong> (from the metadata's <code>KeyDescriptor[use=signing]</code>). Paste any certificate below (PEM or bare base64 DER) and click Parse.</p>
+
+<fieldset class="saml-pane" id="pane_cert_input">
+  <legend>Certificate</legend>
+  <div class="saml-field">
+    <label class="saml-has-copy" title="Certificate in PEM or bare base64 DER form.">Certificate <button type="button" class="saml-copy" onclick="return saml_cert.copyField('saml_cert_input');">Copy</button></label>
+    <textarea rows="6" id="saml_cert_input" name="saml_cert_input"></textarea>
+  </div>
+  <div class="saml-row">
+    <input type="button" class="saml-btn" value="Parse" onclick="return saml_cert.parseCert();" title="Parse and display the certificate details." />
+    <input class="saml-status saml-grow" type="text" id="saml_cert_status" name="saml_cert_status" readonly />
+  </div>
+</fieldset>
+
+<fieldset class="saml-pane" id="pane_cert_details">
+  <legend>Details</legend>
+  <div id="saml_cert_details">&nbsp;</div>
+</fieldset>
+
+<link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">
+<link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png">
+<link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png">
+<link rel="apple-touch-icon" sizes="76x76" href="/apple-icon-76x76.png">
+<link rel="apple-touch-icon" sizes="114x114" href="/apple-icon-114x114.png">
+<link rel="apple-touch-icon" sizes="120x120" href="/apple-icon-120x120.png">
+<link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png">
+<link rel="icon" type="image/png" sizes="192x192"  href="/android-icon-192x192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="msapplication-TileColor" content="#ffffff">
+<meta name="msapplication-TileImage" content="/ms-icon-144x144.png">
+<meta name="theme-color" content="#ffffff">
+    </div>
+<div class="footer_debugger">
+<!--#include file="/partials/footer.html"-->
+</div>
+</body>
+</html>

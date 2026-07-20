@@ -229,6 +229,11 @@ app.get('/samlmetadata', function (req, res) {
 //     browser to auto-submit; SAMLRequest is base64 of the enveloped-signed XML.
 // The SP private key is transmitted to this local API; keep this dev-only.
 // ---------------------------------------------------------------------------
+function xmlTextEscape(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function signXmlEnveloped(xml, privateKeyPem, certPem, rootLocalName) {
   var root = rootLocalName || 'AuthnRequest';
   var xmlcrypto = require('xml-crypto');
@@ -343,7 +348,9 @@ app.post('/samlartifactctx', function (req, res) {
     privateKeyPem: b.privateKeyPem,
     certPem: b.certPem || '',
     spEntityId: b.spEntityId || '',
-    sigAlg: b.sigAlg || 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256'
+    sigAlg: b.sigAlg || 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256',
+    // Optional WS-Addressing headers for the ArtifactResolve SOAP envelope.
+    wsa: b.wsa || {}
   });
   res.json({ relayState: 'art:' + id });
 });
@@ -391,8 +398,26 @@ function resolveArtifact(artifact, relayState) {
     var signed;
     try { signed = signXmlEnveloped(ar, ctx.privateKeyPem, ctx.certPem, 'ArtifactResolve'); }
     catch (e) { return reject(new Error('signing ArtifactResolve failed: ' + e.message)); }
-    var soap = '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">' +
-               '<soap:Body>' + signed + '</soap:Body></soap:Envelope>';
+
+    // Optional WS-Addressing SOAP headers. WS-Addressing is a SOAP-layer
+    // mechanism (not part of the AuthnRequest); it applies only to this SOAP
+    // ArtifactResolve back-channel.
+    var wsa = ctx.wsa || {};
+    var wsaNs = '';
+    var soapHeader = '';
+    if (wsa.enabled) {
+      wsaNs = ' xmlns:wsa="http://www.w3.org/2005/08/addressing"';
+      var to = wsa.to || ctx.arsUrl;
+      var msgId = wsa.messageId || ('urn:uuid:' + crypto.randomUUID());
+      var hdr = '<wsa:MessageID>' + xmlTextEscape(msgId) + '</wsa:MessageID>' +
+                '<wsa:To>' + xmlTextEscape(to) + '</wsa:To>';
+      if (wsa.action) hdr += '<wsa:Action>' + xmlTextEscape(wsa.action) + '</wsa:Action>';
+      if (wsa.replyTo) hdr += '<wsa:ReplyTo><wsa:Address>' + xmlTextEscape(wsa.replyTo) + '</wsa:Address></wsa:ReplyTo>';
+      if (wsa.from) hdr += '<wsa:From><wsa:Address>' + xmlTextEscape(wsa.from) + '</wsa:Address></wsa:From>';
+      soapHeader = '<soap:Header>' + hdr + '</soap:Header>';
+    }
+    var soap = '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"' + wsaNs + '>' +
+               soapHeader + '<soap:Body>' + signed + '</soap:Body></soap:Envelope>';
     var https = require('https');
     axios.post(ctx.arsUrl, soap, {
       headers: { 'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': '""' },

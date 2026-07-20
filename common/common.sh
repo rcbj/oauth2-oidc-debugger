@@ -508,13 +508,19 @@ configureKeycloak()
   # by the SAML Test Tools workflow / tests/saml_sso.js.
   #
   # The client's clientId IS the SP entityID (must equal the AuthnRequest Issuer
-  # the client sends — client env spEntityId). Client signature verification is
-  # disabled so the tool's per-session SP key need not be pre-registered; the IdP
-  # still signs the response/assertion so they can be inspected.
+  # the client sends — client env spEntityId). Client signature validation is
+  # ENABLED: the fixed test SP signing certificate (tests/fixtures/sp-cert.pem,
+  # provided as SAML_SP_SIGNING_CERT by the run scripts) is registered here, and
+  # tests/saml_sso.js signs the AuthnRequest with the matching private key
+  # (tests/fixtures/sp-key.pem), so Keycloak validates the request signature.
   SAML_SP_ENTITY_ID="${SAML_SP_ENTITY_ID:-http://localhost:3000/saml/sp}"
   SAML_API_BASE_URL="${API_BASE_URL:-http://localhost:4000}"
   SAML_ACS_URL="${SAML_API_BASE_URL}/samlacs"
   SAML_SLO_URL="${SAML_API_BASE_URL}/samlslo"
+  if [ -z "${SAML_SP_SIGNING_CERT}" ]; then
+    echo "SAML_SP_SIGNING_CERT is blank. The run script must export the SP signing certificate (base64 DER of tests/fixtures/sp-cert.pem) so Keycloak can validate the AuthnRequest signature."
+    exit 1
+  fi
 
   KEYCLOAK_ACCESS_TOKEN=$(curl \
     -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/realms/master/protocol/openid-connect/token" \
@@ -537,8 +543,9 @@ configureKeycloak()
           "frontchannelLogout": true,
           "redirectUris": ["'"${SAML_ACS_URL}"'", "'"${SAML_API_BASE_URL}"'/*"],
           "attributes": {
-            "saml.authnrequest.signed": "false",
-            "saml.client.signature": "false",
+            "saml.authnrequest.signed": "true",
+            "saml.client.signature": "true",
+            "saml.signing.certificate": "'"${SAML_SP_SIGNING_CERT}"'",
             "saml.server.signature": "true",
             "saml.assertion.signature": "true",
             "saml_name_id_format": "username",

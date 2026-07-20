@@ -13,6 +13,10 @@ init()
   SAML_SP_ENTITY_ID=http://localhost:3000/saml/sp
   CONFIG_FILE=./env/local.js
   CURRENT_DIR=`echo "$(dirname "$(realpath "$0")")"`
+  # SP signing cert (base64 DER) registered on the Keycloak SAML client so it can
+  # validate the AuthnRequest signature (test signs with tests/fixtures/sp-key.pem).
+  SAML_SP_SIGNING_CERT=$(grep -v -- '-----' "${CURRENT_DIR}/tests/fixtures/sp-cert.pem" | tr -d '\n\r')
+  export SAML_SP_SIGNING_CERT
   COMMON_SH=${CURRENT_DIR}/common/common.sh
   if [ -r "${COMMON_SH}" ];
   then

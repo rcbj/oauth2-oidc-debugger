@@ -271,18 +271,23 @@ function buildJobs() {
     env: {},
   });
 
-  // SAML 2.0 SP-initiated SSO: load IdP metadata, generate an SP key pair, send a
-  // signed AuthnRequest (redirect binding), log in at Keycloak, and confirm the
+  // SAML 2.0 SP-initiated SSO across all three bindings: load IdP metadata, sign
+  // the AuthnRequest (redirect = query-string sig; post = enveloped XML-DSIG;
+  // artifact = redirect send + SOAP ArtifactResolve back-channel), log in at
+  // Keycloak (which validates the request signature), and confirm the
   // ACS-captured SAMLResponse / assertion / NameID render on the response page.
-  jobs.push({
-    name: "SAML 2.0 SSO (metadata → signed AuthnRequest → login → ACS → assertion)",
-    script: "saml_sso.js",
-    env: {
-      SAML_METADATA_URL: env.SAML_METADATA_URL,
-      SAML_SP_ENTITY_ID: env.SAML_SP_ENTITY_ID,
-      SAML_USER: env.SAML_USER,
-    },
-  });
+  for (const SAML_BINDING of ["redirect", "post", "artifact"]) {
+    jobs.push({
+      name: `SAML 2.0 SSO — HTTP-${SAML_BINDING === 'post' ? 'POST' : SAML_BINDING === 'artifact' ? 'Artifact' : 'Redirect'} binding`,
+      script: "saml_sso.js",
+      env: {
+        SAML_METADATA_URL: env.SAML_METADATA_URL,
+        SAML_SP_ENTITY_ID: env.SAML_SP_ENTITY_ID,
+        SAML_USER: env.SAML_USER,
+        SAML_BINDING,
+      },
+    });
+  }
 
   return jobs;
 }
