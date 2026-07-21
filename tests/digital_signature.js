@@ -350,6 +350,9 @@ async function test() {
   const options = new chrome.Options();
   if (headless) options.addArguments("--headless=new");
   options.addArguments("--no-sandbox");
+  // Use /tmp instead of the container's tiny (64MB) /dev/shm, which otherwise
+  // crashes the Chrome tab on heavy pages (e.g. jwt_tools) under coverage.
+  options.addArguments("--disable-dev-shm-usage");
   options.addArguments("--allow-running-insecure-content");
   options.addArguments("--disable-features=BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights,LocalNetworkAccessChecks");
   // All three panes are pure-JS (no crypto.subtle), so a secure context is not

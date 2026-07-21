@@ -148,6 +148,9 @@
       <input class="jt-grow" type="password" id="sign_ks_password" name="sign_ks_password" placeholder="password (optional)" title="Optional password to protect the download. Required for PKCS#12. Not stored." />
       <input type="submit" value="Download Keys" onclick="return jwt_tools.downloadSigningKeys();" />
     </div>
+    <div class="jt-row">
+      <a href="/saml_cert.html?from=jwt_tools.html" onclick="return jwt_tools.viewSigningCert();" title="Build a self-signed certificate from this signing key pair and view its details (not for HMAC).">View certificate details &rarr;</a>
+    </div>
 
     <div class="jt-row">
       <input type="submit" value="Generate Signed JWT" onclick="return jwt_tools.signJWT();" />

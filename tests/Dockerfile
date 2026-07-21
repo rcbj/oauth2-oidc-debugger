@@ -53,10 +53,12 @@ RUN node -v
 RUN npm -v
 
 # Bundle app source
-COPY tests/oauth2_* tests/oidc_* tests/token_introspection.js tests/jwt_tools.js tests/encoding_tools.js tests/digital_signature.js ./
+COPY tests/oauth2_* tests/oidc_* tests/token_introspection.js tests/jwt_tools.js tests/encoding_tools.js tests/digital_signature.js tests/saml_sso.js tests/saml_logout.js tests/navigation.js ./
 COPY tests/run-report.js ./
 # Centralized test config (waitTime, etc.); selected via CONFIG_FILE.
 COPY tests/env ./env
+# Fixed SP signing key/cert for the SAML signature-validation test + provisioning.
+COPY tests/fixtures ./fixtures
 RUN ls
 RUN wget -q -O chrome-linux64.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/121.0.6167.85/linux64/chrome-linux64.zip && \
     unzip chrome-linux64.zip && \

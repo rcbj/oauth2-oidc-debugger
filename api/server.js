@@ -9,6 +9,8 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
+const crypto = require('crypto');
 const { convertToOAuth2Format  } = require('./data.js');
 
 // Constants
@@ -28,6 +30,43 @@ var log = bunyan.createLogger({ name: 'server',
                                 level: LOG_LEVEL });
 log.info("Log initialized. logLevel=" + log.level());
 
+// Ephemeral, in-memory store for SAML exchanges. The ACS endpoint stashes the
+// (potentially large) SAMLResponse here and redirects the browser to the client
+// results page with a short id; the client then fetches the XML by id. This is
+// deliberate, single-instance, short-lived state (the app is otherwise
+// stateless) — not for the static/backend-less deployment.
+var samlExchanges = new Map();
+const SAML_EXCHANGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+function sweepSamlExchanges() {
+  var now = Date.now();
+  samlExchanges.forEach(function (v, k) {
+    if (now - v.createdAt > SAML_EXCHANGE_TTL_MS) samlExchanges.delete(k);
+  });
+}
+function stashSamlResponse(xml, relayState) {
+  sweepSamlExchanges();
+  var id = crypto.randomBytes(16).toString('hex');
+  samlExchanges.set(id, { responseXml: xml, relayState: relayState || '', createdAt: Date.now() });
+  return id;
+}
+
+// When a request asks for the artifact response binding, the SP context needed
+// to resolve the artifact later (ARS URL + SP signing key) is stashed here and
+// referenced by the RelayState (art:<id>) the IdP echoes back to the ACS.
+var samlArtifactCtx = new Map();
+function stashArtifactCtx(ctx) {
+  sweepSamlArtifactCtx();
+  var id = crypto.randomBytes(16).toString('hex');
+  samlArtifactCtx.set(id, Object.assign({ createdAt: Date.now() }, ctx));
+  return id;
+}
+function sweepSamlArtifactCtx() {
+  var now = Date.now();
+  samlArtifactCtx.forEach(function (v, k) {
+    if (now - v.createdAt > SAML_EXCHANGE_TTL_MS) samlArtifactCtx.delete(k);
+  });
+}
+
 // jwt.xml is a local copy of https://www.iana.org/assignments/jwt/jwt.xml.
 // A local copy is used to avoid latency and availability issues fetching the
 // online copy from IANA, which has been an ongoing reliability problem.
@@ -38,6 +77,9 @@ const app = express();
 const expressSwagger = require('express-swagger-generator')(app);
 
 app.use(bodyParser.json());
+// SAML ACS receives application/x-www-form-urlencoded POSTs (SAMLResponse,
+// RelayState, SAMLart) from the IdP; enable urlencoded parsing for those.
+app.use(bodyParser.urlencoded({ extended: true, limit: '5mb' }));
 var corsOptions = {
   origin: '*',
   optionsSuccessStatus: 204
@@ -123,6 +165,332 @@ app.get('/claimdescription', function(req, res) {
     res.status(STATUS_500)
        .render('error', { error: e });
   }
+});
+
+/**
+ * Proxy-fetch a SAML metadata document server-side.
+ *
+ * The SAML config page needs the IdP's metadata XML, but fetching it directly
+ * from the browser is blocked by CORS (the IdP descriptor endpoint sends no
+ * Access-Control-Allow-Origin). This endpoint fetches it on the server and
+ * returns the XML. Like the token proxy, it fetches a caller-supplied URL, so
+ * it is a dev/debugger-only tool (SSRF by design); do not expose publicly.
+ *
+ * The target URL is passed base64-encoded in ?url= to survive query escaping.
+ * @route GET /samlmetadata
+ * @group SAML - SAML support operations
+ * @returns {string} 200 - The metadata XML document
+ * @returns {Error.model} 400 - Missing/invalid url parameter
+ * @returns {Error.model} 500 - Fetch error
+ */
+app.get('/samlmetadata', function (req, res) {
+  log.debug('Entering GET /samlmetadata.');
+  var target;
+  try {
+    target = Buffer.from(String(req.query.url || ''), 'base64').toString('utf8').trim();
+  } catch (e) {
+    return res.status(STATUS_400).json({ error: 'Invalid url parameter (expected base64).' });
+  }
+  if (!/^https?:\/\//i.test(target)) {
+    return res.status(STATUS_400).json({ error: 'url must be an absolute http(s) URL.' });
+  }
+  var https = require('https');
+  axios.get(target, {
+    responseType: 'text',
+    // Allow self-signed IdP TLS in test/dev environments.
+    httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+    headers: { 'Accept': 'application/samlmetadata+xml, application/xml, text/xml, */*' }
+  })
+  .then(function (response) {
+    res.append('Content-Type', 'application/xml').status(STATUS_200).send(response.data);
+  })
+  .catch(function (error) {
+    log.error('Error fetching SAML metadata from ' + target + ': ' + (error && error.stack ? error.stack : error));
+    if (error && error.response) {
+      res.status(error.response.status || STATUS_500).send(String(error.response.data || 'metadata fetch failed'));
+    } else {
+      res.status(STATUS_500).json({ error: 'metadata fetch failed: ' + (error && error.message ? error.message : String(error)) });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SAML request signing.
+//
+// Signing is done server-side because the HTTP-POST binding needs an enveloped
+// XML digital signature (XML-DSIG / exclusive C14N), which is impractical in the
+// browser. The browser posts the unsigned AuthnRequest XML plus the SP private
+// key; this returns what the browser needs to reach the IdP:
+//   * redirect (and artifact response) binding: a full GET Location URL whose
+//     query string (SAMLRequest DEFLATE+base64, SigAlg, Signature) is signed
+//     per the SAML HTTP-Redirect binding (signature over the octet string, NOT
+//     an XML signature).
+//   * post binding: { location, params:{ SAMLRequest, RelayState } } for the
+//     browser to auto-submit; SAMLRequest is base64 of the enveloped-signed XML.
+// The SP private key is transmitted to this local API; keep this dev-only.
+// ---------------------------------------------------------------------------
+function xmlTextEscape(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function signXmlEnveloped(xml, privateKeyPem, certPem, rootLocalName) {
+  var root = rootLocalName || 'AuthnRequest';
+  var xmlcrypto = require('xml-crypto');
+  var SignedXml = xmlcrypto.SignedXml;
+  // The root element's ID becomes the signature Reference URI (#ID).
+  var m = xml.match(/\bID="([^"]+)"/);
+  var id = m ? m[1] : '';
+  var sig = new SignedXml({
+    privateKey: privateKeyPem,
+    publicCert: certPem || undefined
+  });
+  sig.signatureAlgorithm = 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256';
+  sig.canonicalizationAlgorithm = 'http://www.w3.org/2001/10/xml-exc-c14n#';
+  sig.addReference({
+    xpath: "/*[local-name(.)='" + root + "']",
+    transforms: [
+      'http://www.w3.org/2000/09/xmldsig#enveloped-signature',
+      'http://www.w3.org/2001/10/xml-exc-c14n#'
+    ],
+    digestAlgorithm: 'http://www.w3.org/2001/04/xmlenc#sha256',
+    uri: id ? ('#' + id) : ''
+  });
+  // Per the SAML schema the <Signature> must follow <Issuer>.
+  sig.computeSignature(xml, {
+    location: { reference: "/*[local-name(.)='" + root + "']/*[local-name(.)='Issuer']", action: 'after' }
+  });
+  return sig.getSignedXml();
+}
+
+/**
+ * Sign a SAML AuthnRequest for the chosen binding.
+ * @route POST /samlsign
+ * @group SAML - SAML support operations
+ */
+app.post('/samlsign', function (req, res) {
+  log.debug('Entering POST /samlsign.');
+  try {
+    var b = req.body || {};
+    var binding = b.binding || 'redirect';
+    var xml = b.xml;
+    var dest = b.destination;
+    var privateKeyPem = b.privateKeyPem;
+    var certPem = b.certPem || '';
+    var sigAlg = b.sigAlg || 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256';
+    var relayState = b.relayState || '';
+    var rootElement = b.rootElement || 'AuthnRequest'; // AuthnRequest | LogoutRequest
+    if (!xml || !privateKeyPem) {
+      return res.status(STATUS_400).json({ error: 'xml and privateKeyPem are required.' });
+    }
+
+    if (binding === 'post') {
+      var signedXml = signXmlEnveloped(xml, privateKeyPem, certPem, rootElement);
+      var params = { SAMLRequest: Buffer.from(signedXml, 'utf8').toString('base64') };
+      if (relayState) params.RelayState = relayState;
+      // signedXml is also returned so the UI can display the enveloped-signed
+      // document (e.g. the "Build Request" button).
+      return res.json({ mode: 'post', location: dest || '', params: params, signedXml: signedXml });
+    }
+
+    // redirect binding (also used to send the request when the response is
+    // requested via the artifact binding). For artifact responses, stash the SP
+    // context needed to resolve the artifact and carry its id in RelayState.
+    if (binding === 'artifact') {
+      var ctxId = stashArtifactCtx({
+        arsUrl: b.arsUrl || '',
+        privateKeyPem: privateKeyPem,
+        certPem: certPem,
+        spEntityId: b.spEntityId || '',
+        sigAlg: sigAlg
+      });
+      relayState = 'art:' + ctxId;
+    }
+    // HTTP-Redirect binding signature (saml-bindings-2.0-os §3.4.4.1): sign the
+    // octet string SAMLRequest[&RelayState]&SigAlg (URL-encoded, in that order),
+    // then append &Signature. It is a detached signature over the query string,
+    // NOT an XML signature in the document.
+    var deflated = zlib.deflateRawSync(Buffer.from(xml, 'utf8'));
+    var samlRequest = deflated.toString('base64');
+    var qs = 'SAMLRequest=' + encodeURIComponent(samlRequest);
+    if (relayState) qs += '&RelayState=' + encodeURIComponent(relayState);
+    qs += '&SigAlg=' + encodeURIComponent(sigAlg);
+    var signer = crypto.createSign('RSA-SHA256');
+    signer.update(qs);
+    var signature = signer.sign(privateKeyPem, 'base64');
+    qs += '&Signature=' + encodeURIComponent(signature);
+    // Full GET URL when a destination is known; otherwise just the signed query
+    // string (e.g. "Build Request" before metadata is loaded).
+    var location = dest ? (dest + (dest.indexOf('?') >= 0 ? '&' : '?') + qs) : qs;
+    return res.json({ mode: 'redirect', location: location, queryString: qs });
+  } catch (e) {
+    log.error('samlsign: ' + (e && e.stack ? e.stack : e));
+    res.status(STATUS_500).json({ error: 'sign failed: ' + (e && e.message ? e.message : String(e)) });
+  }
+});
+
+/**
+ * Register SP context for an artifact-response flow. AuthnRequest signing now
+ * happens in the browser, but resolving the artifact at the ACS is a server-side
+ * SOAP back-channel that needs the SP signing key + the IdP's ARS URL. The
+ * browser registers them here and gets back the RelayState (art:<id>) to carry
+ * in its (browser-signed) redirect request.
+ * @route POST /samlartifactctx
+ * @group SAML - SAML support operations
+ */
+app.post('/samlartifactctx', function (req, res) {
+  var b = req.body || {};
+  if (!b.privateKeyPem || !b.arsUrl) {
+    return res.status(STATUS_400).json({ error: 'privateKeyPem and arsUrl are required.' });
+  }
+  var id = stashArtifactCtx({
+    arsUrl: b.arsUrl,
+    privateKeyPem: b.privateKeyPem,
+    certPem: b.certPem || '',
+    spEntityId: b.spEntityId || '',
+    sigAlg: b.sigAlg || 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256',
+    // Optional WS-Addressing headers for the ArtifactResolve SOAP envelope.
+    wsa: b.wsa || {}
+  });
+  res.json({ relayState: 'art:' + id });
+});
+
+// Decode a SAML protocol message from a binding parameter: POST binding is raw
+// base64 XML; Redirect binding is DEFLATE (raw) then base64.
+function decodeSamlMessage(b64) {
+  var buf = Buffer.from(String(b64 || ''), 'base64');
+  if (buf.length && buf[0] === 0x3c /* '<' */) return buf.toString('utf8');
+  try { return zlib.inflateRawSync(buf).toString('utf8'); }
+  catch (e) { return buf.toString('utf8'); }
+}
+
+// Pull the <samlp:Response> element out of a SOAP <ArtifactResponse> envelope.
+function extractResponseFromArtifactResponse(soapXml) {
+  var xmldom = require('@xmldom/xmldom');
+  var xpath = require('xpath');
+  var doc = new xmldom.DOMParser().parseFromString(soapXml, 'text/xml');
+  var nodes = xpath.select(
+    "//*[local-name(.)='Response' and namespace-uri(.)='urn:oasis:names:tc:SAML:2.0:protocol']",
+    doc
+  );
+  if (!nodes || !nodes.length) return '';
+  return new xmldom.XMLSerializer().serializeToString(nodes[0]);
+}
+
+// Resolve an artifact via the SOAP back-channel: build + sign an ArtifactResolve
+// with the SP context stashed at request time (looked up via RelayState), POST
+// it to the IdP's Artifact Resolution Service, and return the embedded Response.
+function resolveArtifact(artifact, relayState) {
+  return new Promise(function (resolve, reject) {
+    var ctxId = (relayState && relayState.indexOf('art:') === 0) ? relayState.slice(4) : '';
+    var ctx = ctxId ? samlArtifactCtx.get(ctxId) : null;
+    if (!ctx || !ctx.arsUrl) {
+      return reject(new Error('no artifact context / ARS URL (RelayState missing or expired)'));
+    }
+    var id = '_' + crypto.randomBytes(16).toString('hex');
+    var instant = new Date().toISOString();
+    var ar = '<samlp:ArtifactResolve xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"' +
+             ' xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"' +
+             ' ID="' + id + '" Version="2.0" IssueInstant="' + instant + '">' +
+             '<saml:Issuer>' + (ctx.spEntityId || '') + '</saml:Issuer>' +
+             '<samlp:Artifact>' + artifact + '</samlp:Artifact>' +
+             '</samlp:ArtifactResolve>';
+    var signed;
+    try { signed = signXmlEnveloped(ar, ctx.privateKeyPem, ctx.certPem, 'ArtifactResolve'); }
+    catch (e) { return reject(new Error('signing ArtifactResolve failed: ' + e.message)); }
+
+    // Optional WS-Addressing SOAP headers. WS-Addressing is a SOAP-layer
+    // mechanism (not part of the AuthnRequest); it applies only to this SOAP
+    // ArtifactResolve back-channel.
+    var wsa = ctx.wsa || {};
+    var wsaNs = '';
+    var soapHeader = '';
+    if (wsa.enabled) {
+      wsaNs = ' xmlns:wsa="http://www.w3.org/2005/08/addressing"';
+      var to = wsa.to || ctx.arsUrl;
+      var msgId = wsa.messageId || ('urn:uuid:' + crypto.randomUUID());
+      var hdr = '<wsa:MessageID>' + xmlTextEscape(msgId) + '</wsa:MessageID>' +
+                '<wsa:To>' + xmlTextEscape(to) + '</wsa:To>';
+      if (wsa.action) hdr += '<wsa:Action>' + xmlTextEscape(wsa.action) + '</wsa:Action>';
+      if (wsa.replyTo) hdr += '<wsa:ReplyTo><wsa:Address>' + xmlTextEscape(wsa.replyTo) + '</wsa:Address></wsa:ReplyTo>';
+      if (wsa.from) hdr += '<wsa:From><wsa:Address>' + xmlTextEscape(wsa.from) + '</wsa:Address></wsa:From>';
+      soapHeader = '<soap:Header>' + hdr + '</soap:Header>';
+    }
+    var soap = '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"' + wsaNs + '>' +
+               soapHeader + '<soap:Body>' + signed + '</soap:Body></soap:Envelope>';
+    var https = require('https');
+    axios.post(ctx.arsUrl, soap, {
+      headers: { 'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': '""' },
+      httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+      responseType: 'text'
+    }).then(function (resp) {
+      var respXml = extractResponseFromArtifactResponse(resp.data);
+      if (!respXml) return reject(new Error('no <Response> found in ArtifactResponse'));
+      resolve(respXml);
+    }).catch(function (e) {
+      reject(new Error('ARS SOAP call failed: ' + (e && e.message ? e.message : String(e))));
+    });
+  });
+}
+
+/**
+ * SAML Assertion Consumer Service (ACS). Receives the IdP's SAMLResponse
+ * (POST form field or GET query) or a SAMLart artifact, stashes the response,
+ * and redirects the browser to the client results page with the stash id.
+ * @route POST /samlacs
+ * @route GET /samlacs
+ * @group SAML - SAML support operations
+ */
+function handleSamlAcs(req, res) {
+  log.debug('Entering ' + req.method + ' /samlacs.');
+  try {
+    var samlResponse = (req.body && req.body.SAMLResponse) || req.query.SAMLResponse;
+    var relayState = (req.body && req.body.RelayState) || req.query.RelayState || '';
+    var artifact = (req.body && req.body.SAMLart) || req.query.SAMLart;
+
+    if (samlResponse) {
+      var xml = decodeSamlMessage(samlResponse);
+      var id = stashSamlResponse(xml, relayState);
+      res.writeHead(302, { 'Location': uiUrl + '/saml_response.html?id=' + encodeURIComponent(id) });
+      return res.end();
+    }
+    if (artifact) {
+      return resolveArtifact(artifact, relayState)
+        .then(function (respXml) {
+          var artId = stashSamlResponse(respXml, relayState);
+          res.writeHead(302, { 'Location': uiUrl + '/saml_response.html?id=' + encodeURIComponent(artId) });
+          res.end();
+        })
+        .catch(function (e) {
+          log.error('artifact resolve: ' + (e && e.stack ? e.stack : e));
+          res.status(STATUS_500).send('Artifact resolution failed: ' + (e && e.message ? e.message : String(e)));
+        });
+    }
+    res.status(STATUS_400).send('ACS: no SAMLResponse or SAMLart present.');
+  } catch (e) {
+    log.error('samlacs: ' + (e && e.stack ? e.stack : e));
+    res.status(STATUS_500).send('ACS error: ' + (e && e.message ? e.message : String(e)));
+  }
+}
+app.post('/samlacs', handleSamlAcs);
+app.get('/samlacs', handleSamlAcs);
+
+// Single Logout service. Receives the IdP's LogoutResponse (or an IdP-initiated
+// LogoutRequest) and shows it on the results page. Reuses the ACS handler, which
+// decodes/stashes any SAMLResponse and redirects to the viewer.
+app.post('/samlslo', handleSamlAcs);
+app.get('/samlslo', handleSamlAcs);
+
+/**
+ * Fetch a stashed SAMLResponse by id (set by the ACS redirect).
+ * @route GET /samlresponse
+ * @group SAML - SAML support operations
+ */
+app.get('/samlresponse', function (req, res) {
+  sweepSamlExchanges();
+  var ex = samlExchanges.get(String(req.query.id || ''));
+  if (!ex) return res.status(STATUS_404).json({ error: 'not found or expired' });
+  res.json({ responseXml: ex.responseXml, relayState: ex.relayState });
 });
 
 /**

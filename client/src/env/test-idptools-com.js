@@ -13,7 +13,14 @@ var config = {
   // Static site: no api backend, so token/refresh/revocation/token-exchange
   // calls must originate from the frontend (browser). The UI disables the
   // "backend" initiation option when this is false.
-  backendAvailable: false
+  backendAvailable: false,
+  // SAML requires the api backend (ACS + signing + metadata proxy). On the
+  // static deployment these are non-functional; the SAML page gates on
+  // backendAvailable and explains this.
+  spEntityId: "https://test.idptools.com/saml/sp",
+  acsUrl: "https://test.idptools.com/samlacs",
+  sloUrl: "https://test.idptools.com/samlslo",
+  samlMetadataUrlDefault: ""
 };
 
 module.exports = config;

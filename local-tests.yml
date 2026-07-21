@@ -38,22 +38,20 @@ services:
       KEYCLOAK_ADMIN: keycloak
       KEYCLOAK_ADMIN_PASSWORD: keycloak
       KC_HEALTH_ENABLED: "true"
+    # Probe the management port's /health/ready and require an "UP" status. Uses
+    # bash /dev/tcp (no curl/wget in the Keycloak image). A well-formed HTTP/1.0
+    # request (blank line terminates it; server closes the connection) — the
+    # previous probe sent an incomplete request line and an inline '#' comment
+    # (once the YAML lines joined) commented out the UP check, so it only tested
+    # that the port was open.
     healthcheck:
-      test: [
-        "CMD-SHELL",
-        "exec 3<>/dev/tcp/localhost/9000; \
-        echo -en 'GET /health/ready' >&3; \
-        # Give the server a moment to respond, then search for 'UP'
-        if timeout 3 cat <&3 | grep -m 1 'UP'; then \
-          exec 3<&-; exec 3>&-; exit 0; \
-        else \
-          exec 3<&-; exec 3>&-; exit 1; \
-        fi"
-      ]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 || exit 1; printf 'GET /health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3; grep -q 'UP' <&3"]
       interval: 10s
-      timeout: 60s
-      retries: 5
-      start_period: 30s
+      timeout: 10s
+      retries: 20
+      # First start of a freshly-pulled image on a fresh Postgres DB runs schema
+      # creation and can take well over a minute, so allow a generous window.
+      start_period: 150s
     depends_on:
       postgres:
         condition: service_healthy
@@ -78,8 +76,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    depends_on:
-      - keycloak
   client:
     container_name: client
     hostname: client

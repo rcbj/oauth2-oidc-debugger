@@ -59,9 +59,46 @@ init()
   KEYCLOAK_COMPOSE_FILE="${KEYCLOAK_COMPOSE_FILE:-keycloak-tests.yml}"
   KEYCLOAK_COMPOSE_PROJECT="${KEYCLOAK_COMPOSE_PROJECT:-idptools-kctest}"
 
-  export DEBUGGER_BASE_URL KEYCLOAK_BASE_URL KEYCLOAK_LOCALHOST_BASE_URL CONFIG_FILE
-
   CURRENT_DIR=`echo "$(dirname "$(realpath "$0")")"`
+
+  # SAML client registration in Keycloak (configureKeycloak) must match the SAML
+  # env baked into the deployed client bundle (client/src/env/*.js): the SP
+  # entityID equals the AuthnRequest Issuer, and the ACS/SLO URLs are where the
+  # IdP returns its response.
+  #
+  # A local dev server has the api backend (:4000), so the ACS/SLO are its real
+  # /samlacs & /samlslo endpoints (common.sh derives them). The deployed sites are
+  # BACKENDLESS static hosting — there is no server to receive the IdP's POST — so
+  # the ACS/SLO are the static saml_response.html page and the client asks the IdP
+  # for the Redirect binding, letting the browser read the response from the URL.
+  # SAML_BACKEND_AVAILABLE tells run-report.js to skip the Artifact test (which
+  # needs the server-side SOAP ArtifactResolve back-channel and cannot go static).
+  case "${DEBUGGER_BASE_URL}" in
+    *localhost*|*127.0.0.1*)
+      API_BASE_URL="${API_BASE_URL:-http://localhost:4000}"
+      SAML_SP_ENTITY_ID="${SAML_SP_ENTITY_ID:-http://localhost:3000/saml/sp}"
+      SAML_BACKEND_AVAILABLE="${SAML_BACKEND_AVAILABLE:-true}"
+      ;;
+    *)
+      API_BASE_URL="${API_BASE_URL:-${DEBUGGER_BASE_URL}}"
+      SAML_SP_ENTITY_ID="${SAML_SP_ENTITY_ID:-${DEBUGGER_BASE_URL}/saml/sp}"
+      SAML_ACS_URL="${SAML_ACS_URL:-${DEBUGGER_BASE_URL}/saml_response.html}"
+      SAML_SLO_URL="${SAML_SLO_URL:-${DEBUGGER_BASE_URL}/saml_response.html}"
+      SAML_BACKEND_AVAILABLE="${SAML_BACKEND_AVAILABLE:-false}"
+      ;;
+  esac
+
+  # SP signing cert (base64 DER) registered on the Keycloak SAML client so it can
+  # validate the AuthnRequest signature (tests/saml_sso.js signs with the matching
+  # private key tests/fixtures/sp-key.pem).
+  SAML_SP_SIGNING_CERT=$(grep -v -- '-----' "${CURRENT_DIR}/tests/fixtures/sp-cert.pem" | tr -d '\n\r')
+
+  export DEBUGGER_BASE_URL KEYCLOAK_BASE_URL KEYCLOAK_LOCALHOST_BASE_URL CONFIG_FILE
+  export API_BASE_URL SAML_SP_ENTITY_ID SAML_SP_SIGNING_CERT SAML_BACKEND_AVAILABLE
+  # Only exported when set (backendless targets); otherwise common.sh derives them.
+  [ -n "${SAML_ACS_URL:-}" ] && export SAML_ACS_URL
+  [ -n "${SAML_SLO_URL:-}" ] && export SAML_SLO_URL
+
   COMMON_SH=${CURRENT_DIR}/common/common.sh
   if [ -r "${COMMON_SH}" ];
   then
@@ -144,6 +181,29 @@ resetKeycloakRealm()
   echo "Leaving resetKeycloakRealm()."
 }
 
+# Download the IdP SAML metadata (descriptor) from the LOCAL Keycloak to a file,
+# so the SAML tests UPLOAD it into saml_tools.html instead of having the browser
+# fetch it. Against the deployed HTTPS site the browser can't fetch the local
+# http://localhost:8080 descriptor (mixed content / cross-origin CORS), so
+# upload-from-file is the reliable path. Must run AFTER configureKeycloak (the
+# debugger-testing realm has to exist for the descriptor to resolve).
+downloadSamlMetadata()
+{
+  echo "Entering downloadSamlMetadata()."
+  local url="${KEYCLOAK_LOCALHOST_BASE_URL}/realms/debugger-testing/protocol/saml/descriptor"
+  SAML_METADATA_FILE="${CURRENT_DIR}/tests/saml-idp-metadata.xml"
+  echo "Downloading SAML IdP metadata from ${url}"
+  curl -sf "${url}" -o "${SAML_METADATA_FILE}"
+  check_return_code $?
+  if [ ! -s "${SAML_METADATA_FILE}" ]; then
+    echo "ERROR: downloaded SAML metadata is empty (${url})." >&2
+    exit 1
+  fi
+  export SAML_METADATA_FILE
+  echo "SAML IdP metadata saved to ${SAML_METADATA_FILE}."
+  echo "Leaving downloadSamlMetadata()."
+}
+
 runReport()
 {
   export DEBUGGER_BASE_URL
@@ -161,6 +221,8 @@ check_return_code $?
 resetKeycloakRealm
 check_return_code $?
 configureKeycloak
+check_return_code $?
+downloadSamlMetadata
 check_return_code $?
 runReport
 check_return_code $?

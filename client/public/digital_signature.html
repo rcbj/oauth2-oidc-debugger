@@ -179,6 +179,9 @@
         <input class="ds-grow" type="password" id="ds_rsa_ks_password" name="ds_rsa_ks_password" placeholder="password (optional)" title="Optional password. Encrypts the private key: PBES2 for PEM/DER, PBES2 JWE for JWK. Required for PKCS#12." />
         <input type="submit" value="Download Keys" onclick="return digital_signature.rsaDownloadKeys();" title="Download the key pair in the selected keystore format." />
       </div>
+      <div class="ds-row">
+        <a href="/saml_cert.html?from=digital_signature.html" onclick="return digital_signature.viewRsaCert();" title="Build a self-signed certificate from this RSA key pair and view its details.">View certificate details &rarr;</a>
+      </div>
     </div>
 
     <div class="ds-row">

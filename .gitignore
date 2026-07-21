@@ -6,3 +6,6 @@ tests/report
 tests/node_modules
 # Code coverage output
 coverage/
+
+# Downloaded IdP metadata (remote-run-tests.sh)
+tests/saml-idp-metadata.xml
