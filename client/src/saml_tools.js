@@ -479,10 +479,21 @@ function ssoDestination(binding) {
   return val('saml_sso_redirect');
 }
 
-// Response comes back to the ACS; for artifact request flows the response also
-// uses artifact, otherwise POST (our ACS is a POST endpoint).
+// Which binding the IdP should use to return the response.
+//   * artifact request flow → HTTP-Artifact (resolved server-side at the ACS).
+//   * with a backend         → HTTP-POST: the ACS is a real POST endpoint that
+//                              stashes the (large) SAMLResponse and redirects here.
+//   * backendless (static)   → HTTP-Redirect: there is no server to receive a
+//                              POST, so ask the IdP to hand the response back as a
+//                              GET query (?SAMLResponse=…) that saml_response.html
+//                              reads and decodes entirely in the browser. NOTE:
+//                              the IdP must permit the Redirect binding for a
+//                              (signed) login Response, and the deflated+base64
+//                              assertion must fit the URL-length limits of the
+//                              browser / CDN — otherwise use the API backend.
 function responseProtocolBinding(binding) {
-  return binding === 'artifact' ? BINDING.artifact : BINDING.post;
+  if (binding === 'artifact') return BINDING.artifact;
+  return appconfig.backendAvailable ? BINDING.post : BINDING.redirect;
 }
 
 function buildAuthnRequest() {
@@ -1267,7 +1278,14 @@ window.onload = function () {
   // Seed defaults where the user hasn't stored anything yet.
   if (!val('saml_metadata_url') && appconfig.samlMetadataUrlDefault) setVal('saml_metadata_url', appconfig.samlMetadataUrlDefault);
   if (!val('saml_sp_entity_id') && appconfig.spEntityId) setVal('saml_sp_entity_id', appconfig.spEntityId);
-  if (!val('saml_acs_url') && appconfig.acsUrl) setVal('saml_acs_url', appconfig.acsUrl);
+  // ACS (where the IdP returns its response). With a backend it's the api's
+  // /samlacs endpoint (from config). Backendless, there is no server to POST to —
+  // so the "ACS" is this static SAML Response page on the same origin, which the
+  // Redirect-binding response (see responseProtocolBinding) delivers to as a GET.
+  var acsDefault = appconfig.backendAvailable
+    ? appconfig.acsUrl
+    : (window.location.origin + '/saml_response.html');
+  if (!val('saml_acs_url') && acsDefault) setVal('saml_acs_url', acsDefault);
   // Configuration Parameters: fall back to the dummy defaults declared in the HTML
   // (input value / textarea content) when restore left a field blank — so the
   // sample endpoints/cert show on a fresh page even if an earlier visit stored

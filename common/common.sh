@@ -515,8 +515,14 @@ configureKeycloak()
   # (tests/fixtures/sp-key.pem), so Keycloak validates the request signature.
   SAML_SP_ENTITY_ID="${SAML_SP_ENTITY_ID:-http://localhost:3000/saml/sp}"
   SAML_API_BASE_URL="${API_BASE_URL:-http://localhost:4000}"
-  SAML_ACS_URL="${SAML_API_BASE_URL}/samlacs"
-  SAML_SLO_URL="${SAML_API_BASE_URL}/samlslo"
+  # ACS / SLO service URLs registered on the Keycloak client (the endpoints the
+  # IdP returns its response to). Default to the api's /samlacs & /samlslo, but
+  # allow the run script to override: a BACKENDLESS (static) deployment has no
+  # server to receive the response, so remote-run-tests.sh points these at the
+  # static saml_response.html page, and the client requests the Redirect binding
+  # so the browser reads the response from the URL (no server round-trip).
+  SAML_ACS_URL="${SAML_ACS_URL:-${SAML_API_BASE_URL}/samlacs}"
+  SAML_SLO_URL="${SAML_SLO_URL:-${SAML_API_BASE_URL}/samlslo}"
   # AuthnRequest signature validation. Enabled by default (registers the fixed SP
   # signing cert so the signed requests from tests/saml_sso.js validate). Set
   # SAML_SIG_VALIDATION=false (local-run-tests.sh --saml-dev) to turn it off so a

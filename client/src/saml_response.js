@@ -53,6 +53,52 @@ function serialize(node) {
   try { return new XMLSerializer().serializeToString(node); } catch (e) { return ''; }
 }
 
+// --- decoding a SAMLResponse handed in via the URL query --------------------
+// Backendless (static) deployments have no ACS server: the IdP is asked to
+// return its response over the HTTP-Redirect binding, so it arrives here as a
+// GET ?SAMLResponse= parameter that we decode in the browser. Redirect-binding
+// messages are DEFLATE-compressed then base64-encoded; POST-binding messages
+// (or a value pasted in for manual testing) are just base64. decodeSamlParam()
+// tries inflate first and falls back to a plain base64 decode.
+function base64ToBytes(b64) {
+  var bin = atob(b64);
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+function bytesToUtf8(bytes) {
+  try { return new TextDecoder('utf-8').decode(bytes); }
+  catch (e) {
+    var s = '';
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    try { return decodeURIComponent(escape(s)); } catch (e2) { return s; }
+  }
+}
+// RAW DEFLATE inflate (no zlib header) via the native DecompressionStream —
+// the mirror of the deflate-raw saml_tools.js uses to build a Redirect request.
+function inflateRaw(bytes) {
+  if (typeof DecompressionStream === 'undefined') {
+    return Promise.reject(new Error('This browser lacks DecompressionStream; cannot inflate a Redirect-binding response.'));
+  }
+  var ds = new DecompressionStream('deflate-raw');
+  var writer = ds.writable.getWriter();
+  writer.write(bytes);
+  writer.close();
+  return new Response(ds.readable).arrayBuffer().then(function (buf) {
+    return bytesToUtf8(new Uint8Array(buf));
+  });
+}
+function decodeSamlParam(b64) {
+  var bytes;
+  try { bytes = base64ToBytes(b64); }
+  catch (e) { return Promise.reject(new Error('not valid base64: ' + e.message)); }
+  return inflateRaw(bytes)
+    // A successful inflate that yields XML is a Redirect-binding message; if the
+    // bytes weren't actually deflated, treat the base64 as a raw (POST) message.
+    .then(function (xml) { return (xml && xml.indexOf('<') >= 0) ? xml : bytesToUtf8(bytes); })
+    .catch(function () { return bytesToUtf8(bytes); });
+}
+
 function render(responseXml) {
   setVal('saml_resp_xml', formatXml(responseXml));
 
@@ -324,8 +370,13 @@ window.onload = function () {
         if (!renderFromStorage()) setStatus('Failed to load response: ' + e.message);
       });
   } else if (direct) {
-    try { render(decodeURIComponent(escape(atob(direct)))); }
-    catch (e) { setStatus('Could not decode SAMLResponse parameter: ' + e.message); }
+    setStatus('Decoding SAMLResponse…');
+    decodeSamlParam(direct)
+      .then(function (xml) { render(xml); })
+      .catch(function (e) {
+        log.error('decode SAMLResponse: ' + e.message);
+        setStatus('Could not decode SAMLResponse parameter: ' + e.message);
+      });
   } else {
     // No id/param (e.g. returned from the certificate-details page, which drops
     // the ?id=) — repopulate the fields from the last cached response.

@@ -34,7 +34,42 @@ async function clickByValue(driver, value) {
   await elArtifact.click();
 }
 
-async function samlActivities(driver, metadataUrl, spEntityId, user, binding) {
+// Load the IdP metadata into the IdP Metadata pane, then wait for it to parse.
+// Two modes:
+//   - URL load (default): type the metadata URL and click "Load Metadata", which
+//     fetches + parses the descriptor (directly, or via the API metadata proxy).
+//   - File upload (metadataFile set, i.e. SAML_METADATA_FILE): push a local
+//     metadata file straight into the hidden file <input>, so the document is
+//     parsed entirely in the browser with no cross-origin fetch. remote-run-tests.sh
+//     uses this against the deployed HTTPS site, which can't fetch the local
+//     http Keycloak descriptor (mixed content / CORS).
+async function loadIdpMetadata(driver, metadataUrl, metadataFile) {
+  if (metadataFile) {
+    log.info("Upload IdP metadata from local file: " + metadataFile);
+    var fileInput = By.id("saml_metadata_file");
+    await driver.wait(until.elementLocated(fileInput), waitTime);
+    // The <input type=file> is display:none; Selenium sends the path to it
+    // directly (file inputs don't require visibility), firing its onchange
+    // handler → onMetadataFileChange() → parse.
+    await driver.findElement(fileInput).sendKeys(path.resolve(metadataFile));
+  } else {
+    log.info("Enter metadata URL and load metadata.");
+    var mdField = By.id("saml_metadata_url");
+    await driver.wait(until.elementLocated(mdField), waitTime);
+    await driver.findElement(mdField).clear();
+    await driver.findElement(mdField).sendKeys(metadataUrl);
+    await clickByValue(driver, "Load Metadata");
+  }
+
+  // Wait for the metadata to actually load + parse. The Configuration Parameters
+  // fields carry sample/dummy defaults, so "endpoint is non-empty" no longer
+  // proves the real IdP values were loaded — wait for the parsed status instead.
+  await waitForValue(driver, By.id("saml_metadata_status"),
+    function (v) { return v.indexOf("Loaded and parsed") >= 0; },
+    "Metadata was not loaded/parsed.");
+}
+
+async function samlActivities(driver, metadataUrl, spEntityId, user, binding, metadataFile) {
   // The Keycloak v2 login page (PatternFly + JS modules) can take several seconds
   // to render #username on a cold browser, and POST-binding processing + request
   // signature validation add latency — so give the login/response round-trip a
@@ -44,20 +79,8 @@ async function samlActivities(driver, metadataUrl, spEntityId, user, binding) {
   log.info("Load the SAML Test Tools page (binding=" + binding + ").");
   await driver.get(baseUrl + "/saml_tools.html");
 
-  // Enter metadata URL and load.
-  log.info("Enter metadata URL and load metadata.");
-  var mdField = By.id("saml_metadata_url");
-  await driver.wait(until.elementLocated(mdField), waitTime);
-  await driver.findElement(mdField).clear();
-  await driver.findElement(mdField).sendKeys(metadataUrl);
-  await clickByValue(driver, "Load Metadata");
-
-  // Wait for the metadata to actually load + parse. The Configuration Parameters
-  // fields carry sample/dummy defaults, so "endpoint is non-empty" no longer
-  // proves the real IdP values were loaded — wait for the parsed status instead.
-  await waitForValue(driver, By.id("saml_metadata_status"),
-    function (v) { return v.indexOf("Loaded and parsed") >= 0; },
-    "Metadata was not loaded/parsed.");
+  // Load + parse the IdP metadata (URL fetch, or file upload when metadataFile set).
+  await loadIdpMetadata(driver, metadataUrl, metadataFile);
 
   // Ensure SP entityID matches the provisioned client.
   var spField = By.id("saml_sp_entity_id");
@@ -176,14 +199,17 @@ async function test() {
 
   try {
     const metadataUrl = process.env.SAML_METADATA_URL;
+    // Optional: upload a local metadata file instead of fetching a URL (used by
+    // remote-run-tests.sh against the deployed site — see loadIdpMetadata).
+    const metadataFile = process.env.SAML_METADATA_FILE;
     const spEntityId = process.env.SAML_SP_ENTITY_ID;
     const user = process.env.SAML_USER || "saml";
     const binding = (process.env.SAML_BINDING || "redirect").toLowerCase();
-    assert(metadataUrl, "SAML_METADATA_URL environment variable is not set.");
+    assert(metadataUrl || metadataFile, "Set SAML_METADATA_URL (URL load) or SAML_METADATA_FILE (file upload).");
     assert(spEntityId, "SAML_SP_ENTITY_ID environment variable is not set.");
     assert(["redirect", "post", "artifact"].indexOf(binding) >= 0, "SAML_BINDING must be redirect, post, or artifact.");
 
-    await samlActivities(driver, metadataUrl, spEntityId, user, binding);
+    await samlActivities(driver, metadataUrl, spEntityId, user, binding, metadataFile);
     log.info("Test completed successfully.");
   } catch (error) {
     log.error(error.message);

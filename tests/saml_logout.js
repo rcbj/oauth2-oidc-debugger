@@ -41,23 +41,47 @@ async function selectBinding(driver, binding) {
   );
 }
 
-// Perform an SP-initiated SSO login. This establishes the Keycloak SSO session
-// (session cookie) AND — when the response page renders — saves the NameID /
-// SessionIndex to localStorage, both of which the subsequent LogoutRequest needs.
-async function ssoLogin(driver, metadataUrl, spEntityId, user, binding, loginWait) {
-  log.info("SLO test — step 1: SSO login (binding=" + binding + ").");
-  await driver.get(baseUrl + "/saml_tools.html");
-
-  var mdField = By.id("saml_metadata_url");
-  await driver.wait(until.elementLocated(mdField), waitTime);
-  await driver.findElement(mdField).clear();
-  await driver.findElement(mdField).sendKeys(metadataUrl);
-  await clickByValue(driver, "Load Metadata");
+// Load the IdP metadata into the IdP Metadata pane, then wait for it to parse.
+// Two modes:
+//   - URL load (default): type the metadata URL and click "Load Metadata", which
+//     fetches + parses the descriptor (directly, or via the API metadata proxy).
+//   - File upload (metadataFile set, i.e. SAML_METADATA_FILE): push a local
+//     metadata file straight into the hidden file <input>, so the document is
+//     parsed entirely in the browser with no cross-origin fetch. remote-run-tests.sh
+//     uses this against the deployed HTTPS site, which can't fetch the local
+//     http Keycloak descriptor (mixed content / CORS).
+async function loadIdpMetadata(driver, metadataUrl, metadataFile) {
+  if (metadataFile) {
+    log.info("Upload IdP metadata from local file: " + metadataFile);
+    var fileInput = By.id("saml_metadata_file");
+    await driver.wait(until.elementLocated(fileInput), waitTime);
+    // The <input type=file> is display:none; Selenium sends the path to it
+    // directly (file inputs don't require visibility), firing its onchange
+    // handler → onMetadataFileChange() → parse.
+    await driver.findElement(fileInput).sendKeys(path.resolve(metadataFile));
+  } else {
+    var mdField = By.id("saml_metadata_url");
+    await driver.wait(until.elementLocated(mdField), waitTime);
+    await driver.findElement(mdField).clear();
+    await driver.findElement(mdField).sendKeys(metadataUrl);
+    await clickByValue(driver, "Load Metadata");
+  }
   // Wait for the real metadata to load + parse (the config fields carry sample
   // defaults, so "non-empty" no longer proves the IdP values were populated).
   await waitForValue(driver, By.id("saml_metadata_status"),
     function (v) { return v.indexOf("Loaded and parsed") >= 0; },
     "Metadata was not loaded/parsed.");
+}
+
+// Perform an SP-initiated SSO login. This establishes the Keycloak SSO session
+// (session cookie) AND — when the response page renders — saves the NameID /
+// SessionIndex to localStorage, both of which the subsequent LogoutRequest needs.
+async function ssoLogin(driver, metadataUrl, spEntityId, user, binding, loginWait, metadataFile) {
+  log.info("SLO test — step 1: SSO login (binding=" + binding + ").");
+  await driver.get(baseUrl + "/saml_tools.html");
+
+  // Load + parse the IdP metadata (URL fetch, or file upload when metadataFile set).
+  await loadIdpMetadata(driver, metadataUrl, metadataFile);
 
   var spField = By.id("saml_sp_entity_id");
   await driver.findElement(spField).clear();
@@ -94,12 +118,12 @@ async function ssoLogin(driver, metadataUrl, spEntityId, user, binding, loginWai
   log.info("SSO login complete; Keycloak session established.");
 }
 
-async function samlLogout(driver, metadataUrl, spEntityId, user, binding) {
+async function samlLogout(driver, metadataUrl, spEntityId, user, binding, metadataFile) {
   // Keycloak's login + logout round-trips can take several seconds on a cold
   // browser, so give the navigations a generous timeout.
   var loginWait = Math.max(waitTime, 15000);
 
-  await ssoLogin(driver, metadataUrl, spEntityId, user, binding, loginWait);
+  await ssoLogin(driver, metadataUrl, spEntityId, user, binding, loginWait, metadataFile);
 
   // ---- step 2: Single Logout ----
   log.info("SLO test — step 2: return to SAML Test Tools and trigger Single Logout.");
@@ -187,15 +211,18 @@ async function test() {
 
   try {
     const metadataUrl = process.env.SAML_METADATA_URL;
+    // Optional: upload a local metadata file instead of fetching a URL (used by
+    // remote-run-tests.sh against the deployed site — see loadIdpMetadata).
+    const metadataFile = process.env.SAML_METADATA_FILE;
     const spEntityId = process.env.SAML_SP_ENTITY_ID;
     const user = process.env.SAML_USER || "saml";
     // SLO front-channel binding: redirect (default) or post. Both are reliable.
     const binding = (process.env.SAML_BINDING || "redirect").toLowerCase();
-    assert(metadataUrl, "SAML_METADATA_URL environment variable is not set.");
+    assert(metadataUrl || metadataFile, "Set SAML_METADATA_URL (URL load) or SAML_METADATA_FILE (file upload).");
     assert(spEntityId, "SAML_SP_ENTITY_ID environment variable is not set.");
     assert(["redirect", "post"].indexOf(binding) >= 0, "SAML_BINDING must be redirect or post for logout.");
 
-    await samlLogout(driver, metadataUrl, spEntityId, user, binding);
+    await samlLogout(driver, metadataUrl, spEntityId, user, binding, metadataFile);
     log.info("Test completed successfully.");
   } catch (error) {
     log.error(error.message);
