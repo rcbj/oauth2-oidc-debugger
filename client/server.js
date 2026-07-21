@@ -44,8 +44,11 @@ if (process.env.COVERAGE === 'true') {
 }
 
 app.use(function(req, res, next) {
-  if (!req.path.endsWith('.html')) { return next(); }
-  const filePath = path.join(__dirname, 'public', req.path);
+  // Treat the site root as index.html so the landing page's SSI includes
+  // (header/footer) are resolved; otherwise express.static would serve it raw.
+  var reqPath = (req.path === '/') ? '/index.html' : req.path;
+  if (!reqPath.endsWith('.html')) { return next(); }
+  const filePath = path.join(__dirname, 'public', reqPath);
   fs.readFile(filePath, 'utf8', function(err, content) {
     if (err) { return next(); }
     var processed = content.replace(/<!--#include file="([^"]+)"-->/g, function(match, file) {

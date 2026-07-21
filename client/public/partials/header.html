@@ -1,4 +1,4 @@
-  <a href="/index.html" class="logo"><img src="/images/oauth2oidcdebugger+iyasec-logo-transparent.png" alt="OAuth2 + OIDC Debugger — iyasec"></a>
+  <a id="brand_logo" href="/debugger.html" class="logo"><img src="/images/oauth2oidcdebugger+iyasec-logo-transparent.png" alt="OAuth2 + OIDC Debugger — iyasec"></a>
   <div class="header-right">
     <a class="active" href="/index.html">Home</a>
     <a href="/terms.html">Terms &amp; Conditions</a>
@@ -7,3 +7,15 @@
     <a href="https://github.com/rcbj/oauth2-oidc-debugger/issues" target="_blank" rel="noopener noreferrer">Contact</a>
     <a href="https://github.com/rcbj/oauth2-oidc-debugger" target="_blank" rel="noopener noreferrer">About</a>
   </div>
+  <script>
+  // The brand logo returns to the home page of the debugger family the user is
+  // currently in: SAML pages (saml_*) -> the SAML home, everything else -> the
+  // OAuth2/OIDC home. The "Home" nav link (above) goes to the landing page
+  // (index.html) so the user can switch protocols.
+  (function () {
+    var logo = document.getElementById('brand_logo');
+    if (!logo) return;
+    var isSaml = window.location.pathname.indexOf('/saml_') === 0;
+    logo.setAttribute('href', isSaml ? '/saml_tools.html' : '/debugger.html');
+  })();
+  </script>

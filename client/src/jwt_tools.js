@@ -977,6 +977,27 @@ async function buildSelfSignedCert(privPem, pubPem, desc) {
   return cert;
 }
 
+// Build a self-signed cert from the current signing key pair and open the
+// certificate-details page (saml_cert.html) in a new tab. HMAC has no cert.
+async function viewSigningCert() {
+  var desc = certDescriptor(val('sign_alg'));
+  if (desc.kind === 'hmac') { setVal('sign_status', 'HMAC is symmetric — there is no X.509 certificate.'); return false; }
+  var priv = val('sign_private_key'), pub = val('sign_public_key');
+  if (!priv.trim() || !pub.trim()) { setVal('sign_status', 'Generate a signing key pair first.'); return false; }
+  try {
+    var privPem = isJwk(priv) ? await privToPem(priv, desc) : priv;
+    var pubPem = isJwk(pub) ? await pubToPem(pub, desc) : pub;
+    var cert = await buildSelfSignedCert(privPem, pubPem, desc);
+    var pem = derToPem(cert.toSchema().toBER(false), 'CERTIFICATE');
+    if (window.localStorage) localStorage.setItem('saml_cert_view', pem);
+    window.open('/saml_cert.html?from=jwt_tools.html', '_blank');
+  } catch (e) {
+    log.error('viewSigningCert: ' + e.message);
+    setVal('sign_status', 'Certificate error: ' + e.message);
+  }
+  return false;
+}
+
 var PBES2_OPTS = {
   contentEncryptionAlgorithm: { name: 'AES-CBC', length: 256 },
   hmacHashAlgorithm: 'SHA-256',
@@ -1222,6 +1243,7 @@ module.exports = {
   checkRfc9068Compliance,
   generateRfc9068Token,
   generateSigningKeys,
+  viewSigningCert,
   signJWT,
   verifyJWT,
   generateEncryptionKeys,

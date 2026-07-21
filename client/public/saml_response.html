@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>OAuth2 & OpenID Connect Debugger — SAML Response</title>
+    <link href="/css/bootstrap.css" rel="stylesheet">
+    <link href="/css/header.css" rel="stylesheet">
+    <link href="/css/bottom.css" rel="stylesheet">
+    <link href="/css/footer.css" rel="stylesheet">
+    <link href="/css/common.css" rel="stylesheet">
+    <link href="/css/bootstrap-responsive.css" rel="stylesheet">
+    <link href="/css/saml_tools.css" rel="stylesheet">
+  </head>
+
+  <body>
+
+<div class="header_debugger">
+<!--#include file="/partials/header.html"-->
+</div>
+
+    <div class="container">
+<script type="text/javascript" src="/js/saml_response.js">
+</script>
+
+<p class="saml-return"><a id="return_link" href="/saml_tools.html">&larr; Return to SAML Test Tools</a></p>
+
+<p class="saml-intro">The IdP's SAML response, captured by the Assertion Consumer Service. The full <code>SAMLResponse</code> is shown below; the extracted <code>Assertion</code> pane has an <strong>XML</strong> view and an <strong>Attributes</strong> view (the assertion attributes, including the NameID, in tabular form).</p>
+
+<input class="saml-status" type="text" id="saml_resp_status" name="saml_resp_status" readonly />
+
+<fieldset class="saml-pane">
+  <legend>SAMLResponse</legend>
+  <div class="saml-tab">
+    <button id="tab_resp_xml_btn" class="tablinks active" onclick="return saml_response.showTab(event, 'tab_resp_xml');">XML</button>
+    <button id="tab_resp_details_btn" class="tablinks" onclick="return saml_response.showTab(event, 'tab_resp_details');">Details</button>
+  </div>
+  <div id="tab_resp_xml" class="saml-tabcontent" style="display:block;">
+    <div class="saml-field">
+      <label class="saml-has-copy">Response (full XML) <button type="button" class="saml-copy" onclick="return saml_response.copyField('saml_resp_xml');">Copy</button></label>
+      <textarea rows="16" id="saml_resp_xml" name="saml_resp_xml" readonly></textarea>
+    </div>
+  </div>
+  <div id="tab_resp_details" class="saml-tabcontent">
+    <div id="saml_resp_details">&nbsp;</div>
+  </div>
+</fieldset>
+
+<fieldset class="saml-pane">
+  <legend>Assertion (extracted)</legend>
+  <div class="saml-tab">
+    <button id="tab_assertion_xml_btn" class="tablinks active" onclick="return saml_response.showTab(event, 'tab_assertion_xml');">XML</button>
+    <button id="tab_attrs_btn" class="tablinks" onclick="return saml_response.showTab(event, 'tab_attrs');">Attributes</button>
+  </div>
+  <div id="tab_assertion_xml" class="saml-tabcontent" style="display:block;">
+    <div class="saml-field">
+      <label class="saml-has-copy">Assertion XML <button type="button" class="saml-copy" onclick="return saml_response.copyField('saml_assertion_xml');">Copy</button></label>
+      <textarea rows="14" id="saml_assertion_xml" name="saml_assertion_xml" readonly></textarea>
+    </div>
+  </div>
+  <div id="tab_attrs" class="saml-tabcontent">
+    <div id="saml_attrs_table">&nbsp;</div>
+  </div>
+</fieldset>
+
+<link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png">
+<link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png">
+<link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png">
+<link rel="apple-touch-icon" sizes="76x76" href="/apple-icon-76x76.png">
+<link rel="apple-touch-icon" sizes="114x114" href="/apple-icon-114x114.png">
+<link rel="apple-touch-icon" sizes="120x120" href="/apple-icon-120x120.png">
+<link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png">
+<link rel="icon" type="image/png" sizes="192x192"  href="/android-icon-192x192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="msapplication-TileColor" content="#ffffff">
+<meta name="msapplication-TileImage" content="/ms-icon-144x144.png">
+<meta name="theme-color" content="#ffffff">
+    </div>
+<div class="footer_debugger">
+<!--#include file="/partials/footer.html"-->
+</div>
+</body>
+</html>
