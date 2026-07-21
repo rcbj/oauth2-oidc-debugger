@@ -53,9 +53,11 @@ async function ssoLogin(driver, metadataUrl, spEntityId, user, binding, loginWai
   await driver.findElement(mdField).clear();
   await driver.findElement(mdField).sendKeys(metadataUrl);
   await clickByValue(driver, "Load Metadata");
-  await waitForValue(driver, By.id("saml_sso_redirect"),
-    function (v) { return v.trim().length > 0; },
-    "SSO redirect endpoint was not populated from metadata.");
+  // Wait for the real metadata to load + parse (the config fields carry sample
+  // defaults, so "non-empty" no longer proves the IdP values were populated).
+  await waitForValue(driver, By.id("saml_metadata_status"),
+    function (v) { return v.indexOf("Loaded and parsed") >= 0; },
+    "Metadata was not loaded/parsed.");
 
   var spField = By.id("saml_sp_entity_id");
   await driver.findElement(spField).clear();

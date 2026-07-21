@@ -26,7 +26,7 @@
 
 <p class="saml-intro">Drive a <strong>SAML 2.0</strong> SP-initiated SSO round-trip against an Identity Provider. Load the IdP's metadata, configure the Service Provider request, generate an SP signing key pair, and send a digitally signed <code>AuthnRequest</code>. The IdP's response is captured by the ACS endpoint and shown on the <a href="/saml_response.html">SAML Response</a> page. <strong>Note:</strong> SAML 1.0/1.1 are provided for reference only &mdash; they are IdP-initiated with no signed SP request and are <em>not</em> accepted by SAML 2.0 IdPs such as Keycloak.</p>
 
-<p id="saml_backend_notice" class="saml-notice saml-hidden">This SAML workflow requires the API backend (metadata proxy, request signing, and the ACS endpoint). It is not available on the static (backend-less) deployment.</p>
+<p id="saml_backend_notice" class="saml-notice saml-hidden">This is the static (backend-less) deployment. Loading IdP metadata and building/signing the <code>AuthnRequest</code> work entirely in the browser. Capturing the IdP's response requires the API backend (the ACS endpoint), and the HTTP-Artifact binding requires its SOAP back-channel &mdash; those steps are unavailable here.</p>
 
 <p class="saml-controls">
   <label class="saml-toggle" title="Expand or collapse every pane.">
@@ -65,7 +65,9 @@ function samlSetAllPanes(expand) {
       <input class="stored" type="text" id="saml_metadata_url" name="saml_metadata_url" title="e.g. http://localhost:8080/realms/debugger-testing/protocol/saml/descriptor" />
     </div>
     <div class="saml-row">
-      <input type="button" class="saml-btn" value="Load Metadata" onclick="return saml_tools.loadMetadata();" title="Fetch and parse the metadata document (via the API metadata proxy). The parsed values populate the Configuration Parameters pane." />
+      <input type="button" class="saml-btn" value="Load Metadata" onclick="return saml_tools.loadMetadata();" title="Fetch and parse the metadata document from the URL above. The parsed values populate the Configuration Parameters pane." />
+      <input type="button" class="saml-btn" value="Upload Metadata" onclick="return saml_tools.uploadMetadata();" title="Load and parse a metadata document from a local file (no URL fetch required)." />
+      <input type="file" id="saml_metadata_file" name="saml_metadata_file" accept=".xml,application/xml,text/xml" style="display:none;" onchange="return saml_tools.onMetadataFileChange(event);" />
     </div>
 
     <div class="saml-tab">
@@ -89,26 +91,26 @@ function samlSetAllPanes(expand) {
 
     <div class="saml-field">
       <label class="saml-has-copy" title="The IdP entityID from EntityDescriptor/@entityID.">IdP entityID <button type="button" class="saml-copy" onclick="return saml_tools.copyField('saml_idp_entity_id');">Copy</button></label>
-      <input class="stored" type="text" id="saml_idp_entity_id" name="saml_idp_entity_id" />
+      <input class="stored" type="text" id="saml_idp_entity_id" name="saml_idp_entity_id" value="http://localhost:8080/samlp/metadata" />
     </div>
 
     <div class="saml-sub">
       <div class="saml-sub-title">Single Sign-On (SSO) Endpoints</div>
       <div class="saml-field">
         <label title="SingleSignOnService with Binding urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST.">HTTP-POST binding URL</label>
-        <input class="stored" type="text" id="saml_sso_post" name="saml_sso_post" />
+        <input class="stored" type="text" id="saml_sso_post" name="saml_sso_post" value="http://localhost:8080/samlp/sso/post" />
       </div>
       <div class="saml-field">
         <label title="SingleSignOnService with Binding urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect.">HTTP-Redirect (GET) binding URL</label>
-        <input class="stored" type="text" id="saml_sso_redirect" name="saml_sso_redirect" />
+        <input class="stored" type="text" id="saml_sso_redirect" name="saml_sso_redirect" value="http://localhost:8080/samlp/sso/redirect" />
       </div>
       <div class="saml-field">
         <label title="SingleSignOnService with Binding urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact.">HTTP-Artifact binding URL</label>
-        <input class="stored" type="text" id="saml_sso_artifact" name="saml_sso_artifact" />
+        <input class="stored" type="text" id="saml_sso_artifact" name="saml_sso_artifact" value="http://localhost:8080/samlp/sso/artifact" />
       </div>
       <div class="saml-field">
         <label title="ArtifactResolutionService Location (SOAP back-channel used to resolve artifacts).">Artifact Resolution Service (SOAP)</label>
-        <input class="stored" type="text" id="saml_ars" name="saml_ars" />
+        <input class="stored" type="text" id="saml_ars" name="saml_ars" value="http://localhost:8080/samlp/ars" />
       </div>
     </div>
 
@@ -116,15 +118,15 @@ function samlSetAllPanes(expand) {
       <div class="saml-sub-title">Single Logout (SLO) Endpoints</div>
       <div class="saml-field">
         <label title="SingleLogoutService HTTP-POST Location.">HTTP-POST logout URL</label>
-        <input class="stored" type="text" id="saml_slo_post" name="saml_slo_post" />
+        <input class="stored" type="text" id="saml_slo_post" name="saml_slo_post" value="http://localhost:8080/samlp/slo/post" />
       </div>
       <div class="saml-field">
         <label title="SingleLogoutService HTTP-Redirect Location.">HTTP-Redirect (GET) logout URL</label>
-        <input class="stored" type="text" id="saml_slo_redirect" name="saml_slo_redirect" />
+        <input class="stored" type="text" id="saml_slo_redirect" name="saml_slo_redirect" value="http://localhost:8080/samlp/slo/redirect" />
       </div>
       <div class="saml-field">
         <label title="SingleLogoutService HTTP-Artifact Location.">HTTP-Artifact logout URL</label>
-        <input class="stored" type="text" id="saml_slo_artifact" name="saml_slo_artifact" />
+        <input class="stored" type="text" id="saml_slo_artifact" name="saml_slo_artifact" value="http://localhost:8080/samlp/slo/artifact" />
       </div>
     </div>
 
@@ -136,7 +138,7 @@ function samlSetAllPanes(expand) {
       </div>
       <div class="saml-field">
         <label class="saml-has-copy" title="The IdP's signing certificate from KeyDescriptor[use=signing] (base64 DER, no PEM header).">Signer Certificate <button type="button" class="saml-copy" onclick="return saml_tools.copyField('saml_signer_cert');">Copy</button></label>
-        <textarea class="stored" rows="5" id="saml_signer_cert" name="saml_signer_cert" title="IdP signing certificate. Used by the IdP to sign responses/assertions."></textarea>
+        <textarea class="stored" rows="5" id="saml_signer_cert" name="saml_signer_cert" title="IdP signing certificate. Used by the IdP to sign responses/assertions.">MIIDITCCAgmgAwIBAgIUd1iAcU9P5oRq5oHfCbNaAY+oWEwwDQYJKoZIhvcNAQELBQAwIDEeMBwGA1UEAwwVc2FtbC1kZWJ1Z2dlci1zcC10ZXN0MB4XDTI2MDcyMDAzMDI0MloXDTQ2MDcxNTAzMDI0MlowIDEeMBwGA1UEAwwVc2FtbC1kZWJ1Z2dlci1zcC10ZXN0MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxzBgTVdfPjBKOcMlbKnj46Bi2PqOvedjwuCvcqzVSwBqbP0yarpI1+FRgpkKgJyFWvRbZOHt+lvTPma5oYp1pEkrzLT8ZY0+ASkrSdJd+V6SYAo++grrEs60C5nprE1hBwGG8NOHrALHUd1I6tAMeTn/BlDQ1h2M1sl1Kna3iX4CMcGQSGBoCbGiMOZ+bF2IgdBK67/jChBvgSWHKMCJrsZYo1gOF+7USDLflhQ8N5zr606B81iE+uXZ6OeZeR8bquuSzH0cmLrn+2TagYmMdHVDr8ijF0a0ck3G4wslpx0HAk6SCRbfVClTRvffygFtoQw6+YJZSQE4KWd0nvOzLwIDAQABo1MwUTAdBgNVHQ4EFgQUyewWq8ESMbfLe88jElPZbraBDmswHwYDVR0jBBgwFoAUyewWq8ESMbfLe88jElPZbraBDmswDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAQpLr7VVH9t6LUjwANjBjyd/LTgl6APZFRDosPAg39AJMr46tIf3DrcljcpWCOFKjLeuhzwThT15mZ2EX/wmifu/Tj8xk4caiz9kPE/djhmKbQn+pip2nTriJmG1B7rnOHgaUoyOBNf1A0D8qAZMWe9DoGNHfyfG9zFUL3VfGfbpHZqlEV3HmV1qF8zYh4pf8tOfOY+GhidAwt7S/Ur2NDxK3LBJM/fgnAqmT73t3WJOVmn6PpiPheitXMllB5b41TXYBedRyZCcxyv8GAEk1x1G2lVCSUap6BWbkKVP/d36iompVC7+iTYJNCUqZtc732hzkWSHSo+hmSZFSq5S46w==</textarea>
       </div>
       <div class="saml-row">
         <a id="saml_cert_link" href="/saml_cert.html?from=saml_tools.html" onclick="return saml_tools.viewCertificate('saml_signer_cert');" title="Show full details of the IdP signer certificate.">View signer certificate details &rarr;</a>

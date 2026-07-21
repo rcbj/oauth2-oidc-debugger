@@ -99,35 +99,64 @@ function restoreState() {
 function loadMetadata() {
   var url = val('saml_metadata_url').trim();
   if (!url) { setStatus('saml_metadata_status', 'Enter a metadata URL first.'); return false; }
-  if (!appconfig.backendAvailable) {
-    setStatus('saml_metadata_status', 'API backend required (metadata proxy) — not available on this deployment.');
-    return false;
-  }
   setStatus('saml_metadata_status', 'Loading…');
-  var proxy = appconfig.apiUrl + '/samlmetadata?url=' + encodeURIComponent(btoa(url));
-  fetch(proxy)
+  // With a backend, go through the API metadata proxy (it dodges cross-origin
+  // CORS restrictions on the IdP's metadata endpoint). On the static
+  // (backend-less) deployment, fetch the metadata URL directly from the browser —
+  // works whenever the IdP serves permissive CORS on its descriptor (a CORS/
+  // network failure is surfaced in the status line below).
+  var fetchUrl = appconfig.backendAvailable
+    ? (appconfig.apiUrl + '/samlmetadata?url=' + encodeURIComponent(btoa(url)))
+    : url;
+  fetch(fetchUrl)
     .then(function (r) {
       if (!r.ok) { throw new Error('HTTP ' + r.status); }
       return r.text();
     })
-    .then(function (xmlText) {
-      // Show the raw document in the Metadata Document tab (even if parsing fails).
-      setVal('saml_metadata_doc', xmlText);
-      try {
-        parseMetadata(xmlText);
-        setStatus('saml_metadata_status', 'Loaded and parsed.');
-        saveState();
-        autoBuildRequest(); // metadata populated the destination/NameIDFormat, etc.
-        validateConfigUrls();
-      } catch (e) {
-        log.error('parseMetadata: ' + e.message);
-        setStatus('saml_metadata_status', 'Parse error: ' + e.message);
-      }
-    })
+    .then(function (xmlText) { applyMetadata(xmlText); })
     .catch(function (e) {
       log.error('loadMetadata: ' + e.message);
-      setStatus('saml_metadata_status', 'Load failed: ' + e.message);
+      setStatus('saml_metadata_status', 'Load failed: ' + e.message +
+        (appconfig.backendAvailable ? '' : ' — the browser fetched the metadata URL directly; the IdP endpoint may not permit cross-origin (CORS) requests.'));
     });
+  return false;
+}
+
+// Show + parse a metadata document (from a URL load or an uploaded file). The
+// "Loaded and parsed." status is the signal the test suite waits on.
+function applyMetadata(xmlText) {
+  // Show the raw document in the Metadata Document tab (even if parsing fails).
+  setVal('saml_metadata_doc', xmlText);
+  try {
+    parseMetadata(xmlText);
+    setStatus('saml_metadata_status', 'Loaded and parsed.');
+    saveState();
+    autoBuildRequest(); // metadata populated the destination/NameIDFormat, etc.
+    validateConfigUrls();
+  } catch (e) {
+    log.error('parseMetadata: ' + e.message);
+    setStatus('saml_metadata_status', 'Parse error: ' + e.message);
+  }
+}
+
+// Upload a metadata document from a local file (no URL fetch / backend needed).
+function uploadMetadata() {
+  var f = el('saml_metadata_file');
+  if (f) f.click();
+  return false;
+}
+function onMetadataFileChange(evt) {
+  var input = evt && evt.target;
+  var file = input && input.files && input.files[0];
+  if (!file) return false;
+  setStatus('saml_metadata_status', 'Reading ' + file.name + '…');
+  var reader = new FileReader();
+  reader.onload = function () {
+    applyMetadata(String(reader.result || ''));
+    if (input) input.value = ''; // allow re-selecting the same file
+  };
+  reader.onerror = function () { setStatus('saml_metadata_status', 'Could not read file: ' + file.name); };
+  reader.readAsText(file);
   return false;
 }
 
@@ -1239,6 +1268,15 @@ window.onload = function () {
   if (!val('saml_metadata_url') && appconfig.samlMetadataUrlDefault) setVal('saml_metadata_url', appconfig.samlMetadataUrlDefault);
   if (!val('saml_sp_entity_id') && appconfig.spEntityId) setVal('saml_sp_entity_id', appconfig.spEntityId);
   if (!val('saml_acs_url') && appconfig.acsUrl) setVal('saml_acs_url', appconfig.acsUrl);
+  // Configuration Parameters: fall back to the dummy defaults declared in the HTML
+  // (input value / textarea content) when restore left a field blank — so the
+  // sample endpoints/cert show on a fresh page even if an earlier visit stored
+  // empty values. A real "Load Metadata" or a user edit overrides them.
+  ['saml_idp_entity_id', 'saml_sso_post', 'saml_sso_redirect', 'saml_sso_artifact', 'saml_ars',
+   'saml_slo_post', 'saml_slo_redirect', 'saml_slo_artifact', 'saml_signer_cert'].forEach(function (id) {
+    var e = el(id);
+    if (e && !e.value && e.defaultValue) e.value = e.defaultValue;
+  });
   // Encryption cert: localStorage (restored above) wins; otherwise default to the
   // signer cert from previously-loaded metadata (also restored above).
   if (!val('saml_enc_cert') && val('saml_signer_cert')) setVal('saml_enc_cert', val('saml_signer_cert'));
@@ -1277,6 +1315,8 @@ window.onload = function () {
 
 module.exports = {
   loadMetadata,
+  uploadMetadata,
+  onMetadataFileChange,
   onNameIdFormatChange,
   onVersionChange,
   onSignChange,

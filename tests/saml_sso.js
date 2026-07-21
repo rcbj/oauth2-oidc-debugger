@@ -52,10 +52,12 @@ async function samlActivities(driver, metadataUrl, spEntityId, user, binding) {
   await driver.findElement(mdField).sendKeys(metadataUrl);
   await clickByValue(driver, "Load Metadata");
 
-  // Metadata parsed: the redirect SSO endpoint should be populated.
-  await waitForValue(driver, By.id("saml_sso_redirect"),
-    function (v) { return v.trim().length > 0; },
-    "SSO redirect endpoint was not populated from metadata.");
+  // Wait for the metadata to actually load + parse. The Configuration Parameters
+  // fields carry sample/dummy defaults, so "endpoint is non-empty" no longer
+  // proves the real IdP values were loaded — wait for the parsed status instead.
+  await waitForValue(driver, By.id("saml_metadata_status"),
+    function (v) { return v.indexOf("Loaded and parsed") >= 0; },
+    "Metadata was not loaded/parsed.");
 
   // Ensure SP entityID matches the provisioned client.
   var spField = By.id("saml_sp_entity_id");
