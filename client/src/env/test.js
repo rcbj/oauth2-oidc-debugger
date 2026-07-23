@@ -5,7 +5,12 @@ var config = {
   port: "3000",
   logLevel: "info",
   // api backend is available, so both frontend and backend initiation are offered.
-  backendAvailable: true
+  backendAvailable: true,
+  // SAML Service Provider identity + ACS/SLO endpoints (hosted by the api layer).
+  spEntityId: "https://tools.test.idptools.io/saml/sp",
+  acsUrl: "https://api.tools.test.idptools.io/samlacs",
+  sloUrl: "https://api.tools.test.idptools.io/samlslo",
+  samlMetadataUrlDefault: ""
 }
 
 module.exports = config;

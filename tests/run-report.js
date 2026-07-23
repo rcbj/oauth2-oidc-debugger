@@ -46,6 +46,13 @@ const env = process.env;
 function buildJobs() {
   const jobs = [];
 
+  // Basic navigation: landing page -> OAuth2/OIDC debugger -> Home -> SAML -> Home.
+  jobs.push({
+    name: "Navigation (landing page → OAuth2/OIDC → Home → SAML → Home)",
+    script: "navigation.js",
+    env: {},
+  });
+
   jobs.push({
     name: "OAuth2 Client Credentials",
     script: "oauth2_client_credentials.js",
@@ -239,8 +246,6 @@ function buildJobs() {
     },
   });
 
-<<<<<<< HEAD
-=======
   // Encoding / Hashing Tools page. A fully client-side page needing no IdP:
   // opens it from the debugger Tools pane, confirms the on-load defaults, then
   // exercises every button — Base64 Encode/Decode (verifying the decoded value
@@ -265,8 +270,52 @@ function buildJobs() {
     script: "digital_signature.js",
     env: {},
   });
+  
+ // SAML 2.0 SP-initiated SSO across all three bindings: load IdP metadata, sign
+  // the AuthnRequest (redirect = query-string sig; post = enveloped XML-DSIG;
+  // artifact = redirect send + SOAP ArtifactResolve back-channel), log in at
+  // Keycloak (which validates the request signature), and confirm the
+  // ACS-captured SAMLResponse / assertion / NameID render on the response page.
+  // The Artifact binding needs the server-side SOAP ArtifactResolve back-channel,
+  // so it can't run on a backendless (static) deployment. remote-run-tests.sh sets
+  // SAML_BACKEND_AVAILABLE=false for those targets; skip it there rather than fail.
+  const samlBackendAvailable = env.SAML_BACKEND_AVAILABLE !== "false";
+  for (const SAML_BINDING of ["redirect", "post", "artifact"]) {
+    const job = {
+      name: `SAML 2.0 SSO — HTTP-${SAML_BINDING === 'post' ? 'POST' : SAML_BINDING === 'artifact' ? 'Artifact' : 'Redirect'} binding`,
+      script: "saml_sso.js",
+      env: {
+        SAML_METADATA_URL: env.SAML_METADATA_URL,
+        // When set (remote-run-tests.sh), the metadata is uploaded from this
+        // local file instead of fetched from the URL — see loadIdpMetadata().
+        SAML_METADATA_FILE: env.SAML_METADATA_FILE,
+        SAML_SP_ENTITY_ID: env.SAML_SP_ENTITY_ID,
+        SAML_USER: env.SAML_USER,
+        SAML_BINDING,
+      },
+    };
+    if (SAML_BINDING === "artifact" && !samlBackendAvailable) {
+      job.skip = "HTTP-Artifact needs the API backend (server-side SOAP ArtifactResolve); unavailable on the static deployment.";
+    }
+    jobs.push(job);
+  }
 
->>>>>>> develop
+  // SAML 2.0 Single Logout: log in via SSO (to establish the Keycloak session and
+  // capture the NameID/SessionIndex), then send a signed LogoutRequest and confirm
+  // the LogoutResponse renders with a Success status on the response page.
+  jobs.push({
+    name: "SAML 2.0 Single Logout (login → LogoutRequest → LogoutResponse Success)",
+    script: "saml_logout.js",
+    env: {
+      SAML_METADATA_URL: env.SAML_METADATA_URL,
+      // When set (remote-run-tests.sh), the metadata is uploaded from this local
+      // file instead of fetched from the URL — see loadIdpMetadata().
+      SAML_METADATA_FILE: env.SAML_METADATA_FILE,
+      SAML_SP_ENTITY_ID: env.SAML_SP_ENTITY_ID,
+      SAML_USER: env.SAML_USER,
+    },
+  });
+
   return jobs;
 }
 
@@ -344,6 +393,33 @@ function runJob(job, index) {
   });
 }
 
+// Record a skipped job (a capability the target can't exercise, e.g. Artifact on
+// a backendless deployment). Written to a log + returned as a result that is
+// neither pass nor fail, so it doesn't count against the suite.
+function makeSkipResult(job, index) {
+  const startedAt = new Date().toISOString();
+  fs.mkdirSync(LOGS_DIR, { recursive: true });
+  const logPath = logPathFor(job.name, index);
+  const reason = job.skip || "skipped";
+  fs.writeFileSync(
+    logPath,
+    logHeader(job.name, job.script, startedAt) +
+      "SKIPPED: " + reason + "\n" +
+      "\n===== RESULT: SKIP =====\n"
+  );
+  return {
+    name: job.name,
+    script: job.script,
+    passed: true, // not a failure
+    skipped: true,
+    reason,
+    code: "skip",
+    durationMs: 0,
+    output: "SKIPPED: " + reason,
+    logFile: path.relative(TESTS_DIR, logPath),
+  };
+}
+
 // ---- report rendering ------------------------------------------------------
 
 function esc(s) {
@@ -356,14 +432,15 @@ function esc(s) {
 
 function renderHtml(results, generatedAt, demo) {
   const total = results.length;
-  const passed = results.filter((r) => r.passed).length;
-  const failed = total - passed;
+  const skipped = results.filter((r) => r.skipped).length;
+  const passed = results.filter((r) => r.passed && !r.skipped).length;
+  const failed = total - passed - skipped;
   const totalMs = results.reduce((a, r) => a + r.durationMs, 0);
 
   const rows = results
     .map((r, i) => {
-      const cls = r.passed ? "pass" : "fail";
-      const badge = r.passed ? "PASS" : "FAIL";
+      const cls = r.skipped ? "skip" : r.passed ? "pass" : "fail";
+      const badge = r.skipped ? "SKIP" : r.passed ? "PASS" : "FAIL";
       const log = esc((r.output || "").trim());
       const logLink = r.logFile
         ? `<br><a href="logs/${esc(path.basename(r.logFile))}"><code>${esc(r.logFile)}</code></a>`
@@ -393,9 +470,9 @@ function renderHtml(results, generatedAt, demo) {
   table{border-collapse:collapse;width:100%}
   th,td{border-bottom:1px solid #eee;padding:.55rem .6rem;text-align:left;vertical-align:top}
   th{background:#fafafa} .num{text-align:right;white-space:nowrap}
-  tr.fail{background:#fff5f5}
+  tr.fail{background:#fff5f5}tr.skip{background:#fbfbf5}
   .badge{font-weight:700;font-size:.75rem;padding:.15rem .5rem;border-radius:4px;color:#fff}
-  .badge.pass{background:#1a7f37}.badge.fail{background:#c1121f}
+  .badge.pass{background:#1a7f37}.badge.fail{background:#c1121f}.badge.skip{background:#8a6d00}
   code{background:#f3f3f3;padding:.05rem .3rem;border-radius:3px}
   pre{background:#0d1117;color:#e6edf3;padding:.8rem;border-radius:6px;overflow:auto;max-height:360px;font-size:.8rem}
   summary{cursor:pointer;color:#0969da}
@@ -407,6 +484,7 @@ ${demo ? '<div class="demo"><strong>SAMPLE REPORT</strong> — generated with <c
   <div class="card"><div class="n">${total}</div><div>total</div></div>
   <div class="card ok"><div class="n">${passed}</div><div>passed</div></div>
   <div class="card bad"><div class="n">${failed}</div><div>failed</div></div>
+  ${skipped ? `<div class="card"><div class="n">${skipped}</div><div>skipped</div></div>` : ""}
   <div class="card"><div class="n">${(totalMs / 1000).toFixed(1)}s</div><div>duration</div></div>
 </div>
 <table>
@@ -418,13 +496,16 @@ ${demo ? '<div class="demo"><strong>SAMPLE REPORT</strong> — generated with <c
 
 function renderJUnit(results, generatedAt) {
   const total = results.length;
-  const failures = results.filter((r) => !r.passed).length;
+  const failures = results.filter((r) => !r.passed && !r.skipped).length;
+  const skips = results.filter((r) => r.skipped).length;
   const totalSec = (results.reduce((a, r) => a + r.durationMs, 0) / 1000).toFixed(3);
   const cases = results
     .map((r) => {
       const time = (r.durationMs / 1000).toFixed(3);
       const sys = esc((r.output || "").trim());
-      const body = r.passed
+      const body = r.skipped
+        ? `<skipped message="${esc(r.reason || "skipped")}"/>`
+        : r.passed
         ? ""
         : `<failure message="exit ${esc(r.code)}">Test exited with status ${esc(r.code)}</failure>`;
       return `    <testcase classname="selenium" name="${esc(r.name)}" time="${time}">${body}<system-out>${sys}</system-out></testcase>`;
@@ -432,7 +513,7 @@ function renderJUnit(results, generatedAt) {
     .join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
-  <testsuite name="oauth2-oidc-debugger" tests="${total}" failures="${failures}" time="${totalSec}" timestamp="${esc(generatedAt)}">
+  <testsuite name="oauth2-oidc-debugger" tests="${total}" failures="${failures}" skipped="${skips}" time="${totalSec}" timestamp="${esc(generatedAt)}">
 ${cases}
   </testsuite>
 </testsuites>
@@ -506,6 +587,12 @@ async function main() {
     const jobs = buildJobs();
     console.log(`Running ${jobs.length} test(s) against ${BASE_URL}\n`);
     for (const [i, job] of jobs.entries()) {
+      if (job.skip) {
+        console.log(`\n===== [${i + 1}/${jobs.length}] ${job.name} — SKIPPED =====`);
+        console.log(`----- SKIP: ${job.skip}`);
+        results.push(makeSkipResult(job, i));
+        continue;
+      }
       console.log(`\n===== [${i + 1}/${jobs.length}] ${job.name} =====`);
       const r = await runJob(job, i); // sequential: keep streamed output readable
       results.push(r);
@@ -515,11 +602,13 @@ async function main() {
 
   writeReports(results, demo);
 
-  const failed = results.filter((r) => !r.passed).length;
+  const failed = results.filter((r) => !r.passed && !r.skipped).length;
+  const skipped = results.filter((r) => r.skipped).length;
+  const passed = results.length - failed - skipped;
   const rel = path.relative(process.cwd(), RUN_DIR);
   console.log(`\nReport written to ${rel}/report.html (and report.xml, logs/)`);
   console.log(`Latest run also at ${path.relative(process.cwd(), path.join(REPORT_DIR, "latest"))}`);
-  console.log(`Summary: ${results.length - failed} passed, ${failed} failed, ${results.length} total`);
+  console.log(`Summary: ${passed} passed, ${failed} failed, ${skipped} skipped, ${results.length} total`);
 
   // Don't fail the demo run; otherwise signal failures to the caller/CI.
   process.exit(demo ? 0 : failed > 0 ? 1 : 0);

@@ -37,22 +37,15 @@ services:
     hostname: keycloak
     ports:
       - "8080:8080"
+    # Probe /health/ready on the management port and require "UP". Well-formed
+    # HTTP/1.0 request via bash /dev/tcp (no curl in the image); generous
+    # start_period for a cold first start on a fresh image + DB.
     healthcheck:
-      test: [
-        "CMD-SHELL",
-        "exec 3<>/dev/tcp/localhost/9000; \
-        echo -en 'GET /health/ready' >&3; \
-        # Give the server a moment to respond, then search for 'UP'
-        if timeout 3 cat <&3 | grep -m 1 'UP'; then \
-          exec 3<&-; exec 3>&-; exit 0; \
-        else \
-          exec 3<&-; exec 3>&-; exit 1; \
-        fi"
-      ]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 || exit 1; printf 'GET /health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3; grep -q 'UP' <&3"]
       interval: 10s
-      timeout: 60s
-      retries: 5
-      start_period: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 150s
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,6 +100,10 @@ services:
   tests:
     container_name: tests
     image: rcbj/test
+    # Chrome crashes tabs on heavy pages when limited to Docker's default 64MB
+    # /dev/shm. The tests also pass --disable-dev-shm-usage; this raises the cap
+    # as a belt-and-suspenders mitigation.
+    shm_size: '2gb'
     build:
       context: .
       dockerfile: tests/Dockerfile

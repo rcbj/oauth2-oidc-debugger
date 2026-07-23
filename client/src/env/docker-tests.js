@@ -5,7 +5,12 @@ var config = {
   port: "3000",
   logLevel: "debug",
   // api backend is available, so both frontend and backend initiation are offered.
-  backendAvailable: true
+  backendAvailable: true,
+  // SAML Service Provider identity + ACS/SLO endpoints (hosted by the api layer).
+  spEntityId: "http://client:3000/saml/sp",
+  acsUrl: "http://api:4000/samlacs",
+  sloUrl: "http://api:4000/samlslo",
+  samlMetadataUrlDefault: "http://keycloak:8080/realms/debugger-testing/protocol/saml/descriptor"
 };
 
 module.exports = config;

@@ -1,0 +1,59 @@
+/* Landing page: choose which protocol to debug (OAuth2/OIDC vs SAML). Two big
+   icon cards laid out in a horizontal row. */
+
+.landing {
+  text-align: center;
+  padding: 36px 12px 56px;
+}
+.landing-title { font-size: 1.9em; margin: 8px 0 4px; color: #333; }
+.landing-sub { font-size: 1em; color: #666; margin: 0 0 34px; }
+
+/* Horizontal row of choices; wraps to a column on narrow screens. */
+.landing-choices {
+  display: flex;
+  flex-direction: row;
+  gap: 28px;
+  justify-content: center;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.landing-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 320px;
+  padding: 30px 24px;
+  border: 1px solid #ccc;
+  border-radius: 12px;
+  background: #fafafa;
+  text-decoration: none;
+  color: #333;
+  transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease, color .15s ease;
+}
+.landing-card:hover,
+.landing-card:focus {
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .12);
+  transform: translateY(-3px);
+  border-color: #2680eb;
+  color: #2680eb;
+  outline: none;
+}
+
+/* Big icon. Each card gets its own accent colour; hover inherits the card colour. */
+.landing-icon { margin-bottom: 16px; line-height: 0; }
+.landing-icon svg { width: 84px; height: 84px; }
+.landing-card:nth-child(1) .landing-icon { color: #2680eb; }
+.landing-card:nth-child(2) .landing-icon { color: #5a2a8f; }
+.landing-card:hover .landing-icon,
+.landing-card:focus .landing-icon { color: inherit; }
+
+.landing-card-title { font-size: 1.2em; font-weight: 700; margin-bottom: 10px; }
+.landing-card-desc { font-size: .82em; color: #666; line-height: 1.45; }
+.landing-card:hover .landing-card-desc,
+.landing-card:focus .landing-card-desc { color: inherit; }
+
+@media (max-width: 700px) {
+  .landing-choices { flex-direction: column; align-items: center; }
+}

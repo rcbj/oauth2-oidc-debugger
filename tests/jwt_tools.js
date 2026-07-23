@@ -440,6 +440,9 @@ async function test() {
     options.addArguments("--headless=new");
   }
   options.addArguments("--no-sandbox");
+  // Use /tmp instead of the container's tiny (64MB) /dev/shm, which otherwise
+  // crashes the Chrome tab on heavy pages (e.g. jwt_tools) under coverage.
+  options.addArguments("--disable-dev-shm-usage");
   options.addArguments("--allow-running-insecure-content");
   options.addArguments("--disable-features=BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights,LocalNetworkAccessChecks");
   // JWT Tools uses the Web Crypto API (crypto.subtle), which browsers expose
@@ -476,7 +479,7 @@ async function test() {
     log.info("Clear all cookies.");
     await driver.manage().deleteAllCookies();
     log.info("Load the debugger and run the OIDC Authorization Code flow.");
-    await driver.get(baseUrl);
+    await driver.get(baseUrl + "/debugger.html");
     await populateMetadata(driver, discovery_endpoint);
 <<<<<<< HEAD
     let access_token = await getAccessTokenAuthCode(driver, client_id, client_secret, scope, pkce_enabled, { baseUrl });

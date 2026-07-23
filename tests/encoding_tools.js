@@ -272,6 +272,9 @@ async function test() {
     options.addArguments("--headless=new");
   }
   options.addArguments("--no-sandbox");
+  // Use /tmp instead of the container's tiny (64MB) /dev/shm, which otherwise
+  // crashes the Chrome tab on heavy pages (e.g. jwt_tools) under coverage.
+  options.addArguments("--disable-dev-shm-usage");
   options.addArguments("--allow-running-insecure-content");
   options.addArguments("--disable-features=BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights,LocalNetworkAccessChecks");
   // SHA hashing uses the Web Crypto API (crypto.subtle), exposed by browsers

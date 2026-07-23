@@ -536,6 +536,24 @@ function rsaSelfSignedCert(privateKey, publicKey) {
   return cert;
 }
 
+// Build a self-signed X.509 cert from the current RSA key pair and open the
+// certificate-details page (saml_cert.html) to inspect it. The cert is handed
+// over via localStorage ('saml_cert_view') and shown in a new tab.
+function viewRsaCert() {
+  var privPem = val('ds_rsa_private_key'), pubPem = val('ds_rsa_public_key');
+  if (!privPem.trim() || !pubPem.trim()) { setVal('ds_rsa_status', 'Generate an RSA key pair first.'); return false; }
+  try {
+    var cert = rsaSelfSignedCert(forge.pki.privateKeyFromPem(privPem), forge.pki.publicKeyFromPem(pubPem));
+    var pem = forge.pki.certificateToPem(cert);
+    if (window.localStorage) localStorage.setItem('saml_cert_view', pem);
+    window.open('/saml_cert.html?from=digital_signature.html', '_blank');
+  } catch (e) {
+    log.error('viewRsaCert: ' + e.message);
+    setVal('ds_rsa_status', 'Certificate error: ' + e.message);
+  }
+  return false;
+}
+
 async function rsaDownloadKeys() {
   var fmt = val('ds_rsa_ks_format') || 'pem', pw = val('ds_rsa_ks_password');
   var privPem = val('ds_rsa_private_key'), pubPem = val('ds_rsa_public_key');
@@ -971,6 +989,7 @@ module.exports = {
   macGenerateKey,
   macCompute,
   macVerify,
+  viewRsaCert,
   expandAll,
   collapseAll,
   copyField
