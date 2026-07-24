@@ -109,16 +109,33 @@ async function encryptedSsoActivities(driver, metadataUrl, spEntityId, user, met
   var keyLen = await driver.executeScript(
     "var e=document.getElementById('saml_dec_key'); return e ? (e.value || '').length : 0;");
   assert(keyLen > 0, "Failed to set the decryption key field (saml_dec_key).");
-  await clickByValue(driver, "Decrypt");
+  // Fire the Decrypt button via a scripted element.click() rather than a native
+  // Selenium click. The button sits low on a tall page; in the headless
+  // viewport the synthetic mouse click intermittently lands off-target and never
+  // triggers the onclick (no intercept error is raised), so decryptAssertion()
+  // silently never runs (~5/8 runs under load). A scripted click still dispatches
+  // to the real button's onclick="…decryptAssertion()" binding — it just isn't
+  // subject to coordinate/scroll geometry.
+  var clicked = await driver.executeScript(
+    "var b=document.querySelector(\"input[value='Decrypt']\"); if(!b) return false;" +
+    " b.scrollIntoView({block:'center'}); b.click(); return true;");
+  assert(clicked, "Could not find the Decrypt button to click.");
 
-  // Success = the assertion XML becomes a plaintext assertion; otherwise wait for
-  // any terminal decrypt status and report it verbatim for diagnosis.
+  // Wait for a TERMINAL decrypt status written by decryptAssertion() after the
+  // click. We must NOT key off the assertion-XML pane or the pre-click status:
+  //   - before decrypting, saml_assertion_xml holds the note
+  //     "(no <Assertion> — …)", which contains the word "Assertion" and no
+  //     "EncryptedData", so an assertion-text check passes spuriously; and
+  //   - render() pre-seeds the status with "…paste/confirm the recipient key…",
+  //     which contains "paste".
+  // Matching either lets the wait return before the (synchronous) click handler
+  // has updated the DOM, so the decStatus assert below then reads the stale
+  // render message and fails intermittently under load. Only the outcomes
+  // decryptAssertion() sets are terminal.
   try {
     await driver.wait(async function () {
-      var ax = await textOf(driver, "saml_assertion_xml");
-      if (ax.indexOf("Assertion") >= 0 && ax.indexOf("EncryptedData") < 0) return true;
       var s = await textOf(driver, "saml_dec_status");
-      return /Decrypted|failed|No <|Paste/i.test(s);
+      return /Decrypted|Decryption failed|No <xenc/i.test(s);
     }, loginWait, "decrypt-wait");
   } catch (e) {
     throw new Error("Decrypt did not complete. dec_status=\"" + (await textOf(driver, "saml_dec_status")) + "\"");
