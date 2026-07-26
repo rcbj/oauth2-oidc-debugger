@@ -124,6 +124,7 @@ function setReturnLink() {
   var from = new URLSearchParams(window.location.search).get('from');
   var allowed = {
     'saml_tools.html': '/saml_tools.html',
+    'saml_assertion.html': '/saml_assertion.html',
     'saml_response.html': '/saml_response.html',
     'wstrust_tools.html': '/wstrust_tools.html',
     'wstrust_response.html': '/wstrust_response.html',

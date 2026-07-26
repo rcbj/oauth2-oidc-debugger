@@ -42,7 +42,7 @@
 // same state a pane's clickable title toggles). Each pane's triangle tracks this
 // via a CSS :has() rule. The switch label flips to reflect its current action.
 function samlSetAllPanes(expand) {
-  var bodies = ['pane_metadata_body', 'pane_config_body', 'pane_request_body'];
+  var bodies = ['pane_metadata_body', 'pane_config_body', 'pane_request_body', 'pane_tools_body'];
   for (var i = 0; i < bodies.length; i++) {
     var b = document.getElementById(bodies[i]);
     if (b) b.style.display = expand ? 'block' : 'none';
@@ -342,6 +342,25 @@ function samlSetAllPanes(expand) {
       <input type="button" class="saml-btn" value="Download SP Metadata" onclick="return saml_tools.downloadSpMetadata();" title="Download this Service Provider's SAML EntityDescriptor (metadata) to register on the IdP." />
     </div>
     <input class="saml-status" type="text" id="saml_call_status" name="saml_call_status" readonly title="Status of the last build/call." />
+    </div>
+  </fieldset>
+
+  <!-- ===================== Pane 4: Tools ===================== -->
+  <fieldset class="saml-pane" id="pane_tools">
+    <legend class="saml-legend" onclick="return saml_tools.togglePane('pane_tools_body');">Tools</legend>
+    <div class="saml-pane-body" id="pane_tools_body">
+
+    <p class="saml-note">Standalone utilities for working with SAML and its XML security layers.</p>
+    <table class="saml-table">
+      <tbody>
+        <tr>
+          <td><a href="/saml_assertion.html?from=saml_tools.html">SAML Assertion Tool</a> &mdash; compose a spec-compliant SAML 1.0/1.1/2.0 assertion (optional elements, NameID, custom attributes), sign it with XML Signature, and encrypt it with XML Encryption.</td>
+        </tr>
+        <tr>
+          <td><a href="/saml_cert.html?from=saml_tools.html">Certificate Details</a> &mdash; parse an X.509 certificate (PEM or bare base64 DER) and inspect its subject, issuer, validity, key, extensions, and fingerprints.</td>
+        </tr>
+      </tbody>
+    </table>
     </div>
   </fieldset>
 

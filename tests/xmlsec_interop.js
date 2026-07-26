@@ -10,7 +10,9 @@
 //                       plaintext round-trips.
 // It also round-trips the reusable encrypt AND decrypt logic
 // (encryptXml -> decryptXml) that the response pages use to decrypt an
-// EncryptedAssertion / message-level EncryptedData.
+// EncryptedAssertion / message-level EncryptedData, and covers the enveloped
+// assertion signatures the SAML Assertion Tool page produces for all three SAML
+// versions (each of which places the <ds:Signature> differently).
 //
 // This proves the exclusive-C14N + RSA-SHA* signing and the xmlenc data/key
 // encryption produce standards-compliant output a third party accepts. It is
@@ -88,12 +90,15 @@ function buildSoap() {
     '</soap:Body></soap:Envelope>';
 }
 
-function verifyWithXmlCrypto(signedXml, certPem) {
+function verifyWithXmlCrypto(signedXml, certPem, idAttributes) {
   const doc = new DOMParser().parseFromString(signedXml, "text/xml");
   const sigNodes = doc.getElementsByTagNameNS(DSIG_NS, "Signature");
   if (!sigNodes.length) return { ok: false, detail: "no <Signature> found" };
   const sig = new SignedXml();
   sig.publicCert = certPem;
+  // xml-crypto resolves Reference URIs through a fixed list of ID attribute
+  // names; a caller can extend it (SAML 1.1 names its xs:ID "AssertionID").
+  if (idAttributes) sig.idAttributes = sig.idAttributes.concat(idAttributes);
   sig.loadSignature(sigNodes[0]);
   let ok = false, detail = "";
   try { ok = sig.checkSignature(signedXml); }
@@ -220,11 +225,163 @@ function decryptRoundTripTests() {
   check("negative control: wrong private key is REJECTED", threw, "decrypted with the wrong key");
 }
 
+// --- 4) Enveloped assertion signatures (SAML Assertion Tool) ----------------
+// xd.signEnveloped() is the shared primitive behind saml_assertion.html. The
+// three SAML versions disagree about where the <ds:Signature> goes and what the
+// Reference points at, so each variant is signed and then verified twice: by
+// xml-crypto (independent) and by our own verifyXmlSignature (used by the page's
+// "Validate a Signature" box). The assertions below mirror what the page emits,
+// including xsi:type-ed attribute values — the classic exclusive-C14N trap,
+// since the "xs" prefix is declared on the root but never visibly utilized.
+const SAML2_NS = "urn:oasis:names:tc:SAML:2.0:assertion";
+const SAML1_NS = "urn:oasis:names:tc:SAML:1.0:assertion";
+const XS_NS = "http://www.w3.org/2001/XMLSchema";
+const XSI_NS = "http://www.w3.org/2001/XMLSchema-instance";
+
+function assertion20(id) {
+  return '<saml:Assertion xmlns:saml="' + SAML2_NS + '" xmlns:xs="' + XS_NS + '" xmlns:xsi="' + XSI_NS + '"' +
+    ' ID="' + id + '" Version="2.0" IssueInstant="2026-01-01T00:00:00Z">\n' +
+    '  <saml:Issuer>http://localhost:3000</saml:Issuer>\n' +
+    '  <saml:Subject>\n' +
+    '    <saml:NameID Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">testuser@example.com</saml:NameID>\n' +
+    '    <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">\n' +
+    '      <saml:SubjectConfirmationData NotOnOrAfter="2026-01-01T00:05:00Z" Recipient="http://localhost:4000/samlacs"/>\n' +
+    '    </saml:SubjectConfirmation>\n' +
+    '  </saml:Subject>\n' +
+    '  <saml:Conditions NotBefore="2025-12-31T23:59:00Z" NotOnOrAfter="2026-01-01T00:05:00Z">\n' +
+    '    <saml:AudienceRestriction>\n' +
+    '      <saml:Audience>http://localhost:3000/saml/sp</saml:Audience>\n' +
+    '    </saml:AudienceRestriction>\n' +
+    '  </saml:Conditions>\n' +
+    '  <saml:AuthnStatement AuthnInstant="2026-01-01T00:00:00Z" SessionIndex="_sess1">\n' +
+    '    <saml:AuthnContext>\n' +
+    '      <saml:AuthnContextClassRef>urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport</saml:AuthnContextClassRef>\n' +
+    '    </saml:AuthnContext>\n' +
+    '  </saml:AuthnStatement>\n' +
+    '  <saml:AttributeStatement>\n' +
+    '    <saml:Attribute Name="http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"' +
+    ' NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri" FriendlyName="emailaddress">\n' +
+    '      <saml:AttributeValue xsi:type="xs:string">testuser@example.com</saml:AttributeValue>\n' +
+    '    </saml:Attribute>\n' +
+    '  </saml:AttributeStatement>\n' +
+    '</saml:Assertion>';
+}
+
+function assertion1x(id, minor) {
+  return '<saml:Assertion xmlns:saml="' + SAML1_NS + '" xmlns:xs="' + XS_NS + '" xmlns:xsi="' + XSI_NS + '"' +
+    ' MajorVersion="1" MinorVersion="' + minor + '" AssertionID="' + id + '"' +
+    ' Issuer="http://localhost:3000" IssueInstant="2026-01-01T00:00:00Z">\n' +
+    '  <saml:Conditions NotBefore="2025-12-31T23:59:00Z" NotOnOrAfter="2026-01-01T00:05:00Z">\n' +
+    '    <saml:AudienceRestrictionCondition>\n' +
+    '      <saml:Audience>http://localhost:3000/saml/sp</saml:Audience>\n' +
+    '    </saml:AudienceRestrictionCondition>\n' +
+    '  </saml:Conditions>\n' +
+    '  <saml:AuthenticationStatement AuthenticationMethod="urn:oasis:names:tc:SAML:1.0:am:password"' +
+    ' AuthenticationInstant="2026-01-01T00:00:00Z">\n' +
+    '    <saml:Subject>\n' +
+    '      <saml:NameIdentifier Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">testuser@example.com</saml:NameIdentifier>\n' +
+    '      <saml:SubjectConfirmation>\n' +
+    '        <saml:ConfirmationMethod>urn:oasis:names:tc:SAML:1.0:cm:bearer</saml:ConfirmationMethod>\n' +
+    '      </saml:SubjectConfirmation>\n' +
+    '    </saml:Subject>\n' +
+    '  </saml:AuthenticationStatement>\n' +
+    '  <saml:AttributeStatement>\n' +
+    '    <saml:Subject>\n' +
+    '      <saml:NameIdentifier Format="urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress">testuser@example.com</saml:NameIdentifier>\n' +
+    '    </saml:Subject>\n' +
+    '    <saml:Attribute AttributeName="emailaddress" AttributeNamespace="http://schemas.xmlsoap.org/claims/">\n' +
+    '      <saml:AttributeValue xsi:type="xs:string">testuser@example.com</saml:AttributeValue>\n' +
+    '    </saml:Attribute>\n' +
+    '  </saml:AttributeStatement>\n' +
+    '</saml:Assertion>';
+}
+
+// Direct-element children of the signed assertion, by local name — used to
+// assert the <ds:Signature> landed where each version's schema requires.
+function childElementNames(xml) {
+  const doc = new DOMParser().parseFromString(xml, "text/xml");
+  const out = [];
+  let c = doc.documentElement.firstChild;
+  while (c) { if (c.nodeType === 1) out.push(c.localName); c = c.nextSibling; }
+  return out;
+}
+
+function envelopedSignatureTests() {
+  console.log("== Enveloped assertion signature (SAML Assertion Tool) ==");
+  const id = "_a1b2c3d4e5f6";
+  // SAML 1.1 references its assertion through AssertionID (an xs:ID as of 1.1),
+  // which a generic verifier only resolves once told that attribute name.
+  const cases = [
+    { name: "SAML 2.0", xml: assertion20(id), refUri: "#" + id, placement: "after-issuer", lastChild: false },
+    { name: "SAML 1.1", xml: assertion1x(id, "1"), refUri: "#" + id, placement: "last", lastChild: true, idAttrs: ["AssertionID"] },
+    // SAML 1.0's AssertionID is not an xs:ID, so the whole-document reference is
+    // the interoperable form.
+    { name: "SAML 1.0", xml: assertion1x(id, "0"), refUri: "", placement: "last", lastChild: true },
+  ];
+  for (const c of cases) {
+    let signed;
+    try {
+      signed = xd.signEnveloped(c.xml, {
+        privateKeyPem: kp.privateKeyPem, certPem: kp.certPem,
+        sigAlg: "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+        refUri: c.refUri, placement: c.placement,
+      });
+    } catch (e) { check(c.name + " (sign)", false, e.message); continue; }
+
+    const r = verifyWithXmlCrypto(signed, kp.certPem, c.idAttrs);
+    check(c.name + " assertion verifies (xml-crypto)", r.ok, r.detail);
+
+    const own = xd.verifyXmlSignature(signed);
+    check(c.name + " assertion verifies (verifyXmlSignature)", own.valid,
+      own.error || JSON.stringify(own.references));
+
+    const kids = childElementNames(signed);
+    if (c.lastChild) {
+      check(c.name + " Signature is the last child", kids[kids.length - 1] === "Signature", kids.join(","));
+    } else {
+      check(c.name + " Signature directly follows Issuer",
+        kids[0] === "Issuer" && kids[1] === "Signature", kids.join(","));
+    }
+
+    // Negative control: tampering with a signed attribute value must fail.
+    const tampered = signed.replace("testuser@example.com", "attacker@example.com");
+    const rt = verifyWithXmlCrypto(tampered, kp.certPem, c.idAttrs);
+    check(c.name + " tampered assertion is REJECTED (xml-crypto)", rt.ok === false, "unexpectedly verified");
+    const ot = xd.verifyXmlSignature(tampered);
+    check(c.name + " tampered assertion is REJECTED (verifyXmlSignature)", ot.valid === false, "unexpectedly verified");
+  }
+
+  // Inclusive C14N is offered in the page's Canonicalization select.
+  const inclusive = xd.signEnveloped(assertion20("_inclusive1"), {
+    privateKeyPem: kp.privateKeyPem, certPem: kp.certPem,
+    refUri: "#_inclusive1", placement: "after-issuer",
+    c14nAlg: "http://www.w3.org/TR/2001/REC-xml-c14n-20010315",
+  });
+  const ri = verifyWithXmlCrypto(inclusive, kp.certPem);
+  check("SAML 2.0 assertion with inclusive C14N verifies (xml-crypto)", ri.ok, ri.detail);
+
+  // Sign-then-encrypt: the signed assertion survives an EncryptedAssertion
+  // round-trip and still verifies afterwards.
+  const signed20 = xd.signEnveloped(assertion20(id), {
+    privateKeyPem: kp.privateKeyPem, certPem: kp.certPem, refUri: "#" + id, placement: "after-issuer",
+  });
+  const enc = xd.encryptXml(signed20, {
+    certPem: kp.certPem, dataAlg: XENC11 + "aes256-gcm", keyAlg: XENC11 + "rsa-oaep",
+    type: XENC + "Element", c14nMode: "none", digest: XENC + "sha256", mgf: XENC11 + "mgf1sha256",
+  });
+  const wrapped = '<saml:EncryptedAssertion xmlns:saml="' + SAML2_NS + '">' + enc + '</saml:EncryptedAssertion>';
+  let dec; try { dec = xd.decryptXml(wrapped, { privateKeyPem: kp.privateKeyPem }); } catch (e) { dec = "ERR:" + e.message; }
+  check("sign-then-encrypt round-trips", dec === signed20, String(dec).slice(0, 80));
+  const rd = verifyWithXmlCrypto(String(dec), kp.certPem);
+  check("decrypted assertion still verifies", rd.ok, rd.detail);
+}
+
 async function main() {
   try {
     signatureTests();
     await encryptionTests();
     decryptRoundTripTests();
+    envelopedSignatureTests();
   } catch (e) {
     console.error("Unexpected error: " + (e && e.stack ? e.stack : e));
     process.exit(1);

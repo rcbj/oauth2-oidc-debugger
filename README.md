@@ -22,7 +22,7 @@ This project currently supports the following specs & features:
 * [OAuth2 Token Exchange - RFC8693](https://www.rfc-editor.org/rfc/rfc8693.html) -- Basic support. Currently only tested  with Keycloak v26.x.
 * [OAuth2 Token Revocation - RFC7009](https://www.rfc-editor.org/info/rfc7009/)
 * [OIDC Dynamic Client Registration spec and RFC 7591 / RFC 7592)](https://www.rfc-editor.org/info/rfc7591/)
-* [SAML2](https://www.oasis-open.org/standard/saml/)
+* [SAML2](https://www.oasis-open.org/standard/saml/) -- SP-initiated SSO against an IdP, plus a **SAML Assertion Tool** that composes a spec-compliant SAML 1.0 / 1.1 / 2.0 assertion and signs and encrypts it in the browser. See the SAML Assertion Tool section below.
 * [WS-Trust 1.0–1.4](https://docs.oasis-open.org/ws-sx/ws-trust/v1.4/ws-trust.html) -- Issue / Renew / Validate / Cancel against an STS, selectable protocol version (1.0/1.1/1.2 pre-OASIS, 1.3/1.4 OASIS ws-sx), with WS-Security (UsernameToken / SAML token), WS-Addressing, and optional XML Signature / XML Encryption. See the WS-Trust Test Tools section below.
 * [XML Signature](https://www.w3.org/TR/xmldsig-core/)
 * [XML Encryption](https://www.w3.org/TR/xmlenc-core1/)
@@ -515,6 +515,44 @@ An optional password encrypts the private material: PBES2 for PEM/DER (RSA), a P
 * **Interoperability** — standard combinations (RSA/ECDSA with SHA-2/SHA-3, EdDSA, HMAC/KMAC) verify against other tools; exotic ones (RIPEMD-160, BLAKE2b, BLAKE3, keyed-BLAKE MACs, some curve+hash pairings) may not be accepted elsewhere, as they go beyond the JOSE/PKIX registries.
 * **Not offered** (no maintained pure-JS/CJS support): Falcon/FN-DSA, finite-field DSA, Brainpool curves, SM2, GOST (signatures); UMAC, VMAC, PMAC (MACs).
 * **No persistence** — keys, signatures, and MACs live only in the page for the current session.
+
+## SAML Assertion Tool
+The **SAML Assertion Tool** page (`/saml_assertion.html`) is a standalone, browser-only workbench for building a SAML assertion, signing it with [XML Signature](https://www.w3.org/TR/xmldsig-core/), and encrypting it with [XML Encryption](https://www.w3.org/TR/xmlenc-core1/). It emits a spec-compliant assertion for **SAML 1.0**, **SAML 1.1**, or **SAML 2.0** — the three schemas differ in more than a version number, and the page follows each one.
+
+Reach it from the **Tools** pane on `saml_tools.html`, or browse directly to `/saml_assertion.html`. The layout mirrors the JWT Tools page: three panes (Compose → Sign → Encrypt), each collapsible, with a Copy button on every multi-line field and a tooltip on every control. Nothing is sent to a server; all crypto runs in the browser on the shared XML security engine (`client/src/xmldsig.js`) that also backs the SAML and WS-Trust workflows.
+
+### Pane #1 — Compose
+* **Version** — SAML 2.0, 1.1, or 1.0. Switching versions rebuilds the assertion and hides the controls that do not exist in the selected version.
+* **Issuer** — defaults to this debugger's own URL plus an `/issuer` path (e.g. `http://localhost:3000/issuer`); override it with any entityID. SAML 2.0 emits a `<saml:Issuer>` element, SAML 1.x the `Issuer` attribute.
+* **Identifier and timestamps** — the assertion ID (`ID` in 2.0, `AssertionID` in 1.x) is generated as an NCName, and `IssueInstant`, `NotBefore`, `NotOnOrAfter`, `AuthnInstant`, and the confirmation/session expiries are populated from the current UTC time. A validity window and clock-skew allowance drive them; **Refresh Times** and **New ID** regenerate. Each field stays editable.
+* **NameID** — value, Format, NameQualifier, and (2.0 only) SPNameQualifier. Emitted as `<saml:NameID>` in 2.0 and `<saml:NameIdentifier>` in 1.x.
+* **Optional elements** — check the ones the assertion should carry: `Subject` / `SubjectConfirmation` (bearer, holder-of-key, sender-vouches, artifact — the URI follows the version), `Conditions` with the validity window, `AudienceRestriction` (`AudienceRestrictionCondition` in 1.x), `OneTimeUse` (`DoNotCacheCondition` in 1.1; absent from 1.0), `ProxyRestriction` (2.0), `Advice`, the authentication statement with `AuthnContextClassRef` (2.0) or `AuthenticationMethod` (1.x) and `SubjectLocality`, the `AttributeStatement`, and the authorization decision statement.
+* **Custom SAML attributes** — choose a value **type** (emitted as `xsi:type`), a **URI prefix**, a **name**, and a **value**. In SAML 2.0 the prefix is prepended to `Name` and switches `NameFormat` to `attrname-format:uri`; in SAML 1.x it becomes the required `AttributeNamespace` and the name stays in `AttributeName`. Added attributes are listed in a table and can be removed individually.
+* **SAML Compliance** — validates the generated assertion against the selected version's structural rules (identifier form, UTC instants, required Issuer, statement/Subject requirements, audience and resource URIs, attribute shape, condition ordering, and — once signed — the `<ds:Signature>` position), reporting PASS / FAIL / WARN per rule.
+* **Pretty Print / Download / Reset** — the **Generated Assertion** box sits at the top of the pane and updates as you type; there is no rebuild button. **Pretty Print** re-indents it (and re-signs, if signing is engaged), **Download** saves the furthest-along artifact (encrypted, else signed, else plain), and **Reset** restores every field in all three panes to its default, dropping the custom attributes, the generated key pairs, and any signed or encrypted output.
+
+### Pane #2 — Sign (XML Signature)
+An enveloped XML-DSIG over the whole assertion, with the same options the SAML Test Tools page offers for the AuthnRequest: signature algorithm (RSA-SHA1/256/384/512), canonicalization (exclusive or inclusive C14N 1.0), and RSA key size. **Generate Keys** produces a throwaway RSA key pair plus a self-signed certificate (downloadable as PEM, inspectable via the certificate details page), which is embedded in the signature's `<ds:KeyInfo>`.
+
+Where the signature goes is version-specific, and the page handles it:
+
+| Version | Reference URI | `<ds:Signature>` position |
+|---|---|---|
+| SAML 2.0 | `#ID` | immediately after `<saml:Issuer>` |
+| SAML 1.1 | `#AssertionID` | last child of `<saml:Assertion>` |
+| SAML 1.0 | `""` (whole document) | last child of `<saml:Assertion>` |
+
+SAML 1.0's `AssertionID` is not an `xs:ID`, so the whole-document reference is the interoperable form there; 1.1 made it an `xs:ID`. A **Validate a Signature** box re-checks every reference digest and the `SignatureValue` — against the certificate in `KeyInfo` or one you paste — for the assertion just signed or any signed XML you drop in.
+
+Once **Sign Assertion** has been clicked, signing stays engaged: the Generated Assertion box in pane 1 switches to the signed assertion, and every later change — a different NameID, another attribute, a new signature algorithm, a freshly generated key — rebuilds the assertion and recomputes the signature, so what pane 1 shows is always what the tool would hand over. Reset (or clearing the private key) turns it back off.
+
+### Pane #3 — Encrypt (XML Encryption)
+Encrypts the signed assertion (sign-then-encrypt) with a random session key that is RSA-wrapped with a recipient certificate — paste the relying party's certificate or generate a throwaway recipient key pair. The algorithm knobs match the SAML Test Tools encryption pane: encrypted type (Element / Content), canonicalization, data encryption (AES-128/192/256 GCM or CBC, Triple DES CBC), key transport (RSA-OAEP with configurable digest and MGF, RSA-OAEP-MGF1P, RSA-1_5), and — for SAML 2.0 — wrapping the result in `<saml:EncryptedAssertion>` (SAML 1.x has no such element, so a bare `<xenc:EncryptedData>` is produced). A **Decrypt** box round-trips the result back to the signed assertion with the recipient private key. Encryption tracks changes the same way signing does: after the first **Encrypt Assertion**, any later edit re-runs the whole pipeline — rebuild, re-sign, re-encrypt. The **Assertion to Encrypt** box follows the current artifact automatically, but stops doing so once you type your own XML into it.
+
+### Notes & limitations
+* **Test keys only** — generated key pairs are throwaway. Like the other SAML pages, the page state (including the private keys) is persisted to `localStorage` so it survives a reload; do not paste a production key.
+* **Interoperability** — the signatures this page produces are verified against the independent `xml-crypto` library, and the encryption against `xml-encryption`, by `tests/xmlsec_interop.js`.
+* **Assertion only** — the page builds an assertion, not a `<samlp:Response>`. To exercise a full SSO round-trip against an IdP, use the SAML Test Tools page.
 
 ## WS-Trust Test Tools
 Drive a [WS-Trust 1.4](https://docs.oasis-open.org/ws-sx/ws-trust/v1.4/ws-trust.html) exchange against a Security Token Service (STS). Chosen from the landing page (the **WS-Trust Debugger** card), it builds a SOAP `RequestSecurityToken` (RST) in the browser, sends it to an STS, and shows the `RequestSecurityTokenResponse` (RSTR) on a dedicated response page. It is modeled on the SAML Test Tools workflow and reuses the same in-browser XML Signature / XML Encryption engine.

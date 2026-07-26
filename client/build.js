@@ -55,6 +55,7 @@ const BUNDLES = [
   ['digital_signature', 'digital_signature'],
   ['saml_tools', 'saml_tools'],
   ['saml_cert', 'saml_cert'],
+  ['saml_assertion', 'saml_assertion'],
   ['saml_response', 'saml_response'],
   ['wstrust_tools', 'wstrust_tools'],
   ['wstrust_response', 'wstrust_response'],

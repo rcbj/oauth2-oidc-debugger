@@ -5,8 +5,12 @@ FROM ubuntu:latest
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 
 RUN apt-get update
+# libxml2-utils supplies xmllint, the XSD validator the WS-Trust schema test
+# falls back to when the optional native libxmljs2 binding is unusable (no
+# prebuilt binary for this ABI, or one built against a different Node version).
 RUN apt-get -y install curl \
         jq \
+        libxml2-utils \
         libatomic1 \
         libasound2t64 \
         libatk-bridge2.0-0 \
@@ -53,7 +57,7 @@ RUN node -v
 RUN npm -v
 
 # Bundle app source
-COPY tests/oauth2_* tests/oidc_* tests/token_introspection.js tests/jwt_tools.js tests/encoding_tools.js tests/digital_signature.js tests/saml_sso.js tests/saml_logout.js tests/saml_encrypted_sso.js tests/wstrust.js tests/xmlsec_interop.js tests/wstrust_schema_validate.js tests/navigation.js ./
+COPY tests/oauth2_* tests/oidc_* tests/token_introspection.js tests/jwt_tools.js tests/encoding_tools.js tests/digital_signature.js tests/saml_sso.js tests/saml_logout.js tests/saml_encrypted_sso.js tests/saml_assertion.js tests/wstrust.js tests/xmlsec_interop.js tests/wstrust_schema_validate.js tests/navigation.js ./
 # The XML Signature/Encryption interop test drives the frontend crypto module
 # directly (no browser); copy it next to the test so it can require('./xmldsig.js')
 # and resolve its deps (node-forge, etc.) from this image's node_modules. The

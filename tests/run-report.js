@@ -270,6 +270,19 @@ function buildJobs() {
     script: "digital_signature.js",
     env: {},
   });
+
+  // SAML Assertion Tool. Another fully client-side page needing no IdP: compose
+  // an assertion for each SAML version (2.0 / 1.1 / 1.0) with its version-specific
+  // structure, toggle the optional elements, add typed + URI-prefixed custom
+  // attributes, run the spec-compliance check, then sign it with an enveloped XML
+  // Signature (whose placement and Reference URI differ per version), verify it,
+  // reject a tampered copy, and round-trip it through XML Encryption. Also checks
+  // the Tools pane on the SAML Test Tools page links here.
+  jobs.push({
+    name: "SAML Assertion Tool (compose 1.0/1.1/2.0, XML-DSIG sign + verify, XML-Enc round-trip)",
+    script: "saml_assertion.js",
+    env: {},
+  });
   
  // SAML 2.0 SP-initiated SSO across all three bindings: load IdP metadata, sign
   // the AuthnRequest (redirect = query-string sig; post = enveloped XML-DSIG;

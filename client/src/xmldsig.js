@@ -369,6 +369,96 @@ function signWsSecurity(soapXml, opts) {
   return new XMLSerializer().serializeToString(doc);
 }
 
+// --- Enveloped XML Signature (XML-DSIG) -------------------------------------
+// The generic form of saml_tools.js's signPostEnveloped(): digest the document
+// element, build a <ds:SignedInfo> referencing it, insert the <ds:Signature>
+// into the document, then sign the canonicalized SignedInfo in place. Same
+// primitives (exclusive C14N + RSA-SHA*, node-forge) — only the reference URI
+// and the placement of the <ds:Signature> are parameterized, because the SAML
+// schemas disagree about both:
+//
+//   SAML 2.0   ID="_x"          Reference URI="#_x"  Signature after <Issuer>
+//   SAML 1.1   AssertionID="_x" Reference URI="#_x"  Signature is the LAST child
+//   SAML 1.0   AssertionID="_x" Reference URI=""     Signature is the LAST child
+//                               (1.0's AssertionID is not an xs:ID, so the
+//                                whole-document reference is the safe form)
+//
+// opts: { privateKeyPem, certPem, sigAlg, digestUri, c14nAlg, refUri,
+//         placement: 'after-issuer' | 'last' | 'first', includeKeyInfo }
+function signEnveloped(xml, opts) {
+  opts = opts || {};
+  if (!opts.privateKeyPem) throw new Error('signEnveloped: privateKeyPem is required.');
+  var sigAlg = opts.sigAlg || SIG_ALG_RSA_SHA256;
+  var spec = sigAlgSpec(sigAlg);
+  var digestUri = opts.digestUri || spec.digestUri;
+  var c14nAlg = opts.c14nAlg || C14N_EXCLUSIVE;
+  var c14nFn = c14nForAlg(c14nAlg);
+
+  var doc = new DOMParser().parseFromString(xml, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('malformed XML — cannot sign.');
+  var root = doc.documentElement;
+
+  var refUri = opts.refUri;
+  if (refUri == null) {
+    var id = root.getAttribute('ID') || root.getAttribute('AssertionID') || root.getAttribute('Id') || '';
+    refUri = id ? ('#' + id) : '';
+  }
+
+  // Reference digest: c14n(root) with no <Signature> present — exactly what the
+  // enveloped-signature transform reproduces at verification time.
+  var digest = digestBase64(c14nFn(root), spec.md);
+
+  var signedInfo = '<ds:SignedInfo xmlns:ds="' + DS_NS + '">' +
+    '<ds:CanonicalizationMethod Algorithm="' + c14nAlg + '"/>' +
+    '<ds:SignatureMethod Algorithm="' + sigAlg + '"/>' +
+    '<ds:Reference URI="' + refUri + '">' +
+    '<ds:Transforms>' +
+    '<ds:Transform Algorithm="' + TRANSFORM_ENVELOPED + '"/>' +
+    '<ds:Transform Algorithm="' + c14nAlg + '"/>' +
+    '</ds:Transforms>' +
+    '<ds:DigestMethod Algorithm="' + digestUri + '"/>' +
+    '<ds:DigestValue>' + digest + '</ds:DigestValue>' +
+    '</ds:Reference></ds:SignedInfo>';
+
+  var keyInfo = '';
+  if (opts.includeKeyInfo !== false && opts.certPem) {
+    keyInfo = '<ds:KeyInfo><ds:X509Data><ds:X509Certificate>' +
+      certPemToB64(opts.certPem) + '</ds:X509Certificate></ds:X509Data></ds:KeyInfo>';
+  }
+  // Insert the signature with an empty SignatureValue FIRST, then canonicalize
+  // the SignedInfo in place. Inclusive C14N pulls in every namespace declared by
+  // the ancestors, so a SignedInfo canonicalized while detached would not match
+  // the octets a verifier computes from the finished document. (Exclusive C14N
+  // is unaffected — it only renders visibly-utilized prefixes — so this ordering
+  // is correct for both.)
+  var signature = '<ds:Signature xmlns:ds="' + DS_NS + '">' + signedInfo +
+    '<ds:SignatureValue></ds:SignatureValue>' + keyInfo + '</ds:Signature>';
+  var sigNode = doc.importNode(new DOMParser().parseFromString(signature, 'application/xml').documentElement, true);
+
+  var placement = opts.placement || 'after-issuer';
+  if (placement === 'last') {
+    root.appendChild(sigNode);
+  } else if (placement === 'first') {
+    root.insertBefore(sigNode, root.firstChild);
+  } else {
+    var issuer = null, kids = root.childNodes;
+    for (var i = 0; i < kids.length; i++) {
+      if (kids[i].nodeType === 1 && kids[i].localName === 'Issuer') { issuer = kids[i]; break; }
+    }
+    if (issuer) root.insertBefore(sigNode, issuer.nextSibling);
+    else root.insertBefore(sigNode, root.firstChild);
+  }
+
+  var siNode = directChildByLocal(sigNode, 'SignedInfo');
+  var pk = forge.pki.privateKeyFromPem(opts.privateKeyPem);
+  var md = spec.md();
+  md.update(c14nFn(siNode), 'utf8');
+  directChildByLocal(sigNode, 'SignatureValue')
+    .appendChild(doc.createTextNode(forge.util.encode64(pk.sign(md))));
+
+  return new XMLSerializer().serializeToString(doc);
+}
+
 // --- XML Signature VERIFICATION (enveloped) --------------------------------
 // Verify an enveloped XML digital signature such as the one on a SAML assertion
 // (or any signed element): checks every Reference digest (after applying the
@@ -386,7 +476,9 @@ function findById(root, id) {
     for (var j = 0; j < e.attributes.length; j++) {
       var a = e.attributes[j];
       var ln = a.localName || a.name;
-      if ((ln === 'Id' || ln === 'ID' || ln === 'id') && a.value === id) return e;
+      // SAML 1.1 declares AssertionID (not "ID") as the assertion's xs:ID, so a
+      // Reference URI="#..." on a 1.1 assertion resolves through it.
+      if ((ln === 'Id' || ln === 'ID' || ln === 'id' || ln === 'AssertionID') && a.value === id) return e;
     }
   }
   return null;
@@ -594,6 +686,7 @@ module.exports = {
   canonicalizeInclusive: canonicalizeInclusive,
   encryptXml: encryptXml,
   decryptXml: decryptXml,
+  signEnveloped: signEnveloped,
   signWsSecurity: signWsSecurity,
   verifyXmlSignature: verifyXmlSignature,
   generateKeyPair: generateKeyPair

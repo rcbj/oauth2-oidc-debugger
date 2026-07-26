@@ -1,0 +1,55 @@
+/* SAML Assertion Tool — page-specific additions on top of saml_tools.css
+   (loaded after it, so the pane / field / button look and feel is shared with
+   the rest of the SAML pages and only the extras below are new). */
+
+/* Explanatory note inside a pane — smaller and quieter than a .saml-notice. */
+.saml-pane .saml-note {
+  font-size: 0.76em;
+  line-height: 1.4;
+  color: #555;
+  margin: 0 0 8px;
+}
+
+/* The pane's headline outputs (the generated assertion and the compliance
+   report) get the full pane width, with their label on the row above — the
+   .saml-doc-head pattern the metadata document box uses on the SAML Test Tools
+   page — rather than the 40% label column a .saml-field would impose. */
+.saml-pane textarea.sa-doc {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
+/* Fields that only apply while their checkbox is ticked are indented under it,
+   so the dependency is visible when they appear. */
+.sa-nested {
+  margin-left: 14px;
+  padding-left: 8px;
+  border-left: 2px solid #e0e0e0;
+}
+
+/* Custom-attribute table. */
+.sa-attr-table { margin: 6px 0 8px; }
+.sa-attr-table th { font-size: 0.95em; }
+.sa-attr-table td.sa-wrap {
+  font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  font-size: 0.95em;
+  word-break: break-all;
+}
+.sa-attr-table td.sa-empty {
+  color: #888;
+  font-style: italic;
+  text-align: center;
+}
+/* The Remove button reuses the compact .saml-copy button styling. */
+.sa-attr-table td:last-child { width: 1%; white-space: nowrap; }
+
+/* The compliance / verification / decryption report boxes are read-only logs —
+   keep them monospaced and quiet. */
+#sa_compliance_output,
+#sa_verify_output,
+#sa_dec_output {
+  font-size: 0.74em;
+  color: #333;
+  background: #f6f6f6;
+}
