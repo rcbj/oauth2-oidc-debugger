@@ -54,7 +54,7 @@ docker_compose() {
 }
 
 # Download the Keycloak SAML IdP descriptor to a local file and export
-# SAML_METADATA_FILE, so the SAML tests UPLOAD it into saml_tools.html rather
+# SAML_METADATA_FILE, so the SAML tests UPLOAD it into saml_request.html rather
 # than having the browser fetch it. Required against a backend-less deployed site
 # (e.g. https://test.idptools.com): the HTTPS page can't fetch the local http
 # Keycloak descriptor cross-origin (blocked by CORS). Uses

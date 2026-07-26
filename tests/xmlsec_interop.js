@@ -226,7 +226,7 @@ function decryptRoundTripTests() {
 }
 
 // --- 4) Enveloped assertion signatures (SAML Assertion Tool) ----------------
-// xd.signEnveloped() is the shared primitive behind saml_assertion.html. The
+// xd.signEnveloped() is the shared primitive behind saml_tools.html. The
 // three SAML versions disagree about where the <ds:Signature> goes and what the
 // Reference points at, so each variant is signed and then verified twice: by
 // xml-crypto (independent) and by our own verifyXmlSignature (used by the page's

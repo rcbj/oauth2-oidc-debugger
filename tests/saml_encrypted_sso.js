@@ -56,7 +56,7 @@ async function loadIdpMetadata(driver, metadataUrl, metadataFile) {
 async function encryptedSsoActivities(driver, metadataUrl, spEntityId, user, metadataFile) {
   var loginWait = Math.max(waitTime, 15000);
   log.info("Load the SAML Test Tools page (encrypted SP, POST binding).");
-  await driver.get(baseUrl + "/saml_tools.html");
+  await driver.get(baseUrl + "/saml_request.html");
   await loadIdpMetadata(driver, metadataUrl, metadataFile);
 
   // Use the ENCRYPTED SP client's entityID and the fixed SP key pair (its cert

@@ -77,7 +77,7 @@ async function samlActivities(driver, metadataUrl, spEntityId, user, binding, me
   var loginWait = Math.max(waitTime, 15000);
 
   log.info("Load the SAML Test Tools page (binding=" + binding + ").");
-  await driver.get(baseUrl + "/saml_tools.html");
+  await driver.get(baseUrl + "/saml_request.html");
 
   // Load + parse the IdP metadata (URL fetch, or file upload when metadataFile set).
   await loadIdpMetadata(driver, metadataUrl, metadataFile);

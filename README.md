@@ -517,9 +517,9 @@ An optional password encrypts the private material: PBES2 for PEM/DER (RSA), a P
 * **No persistence** — keys, signatures, and MACs live only in the page for the current session.
 
 ## SAML Assertion Tool
-The **SAML Assertion Tool** page (`/saml_assertion.html`) is a standalone, browser-only workbench for building a SAML assertion, signing it with [XML Signature](https://www.w3.org/TR/xmldsig-core/), and encrypting it with [XML Encryption](https://www.w3.org/TR/xmlenc-core1/). It emits a spec-compliant assertion for **SAML 1.0**, **SAML 1.1**, or **SAML 2.0** — the three schemas differ in more than a version number, and the page follows each one.
+The **SAML Assertion Tool** page (`/saml_tools.html`) is a standalone, browser-only workbench for building a SAML assertion, signing it with [XML Signature](https://www.w3.org/TR/xmldsig-core/), and encrypting it with [XML Encryption](https://www.w3.org/TR/xmlenc-core1/). It emits a spec-compliant assertion for **SAML 1.0**, **SAML 1.1**, or **SAML 2.0** — the three schemas differ in more than a version number, and the page follows each one.
 
-Reach it from the **Tools** pane on `saml_tools.html`, or browse directly to `/saml_assertion.html`. The layout mirrors the JWT Tools page: three panes (Compose → Sign → Encrypt), each collapsible, with a Copy button on every multi-line field and a tooltip on every control. Nothing is sent to a server; all crypto runs in the browser on the shared XML security engine (`client/src/xmldsig.js`) that also backs the SAML and WS-Trust workflows.
+Reach it from the **Tools** pane on `saml_request.html`, or browse directly to `/saml_tools.html`. The layout mirrors the JWT Tools page: three panes (Compose → Sign → Encrypt), each collapsible, with a Copy button on every multi-line field and a tooltip on every control. Nothing is sent to a server; all crypto runs in the browser on the shared XML security engine (`client/src/xmldsig.js`) that also backs the SAML and WS-Trust workflows.
 
 ### Pane #1 — Compose
 * **Version** — SAML 2.0, 1.1, or 1.0. Switching versions rebuilds the assertion and hides the controls that do not exist in the selected version.

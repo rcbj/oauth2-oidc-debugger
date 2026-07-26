@@ -1,4 +1,4 @@
-// File: saml_assertion.js
+// File: saml_tools.js
 //
 // SAML Assertion Tool UI test. A fully client-side page needing no IdP:
 //
@@ -40,7 +40,7 @@ const { Command, Option } = require('commander');
 var appconfig = require(process.env.CONFIG_FILE);
 
 var bunyan = require("bunyan");
-var log = bunyan.createLogger({ name: 'saml_assertion',
+var log = bunyan.createLogger({ name: 'saml_tools',
                                 level: appconfig.LOG_LEVEL || 'info' });
 log.info("Log initialized. logLevel=" + log.level());
 var baseUrl = "http://localhost:3000";
@@ -83,11 +83,11 @@ async function waitForValue(driver, id, pred, msg, timeout) {
 async function selectValue(driver, id, value) {
   await new Select(driver.findElement(By.id(id))).selectByValue(value);
 }
-// The inline handlers read "return saml_assertion.<fn>(...)". Matching on the
+// The inline handlers read "return saml_tools.<fn>(...)". Matching on the
 // call prefix (name + open paren) is quote-agnostic, so it survives the HTML
 // minification the hosted build applies to inline attributes.
 function onclickBtn(fn) {
-  return By.xpath("//input[contains(@onclick, \"saml_assertion." + fn + "(\")]");
+  return By.xpath("//input[contains(@onclick, \"saml_tools." + fn + "(\")]");
 }
 function isHidden(driver, id) {
   return driver.executeScript(
@@ -750,7 +750,7 @@ var POWER_SET_SCRIPT = [
   "    }",
   "  }",
   "",
-  "  saml_assertion.checkCompliance();",
+  "  saml_tools.checkCompliance();",
   "  var report = document.getElementById('sa_compliance_output').value;",
   "  var clean = report.indexOf('no failures') !== -1;",
   "  var shouldBeClean = v2 ? (stmts > 0 || on.subject) : (stmts > 0);",
@@ -912,9 +912,9 @@ async function testNoConsoleErrors(driver) {
 
 async function testToolsPane(driver) {
   log.info("=== SAML Test Tools — Tools pane ===");
-  await driver.get(baseUrl + "/saml_tools.html");
+  await driver.get(baseUrl + "/saml_request.html");
   await driver.wait(until.elementLocated(By.id('pane_tools')), waitTime);
-  var link = driver.findElement(By.css('#pane_tools_body a[href^="/saml_assertion.html"]'));
+  var link = driver.findElement(By.css('#pane_tools_body a[href^="/saml_tools.html"]'));
   var text = await link.getText();
   assert.ok(text.indexOf('SAML Assertion Tool') !== -1,
     "The Tools pane does not link to the SAML Assertion Tool. Found: " + text);
@@ -941,9 +941,9 @@ async function testToolsPane(driver) {
   log.info("[tools pane] OK — collapses and expands with the other panes.");
   await driver.executeScript("arguments[0].scrollIntoView({ block: 'center' });", link);
   await link.click();
-  await driver.wait(until.urlContains('saml_assertion.html'), waitTime);
+  await driver.wait(until.urlContains('saml_tools.html'), waitTime);
   var ret = await driver.findElement(By.id('return_link')).getAttribute('href');
-  assert.ok(ret.indexOf('/saml_tools.html') !== -1,
+  assert.ok(ret.indexOf('/saml_request.html') !== -1,
     "The assertion page should return to the SAML Test Tools page. Found: " + ret);
   log.info("[tools pane] OK — links to the SAML Assertion Tool and back.");
 }
@@ -954,7 +954,7 @@ async function testResponseToolsPane(driver) {
   log.info("=== SAML Response — Tools pane ===");
   await driver.get(baseUrl + "/saml_response.html");
   await driver.wait(until.elementLocated(By.id('pane_tools')), waitTime);
-  var link = driver.findElement(By.css('#pane_tools_body a[href^="/saml_assertion.html"]'));
+  var link = driver.findElement(By.css('#pane_tools_body a[href^="/saml_tools.html"]'));
   var text = await link.getText();
   assert.ok(text.indexOf('SAML Assertion Tool') !== -1,
     "The SAML Response Tools pane does not link to the SAML Assertion Tool. Found: " + text);
@@ -962,17 +962,17 @@ async function testResponseToolsPane(driver) {
   assert.strictEqual(cert.length, 1, "The SAML Response Tools pane should link to the certificate details page.");
   await driver.executeScript("arguments[0].scrollIntoView({ block: 'center' });", link);
   await link.click();
-  await driver.wait(until.urlContains('saml_assertion.html'), waitTime);
+  await driver.wait(until.urlContains('saml_tools.html'), waitTime);
   log.info("[tools pane] OK — the SAML Response page carries the same pane.");
 }
 
 // ===========================================================================
 async function samlAssertionActivities(driver) {
-  await driver.get(baseUrl + "/saml_assertion.html");
+  await driver.get(baseUrl + "/saml_tools.html");
   // The page persists everything to localStorage; start from a clean slate so a
   // previous run's attributes or toggles cannot skew the assertions below.
   await driver.executeScript("window.localStorage.clear();");
-  await driver.get(baseUrl + "/saml_assertion.html");
+  await driver.get(baseUrl + "/saml_tools.html");
   await driver.wait(until.elementLocated(By.id('sa_assertion')), waitTime);
 
   await testDefaults(driver);
@@ -1057,7 +1057,7 @@ async function test() {
 
 const program = new Command();
 program
-  .name('saml_assertion')
+  .name('saml_tools')
   .description("Run SAML Assertion Tool UI test (compose 1.0/1.1/2.0, sign, encrypt).")
   .addOption(new Option("-u, --url <url>", "Set base URL.").makeOptionMandatory())
   .addOption(new Option("-b, --browser", "Display browser (only works within device)."))

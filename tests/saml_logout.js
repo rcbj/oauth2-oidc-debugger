@@ -78,7 +78,7 @@ async function loadIdpMetadata(driver, metadataUrl, metadataFile) {
 // SessionIndex to localStorage, both of which the subsequent LogoutRequest needs.
 async function ssoLogin(driver, metadataUrl, spEntityId, user, binding, loginWait, metadataFile) {
   log.info("SLO test — step 1: SSO login (binding=" + binding + ").");
-  await driver.get(baseUrl + "/saml_tools.html");
+  await driver.get(baseUrl + "/saml_request.html");
 
   // Load + parse the IdP metadata (URL fetch, or file upload when metadataFile set).
   await loadIdpMetadata(driver, metadataUrl, metadataFile);
@@ -127,7 +127,7 @@ async function samlLogout(driver, metadataUrl, spEntityId, user, binding, metada
 
   // ---- step 2: Single Logout ----
   log.info("SLO test — step 2: return to SAML Test Tools and trigger Single Logout.");
-  await driver.get(baseUrl + "/saml_tools.html");
+  await driver.get(baseUrl + "/saml_request.html");
   await driver.wait(until.elementLocated(By.id("saml_binding")), waitTime);
   await driver.executeScript(
     "var s=document.getElementById('saml_binding'); if(s){ s.value = arguments[0]; }", binding);
@@ -156,7 +156,7 @@ async function samlLogout(driver, metadataUrl, spEntityId, user, binding, metada
   // onclick handler). A Selenium native .click() here is intermittently swallowed
   // — the on-load auto-build re-renders the Generated AuthnRequest field, so the
   // button can shift between click-point computation and dispatch and the handler
-  // never fires (leaving the browser on saml_tools.html). element.click() in the
+  // never fires (leaving the browser on saml_request.html). element.click() in the
   // page is immune to that and reliably invokes singleLogout().
   var lb = await driver.findElement(By.xpath("//input[contains(@onclick,'singleLogout')]"));
   await driver.wait(until.elementIsVisible(lb), waitTime);

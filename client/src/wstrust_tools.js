@@ -8,7 +8,7 @@
 // reply is stashed in localStorage and the browser navigates to
 // wstrust_response.html to render it.
 //
-// Modeled on the SAML Test Tools workflow (saml_tools.js): the same pane /
+// Modeled on the SAML Test Tools workflow (saml_request.js): the same pane /
 // tab / .stored-localStorage conventions, and the shared in-browser XML
 // security primitives in ./xmldsig.js. The STS call can be made either directly
 // from the browser (frontend) or through the API proxy (backend, POST /wstrust)
@@ -54,7 +54,7 @@ function statusTokenTypeUri() { return wm.statusTokenTypeUri(val("wst_trust_vers
 var EXCHANGE_KEY = "wstrust_last_exchange";
 
 // ---------------------------------------------------------------------------
-// Small DOM helpers (mirror saml_tools.js).
+// Small DOM helpers (mirror saml_request.js).
 // ---------------------------------------------------------------------------
 function el(id) { return document.getElementById(id); }
 function val(id) { var e = el(id); return e ? e.value : ''; }
@@ -480,7 +480,7 @@ function callSts() {
 }
 
 // ---------------------------------------------------------------------------
-// Misc UI (shared shapes with saml_tools.js).
+// Misc UI (shared shapes with saml_request.js).
 // ---------------------------------------------------------------------------
 function copyField(id) {
   var e = el(id);

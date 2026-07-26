@@ -278,9 +278,20 @@ function buildJobs() {
   // Signature (whose placement and Reference URI differ per version), verify it,
   // reject a tampered copy, and round-trip it through XML Encryption. Also checks
   // the Tools pane on the SAML Test Tools page links here.
+  // Operations History pane on the SAML request page: records every attempted
+  // IdP call (AuthnRequest / Single Logout / metadata load) with its binding,
+  // SAML version, entity IDs, and result. Needs no IdP — the failure paths come
+  // from the page's own pre-flight checks and the dispatch is aimed at a URL on
+  // the site itself.
+  jobs.push({
+    name: "SAML Operations History (attempted IdP calls: binding, version, entity IDs, result)",
+    script: "saml_operation_history.js",
+    env: {},
+  });
+
   jobs.push({
     name: "SAML Assertion Tool (compose 1.0/1.1/2.0, XML-DSIG sign + verify, XML-Enc round-trip)",
-    script: "saml_assertion.js",
+    script: "saml_tools.js",
     env: {},
   });
   

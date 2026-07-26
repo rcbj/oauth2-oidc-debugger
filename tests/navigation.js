@@ -13,7 +13,7 @@ var waitTime = appconfig.waitTime;
 
 // Landing page: the two protocol-choice cards.
 var OAUTH2_CARD = By.css('a.landing-card[href="/debugger.html"]');
-var SAML_CARD = By.css('a.landing-card[href="/saml_tools.html"]');
+var SAML_CARD = By.css('a.landing-card[href="/saml_request.html"]');
 var WSTRUST_CARD = By.css('a.landing-card[href="/wstrust_tools.html"]');
 var CHOICES = By.css('.landing-choices');
 // The header "Home" nav link (returns to the landing page).
@@ -51,12 +51,12 @@ async function navigationActivities(driver) {
   await waitVisible(driver, CHOICES);
   log.info("Back on the landing page.");
 
-  // 4. Choose the SAML debugger -> saml_tools.html.
+  // 4. Choose the SAML debugger -> saml_request.html.
   log.info("Click the SAML debugger card.");
   await click(driver, SAML_CARD);
-  await driver.wait(until.urlContains("saml_tools.html"), waitTime);
+  await driver.wait(until.urlContains("saml_request.html"), waitTime);
   await driver.wait(until.elementLocated(By.id("saml_metadata_url")), waitTime);
-  log.info("Landed on saml_tools.html.");
+  log.info("Landed on saml_request.html.");
 
   // 5. Return to Home -> landing page.
   log.info("Click Home -> landing page.");

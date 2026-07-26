@@ -3,7 +3,7 @@
 // Shared in-browser XML security primitives used by the WS-Trust workflow
 // (and available to any other page that needs XML-DSIG / XML-Encryption without
 // a server round-trip). The implementations here are lifted from the proven
-// SAML code in saml_tools.js — the same exclusive Canonical XML 1.0, RSA-SHA*
+// SAML code in saml_request.js — the same exclusive Canonical XML 1.0, RSA-SHA*
 // signing, and W3C XML-Encryption (xmlenc / xmlenc11) — but factored into a
 // reusable module whose functions take explicit arguments/options instead of
 // reading specific DOM element ids, so they are not tied to the SAML page.
@@ -81,7 +81,7 @@ function sigAlgSpec(uri) {
 // Renders on each element only the namespace declarations it *visibly utilizes*
 // (its own prefix + the prefixes of namespace-qualified attributes), so a
 // subtree canonicalizes identically standalone or nested — the property the
-// detached SignedInfo signature relies on. (Verbatim from saml_tools.js.)
+// detached SignedInfo signature relies on. (Verbatim from saml_request.js.)
 function canonicalize(apex) { return c14nSerialize(apex, {}); }
 
 function c14nInScopeNs(el) {
@@ -370,7 +370,7 @@ function signWsSecurity(soapXml, opts) {
 }
 
 // --- Enveloped XML Signature (XML-DSIG) -------------------------------------
-// The generic form of saml_tools.js's signPostEnveloped(): digest the document
+// The generic form of saml_request.js's signPostEnveloped(): digest the document
 // element, build a <ds:SignedInfo> referencing it, insert the <ds:Signature>
 // into the document, then sign the canonicalized SignedInfo in place. Same
 // primitives (exclusive C14N + RSA-SHA*, node-forge) — only the reference URI
