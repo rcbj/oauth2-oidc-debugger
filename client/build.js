@@ -99,6 +99,17 @@ log('cleaning ' + path.relative(CLIENT_DIR, DIST));
 fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(path.join(DIST, 'js'), { recursive: true });
 
+// 1b. Fix this build's identity (M.N.O) and ship it as dist/version.json.
+const appversion = require('./version');
+const VERSION = appversion.stamp(DIST);
+const BUILD_INFO = appversion.buildInfo(VERSION);
+log('version ' + VERSION.version + ' (' + BUILD_INFO + ')');
+// Warn (don't fail) if a project's package.json version drifted from VERSION.
+appversion.checkManifests().filter(function (m) { return !m.ok; }).forEach(function (m) {
+  log('WARNING: ' + m.path + ' says ' + m.actual + ', expected ' + m.expected +
+      ' — run `node client/version.js --sync-manifests`');
+});
+
 // 2. Copy static assets
 log('copying public/ -> dist/');
 fs.cpSync(PUBLIC, DIST, { recursive: true });
@@ -167,10 +178,11 @@ function resolveIncludes(dir) {
 }
 resolveIncludes(DIST);
 
-// 4b. Stamp the current year into the copyright notice. The {{YEAR}} placeholder
-//     ships in the footer partial (now inlined into every page above) and in the
-//     error pages. Done at build time so each build/deploy refreshes the year.
-//     server.js does the same substitution at request time for the local build.
+// 4b. Stamp the current year and the M.N.O version into every page. The
+//     {{YEAR}} / {{VERSION}} / {{BUILD_INFO}} placeholders ship in the footer
+//     partial (now inlined into every page above) and in the error pages. The
+//     version record was written to dist/version.json at the top of this build,
+//     so the pages and that file agree.
 const YEAR = String(new Date().getFullYear());
 function stampYear(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -178,12 +190,15 @@ function stampYear(dir) {
     if (entry.isDirectory()) { stampYear(full); continue; }
     if (!entry.name.endsWith('.html')) continue;
     const html = fs.readFileSync(full, 'utf8');
-    if (!html.includes('{{YEAR}}')) continue;
-    fs.writeFileSync(full, html.split('{{YEAR}}').join(YEAR));
+    if (!html.includes('{{YEAR}}') && !html.includes('{{VERSION}}')) continue;
+    fs.writeFileSync(full, html
+      .split('{{YEAR}}').join(YEAR)
+      .split('{{VERSION}}').join(VERSION.version)
+      .split('{{BUILD_INFO}}').join(BUILD_INFO));
     log('stamped year in ' + path.relative(DIST, full));
   }
 }
-log('stamping copyright year ' + YEAR);
+log('stamping copyright year ' + YEAR + ' and version ' + VERSION.version);
 stampYear(DIST);
 
 // 5. Inject Google Analytics into each page's <head> (hosted build only)

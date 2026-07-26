@@ -1,6 +1,6 @@
 {
   "name": "wstrust-sts-mock",
-  "version": "1.0.0",
+  "version": "0.9.0",
   "private": true,
   "description": "Lightweight WS-Trust 1.4 STS mock (Issue/Renew/Validate/Cancel) used to exercise the OAuth2/OIDC Debugger's WS-Trust workflow in the test suite. Not a production STS.",
   "author": "Robert C. Broeckelmann Jr.",

@@ -585,6 +585,42 @@ A **WS-Trust Version** selector (1.0 / 1.1 / 1.2 / 1.3 / 1.4) sets the trust nam
 ### STS for testing
 The workflow is intended to run against [Apache CXF's WS-Trust STS](https://cxf.apache.org/docs/ws-trust.html). For the automated test suite this repository also ships a small **WS-Trust STS mock** (`sts/`) that speaks the four operations (Issue mints a signed SAML 2.0 assertion or a JWT; Validate/Cancel return the corresponding status), accepts a `UsernameToken` of `wstrust`/`wstrust`, and sends permissive CORS headers. It runs as the `sts` service (port 8081) in the test/dev compose files, and the WS-Trust tests (`tests/wstrust.js`, one per operation plus a signed Issue) target it via `WSTRUST_STS_URL`. Against a **deployed static site** the same mock is started on the host and reached over loopback (`http://localhost:8081/sts`) so the browser can call it directly from the HTTPS page — a container/bridge hostname would be blocked as mixed content. There is no API proxy on that target, so those jobs are routed through the browser (frontend) and the backend-routing job is skipped; setting `WSTRUST_STS_URL` empty skips the WS-Trust jobs altogether rather than failing them.
 
+## Versioning
+Releases are numbered **M.N.O**:
+
+| Part | Meaning | Source |
+|---|---|---|
+| **M** | major | the repo-root [`VERSION`](VERSION) file |
+| **N** | minor | the repo-root [`VERSION`](VERSION) file |
+| **O** | build number | generated per build — the UTC build instant as `YYYYMMDDHHMMSS` |
+
+So a build of the current `0.9` line looks like **`0.9.20260726143205`**. The build number is a timestamp rather than a counter so that it is unique for every build without any shared state, always increases, and says when the artifact was produced. Set `BUILD_NUMBER` to override it (for example with a CI run number); if you do, keeping it unique and increasing is up to you.
+
+Each project's `package.json` (`api`, `client`, `tests`, `sts`) also carries the M.N version, as `M.N.0` — `package.json` requires a valid three-part semver, and the real build number lives in `VERSION` / `version.json` rather than in the patch slot.
+
+To cut a new minor version, edit `VERSION`, then run `node client/version.js --sync-manifests` to bring the four manifests along. `node client/version.js --check-manifests` reports drift (non-zero exit), and the static build warns about it.
+
+**Where it comes from.** The build number is fixed when an artifact is *built*, not when it runs, so every page of a deployment reports the same build and restarting a container does not invent a new one:
+
+* the container image runs `node client/version.js --stamp public` during `docker build`, and `server.js` reads that record once at startup (pass `--build-arg BUILD_NUMBER=… --build-arg GIT_COMMIT=…` to supply CI values);
+* the static build (`npm run build`) stamps `dist/version.json` at the start of the build.
+
+**Tagging.** The three build workflows — *Docker Image CI*, *Deploy Static Site (idptools.com)*, and *Deploy Static Site (test.idptools.com)* — log the version they are building (in the job log and the run summary), pass its build number into the build so the artifact and the tag agree, and then tag the built commit twice:
+
+| Tag | Example | Behaviour |
+|---|---|---|
+| `M.N.O` | `0.9.20260726143205` | created once, never moved — the permanent record of one build |
+| `M.N` | `0.9` | **force-moved** to the newest build of that line on every build |
+
+The floating `M.N` tag is the usual moving-tag pattern (as `actions/checkout@v4` does), so anyone who has fetched it needs `git fetch --tags --force` to follow it. Docker Image CI tags only on pushes and manual runs, never on pull requests.
+
+**Where it shows.** The footer of every page carries `v M.N.O`; hovering it reveals the build number, the build time, and the commit it was built from. The same record is served as machine-readable JSON at **`/version.json`** on both deployment styles:
+
+```json
+{ "version": "0.9.20260726143205", "major": "0", "minor": "9",
+  "build": "20260726143205", "commit": "228a63c63edd", "builtAt": "2026-07-26T14:32:05Z" }
+```
+
 ## Version History
 * v0.1 - Red Hat SSO support including all OAuth2 Grants and OIDC Authorization Code Flow
 * v0.2 - 3Scale + APICast support for all OAuth2 Grants and OIDC Authorization Code Flow
@@ -594,6 +630,7 @@ The workflow is intended to run against [Apache CXF's WS-Trust STS](https://cxf.
 * v0.6 - Rewritten in JavaScript. Ported to AWS for idptools.io website. Numerous enhancements. See Release Notes.
 * v0.7 - PKCE Support added.
 * v0.8 - Added Selenium-based test suite. Token Endpoint calls can be initiated from frontend or backend. Numerous new features.
+* v0.9 - SAML 2.0 and WS-Trust support (SP-initiated SSO, SAML Assertion Tool, WS-Trust 1.0–1.4), JWT / Encoding / Digital Signature tool pages, static-site deployment, and the M.N.O versioning scheme described above.
 
 ## Authors
 

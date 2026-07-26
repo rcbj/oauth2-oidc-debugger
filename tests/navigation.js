@@ -1,6 +1,7 @@
 const { Builder, By, until, logging } = require("selenium-webdriver");
 const chrome = require("selenium-webdriver/chrome");
 const { Command, Option } = require('commander');
+const assert = require("assert");
 var appconfig = require(process.env.CONFIG_FILE);
 
 var bunyan = require("bunyan");
@@ -25,6 +26,26 @@ async function waitVisible(driver, locator) {
   return driver.findElement(locator);
 }
 
+// M.N.O, shown in the footer of every page. The build number must be identical
+// everywhere — it identifies the build being served, not the moment of the
+// request — so the first one seen becomes the expectation for the rest.
+var VERSION_RE = /^v\d+\.\d+\.\d+$/;
+var seenVersion = null;
+async function checkFooterVersion(driver, where) {
+  var el = await waitVisible(driver, By.css('.footer-version'));
+  var text = (await el.getText()).trim();
+  assert.ok(VERSION_RE.test(text),
+    "[" + where + "] the footer should show a M.N.O version, found: '" + text + "'");
+  var title = await el.getAttribute('title');
+  assert.ok(/Build \S+ — built /.test(title || ''),
+    "[" + where + "] the version tooltip should carry the build provenance, found: '" + title + "'");
+  if (seenVersion === null) { seenVersion = text; log.info("Footer version: " + text); }
+  else {
+    assert.strictEqual(text, seenVersion,
+      "[" + where + "] every page must report the same build: " + text + " vs " + seenVersion);
+  }
+}
+
 async function click(driver, locator) {
   var elArtifact = await waitVisible(driver, locator);
   await driver.executeScript("arguments[0].scrollIntoView({ block: 'center' });", elArtifact);
@@ -37,6 +58,7 @@ async function navigationActivities(driver) {
   await driver.get(baseUrl);
   await waitVisible(driver, CHOICES);
   log.info("Landing page loaded (protocol choices present).");
+  await checkFooterVersion(driver, "landing page");
 
   // 2. Choose the OAuth2 / OIDC debugger -> debugger.html.
   log.info("Click the OAuth2 / OIDC debugger card.");
@@ -44,6 +66,7 @@ async function navigationActivities(driver) {
   await driver.wait(until.urlContains("debugger.html"), waitTime);
   await driver.wait(until.elementLocated(By.id("authorization_grant_type")), waitTime);
   log.info("Landed on debugger.html.");
+  await checkFooterVersion(driver, "debugger.html");
 
   // 3. Click Home -> back to the landing page.
   log.info("Click Home -> landing page.");
@@ -57,6 +80,7 @@ async function navigationActivities(driver) {
   await driver.wait(until.urlContains("saml_request.html"), waitTime);
   await driver.wait(until.elementLocated(By.id("saml_metadata_url")), waitTime);
   log.info("Landed on saml_request.html.");
+  await checkFooterVersion(driver, "saml_request.html");
 
   // 5. Return to Home -> landing page.
   log.info("Click Home -> landing page.");
@@ -70,11 +94,13 @@ async function navigationActivities(driver) {
   await driver.wait(until.urlContains("wstrust_tools.html"), waitTime);
   await driver.wait(until.elementLocated(By.id("wst_sts_url")), waitTime);
   log.info("Landed on wstrust_tools.html.");
+  await checkFooterVersion(driver, "wstrust_tools.html");
 
   // 7. Return to Home -> landing page.
   log.info("Click Home -> landing page.");
   await click(driver, HOME_LINK);
   await waitVisible(driver, CHOICES);
+  await checkFooterVersion(driver, "landing page (return)");
   log.info("Back on the landing page. Navigation test succeeded.");
 }
 

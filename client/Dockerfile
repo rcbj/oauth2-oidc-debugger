@@ -57,6 +57,9 @@ COPY client/public/ /usr/src/app/public/
 COPY client/src/env/ /usr/src/app/env/
 COPY client/server.js /usr/src/app
 COPY client/package.json /usr/src/app
+# Application version: the repo-root VERSION file (M.N) plus the stamping module.
+COPY VERSION /usr/src/app/VERSION
+COPY client/version.js /usr/src/app/version.js
 RUN true
 COPY client/src/ /usr/src/app/src/
 RUN true
@@ -98,6 +101,13 @@ RUN if [ "$COVERAGE" = "true" ]; then \
         cat src/coverage_beacon.js >> public/js/${src_name}.js ; \
       done ; \
     fi
+
+# Fix this image's build number (M.N.O) and ship it in public/version.json.
+# BUILD_NUMBER (and GIT_COMMIT) can be supplied by CI: --build-arg BUILD_NUMBER=...
+ARG BUILD_NUMBER
+ARG GIT_COMMIT
+RUN BUILD_NUMBER="${BUILD_NUMBER}" GIT_COMMIT="${GIT_COMMIT}" node version.js --stamp public && \
+    cat public/version.json
 
 EXPOSE 3000
 CMD [ "npm", "start" ]

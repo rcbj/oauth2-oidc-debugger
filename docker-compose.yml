@@ -22,6 +22,10 @@ services:
       dockerfile: ./client/Dockerfile
       args:
         CONFIG_FILE: ${CONFIG_FILE}
+        # Optional: CI fixes the build number so the image and the git tag agree.
+        # Unset locally -> version.js falls back to the UTC build instant.
+        BUILD_NUMBER: ${BUILD_NUMBER:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
     ports:
       - "3000:3000"
   sts:
