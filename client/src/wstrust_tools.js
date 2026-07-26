@@ -19,6 +19,7 @@ var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var xd = require("./xmldsig");
 var wm = require("./wstrust_msg");
+var history = require("./wstrust_history");
 var log = bunyan.createLogger({ name: 'wstrust_tools', level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
 
@@ -413,7 +414,7 @@ function contentTypeFor(soapVersion, action) {
   return 'application/soap+xml; charset=utf-8' + (action ? ('; action="' + action + '"') : '');
 }
 
-function stashAndGo(requestXml, responseXml, httpStatus) {
+function stashAndGo(requestXml, responseXml, httpStatus, historyId) {
   var meta = {
     operation: val('wst_operation'),
     trustVersion: val('wst_trust_version'),
@@ -424,6 +425,9 @@ function stashAndGo(requestXml, responseXml, httpStatus) {
     soapVersion: val('wst_soap_version'),
     stsUrl: val('wst_sts_url'),
     httpStatus: httpStatus,
+    // The pending Operations History entry this exchange answers, so the
+    // response page resolves exactly the right row.
+    historyId: historyId || null,
     sentAt: new Date().toISOString()
   };
   try {
@@ -434,20 +438,81 @@ function stashAndGo(requestXml, responseXml, httpStatus) {
   window.location.assign('/wstrust_response.html');
 }
 
+
+// ---------------------------------------------------------------------------
+// Operations History — every attempted call to the STS, in the shared log that
+// wstrust_response.html resolves. A dispatched request is recorded as "Sent",
+// not as a success: whether the STS issued a token or returned a SOAP Fault is
+// only known once the response is rendered. Anything that fails before the
+// request leaves the browser is a Failure here, with its reason.
+// ---------------------------------------------------------------------------
+var OPERATION_LABEL = { issue: 'Issue', renew: 'Renew', validate: 'Validate', cancel: 'Cancel' };
+
+// Who the request is made as: the UsernameToken user, or the credential kind
+// when there is no username to show.
+function currentUser() {
+  var mode = val('wst_cred_mode');
+  if (mode === 'usernametoken') return val('wst_username') || '(no username)';
+  if (mode === 'saml') return '(SAML token)';
+  return '(anonymous)';
+}
+
+function historyEntry(result, detail) {
+  var op = val('wst_operation');
+  return {
+    operation: OPERATION_LABEL[op] || op,
+    version: val('wst_trust_version'),
+    user: currentUser(),
+    endpoint: val('wst_sts_url'),
+    result: result,
+    detail: detail || ''
+  };
+}
+
+function opFailure(reason) {
+  history.record(historyEntry(history.FAILURE, reason));
+  renderOperationHistory();
+  return false;
+}
+function opSent(detail) {
+  var id = history.record(historyEntry(history.SENT, detail));
+  renderOperationHistory();
+  return id;
+}
+function opFailed(id, reason) {
+  if (id) history.update(id, history.FAILURE, reason);
+  renderOperationHistory();
+  return false;
+}
+
+function renderOperationHistory() { history.render(el('wst_operation_history')); }
+
+function clearOperationHistory() {
+  history.clear();
+  renderOperationHistory();
+  return false;
+}
+
 function callSts() {
   var url = val('wst_sts_url').trim();
-  if (!url) { setStatus('wst_call_status', 'Enter the STS endpoint URL first.'); return false; }
+  if (!url) {
+    setStatus('wst_call_status', 'Enter the STS endpoint URL first.');
+    return opFailure('no STS endpoint URL.');
+  }
   var op = val('wst_operation');
   if (op !== 'issue' && !val('wst_target_token').trim()) {
     setStatus('wst_call_status', 'The ' + op + ' operation needs a Target Token — paste the token from a prior Issue.');
-    return false;
+    return opFailure('the ' + op + ' operation needs a Target Token.');
   }
   var soapVersion = val('wst_soap_version') || '1.2';
   var action = val('wst_wsa_action') || wsaActionUri(op);
 
   var soap;
   try { soap = buildFinalRequest(); }
-  catch (e) { setStatus('wst_call_status', 'Build failed: ' + e.message); return false; }
+  catch (e) {
+    setStatus('wst_call_status', 'Build failed: ' + e.message);
+    return opFailure('build failed: ' + e.message);
+  }
 
   setStatus('wst_call_status', 'Sending ' + op + ' request to the STS…');
 
@@ -461,8 +526,12 @@ function callSts() {
       })
     })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) { throw new Error(j && j.error ? j.error : ('HTTP ' + r.status)); } return j; }); })
-      .then(function (j) { stashAndGo(soap, j.body || '', j.status); })
-      .catch(function (e) { log.error('callSts backend: ' + e.message); setStatus('wst_call_status', 'STS call failed: ' + e.message); });
+      .then(function (j) { stashAndGo(soap, j.body || '', j.status, opSent('sent to ' + url + ' (backend)')); })
+      .catch(function (e) {
+        log.error('callSts backend: ' + e.message);
+        setStatus('wst_call_status', 'STS call failed: ' + e.message);
+        opFailure(e.message);
+      });
     return false;
   }
 
@@ -471,10 +540,11 @@ function callSts() {
   if (soapVersion === '1.1') headers['SOAPAction'] = '"' + action + '"';
   fetch(url, { method: 'POST', headers: headers, body: soap })
     .then(function (r) { return r.text().then(function (t) { return { status: r.status, body: t }; }); })
-    .then(function (res) { stashAndGo(soap, res.body || '', res.status); })
+    .then(function (res) { stashAndGo(soap, res.body || '', res.status, opSent('sent to ' + url + ' (frontend)')); })
     .catch(function (e) {
       log.error('callSts frontend: ' + e.message);
       setStatus('wst_call_status', 'STS call failed: ' + e.message + ' — a cross-origin SOAP endpoint often blocks direct browser calls (CORS); switch to backend routing.');
+      opFailure(e.message + ' (CORS, if routed through the browser)');
     });
   return false;
 }
@@ -538,6 +608,7 @@ window.onload = function () {
   log.debug('Entering onload().');
   restoreState();
   setReturnLink();
+  renderOperationHistory();
 
   // Seed the STS URL default if nothing stored yet.
   if (!val('wst_sts_url') && appconfig.wstrustStsUrlDefault) setVal('wst_sts_url', appconfig.wstrustStsUrlDefault);
@@ -586,5 +657,6 @@ module.exports = {
   viewCertificate,
   copyField,
   showTab,
-  togglePane
+  togglePane,
+  clearOperationHistory
 };

@@ -283,6 +283,18 @@ function buildJobs() {
   // SAML version, entity IDs, and result. Needs no IdP — the failure paths come
   // from the page's own pre-flight checks and the dispatch is aimed at a URL on
   // the site itself.
+  // Operations History pane on the WS-Trust pages: records every attempted STS
+  // call (timestamp, WS-Trust version, operation, user, result), dispatched as
+  // "Sent" and resolved from the RSTR — or the SOAP Fault — on the response
+  // page. Needs the STS mock (WSTRUST_STS_URL), like the other WS-Trust jobs.
+  if (env.WSTRUST_STS_URL) {
+    jobs.push({
+      name: "WS-Trust Operations History (attempted STS calls: version, operation, user, result)",
+      script: "wstrust_operation_history.js",
+      env: { WSTRUST_STS_URL: env.WSTRUST_STS_URL },
+    });
+  }
+
   jobs.push({
     name: "SAML Operations History (attempted IdP calls: binding, version, entity IDs, result)",
     script: "saml_operation_history.js",

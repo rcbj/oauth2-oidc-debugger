@@ -14,6 +14,7 @@
 //                       decoded details.
 
 var appconfig = require(process.env.CONFIG_FILE);
+var history = require("./wstrust_history");
 var bunyan = require("bunyan");
 var xd = require("./xmldsig");
 var log = bunyan.createLogger({ name: 'wstrust_response', level: appconfig.logLevel });
@@ -359,7 +360,73 @@ function decryptToken() {
   return false;
 }
 
+
+// ---------------------------------------------------------------------------
+// Operations History (shared with wstrust_tools.html): the tools page can only
+// record that a request was dispatched — whether the STS issued a token or
+// refused is known here. Close out the pending entry from the response.
+//
+// meta.historyId names the exact entry this exchange answers; it is cleared
+// from the stored exchange once resolved, so redisplaying this page later
+// cannot pin an old answer on a newer pending call.
+// ---------------------------------------------------------------------------
+function resolveHistory(doc, meta, parseError) {
+  if (!meta || !meta.historyId) return;
+  var result = history.SUCCESS;
+  var detail = '';
+  var status = (meta.httpStatus == null) ? '?' : meta.httpStatus;
+
+  if (parseError || !doc) {
+    result = history.FAILURE;
+    detail = 'HTTP ' + status + ' — the response could not be parsed as XML';
+  } else {
+    var fault = tags(doc, 'Fault')[0];
+    if (fault) {
+      var code = firstText(fault, 'Value') || firstText(fault, 'faultcode');
+      var reason = firstText(fault, 'Reason') || firstText(fault, 'faultstring') || firstText(fault, 'Text');
+      result = history.FAILURE;
+      detail = 'SOAP Fault' + (code ? ' ' + code : '') + (reason ? ' — ' + reason : '');
+    } else if (typeof status === 'number' && status >= 400) {
+      result = history.FAILURE;
+      detail = 'HTTP ' + status;
+    } else {
+      // Issue/Renew must carry a token; Validate/Cancel answer with a status.
+      var token = tags(doc, 'RequestedSecurityToken')[0];
+      var statusEl = tags(doc, 'Status')[0];
+      if (token) detail = 'HTTP ' + status + ' — token issued';
+      else if (statusEl) detail = 'HTTP ' + status + ' — ' + (firstText(statusEl, 'Code') || 'status returned').split('/').pop();
+      else {
+        result = history.FAILURE;
+        detail = 'HTTP ' + status + ' — no RequestedSecurityToken and no Status in the RSTR';
+      }
+    }
+  }
+  history.update(meta.historyId, result, detail);
+  renderOperationHistory();
+
+  // One answer resolves one call: forget the id so a later visit to this page
+  // (which redisplays the same stored exchange) cannot resolve anything else.
+  try {
+    if (window.localStorage) {
+      var raw = localStorage.getItem(EXCHANGE_KEY);
+      if (raw) {
+        var ex = JSON.parse(raw);
+        if (ex && ex.meta) { ex.meta.historyId = null; localStorage.setItem(EXCHANGE_KEY, JSON.stringify(ex)); }
+      }
+    }
+  } catch (e) { /* leave it; update() is idempotent for an already-resolved id */ }
+}
+
+function renderOperationHistory() { history.render(el('wst_operation_history')); }
+
+function clearOperationHistory() {
+  history.clear();
+  renderOperationHistory();
+  return false;
+}
+
 window.onload = function () {
+  renderOperationHistory();
   // Prefill the decryption key from the requestor private key stored by the
   // WS-Trust Test Tools page (the STS encrypts to the requestor's certificate).
   try {
@@ -376,7 +443,15 @@ window.onload = function () {
   }
   try {
     var ex = JSON.parse(saved);
-    render(ex.requestXml || '', ex.responseXml || '', ex.meta || {});
+    var meta = ex.meta || {};
+    render(ex.requestXml || '', ex.responseXml || '', meta);
+    // Close out the Operations History entry for this exchange.
+    var doc = null, parseError = false;
+    try {
+      doc = new DOMParser().parseFromString(ex.responseXml || '', 'application/xml');
+      if (!ex.responseXml || doc.getElementsByTagName('parsererror').length) { doc = null; parseError = true; }
+    } catch (pe) { parseError = true; }
+    resolveHistory(doc, meta, parseError);
   } catch (e) {
     log.error('parse exchange: ' + e.message);
     setStatus('Could not read the stored exchange: ' + e.message);
@@ -386,6 +461,7 @@ window.onload = function () {
 module.exports = {
   showTab,
   copyField,
+  clearOperationHistory,
   viewSignerCert,
   validateTokenSignature,
   decryptToken
