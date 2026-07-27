@@ -1,4 +1,7 @@
 const appconfig = require(process.env.CONFIG_FILE);
+// OpenID Provider Metadata (Discovery 1.0 s3) — shared with debugger.js so
+// both Configuration Parameters panes carry the same fields and defaults.
+const opMetadata = require("./op_metadata");
 const bunyan = require("bunyan");
 const DOMPurify = require("dompurify");
 const $ = require("jquery");
@@ -756,6 +759,7 @@ function writeValuesToLocalStorage()
       localStorage.setItem("useRefreshToken_no", $("#useRefreshToken-no").is(":checked"));
       localStorage.setItem("oidc_userinfo_endpoint", $("#oidc_userinfo_endpoint").val());
       localStorage.setItem("jwks_endpoint", $("#jwks_endpoint").val());
+      opMetadata.writeToLocalStorage();
       localStorage.setItem("end_session_endpoint", $("#logout_end_session_endpoint").val());
       localStorage.setItem("logout_client_id", $("#logout_client_id").val());
       localStorage.setItem("customTokenParametersCheck-yes", $("#customTokenParametersCheck-yes").is(":checked"));
@@ -959,6 +963,12 @@ function loadValuesFromLocalStorage()
   $("#useRefreshToken-no").prop("checked", getLSBooleanItem("useRefreshToken_no"));
   $("#oidc_userinfo_endpoint").val(localStorage.getItem("oidc_userinfo_endpoint"));
   $("#jwks_endpoint").val(localStorage.getItem("jwks_endpoint"));
+  // Falls back to the dummy defaults for any member not in storage yet (this
+  // page can be the first one loaded, e.g. via the /callback redirect).
+  opMetadata.loadFromLocalStorage();
+  // Show the -->not defined<-- note for members the last loaded discovery
+  // document omitted (it is fetched on debugger.html; the log is shared).
+  opMetadata.applyNotesFromStoredDiscovery();
   $("#logout_end_session_endpoint").val(localStorage.getItem("end_session_endpoint"));
   $("#logout_client_id").val(localStorage.getItem("client_id"));
   $("#customTokenParametersCheck-yes").prop("checked", getLSBooleanItem("customTokenParametersCheck-yes"));

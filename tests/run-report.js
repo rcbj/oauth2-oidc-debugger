@@ -283,6 +283,19 @@ function buildJobs() {
   // SAML version, entity IDs, and result. Needs no IdP — the failure paths come
   // from the page's own pre-flight checks and the dispatch is aimed at a URL on
   // the site itself.
+  // RFC 8414 (OAuth 2.0 Authorization Server Metadata): the document the STS
+  // mock serves at /.well-known/oauth-authorization-server (all 23 members,
+  // host-derived issuer, verifiable signed_metadata, resolvable jwks_uri) and
+  // the Metadata Source selector on debugger.html that retrieves it. Needs the
+  // STS mock, like the WS-Trust jobs.
+  if (env.WSTRUST_STS_URL) {
+    jobs.push({
+      name: "OAuth2 Authorization Server Metadata (RFC 8414 endpoint + debugger Metadata Source)",
+      script: "oauth2_metadata_rfc8414.js",
+      env: { WSTRUST_STS_URL: env.WSTRUST_STS_URL },
+    });
+  }
+
   // Operations History pane on the WS-Trust pages: records every attempted STS
   // call (timestamp, WS-Trust version, operation, user, result), dispatched as
   // "Sent" and resolved from the RSTR — or the SOAP Fault — on the response

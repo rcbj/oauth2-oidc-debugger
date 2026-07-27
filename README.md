@@ -28,6 +28,7 @@ This project currently supports the following specs & features:
 * [XML Encryption](https://www.w3.org/TR/xmlenc-core1/)
 * [Base64 Encoding](https://www.rfc-editor.org/info/rfc4648/)
 * [X.509 Public-Key and Attributes Certificate Framework](https://www.itu.int/rec/t-rec-x.509/en)
+* [RFC8414]](https://www.rfc-editor.org/rfc/rfc8414.html)
 * With the ability to add custom parameters to the Authorization Endpoint call and Token Endpoint call, numerous other protocols can be supported. We'll eventually get around to adding direct support.
 * Token Endpoint calls can be initiated from the front-end or back-end depending on what the IdP requires in various use cases.
 * The client_id and client_secret can be submitted to the Token Endpoint via POST body or Authorization Request Header.
@@ -655,7 +656,7 @@ Thanks to the following:
 # Flows
 ## OAuth2 Client Credentials Grant
 1. Open http://localhost:3000
-2. Expand "OpenID Connect Discovery Endpoint Information", enter "OIDC Discovery Endpoint URL" and click "Retrieve"
+2. Expand "Metadata Retrieval", enter the "Metadata Endpoint URL" and click "Retrieve"
 ![alt text](docs/images/image-10.png)
 3. Scroll down to end of Discovery Endpoint Information table and click "Populate Meta Data"
 ![alt text](docs/images/image-3.png)
@@ -669,7 +670,7 @@ Thanks to the following:
 
 ## OIDC Authorization Code Flow
 1. Open http://localhost:3000
-2. Expand "OpenID Connect Discovery Endpoint Information", enter "OIDC Discovery Endpoint URL" and click "Retrieve"
+2. Expand "Metadata Retrieval", enter the "Metadata Endpoint URL" and click "Retrieve"
 ![alt text](docs/images/image-10.png)
 3. Scroll down to end of Discovery Endpoint Information table and click "Populate Meta Data"
 ![alt text](docs/images/image-3.png)

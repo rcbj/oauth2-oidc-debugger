@@ -388,6 +388,103 @@ app.post('/sts', function (req, res) {
   }
 });
 
+// ---------------------------------------------------------------------------
+// RFC 8414 — OAuth 2.0 Authorization Server Metadata
+//
+// A dummy metadata document with EVERY member RFC 8414 section 2 defines
+// populated, so the debugger's Configuration Parameters pane can be filled from
+// a real endpoint. Served at the well-known path from section 3, and also with
+// an issuer path component appended (section 3.1) so both shapes resolve.
+//
+// The issuer and every endpoint are derived from the URL the request arrived
+// on, so the document is self-consistent whether it is reached as
+// http://localhost:8081 (host) or http://sts:8081 (compose network).
+// ---------------------------------------------------------------------------
+function baseUrlOf(req) {
+  return (req.protocol || 'http') + '://' + (req.get('host') || ('localhost:' + PORT));
+}
+
+function asMetadata(req) {
+  const base = baseUrlOf(req);
+  return {
+    // --- REQUIRED ---
+    issuer: base,
+    authorization_endpoint: base + '/oauth2/authorize',
+    token_endpoint: base + '/oauth2/token',
+    response_types_supported: ['code', 'token', 'id_token', 'code token', 'code id_token', 'code id_token token'],
+    // --- RECOMMENDED / OPTIONAL ---
+    jwks_uri: base + '/oauth2/jwks',
+    registration_endpoint: base + '/oauth2/register',
+    scopes_supported: ['openid', 'profile', 'email', 'address', 'phone', 'offline_access'],
+    response_modes_supported: ['query', 'fragment', 'form_post'],
+    grant_types_supported: ['authorization_code', 'implicit', 'refresh_token', 'client_credentials',
+                            'password', 'urn:ietf:params:oauth:grant-type:device_code',
+                            'urn:ietf:params:oauth:grant-type:token-exchange'],
+    token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post',
+                                            'client_secret_jwt', 'private_key_jwt', 'none'],
+    token_endpoint_auth_signing_alg_values_supported: ['RS256', 'RS384', 'RS512', 'ES256', 'PS256', 'HS256'],
+    service_documentation: base + '/docs',
+    ui_locales_supported: ['en-US', 'en-GB', 'fr-CA', 'de-DE'],
+    op_policy_uri: base + '/policy',
+    op_tos_uri: base + '/tos',
+    revocation_endpoint: base + '/oauth2/revoke',
+    revocation_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'private_key_jwt'],
+    revocation_endpoint_auth_signing_alg_values_supported: ['RS256', 'ES256', 'PS256'],
+    introspection_endpoint: base + '/oauth2/introspect',
+    introspection_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'private_key_jwt'],
+    introspection_endpoint_auth_signing_alg_values_supported: ['RS256', 'ES256', 'PS256'],
+    code_challenge_methods_supported: ['S256', 'plain']
+    // signed_metadata is added below — it is a JWT OF this object, so it cannot
+    // be one of the claims it signs.
+  };
+}
+
+// RFC 8414 section 2.1: signed_metadata is a JWT whose claims are the metadata
+// members, signed by the issuer, and carrying iss and sub. Genuinely signed
+// with the STS key so it can be verified (public key at /sts/cert, JWKS below).
+function signedMetadata(meta) {
+  try {
+    return jwt.sign(Object.assign({}, meta, { sub: meta.issuer }), STS.privateKeyPem,
+      { algorithm: 'RS256', issuer: meta.issuer, expiresIn: 3600, keyid: 'sts-mock-1' });
+  } catch (e) {
+    console.error('signed_metadata: ' + e.message);
+    return undefined;
+  }
+}
+
+function sendAsMetadata(req, res) {
+  const meta = asMetadata(req);
+  const signed = signedMetadata(meta);
+  if (signed) meta.signed_metadata = signed;
+  res.status(200).type('application/json').send(JSON.stringify(meta, null, 2));
+}
+
+app.get('/.well-known/oauth-authorization-server', sendAsMetadata);
+// Issuer-with-path form, e.g. /.well-known/oauth-authorization-server/tenant1.
+app.get('/.well-known/oauth-authorization-server/*', sendAsMetadata);
+
+// The JWKS the metadata advertises, so jwks_uri actually resolves: the STS
+// signing key as a single RS256 JWK.
+app.get('/oauth2/jwks', function (req, res) {
+  try {
+    const pub = forge.pki.certificateFromPem(STS.certPem).publicKey;
+    const b64u = function (hex) {
+      return Buffer.from(hex.length % 2 ? '0' + hex : hex, 'hex').toString('base64')
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    };
+    res.status(200).type('application/json').send(JSON.stringify({
+      keys: [{
+        kty: 'RSA', use: 'sig', alg: 'RS256', kid: 'sts-mock-1',
+        n: b64u(pub.n.toString(16)), e: b64u(pub.e.toString(16)),
+        x5c: [STS.certB64]
+      }]
+    }, null, 2));
+  } catch (e) {
+    res.status(500).type('application/json').send(JSON.stringify({ error: e.message }));
+  }
+});
+
 app.listen(PORT, '0.0.0.0', function () {
   console.log('WS-Trust STS mock listening on :' + PORT + ' (issuer ' + ISSUER + '); POST SOAP RST to /sts');
+  console.log('RFC 8414 metadata at /.well-known/oauth-authorization-server; JWKS at /oauth2/jwks');
 });

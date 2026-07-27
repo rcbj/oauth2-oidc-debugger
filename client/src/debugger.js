@@ -1,4 +1,7 @@
 var appconfig = require(process.env.CONFIG_FILE);
+// OpenID Provider Metadata (Discovery 1.0 s3) — the table and its
+// defaults/persistence/populate helpers, shared with debugger2.js.
+var opMetadata = require("./op_metadata");
 var bunyan = require("bunyan");
 var DOMPurify = require("dompurify");
 var $ = require("jquery");
@@ -310,8 +313,10 @@ function writeValuesToLocalStorage()
       localStorage.setItem("useRefreshToken_no", $("#useRefreshToken-no").is(":checked"));
       localStorage.setItem("usePKCE_no", $("#usePKCE-no").is(":checked"));
       localStorage.setItem("oidc_discovery_endpoint", $("#oidc_discovery_endpoint").val());
+      localStorage.setItem("metadata_source", metadataSource());
       localStorage.setItem("oidc_userinfo_endpoint", $("#oidc_userinfo_endpoint").val());
       localStorage.setItem("jwks_endpoint", $("#jwks_endpoint").val());
+      opMetadata.writeToLocalStorage();
       localStorage.setItem("authzcustomParametersCheck-yes", $("#authzcustomParametersCheck-yes").is(":checked"));
       localStorage.setItem("authzcustomParametersCheck-no", $("#authzcustomParametersCheck-no").is(":checked"));
       localStorage.setItem("authzNumberCustomParameters", $("#authzNumberCustomParameters").val());
@@ -362,6 +367,7 @@ function initValuesToLocalStorage()
       localStorage.setItem("oidc_discovery_endpoint", "https://localhost/oidc/.well-known");
       localStorage.setItem("oidc_userinfo_endpoint", "https://localhost/oidc/userinfo");
       localStorage.setItem("jwks_endpoint", "https://localhost/oidc/.well-known/jwks");
+      opMetadata.initDefaults();
       localStorage.setItem("authzcustomParametersCheck-yes", false);
       localStorage.setItem("authzcustomParametersCheck-no", true);
       localStorage.setItem("authzNumberCustomParameters", 1);
@@ -455,8 +461,14 @@ function loadValuesFromLocalStorage()
   $("#usePKCE-yes").prop("checked", getLSBooleanItem("usePKCE_yes"));
   $("#usePKCE-no").prop("checked", getLSBooleanItem("usePKCE_no"));
   $("#oidc_discovery_endpoint").val(localStorage.getItem("oidc_discovery_endpoint"));
+  var savedSource = localStorage.getItem("metadata_source");
+  $("#metadata_source_rfc8414").prop("checked", savedSource === "rfc8414");
+  $("#metadata_source_oidc").prop("checked", savedSource !== "rfc8414");
+  // Source-dependent UI only: never rewrite a stored URL on load.
+  updateMetadataSourceUi();
   $("#oidc_userinfo_endpoint").val(localStorage.getItem("oidc_userinfo_endpoint"));
   $("#jwks_endpoint").val(localStorage.getItem("jwks_endpoint"));
+  opMetadata.loadFromLocalStorage();
   $("#authzcustomParametersCheck-yes").prop("checked", getLSBooleanItem("authzcustomParametersCheck-yes"));
   $("#authzcustomParametersCheck-no").prop("checked", getLSBooleanItem("authzcustomParametersCheck-no"));
   $("#authzNumberCustomParameters").val(localStorage.getItem("authzNumberCustomParameters")? localStorage.getItem("authzNumberCustomParameters") : 1);
@@ -974,6 +986,7 @@ function onload() {
     });
   }
   loadValuesFromLocalStorage();
+  restoreDiscoveryInfo();
   generateCustomParametersListUI
   recalculateAuthorizationRequestDescription();
   recalculateAuthorizationErrorDescription();
@@ -1304,9 +1317,219 @@ $("#tipText").hover(
        $("#tooltip").hide();
   });
 
+// ---------------------------------------------------------------------------
+// RFC 8414 section 2.1 — signed_metadata.
+//
+// The metadata document may carry a JWT of itself, signed by the issuer. This
+// verifies it in the browser with the Web Crypto API against a key from the
+// document's own jwks_uri, and reports what RFC 8414 asks a client to check:
+// the signature, that the iss claim is the issuer, and whether any signed claim
+// disagrees with the plain JSON member (the signed claim takes precedence, so a
+// disagreement means the JSON cannot be trusted).
+// ---------------------------------------------------------------------------
+function b64uToBytes(str) {
+  var s = String(str).replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) { s += "="; }
+  var bin = atob(s);
+  var out = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) { out[i] = bin.charCodeAt(i); }
+  return out;
+}
+function b64uToJson(str) { return JSON.parse(new TextDecoder().decode(b64uToBytes(str))); }
+
+// JWS alg -> the Web Crypto import/verify parameters.
+function jwsAlgParams(alg) {
+  var rsa = { RS256: "SHA-256", RS384: "SHA-384", RS512: "SHA-512" };
+  var pss = { PS256: "SHA-256", PS384: "SHA-384", PS512: "SHA-512" };
+  var ec = { ES256: ["P-256", "SHA-256"], ES384: ["P-384", "SHA-384"], ES512: ["P-521", "SHA-512"] };
+  if (rsa[alg]) {
+    return { imp: { name: "RSASSA-PKCS1-v1_5", hash: { name: rsa[alg] } }, ver: { name: "RSASSA-PKCS1-v1_5" } };
+  }
+  if (pss[alg]) {
+    return { imp: { name: "RSA-PSS", hash: { name: pss[alg] } },
+             ver: { name: "RSA-PSS", saltLength: parseInt(alg.substring(2), 10) / 8 } };
+  }
+  if (ec[alg]) {
+    return { imp: { name: "ECDSA", namedCurve: ec[alg][0] }, ver: { name: "ECDSA", hash: { name: ec[alg][1] } } };
+  }
+  return null;
+}
+
+// Only the members Web Crypto needs — a stray alg/use/key_ops in the JWK makes
+// importKey throw.
+function jwkForImport(jwk) {
+  if (jwk.kty === "RSA") return { kty: "RSA", n: jwk.n, e: jwk.e };
+  if (jwk.kty === "EC") return { kty: "EC", crv: jwk.crv, x: jwk.x, y: jwk.y };
+  return null;
+}
+
+// Try every candidate key: the one named by kid, or all of them when the JWT
+// does not name one (common for a single-key authorization server).
+async function verifyJwsWithJwks(token, jwks) {
+  var parts = String(token).split(".");
+  if (parts.length !== 3) throw new Error("signed_metadata is not a three-part JWS.");
+  var header = b64uToJson(parts[0]);
+  if (!header.alg || header.alg === "none") throw new Error('unsigned JWT (alg "' + header.alg + '").');
+  var params = jwsAlgParams(header.alg);
+  if (!params) throw new Error("unsupported JWS algorithm: " + header.alg);
+
+  var keys = (jwks && jwks.keys) || [];
+  if (!keys.length) throw new Error("the JWKS carries no keys.");
+  var candidates = header.kid ? keys.filter(function (k) { return k.kid === header.kid; }) : keys;
+  if (!candidates.length) throw new Error('no key in the JWKS matches kid "' + header.kid + '".');
+
+  var data = new TextEncoder().encode(parts[0] + "." + parts[1]);
+  var sig = b64uToBytes(parts[2]);
+  for (var i = 0; i < candidates.length; i++) {
+    var material = jwkForImport(candidates[i]);
+    if (!material) continue;
+    try {
+      var key = await crypto.subtle.importKey("jwk", material, params.imp, false, ["verify"]);
+      if (await crypto.subtle.verify(params.ver, key, sig, data)) {
+        return { valid: true, header: header, kid: candidates[i].kid || "(no kid)" };
+      }
+    } catch (e) { log.debug("key rejected: " + e.message); }
+  }
+  return { valid: false, header: header, kid: header.kid || "(no kid)" };
+}
+
+// Button handler in the discovery pane.
+function validateSignedMetadata(evt) {
+  // Keep the click off the form's onclick, which would fire a retrieval.
+  if (evt && evt.stopPropagation) evt.stopPropagation();
+  var out = function (text) { $("#signed_metadata_status").text(text); };
+  var doc = discoveryInfo || {};
+  if (!doc || !Object.keys(doc).length) {
+    out("Retrieve a metadata document first.");
+    return false;
+  }
+  if (!doc.signed_metadata) {
+    out("This document has no signed_metadata member — nothing to validate. " +
+        "(signed_metadata is an RFC 8414 member; OIDC Discovery does not define it.)");
+    return false;
+  }
+  if (!doc.jwks_uri) {
+    out("INVALID: the document has signed_metadata but no jwks_uri to verify it against.");
+    return false;
+  }
+
+  out("Fetching " + doc.jwks_uri + " …");
+  fetch(doc.jwks_uri)
+    .then(function (r) {
+      if (!r.ok) { throw new Error("jwks_uri returned HTTP " + r.status); }
+      return r.json();
+    })
+    .then(function (jwks) { return verifyJwsWithJwks(doc.signed_metadata, jwks); })
+    .then(function (res) {
+      var claims;
+      try { claims = b64uToJson(String(doc.signed_metadata).split(".")[1]); }
+      catch (e) { claims = {}; }
+      var lines = [];
+      lines.push(res.valid
+        ? "VALID — signature verified (alg " + res.header.alg + ", kid " + res.kid + ")."
+        : "INVALID — the signature does not verify with any key from jwks_uri (alg " +
+          res.header.alg + ", kid " + res.kid + ").");
+      // RFC 8414 section 2.1: iss MUST match the issuer metadata value.
+      if (claims.iss !== doc.issuer) {
+        lines.push('MISMATCH: the iss claim ("' + claims.iss + '") is not the issuer ("' + doc.issuer + '").');
+      } else {
+        lines.push("iss matches the issuer.");
+      }
+      // A signed claim that disagrees with the plain JSON: the signed one wins,
+      // so the difference is worth surfacing.
+      var differing = Object.keys(claims).filter(function (k) {
+        if (["iss", "sub", "iat", "exp", "nbf", "aud", "jti"].indexOf(k) >= 0) return false;
+        return JSON.stringify(claims[k]) !== JSON.stringify(doc[k]);
+      });
+      lines.push(differing.length
+        ? "Signed claims that differ from the JSON (the signed value takes precedence): " + differing.join(", ")
+        : "Every signed claim matches the JSON document.");
+      if (claims.exp && (claims.exp * 1000) < Date.now()) lines.push("NOTE: the JWT is expired (exp).");
+      out(lines.join(" "));
+    })
+    .catch(function (e) {
+      log.error("validateSignedMetadata: " + e.message);
+      out("Could not validate: " + e.message);
+    });
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Metadata source: OpenID Connect Discovery 1.0 or RFC 8414 (OAuth 2.0
+// Authorization Server Metadata).
+//
+// The two documents are fetched, stored, tabulated, and populated by exactly
+// the same code — an RFC 8414 document is largely a subset of Discovery 1.0
+// with the same member names, so populateFromDiscovery() maps it as-is, and any
+// member the document omits gets the usual -->not defined<-- note. The source
+// only decides which well-known path the URL should end in and which spec to
+// point at.
+// ---------------------------------------------------------------------------
+var METADATA_SOURCES = {
+  oidc: {
+    wellKnown: "/.well-known/openid-configuration",
+    label: "An OIDC Discovery endpoint uses a path that ends in ",
+    specUrl: "https://openid.net/specs/openid-connect-discovery-1_0.html",
+    specText: "OpenID Connect Discovery 1.0",
+    docLabel: "OpenID Connect Discovery 1.0"
+  },
+  rfc8414: {
+    wellKnown: "/.well-known/oauth-authorization-server",
+    label: "An OAuth 2.0 Authorization Server Metadata endpoint uses a path that ends in ",
+    specUrl: "https://www.rfc-editor.org/rfc/rfc8414.html",
+    specText: "RFC 8414",
+    docLabel: "OAuth 2.0 Authorization Server Metadata (RFC 8414)"
+  }
+};
+
+function metadataSource() {
+  return $("#metadata_source_rfc8414").is(":checked") ? "rfc8414" : "oidc";
+}
+
+// Everything in the pane that depends on which source is selected: the hint
+// (static text only — no document data goes near this markup) and the Validate
+// Signature button, which only means something for RFC 8414 (signed_metadata is
+// an RFC 8414 member; OIDC Discovery does not define it).
+function updateMetadataSourceUi() {
+  var which = metadataSource();
+  var src = METADATA_SOURCES[which];
+  $("#metadata_source_hint").html(
+    src.label + "<code>" + src.wellKnown + "</code>. See the " +
+    '<a href="' + src.specUrl + '" target="_blank" rel="noopener noreferrer">' + src.specText + "</a> spec.");
+  if (which === "rfc8414") {
+    $("#signed_metadata_row").show();
+  } else {
+    $("#signed_metadata_row").hide();
+    $("#signed_metadata_status").text("");
+  }
+}
+
+// Picking a source retunes the hint and, when the URL still ends in the other
+// source's well-known path, swaps that suffix so Retrieve hits the right
+// document. A URL that does not use a well-known path is left alone.
+function onMetadataSourceChange(evt) {
+  // The enclosing <form> carries onclick="return OnSubmitOIDCDiscoveryEndpointForm()",
+  // so a click on these radios would otherwise bubble up, retrieve the document
+  // before the source had changed, and — because that handler returns false —
+  // cancel the click's default action, leaving the radio unchecked.
+  if (evt && evt.stopPropagation) evt.stopPropagation();
+  var src = metadataSource();
+  updateMetadataSourceUi();
+  var url = $("#oidc_discovery_endpoint").val() || "";
+  var other = METADATA_SOURCES[src === "oidc" ? "rfc8414" : "oidc"].wellKnown;
+  if (url.length >= other.length && url.slice(-other.length) === other) {
+    $("#oidc_discovery_endpoint").val(url.slice(0, url.length - other.length) + METADATA_SOURCES[src].wellKnown);
+  }
+  if (localStorage) localStorage.setItem("metadata_source", src);
+  // NOT false: this is a radio's onclick, and returning false would cancel the
+  // default action, leaving the button unchecked while the rest of the page
+  // acted on the new source.
+  return true;
+}
+
 function OnSubmitOIDCDiscoveryEndpointForm()
 {
-  log.debug("Entering OnSubmitOIDCDiscoveryEndpointForm().");
+  log.debug("Entering OnSubmitOIDCDiscoveryEndpointForm(). source=" + metadataSource());
   writeValuesToLocalStorage();
   var oidcDiscoveryEndpoint = $("#oidc_discovery_endpoint").val();
   log.debug('URL: ' + oidcDiscoveryEndpoint);
@@ -1318,6 +1541,7 @@ function OnSubmitOIDCDiscoveryEndpointForm()
              success: function(result) {
                log.debug("OIDC Discovery Endpoint Result: " + JSON.stringify(result));
                discoveryInfo = result;
+               saveDiscoveryInfo(result);
                parseDiscoveryInfo(result);
                buildDiscoveryInfoTable(result);
              },
@@ -1378,9 +1602,92 @@ function parseDiscoveryInfo(discoveryInfo) {
   log.debug("Leaving parseDiscoveryInfo()."); 
 }
 
+// Escapes a discovery value before it goes into the table markup, which is
+// built by string concatenation from a document fetched off the network.
+function escapeHtmlText(v) {
+  if (v === null || v === undefined) return "";
+  var s = (typeof v === "object") ? JSON.stringify(v) : String(v);
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// ---------------------------------------------------------------------------
+// The fetched discovery document is kept in local storage so the table it is
+// rendered into survives a page reload. The DOCUMENT is stored, not the table
+// markup: the table is rebuilt from it on load, which also restores the
+// in-memory copy that "Populate Meta Data" reads — so that button keeps working
+// after a refresh instead of silently populating nothing.
+// ---------------------------------------------------------------------------
+var DISCOVERY_INFO_KEY = opMetadata.DISCOVERY_INFO_KEY;
+var DISCOVERY_SOURCE_KEY = "discovery_info_source";
+// { source: "oidc" | "rfc8414", url: "<where it was fetched from>" }
+var discoveryProvenance = null;
+
+function saveDiscoveryInfo(info) {
+  discoveryProvenance = { source: metadataSource(), url: $("#oidc_discovery_endpoint").val() || "" };
+  if (!localStorage) return;
+  try {
+    localStorage.setItem(DISCOVERY_INFO_KEY, JSON.stringify(info));
+    localStorage.setItem(DISCOVERY_SOURCE_KEY, JSON.stringify(discoveryProvenance));
+  } catch (e) { log.error("Could not store the discovery document: " + e.message); }
+}
+
+// Take the table off the screen. Safe during page load: restoreDiscoveryInfo()
+// puts it back from storage afterwards.
+function clearDiscoveryInfoTable() {
+  $("#discovery_info_table").html("");
+  // The "Populate Meta Data" button is rendered with the table; with no
+  // document behind it there is nothing for it to populate from.
+  $("#discovery_info_meta_data_populate").html("");
+}
+
+// Drop the document for good — Clear button only.
+function forgetDiscoveryInfo() {
+  discoveryInfo = {};
+  discoveryProvenance = null;
+  opMetadata.clearNotes();
+  if (localStorage) {
+    localStorage.removeItem(DISCOVERY_INFO_KEY);
+    localStorage.removeItem(DISCOVERY_SOURCE_KEY);
+  }
+  clearDiscoveryInfoTable();
+}
+
+function restoreDiscoveryInfo() {
+  if (!localStorage) return;
+  var saved = localStorage.getItem(DISCOVERY_INFO_KEY);
+  if (!saved) return;
+  try { discoveryProvenance = JSON.parse(localStorage.getItem(DISCOVERY_SOURCE_KEY) || "null"); }
+  catch (e) { discoveryProvenance = null; }
+  try {
+    var info = JSON.parse(saved);
+    if (!info || typeof info !== "object") return;
+    discoveryInfo = info;
+    buildDiscoveryInfoTable(info);
+    // Re-apply the -->not defined<-- notes for members this document omits.
+    opMetadata.applyNotes(info);
+    log.debug("Restored the discovery document from local storage.");
+  } catch (e) {
+    log.error("Could not read the stored discovery document: " + e.message);
+    localStorage.removeItem(DISCOVERY_INFO_KEY);
+  }
+}
+
 function buildDiscoveryInfoTable(discoveryInfo) {
   log.debug("Entering buildDiscoveryInfoTable().");
-  var discovery_info_table_html = "<table border='2' style='border:2px;'>" +
+  // Say what this table is and where it came from — the pane can retrieve two
+  // different kinds of document, and the table survives a reload, by which
+  // point the form fields may say something else entirely.
+  var note = "";
+  if (discoveryProvenance && (discoveryProvenance.url || discoveryProvenance.source)) {
+    var src = METADATA_SOURCES[discoveryProvenance.source] || METADATA_SOURCES.oidc;
+    note = "<p class='discovery-info-note'>Showing <strong>" + escapeHtmlText(src.docLabel) + "</strong>" +
+           (discoveryProvenance.url
+              ? " retrieved from <code>" + escapeHtmlText(discoveryProvenance.url) + "</code>"
+              : "") +
+           ".</p>";
+  }
+  var discovery_info_table_html = note + "<table border='2' style='border:2px;'>" +
                                     "<tr>" +
                                       "<td><strong>Attribute</strong></td>" +
                                       "<td><strong>Value</strong></td>" +
@@ -1388,8 +1695,8 @@ function buildDiscoveryInfoTable(discoveryInfo) {
    Object.keys(discoveryInfo).forEach( (key) => {
      discovery_info_table_html = discovery_info_table_html +
                                  "<tr>" +
-                                   "<td>" + key + "</td>" +
-                                   "<td>" + discoveryInfo[key] + "</td>" +
+                                   "<td>" + escapeHtmlText(key) + "</td>" +
+                                   "<td>" + escapeHtmlText(discoveryInfo[key]) + "</td>" +
                                  "</tr>";
    });
 
@@ -1463,6 +1770,8 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   $("#scope").val(scopesSupported);
   $("#oidc_userinfo_endpoint").val(userInfoEndpoint);
   $("#jwks_endpoint").val(jwksUri);
+  // Every remaining OpenID Provider Metadata member (Discovery 1.0 section 3).
+  opMetadata.populateFromDiscovery(discoveryInfo);
   if (localStorage) {
       log.debug('Adding to local storage.');
       localStorage.setItem("authorization_endpoint", authorizationEndpoint );
@@ -1507,6 +1816,49 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
 }
 
 // Reset all forms and clear local storage
+// The Clear button in the Metadata Retrieval pane.
+//
+// Distinct from onSubmitClearAllForms(), which only resets the DOM and IS CALLED
+// ON EVERY PAGE LOAD to put the pane in a known state before the stored values
+// are read back into it. Clearing storage there would wipe the user's
+// configuration on every refresh — so it happens here, on the click, only.
+function onClickClearAllForms() {
+  log.debug("Entering onClickClearAllForms().");
+  onSubmitClearAllForms();
+  clearConfigurationStorage();
+  forgetDiscoveryInfo();
+  log.debug("Leaving onClickClearAllForms().");
+  return false;
+}
+
+// Mirror the cleared pane into local storage, so the next page load does not
+// restore what was just cleared.
+function clearConfigurationStorage() {
+  if (!localStorage) return;
+  ["authorization_endpoint", "token_endpoint", "introspection_endpoint",
+   "revocation_endpoint", "device_authorization_endpoint", "registration_endpoint",
+   "oidc_userinfo_endpoint", "jwks_endpoint", "oidc_discovery_endpoint",
+   "client_id", "scope", "resource", "redirect_uri",
+   "registration_client_uri", "registration_access_token",
+   "dcr_initial_access_token", "dcr_client_metadata"].forEach(function (key) {
+    localStorage.setItem(key, "");
+  });
+  // The select and the radio pairs are RESET rather than blanked, so store the
+  // value they were reset to (their storage keys differ from the element ids).
+  localStorage.setItem("authorization_grant_type", "oidc_authorization_code_flow");
+  localStorage.setItem("yesCheck", true);
+  localStorage.setItem("noCheck", false);
+  localStorage.setItem("yesCheckOIDCArtifacts", true);
+  localStorage.setItem("noCheckOIDCArtifacts", false);
+  localStorage.setItem("useRefreshToken_yes", true);
+  localStorage.setItem("useRefreshToken_no", false);
+  localStorage.setItem("usePKCE_yes", true);
+  localStorage.setItem("usePKCE_no", false);
+  localStorage.setItem("authzcustomParametersCheck-yes", true);
+  localStorage.setItem("authzcustomParametersCheck-no", false);
+  opMetadata.clearStorage();
+}
+
 function onSubmitClearAllForms() {
   log.debug("Entering onSubmitClearAllForms().");
   if ($("#authorization_endpoint")) {
@@ -1579,6 +1931,9 @@ function onSubmitClearAllForms() {
   if ( $("#oidc_discovery_endpoint")) {
     $("#oidc_discovery_endpoint").val("");
   }
+  $("#metadata_source_oidc").prop("checked", true);
+  $("#metadata_source_rfc8414").prop("checked", false);
+  updateMetadataSourceUi();
   if ( $("#client_id")) {
     $("#client_id").val("");
   }
@@ -1596,9 +1951,6 @@ function onSubmitClearAllForms() {
   }
   if ( $("#jwks_endpoint")) {
     $("#jwks_endpoint").val("");
-  }
-  if ( $("#discovery_info_table") ) {
-    $("#discovery_info_table").html("");
   }
   if ( $("#registration_endpoint") ) {
     $("#registration_endpoint").val("");
@@ -1624,6 +1976,11 @@ function onSubmitClearAllForms() {
   if ( $("#dcr_response_textarea") ) {
     $("#dcr_response_textarea").val("");
   }
+
+  // Every OpenID Provider Metadata member (Discovery 1.0 section 3), on screen.
+  opMetadata.clearFields();
+  clearDiscoveryInfoTable();
+
   log.debug("Leaving onSubmitClearAllForms().");
 }
 
@@ -2141,11 +2498,14 @@ module.exports = {
   displayOIDCArtifacts,
   useRefreshTokens,
   OnSubmitOIDCDiscoveryEndpointForm,
+  onMetadataSourceChange,
+  validateSignedMetadata,
   isUrl,
   parseDiscoveryInfo,
   buildDiscoveryInfoTable,
   onSubmitPopulateFormsWithDiscoveryInformation,
   onSubmitClearAllForms,
+  onClickClearAllForms,
   regenerateState,
   regenerateNonce,
   displayAuthzCustomParametersCheck,

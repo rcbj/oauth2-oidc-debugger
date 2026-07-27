@@ -97,3 +97,59 @@
    (legend, per-pane button, or Expand/Collapse all) last toggled it. Each pane
    holds exactly one fieldset, so the descendant match is unambiguous. */
 .dbg-pane:has(fieldset[style*="display: none"]) .dbg-legend::before { content: "\25b8\00a0"; }
+
+/* Configuration Parameters: a member the loaded discovery document does not
+   define shows a grayed-out note instead of an empty box. The note is a
+   placeholder (or, for the boolean selects, a transient option), never a
+   value, so it is never saved or sent. */
+.not-defined::placeholder {
+  color: #999;
+  font-style: italic;
+}
+select.not-defined {
+  color: #999;
+  font-style: italic;
+}
+
+/* The retrieved metadata table is generated from a document we do not control:
+   values are long URLs and long comma-joined lists with no break opportunities,
+   which pushed the table past the right edge of its pane. Fixed layout plus a
+   capped value column keeps it inside, wrapping long values instead of
+   widening. */
+#discovery_info_table table {
+  table-layout: fixed;
+  width: 100%;
+  max-width: 100%;
+  border-collapse: collapse;
+}
+#discovery_info_table td,
+#discovery_info_table th {
+  padding: 2px 6px;
+  vertical-align: top;
+  text-align: left;
+}
+/* Attribute names are short and known; give them a third and let the value
+   column take the rest. */
+#discovery_info_table td:first-child,
+#discovery_info_table th:first-child {
+  width: 34%;
+  overflow-wrap: anywhere;
+}
+/* max-width:0 with table-layout:fixed is what forces the cell to wrap rather
+   than stretch the table. */
+#discovery_info_table td:nth-child(2),
+#discovery_info_table th:nth-child(2) {
+  max-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+#discovery_info_table { max-width: 100%; overflow-x: auto; }
+
+/* Provenance line above the retrieved metadata table: which kind of document it
+   is and where it came from. */
+.discovery-info-note {
+  margin: 6px 0 4px;
+  font-size: 0.85em;
+  color: #555;
+}
+.discovery-info-note code { overflow-wrap: anywhere; }
