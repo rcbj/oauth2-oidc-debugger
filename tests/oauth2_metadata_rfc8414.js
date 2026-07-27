@@ -64,6 +64,18 @@ const RFC8414_MEMBERS = [
 // showing the "not defined" note rather than a stale or blank value.
 const OIDC_ONLY_FIELDS = ["oidc_userinfo_endpoint", "claims_supported", "subject_types_supported",
                           "id_token_signing_alg_values_supported", "acr_values_supported"];
+// Members RFC 8414 defines that OpenID Connect Discovery 1.0 does not. The
+// Configuration Parameters pane carries a field for each, so an RFC 8414
+// document populates them like any other member — and an OIDC document leaves
+// them showing the "not defined" note.
+const RFC8414_ONLY_FIELDS = [
+  "revocation_endpoint_auth_methods_supported",
+  "revocation_endpoint_auth_signing_alg_values_supported",
+  "introspection_endpoint_auth_methods_supported",
+  "introspection_endpoint_auth_signing_alg_values_supported",
+  "code_challenge_methods_supported",
+  "signed_metadata",
+];
 const NOT_DEFINED_NOTE = "-->not defined<--";
 
 // ===========================================================================
@@ -172,6 +184,108 @@ async function testIssuerPathForm() {
 }
 
 // ===========================================================================
+// Part 3 — a member whose value is a JSON structure
+//
+// RFC 8414's own members are all strings and flat arrays, but an authorization
+// server can define a structured one (mtls_endpoint_aliases, a distributed
+// claims_supported), and OID4VCI documents are full of them. Wherever such a
+// value is shown it should be pretty-printed — which for a Configuration
+// Parameters field means a textarea, since a one-line input cannot show it.
+//
+// The document here is synthetic: what is under test is the display, on both
+// debugger pages, from the same stored document.
+// ===========================================================================
+const STRUCTURED_DOC = {
+  issuer: "https://structured.example.com",
+  authorization_endpoint: "https://structured.example.com/authorize",
+  token_endpoint: "https://structured.example.com/token",
+  scopes_supported: ["openid", "profile", "email"],
+  claims_supported: {
+    normal: ["sub", "email"],
+    distributed: { src1: { endpoint: "https://claims.example.com/userinfo" } }
+  }
+};
+
+async function structuredValuesActivities(driver) {
+  log.info("=== A metadata member whose value is a JSON structure ===");
+
+  // Only the DOCUMENT is planted; every displayed value below is produced by the
+  // page itself (Populate Meta Data, then the shared storage debugger2.html
+  // reads), so this covers the formatting and not just the field type.
+  await driver.get(baseUrl + "/debugger.html");
+  await driver.wait(until.elementLocated(By.id("issuer")), waitTime);
+  await driver.executeScript(
+    "window.localStorage.clear();" +
+    "localStorage.setItem('initialized', true);" +
+    "localStorage.setItem('debugger_initialized', true);" +
+    "localStorage.setItem('metadata_source', 'rfc8414');" +
+    "localStorage.setItem('discovery_info', JSON.stringify(arguments[0]));" +
+    "localStorage.setItem('discovery_info_source', JSON.stringify({ source: 'rfc8414'," +
+    "   docLabel: 'OAuth 2.0 Authorization Server Metadata (RFC 8414)'," +
+    "   url: 'https://structured.example.com/.well-known/oauth-authorization-server' }));",
+    STRUCTURED_DOC);
+  await openDebugger(driver);
+
+  // In the table the document is rendered from: indented, and still the value.
+  var cell = await driver.executeScript(
+    "var rows = document.querySelectorAll('#discovery_info_table tr'), out = null;" +
+    "for (var i = 1; i < rows.length; i++) {" +
+    "  var td = rows[i].querySelectorAll('td');" +
+    "  if (td[0].textContent.trim() === 'claims_supported') {" +
+    "    out = { pretty: !!td[1].querySelector('pre.metadata-json'), text: td[1].textContent };" +
+    "  }" +
+    "} return out;");
+  assert.ok(cell, "the restored table should list claims_supported.");
+  assert.ok(cell.pretty, "a structured value should be pretty-printed in the table.");
+  assert.ok(cell.text.indexOf("\n  ") !== -1,
+    "the table's JSON should be indented, not one line. Got: " + cell.text.slice(0, 60));
+  assert.deepStrictEqual(JSON.parse(cell.text), STRUCTURED_DOC.claims_supported,
+    "the table's pretty-printed value should still be the document's value.");
+  var geom = await driver.executeScript(
+    "var t = document.querySelector('#discovery_info_table table');" +
+    "var pane = document.getElementById('oidc_fieldset');" +
+    "var tr = t.getBoundingClientRect(), pr = pane.getBoundingClientRect();" +
+    "return { overflow: Math.round(tr.right - pr.right) };");
+  assert.ok(geom.overflow <= 1,
+    "pretty-printed JSON must wrap inside the pane, not widen the table by " + geom.overflow + "px.");
+  log.info("[table] OK — indented in the table, and still inside the pane.");
+
+  // Then let the PAGE populate the pane from it, and look at both pages.
+  await driver.executeScript("debug.onSubmitPopulateFormsWithDiscoveryInformation();");
+  await driver.sleep(500);
+  for (const page of ["debugger.html", "debugger2.html"]) {
+    if (page !== "debugger.html") {
+      await driver.get(baseUrl + "/" + page);
+      await driver.wait(until.elementLocated(By.id("claims_supported")), waitTime);
+      await driver.sleep(700);
+    }
+    var state = await driver.executeScript(
+      "var s = document.getElementById('claims_supported');" +
+      "var i = document.getElementById('issuer');" +
+      "var a = document.getElementById('scopes_supported');" +
+      "return { structuredTag: s.tagName, structuredRows: s.rows || 0, structuredValue: s.value," +
+      "         scalarTag: i.tagName, scalarValue: i.value, arrayTag: a.tagName, arrayValue: a.value };");
+    assert.strictEqual(state.structuredTag, "TEXTAREA",
+      page + ": a member holding a JSON structure needs a textarea to show it. Got: " + state.structuredTag);
+    assert.ok(state.structuredValue.indexOf("\n  ") !== -1,
+      page + ": the structure should be pretty-printed. Got: " + state.structuredValue.slice(0, 60));
+    assert.deepStrictEqual(JSON.parse(state.structuredValue), STRUCTURED_DOC.claims_supported,
+      page + ": the pretty-printed value should still be the document's value.");
+    assert.ok(state.structuredRows >= 3, page + ": the textarea should be tall enough to read.");
+    assert.strictEqual(state.scalarTag, "INPUT", page + ": a scalar member should stay a one-line input.");
+    assert.strictEqual(state.scalarValue, STRUCTURED_DOC.issuer, page + ": the scalar value should be shown.");
+    assert.strictEqual(state.arrayTag, "INPUT", page + ": a flat array should stay a one-line input.");
+    assert.strictEqual(state.arrayValue, "openid, profile, email",
+      page + ": a flat array should stay comma-separated. Got: " + state.arrayValue);
+    log.info("[" + page + "] OK — the structured member is a pretty-printed textarea, the others unchanged.");
+  }
+
+  await openDebugger(driver);
+  await driver.executeScript("debug.onClickClearAllForms();");
+  await driver.sleep(300);
+}
+
+// ===========================================================================
 // Part 2 — the Metadata Source radio on debugger.html
 // ===========================================================================
 async function click(driver, locator) {
@@ -241,6 +355,24 @@ async function metadataSourceActivities(driver, doc) {
   assert.ok(s.hint.indexOf("/.well-known/openid-configuration") !== -1,
     "the default hint should name the OIDC well-known path: " + s.hint);
 
+  // With the field still holding the OIDC default, selecting RFC 8414 offers the
+  // configured RFC 8414 endpoint — the default value of the field for that
+  // source. (This runs before the URL is overwritten below.)
+  var oidcDefaultUrl = s.url;
+  await click(driver, By.id('metadata_source_rfc8414'));
+  var offered = (await paneState(driver)).url;
+  assert.notStrictEqual(offered, oidcDefaultUrl,
+    "selecting RFC 8414 should offer an RFC 8414 endpoint, not leave the OIDC default in place.");
+  assert.ok(offered.indexOf("/.well-known/oauth-authorization-server") !== -1,
+    "the offered default should be an RFC 8414 endpoint, got: " + offered);
+  log.info("[default] OK — selecting RFC 8414 offers " + offered + ".");
+  // Switching back keeps that host and swaps the path — the long-standing rule
+  // for a field that holds a real endpoint, which it now does.
+  await click(driver, By.id('metadata_source_oidc'));
+  assert.strictEqual((await paneState(driver)).url,
+    offered.replace("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration"),
+    "switching back should keep the host and swap the well-known path.");
+
   // Selecting RFC 8414 retunes the hint, the spec link, and the well-known path.
   await driver.executeScript(
     "document.getElementById('oidc_discovery_endpoint').value = arguments[0];",
@@ -299,6 +431,29 @@ async function metadataSourceActivities(driver, doc) {
       id + " should be the document's array, comma-separated. Got: " + arrays[id].value);
   });
   log.info("[populate] OK — " + (ids.length + 4) + " fields carry the document's values.");
+
+  // The six members RFC 8414 adds to OIDC Discovery's set.
+  var rfcOnly = await fieldValues(driver, RFC8414_ONLY_FIELDS);
+  RFC8414_ONLY_FIELDS.forEach(function (id) {
+    assert.ok(rfcOnly[id], "the pane should have a field for the RFC 8414 member " + id + ".");
+    if (id === "signed_metadata") return; // checked below — it is re-signed per request
+    var expected = Object.prototype.toString.call(doc[id]) === "[object Array]"
+      ? doc[id].join(", ") : String(doc[id]);
+    assert.strictEqual(rfcOnly[id].value, expected,
+      id + " should carry the document's value. Got: " + rfcOnly[id].value);
+  });
+  // The issuer re-signs the document on every request, so the browser's copy is
+  // a DIFFERENT JWT from the one this test fetched (different iat/exp). What
+  // must hold is that the field carries the JWT of THIS document.
+  var signedField = rfcOnly.signed_metadata.value;
+  assert.strictEqual(signedField.split(".").length, 3,
+    "signed_metadata should carry a three-part JWS. Got: " + signedField.slice(0, 40));
+  var signedClaims = JSON.parse(Buffer.from(signedField.split(".")[1], "base64url").toString("utf8"));
+  assert.strictEqual(signedClaims.issuer, doc.issuer,
+    "the signed_metadata field should hold the JWT of this document.");
+  log.info("[populate] OK — all " + RFC8414_ONLY_FIELDS.length +
+           " RFC 8414-only members carry the document's values (signed_metadata is a " +
+           signedField.length + "-character JWT of the document).");
 
   // ---- Members RFC 8414 does not define ------------------------------------
   var oidcOnly = await fieldValues(driver, OIDC_ONLY_FIELDS);
@@ -429,6 +584,25 @@ async function metadataSourceActivities(driver, doc) {
     "the OIDC note should name its URL too. Got: " + JSON.stringify(s.note));
   log.info("[note] OK — the note follows the retrieval, not the form: " + s.note.trim());
 
+  // ---- The same pane on debugger2.html ------------------------------------
+  // Both debugger pages carry the identical Configuration Parameters pane over
+  // the same storage, so what was populated here must be there too.
+  await driver.get(baseUrl + "/debugger2.html");
+  await driver.wait(until.elementLocated(By.id("issuer")), waitTime);
+  await driver.sleep(700);
+  var onTwo = await fieldValues(driver, ["issuer"].concat(RFC8414_ONLY_FIELDS));
+  var missingOnTwo = RFC8414_ONLY_FIELDS.filter(function (id) { return !onTwo[id]; });
+  assert.strictEqual(missingOnTwo.length, 0,
+    "debugger2.html's pane is missing fields debugger.html has: " + missingOnTwo.join(", "));
+  assert.strictEqual(onTwo.issuer.value, doc.issuer,
+    "debugger2.html should show the same populated issuer.");
+  assert.strictEqual(onTwo.code_challenge_methods_supported.value,
+    doc.code_challenge_methods_supported.join(", "),
+    "debugger2.html should show the same RFC 8414 members. Got: " +
+    onTwo.code_challenge_methods_supported.value);
+  log.info("[debugger2] OK — the same pane, the same values, including the RFC 8414-only members.");
+  await openDebugger(driver);
+
   // ---- Clear ---------------------------------------------------------------
   await driver.executeScript("debug.onClickClearAllForms();");
   await driver.sleep(400);
@@ -443,6 +617,7 @@ async function metadataSourceActivities(driver, doc) {
   assert.strictEqual(await validateButtonShown(driver), false,
     "Clear returns the source to OIDC, so the Validate Signature button should be hidden again.");
   log.info("[clear] OK — source, URL, table, values, and notes all cleared.");
+  await structuredValuesActivities(driver);
 }
 
 async function test() {

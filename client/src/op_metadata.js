@@ -24,6 +24,8 @@
 //   dflt  dummy default, in the same spirit as the other localhost placeholders.
 //         The four booleans default to the values the spec itself defines.
 // ---------------------------------------------------------------------------
+var metadataClient = require("./metadata_client");
+
 var OP_METADATA = [
   { name: "issuer", type: "string", dflt: "https://localhost/oidc" },
   { name: "scopes_supported", type: "array", dflt: "openid, profile, email, address, phone, offline_access" },
@@ -57,32 +59,54 @@ var OP_METADATA = [
   { name: "op_tos_uri", type: "string", dflt: "https://localhost/oidc/tos" }
 ];
 
-// A discovery value -> the string shown in its input. Arrays are joined with
-// ", " so members containing spaces survive the round trip.
+// ---------------------------------------------------------------------------
+// Members RFC 8414 (OAuth 2.0 Authorization Server Metadata) section 2 defines
+// that OpenID Connect Discovery 1.0 does NOT.
+//
+// Kept as a separate list because that distinction is real — an OIDC Discovery
+// document legitimately omits all six, and they should show the
+// -->not defined<-- note when it does — but every pane that shows OpenID
+// Provider metadata shows these as well, so the operations below run over both
+// lists (ALL_METADATA).
+// ---------------------------------------------------------------------------
+var AS_ONLY_METADATA = [
+  { name: "revocation_endpoint_auth_methods_supported", type: "array", dflt: "client_secret_basic, client_secret_post, private_key_jwt" },
+  { name: "revocation_endpoint_auth_signing_alg_values_supported", type: "array", dflt: "RS256, ES256, PS256" },
+  { name: "introspection_endpoint_auth_methods_supported", type: "array", dflt: "client_secret_basic, client_secret_post, private_key_jwt" },
+  { name: "introspection_endpoint_auth_signing_alg_values_supported", type: "array", dflt: "RS256, ES256, PS256" },
+  { name: "code_challenge_methods_supported", type: "array", dflt: "S256, plain" },
+  { name: "signed_metadata", type: "string", dflt: "" }
+];
+
+// Every member the Configuration Parameters panes carry: an authorization
+// server can define both sets, and the panes have a field for each.
+var ALL_METADATA = OP_METADATA.concat(AS_ONLY_METADATA);
+
+// A discovery value -> the string shown in its field. Arrays of scalars are
+// joined with ", " so members containing spaces survive the round trip; a JSON
+// structure is pretty-printed (metadata_client decides which is which).
 function opMetadataToField(value) {
-  if (value === undefined || value === null) return "";
-  if (Object.prototype.toString.call(value) === "[object Array]") return value.join(", ");
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  return metadataClient.valueToDisplay(value);
 }
 
 function el(id) { return document.getElementById(id); }
 function fieldValue(id) { var e = el(id); return e ? e.value : ""; }
-function setFieldValue(id, v) { var e = el(id); if (e) e.value = (v == null ? "" : v); }
+// Writing through metadata_client, so a member whose value is a JSON structure
+// gets a <textarea> that can show it pretty-printed.
+function setFieldValue(id, v) { metadataClient.setMetadataField(id, v); }
 
 function writeOpMetadataToLocalStorage() {
-  OP_METADATA.forEach(function (m) {
+  ALL_METADATA.forEach(function (m) {
     localStorage.setItem(m.name, fieldValue(m.name));
   });
 }
 
 function initOpMetadataDefaults() {
-  OP_METADATA.forEach(function (m) { localStorage.setItem(m.name, m.dflt); });
+  ALL_METADATA.forEach(function (m) { localStorage.setItem(m.name, m.dflt); });
 }
 
 function loadOpMetadataFromLocalStorage() {
-  OP_METADATA.forEach(function (m) {
+  ALL_METADATA.forEach(function (m) {
     var v = localStorage.getItem(m.name);
     setFieldValue(m.name, (v === null || v === undefined) ? m.dflt : v);
   });
@@ -92,7 +116,7 @@ function loadOpMetadataFromLocalStorage() {
 // blanked rather than left showing a stale value from a previous provider.
 function populateOpMetadataFromDiscovery(info) {
   info = info || {};
-  OP_METADATA.forEach(function (m) {
+  ALL_METADATA.forEach(function (m) {
     var v = opMetadataToField(info[m.name]);
     setFieldValue(m.name, v);
     if (localStorage) localStorage.setItem(m.name, v);
@@ -105,7 +129,7 @@ function populateOpMetadataFromDiscovery(info) {
 // Blank every member ON SCREEN only. Safe to call during page load, where the
 // pane is reset to a known state before the stored values are read back.
 function clearOpMetadataFields() {
-  OP_METADATA.forEach(function (m) { setFieldValue(m.name, ""); });
+  ALL_METADATA.forEach(function (m) { setFieldValue(m.name, ""); });
   clearNotDefinedNotes();
 }
 
@@ -114,7 +138,7 @@ function clearOpMetadataFields() {
 // falls back to the dummy default when a key is ABSENT, so removing the keys
 // would resurrect the defaults on the next load and undo the clear.
 function clearOpMetadataStorage() {
-  OP_METADATA.forEach(function (m) {
+  ALL_METADATA.forEach(function (m) {
     try { localStorage.setItem(m.name, ""); } catch (e) { /* no storage */ }
   });
 }
@@ -181,7 +205,7 @@ function markNotDefined(id, on) {
 // Annotate every member the document does not define; un-annotate the rest.
 function applyNotDefinedNotes(info) {
   info = info || {};
-  OP_METADATA.forEach(function (m) {
+  ALL_METADATA.forEach(function (m) {
     markNotDefined(m.name, !Object.prototype.hasOwnProperty.call(info, m.name));
   });
   Object.keys(LEGACY_FIELDS).forEach(function (id) {
@@ -190,7 +214,7 @@ function applyNotDefinedNotes(info) {
 }
 
 function clearNotDefinedNotes() {
-  OP_METADATA.forEach(function (m) { markNotDefined(m.name, false); });
+  ALL_METADATA.forEach(function (m) { markNotDefined(m.name, false); });
   Object.keys(LEGACY_FIELDS).forEach(function (id) { markNotDefined(id, false); });
 }
 
@@ -205,6 +229,8 @@ function applyNotesFromStoredDiscovery() {
 
 module.exports = {
   OP_METADATA: OP_METADATA,
+  AS_ONLY_METADATA: AS_ONLY_METADATA,
+  ALL_METADATA: ALL_METADATA,
   toField: opMetadataToField,
   writeToLocalStorage: writeOpMetadataToLocalStorage,
   initDefaults: initOpMetadataDefaults,

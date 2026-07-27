@@ -71,6 +71,11 @@ init()
 runReport()
 {
   export DEBUGGER_BASE_URL
+  # The SD-JWT VC issuance job needs to know where Keycloak is: it retrieves the
+  # realm's RFC 8414 metadata document to configure the OIDC leg, and the URL
+  # must be the one the BROWSER can reach (keycloak:8080 on the compose network,
+  # localhost:8080 against a live site).
+  export KEYCLOAK_BASE_URL
   # Export so run-report.js (and the test scripts it spawns) can
   # require(process.env.CONFIG_FILE) for centralized config (e.g. waitTime).
   export CONFIG_FILE

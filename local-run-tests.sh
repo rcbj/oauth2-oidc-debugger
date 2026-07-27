@@ -89,6 +89,9 @@ startDocker()
 runReport()
 {
   export DEBUGGER_BASE_URL
+  # The SD-JWT VC issuance job retrieves the realm's RFC 8414 metadata to
+  # configure its OIDC leg, so it needs to know where Keycloak is.
+  export KEYCLOAK_BASE_URL
   # Export so run-report.js (and the test scripts it spawns) can
   # require(process.env.CONFIG_FILE) for centralized config (e.g. waitTime).
   export CONFIG_FILE

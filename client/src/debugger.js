@@ -2,6 +2,8 @@ var appconfig = require(process.env.CONFIG_FILE);
 // OpenID Provider Metadata (Discovery 1.0 s3) — the table and its
 // defaults/persistence/populate helpers, shared with debugger2.js.
 var opMetadata = require("./op_metadata");
+var metadataClient = require("./metadata_client");
+var sdJwtVc = require("./sd_jwt_vc");
 var bunyan = require("bunyan");
 var DOMPurify = require("dompurify");
 var $ = require("jquery");
@@ -364,7 +366,7 @@ function initValuesToLocalStorage()
       localStorage.setItem("scope", "openid profile");
       localStorage.setItem("useRefreshToken_no", false);
       localStorage.setItem("usePKCE_no", false);
-      localStorage.setItem("oidc_discovery_endpoint", "https://localhost/oidc/.well-known");
+      localStorage.setItem("oidc_discovery_endpoint", METADATA_SOURCES[defaultMetadataSource()].defaultUrl);
       localStorage.setItem("oidc_userinfo_endpoint", "https://localhost/oidc/userinfo");
       localStorage.setItem("jwks_endpoint", "https://localhost/oidc/.well-known/jwks");
       opMetadata.initDefaults();
@@ -1023,7 +1025,44 @@ function onload() {
     writeValuesToLocalStorage();
     window.location.href = "/debugger2.html";
   }
+  maybeStartSdJwtVcFlow();
   log.debug("Leaving onload().");
+}
+
+// ---------------------------------------------------------------------------
+// SD-JWT VC issuance (?sdjwtvc=1).
+//
+// OID4VCI authorizes credential issuance with an ordinary OAuth 2.0 / OIDC
+// Authorization Code flow, so the SD-JWT VC workflow reuses this page rather
+// than reimplementing it. The query parameter is what says so: it marks the
+// workflow active (which is what tells debugger2.html to come back to it once
+// it has the tokens) and starts the authorization request with whatever the
+// Configuration Parameters pane currently holds — which step 1 of the workflow
+// has just written, since both pages keep it under the same names.
+//
+// Without the parameter none of this runs, so every other flow on this page is
+// untouched.
+// ---------------------------------------------------------------------------
+function maybeStartSdJwtVcFlow() {
+  if (getParameterByName("sdjwtvc") !== "1") return false;
+  log.debug("Entering maybeStartSdJwtVcFlow().");
+  sdJwtVc.startFlow();
+  var banner = "<div class='vc-handoff-banner' id='sdjwtvc_banner'>" +
+               "<strong>SD-JWT VC issuance</strong> — authorizing credential issuance through the OIDC " +
+               "Authorization Code flow. You will be sent to the identity provider to authenticate, and back " +
+               "to <a href='" + sdJwtVc.STEP2_URL + "'>step 2</a> afterwards." +
+               "</div>";
+  $(".container").prepend(banner);
+  if (!$("#authorization_endpoint").val() || !$("#client_id").val()) {
+    $("#sdjwtvc_banner").append(
+      "<p class='vc-bad'>The authorization endpoint or client id is not configured, so the flow was not " +
+      "started. Go back to <a href='/sd-jwt-vc-issuance-1.html'>step 1</a> and retrieve the metadata.</p>");
+    return false;
+  }
+  // Let the rest of onload() finish laying the page out before navigating.
+  window.setTimeout(triggerAuthZEndpointCall, 250);
+  log.debug("Leaving maybeStartSdJwtVcFlow().");
+  return true;
 }
 
 function generateUUID () { // Public Domain/MIT
@@ -1327,130 +1366,20 @@ $("#tipText").hover(
 // disagrees with the plain JSON member (the signed claim takes precedence, so a
 // disagreement means the JSON cannot be trusted).
 // ---------------------------------------------------------------------------
-function b64uToBytes(str) {
-  var s = String(str).replace(/-/g, "+").replace(/_/g, "/");
-  while (s.length % 4) { s += "="; }
-  var bin = atob(s);
-  var out = new Uint8Array(bin.length);
-  for (var i = 0; i < bin.length; i++) { out[i] = bin.charCodeAt(i); }
-  return out;
-}
-function b64uToJson(str) { return JSON.parse(new TextDecoder().decode(b64uToBytes(str))); }
-
-// JWS alg -> the Web Crypto import/verify parameters.
-function jwsAlgParams(alg) {
-  var rsa = { RS256: "SHA-256", RS384: "SHA-384", RS512: "SHA-512" };
-  var pss = { PS256: "SHA-256", PS384: "SHA-384", PS512: "SHA-512" };
-  var ec = { ES256: ["P-256", "SHA-256"], ES384: ["P-384", "SHA-384"], ES512: ["P-521", "SHA-512"] };
-  if (rsa[alg]) {
-    return { imp: { name: "RSASSA-PKCS1-v1_5", hash: { name: rsa[alg] } }, ver: { name: "RSASSA-PKCS1-v1_5" } };
-  }
-  if (pss[alg]) {
-    return { imp: { name: "RSA-PSS", hash: { name: pss[alg] } },
-             ver: { name: "RSA-PSS", saltLength: parseInt(alg.substring(2), 10) / 8 } };
-  }
-  if (ec[alg]) {
-    return { imp: { name: "ECDSA", namedCurve: ec[alg][0] }, ver: { name: "ECDSA", hash: { name: ec[alg][1] } } };
-  }
-  return null;
-}
-
-// Only the members Web Crypto needs — a stray alg/use/key_ops in the JWK makes
-// importKey throw.
-function jwkForImport(jwk) {
-  if (jwk.kty === "RSA") return { kty: "RSA", n: jwk.n, e: jwk.e };
-  if (jwk.kty === "EC") return { kty: "EC", crv: jwk.crv, x: jwk.x, y: jwk.y };
-  return null;
-}
-
-// Try every candidate key: the one named by kid, or all of them when the JWT
-// does not name one (common for a single-key authorization server).
-async function verifyJwsWithJwks(token, jwks) {
-  var parts = String(token).split(".");
-  if (parts.length !== 3) throw new Error("signed_metadata is not a three-part JWS.");
-  var header = b64uToJson(parts[0]);
-  if (!header.alg || header.alg === "none") throw new Error('unsigned JWT (alg "' + header.alg + '").');
-  var params = jwsAlgParams(header.alg);
-  if (!params) throw new Error("unsupported JWS algorithm: " + header.alg);
-
-  var keys = (jwks && jwks.keys) || [];
-  if (!keys.length) throw new Error("the JWKS carries no keys.");
-  var candidates = header.kid ? keys.filter(function (k) { return k.kid === header.kid; }) : keys;
-  if (!candidates.length) throw new Error('no key in the JWKS matches kid "' + header.kid + '".');
-
-  var data = new TextEncoder().encode(parts[0] + "." + parts[1]);
-  var sig = b64uToBytes(parts[2]);
-  for (var i = 0; i < candidates.length; i++) {
-    var material = jwkForImport(candidates[i]);
-    if (!material) continue;
-    try {
-      var key = await crypto.subtle.importKey("jwk", material, params.imp, false, ["verify"]);
-      if (await crypto.subtle.verify(params.ver, key, sig, data)) {
-        return { valid: true, header: header, kid: candidates[i].kid || "(no kid)" };
-      }
-    } catch (e) { log.debug("key rejected: " + e.message); }
-  }
-  return { valid: false, header: header, kid: header.kid || "(no kid)" };
-}
+var b64uToBytes = metadataClient.b64uToBytes;
+var b64uToJson = metadataClient.b64uToJson;
+var verifyJwsWithJwks = metadataClient.verifyJwsWithJwks;
 
 // Button handler in the discovery pane.
 function validateSignedMetadata(evt) {
   // Keep the click off the form's onclick, which would fire a retrieval.
   if (evt && evt.stopPropagation) evt.stopPropagation();
   var out = function (text) { $("#signed_metadata_status").text(text); };
-  var doc = discoveryInfo || {};
-  if (!doc || !Object.keys(doc).length) {
-    out("Retrieve a metadata document first.");
-    return false;
-  }
-  if (!doc.signed_metadata) {
-    out("This document has no signed_metadata member — nothing to validate. " +
-        "(signed_metadata is an RFC 8414 member; OIDC Discovery does not define it.)");
-    return false;
-  }
-  if (!doc.jwks_uri) {
-    out("INVALID: the document has signed_metadata but no jwks_uri to verify it against.");
-    return false;
-  }
-
-  out("Fetching " + doc.jwks_uri + " …");
-  fetch(doc.jwks_uri)
-    .then(function (r) {
-      if (!r.ok) { throw new Error("jwks_uri returned HTTP " + r.status); }
-      return r.json();
-    })
-    .then(function (jwks) { return verifyJwsWithJwks(doc.signed_metadata, jwks); })
-    .then(function (res) {
-      var claims;
-      try { claims = b64uToJson(String(doc.signed_metadata).split(".")[1]); }
-      catch (e) { claims = {}; }
-      var lines = [];
-      lines.push(res.valid
-        ? "VALID — signature verified (alg " + res.header.alg + ", kid " + res.kid + ")."
-        : "INVALID — the signature does not verify with any key from jwks_uri (alg " +
-          res.header.alg + ", kid " + res.kid + ").");
-      // RFC 8414 section 2.1: iss MUST match the issuer metadata value.
-      if (claims.iss !== doc.issuer) {
-        lines.push('MISMATCH: the iss claim ("' + claims.iss + '") is not the issuer ("' + doc.issuer + '").');
-      } else {
-        lines.push("iss matches the issuer.");
-      }
-      // A signed claim that disagrees with the plain JSON: the signed one wins,
-      // so the difference is worth surfacing.
-      var differing = Object.keys(claims).filter(function (k) {
-        if (["iss", "sub", "iat", "exp", "nbf", "aud", "jti"].indexOf(k) >= 0) return false;
-        return JSON.stringify(claims[k]) !== JSON.stringify(doc[k]);
-      });
-      lines.push(differing.length
-        ? "Signed claims that differ from the JSON (the signed value takes precedence): " + differing.join(", ")
-        : "Every signed claim matches the JSON document.");
-      if (claims.exp && (claims.exp * 1000) < Date.now()) lines.push("NOTE: the JWT is expired (exp).");
-      out(lines.join(" "));
-    })
-    .catch(function (e) {
-      log.error("validateSignedMetadata: " + e.message);
-      out("Could not validate: " + e.message);
-    });
+  metadataClient.validateSignedMetadata(discoveryInfo || {}, {
+    issuerMember: "issuer",
+    noSignedMetadataNote: "(signed_metadata is an RFC 8414 member; OIDC Discovery does not define it.)",
+    progress: out
+  }).then(out);
   return false;
 }
 
@@ -1468,6 +1397,8 @@ function validateSignedMetadata(evt) {
 var METADATA_SOURCES = {
   oidc: {
     wellKnown: "/.well-known/openid-configuration",
+    // The dummy default this pane has always offered for an OIDC Discovery URL.
+    defaultUrl: "https://localhost/oidc/.well-known",
     label: "An OIDC Discovery endpoint uses a path that ends in ",
     specUrl: "https://openid.net/specs/openid-connect-discovery-1_0.html",
     specText: "OpenID Connect Discovery 1.0",
@@ -1475,12 +1406,18 @@ var METADATA_SOURCES = {
   },
   rfc8414: {
     wellKnown: "/.well-known/oauth-authorization-server",
+    // The mock authorization server the STS service publishes (empty on a
+    // deployment that has no such service — the user supplies the URL).
+    defaultUrl: appconfig.rfc8414MetadataUrlDefault || "",
     label: "An OAuth 2.0 Authorization Server Metadata endpoint uses a path that ends in ",
     specUrl: "https://www.rfc-editor.org/rfc/rfc8414.html",
     specText: "RFC 8414",
     docLabel: "OAuth 2.0 Authorization Server Metadata (RFC 8414)"
   }
 };
+
+// The source a browser with nothing stored starts on.
+function defaultMetadataSource() { return "oidc"; }
 
 function metadataSource() {
   return $("#metadata_source_rfc8414").is(":checked") ? "rfc8414" : "oidc";
@@ -1504,9 +1441,14 @@ function updateMetadataSourceUi() {
   }
 }
 
-// Picking a source retunes the hint and, when the URL still ends in the other
-// source's well-known path, swaps that suffix so Retrieve hits the right
-// document. A URL that does not use a well-known path is left alone.
+// Picking a source retunes the hint and offers that source's URL:
+//
+//   * a URL ending in the other source's well-known path has just that suffix
+//     swapped, so the host the user is pointed at is kept;
+//   * a field still holding the OTHER source's default (or nothing) is replaced
+//     with this source's default — that is what makes the RFC 8414 endpoint the
+//     default value of the field when RFC 8414 is what you asked for;
+//   * anything else the user typed is left alone.
 function onMetadataSourceChange(evt) {
   // The enclosing <form> carries onclick="return OnSubmitOIDCDiscoveryEndpointForm()",
   // so a click on these radios would otherwise bubble up, retrieve the document
@@ -1516,9 +1458,14 @@ function onMetadataSourceChange(evt) {
   var src = metadataSource();
   updateMetadataSourceUi();
   var url = $("#oidc_discovery_endpoint").val() || "";
-  var other = METADATA_SOURCES[src === "oidc" ? "rfc8414" : "oidc"].wellKnown;
-  if (url.length >= other.length && url.slice(-other.length) === other) {
-    $("#oidc_discovery_endpoint").val(url.slice(0, url.length - other.length) + METADATA_SOURCES[src].wellKnown);
+  var otherSource = METADATA_SOURCES[src === "oidc" ? "rfc8414" : "oidc"];
+  if (url.length >= otherSource.wellKnown.length &&
+      url.slice(-otherSource.wellKnown.length) === otherSource.wellKnown) {
+    // A real endpoint: keep the host the user is pointed at, swap the path.
+    $("#oidc_discovery_endpoint").val(
+      url.slice(0, url.length - otherSource.wellKnown.length) + METADATA_SOURCES[src].wellKnown);
+  } else if ((!url || url === otherSource.defaultUrl) && METADATA_SOURCES[src].defaultUrl) {
+    $("#oidc_discovery_endpoint").val(METADATA_SOURCES[src].defaultUrl);
   }
   if (localStorage) localStorage.setItem("metadata_source", src);
   // NOT false: this is a radio's onclick, and returning false would cancel the
@@ -1604,12 +1551,7 @@ function parseDiscoveryInfo(discoveryInfo) {
 
 // Escapes a discovery value before it goes into the table markup, which is
 // built by string concatenation from a document fetched off the network.
-function escapeHtmlText(v) {
-  if (v === null || v === undefined) return "";
-  var s = (typeof v === "object") ? JSON.stringify(v) : String(v);
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
+var escapeHtmlText = metadataClient.escapeHtmlText;
 
 // ---------------------------------------------------------------------------
 // The fetched discovery document is kept in local storage so the table it is
@@ -1675,43 +1617,20 @@ function restoreDiscoveryInfo() {
 
 function buildDiscoveryInfoTable(discoveryInfo) {
   log.debug("Entering buildDiscoveryInfoTable().");
-  // Say what this table is and where it came from — the pane can retrieve two
-  // different kinds of document, and the table survives a reload, by which
-  // point the form fields may say something else entirely.
-  var note = "";
-  if (discoveryProvenance && (discoveryProvenance.url || discoveryProvenance.source)) {
-    var src = METADATA_SOURCES[discoveryProvenance.source] || METADATA_SOURCES.oidc;
-    note = "<p class='discovery-info-note'>Showing <strong>" + escapeHtmlText(src.docLabel) + "</strong>" +
-           (discoveryProvenance.url
-              ? " retrieved from <code>" + escapeHtmlText(discoveryProvenance.url) + "</code>"
-              : "") +
-           ".</p>";
-  }
-  var discovery_info_table_html = note + "<table border='2' style='border:2px;'>" +
-                                    "<tr>" +
-                                      "<td><strong>Attribute</strong></td>" +
-                                      "<td><strong>Value</strong></td>" +
-                                    "</tr>";
-   Object.keys(discoveryInfo).forEach( (key) => {
-     discovery_info_table_html = discovery_info_table_html +
-                                 "<tr>" +
-                                   "<td>" + escapeHtmlText(key) + "</td>" +
-                                   "<td>" + escapeHtmlText(discoveryInfo[key]) + "</td>" +
-                                 "</tr>";
-   });
-
-   discovery_info_table_html = discovery_info_table_html +
-                              "</table>";
-
-   var discovery_info_meta_data_html = '<table>' +
-                                       '<form>' +
-                                         '<td>' +
-                                           '<input class="btn_oidc_populate_meta_data" type="button" value="Populate Meta Data" onclick="return debug.onSubmitPopulateFormsWithDiscoveryInformation();"/>' +
-                                         '</td>' +
-                                       '</form>' +
-                                       '</table>';
+  var src = discoveryProvenance ? METADATA_SOURCES[discoveryProvenance.source] : null;
+  var html = metadataClient.buildInfoTable(discoveryInfo, discoveryProvenance && {
+    docLabel: (src || METADATA_SOURCES.oidc).docLabel,
+    url: discoveryProvenance.url
+  });
+  var discovery_info_meta_data_html = '<table>' +
+                                      '<form>' +
+                                        '<td>' +
+                                          '<input class="btn_oidc_populate_meta_data" type="button" value="Populate Meta Data" onclick="return debug.onSubmitPopulateFormsWithDiscoveryInformation();"/>' +
+                                        '</td>' +
+                                      '</form>' +
+                                      '</table>';
   $("#discovery_info_meta_data_populate").html(discovery_info_meta_data_html);
-  $("#discovery_info_table").html(discovery_info_table_html);
+  $("#discovery_info_table").html(html);
 }
 
 function onSubmitPopulateFormsWithDiscoveryInformation() {

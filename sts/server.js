@@ -417,9 +417,11 @@ function asMetadata(req) {
     registration_endpoint: base + '/oauth2/register',
     scopes_supported: ['openid', 'profile', 'email', 'address', 'phone', 'offline_access'],
     response_modes_supported: ['query', 'fragment', 'form_post'],
+    // Only what the token endpoint below actually implements — the metadata
+    // should not promise a grant this server would refuse. (No device_code:
+    // there is no device authorization endpoint to start that flow.)
     grant_types_supported: ['authorization_code', 'implicit', 'refresh_token', 'client_credentials',
-                            'password', 'urn:ietf:params:oauth:grant-type:device_code',
-                            'urn:ietf:params:oauth:grant-type:token-exchange'],
+                            'password', 'urn:ietf:params:oauth:grant-type:token-exchange'],
     token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post',
                                             'client_secret_jwt', 'private_key_jwt', 'none'],
     token_endpoint_auth_signing_alg_values_supported: ['RS256', 'RS384', 'RS512', 'ES256', 'PS256', 'HS256'],
@@ -484,7 +486,914 @@ app.get('/oauth2/jwks', function (req, res) {
   }
 });
 
+// ===========================================================================
+// OpenID for Verifiable Credential Issuance (OID4VCI) — mock Credential Issuer
+//
+// The bare minimum needed to drive the debugger's SD-JWT VC issuance workflow
+// end to end:
+//
+//   GET  /.well-known/openid-credential-issuer   Credential Issuer Metadata
+//   GET  /.well-known/jwt-vc-issuer              JWT VC Issuer Metadata (the
+//                                                SD-JWT VC key-resolution
+//                                                document: issuer + jwks_uri)
+//   POST /oid4vci/nonce                          a fresh c_nonce
+//   POST /oid4vci/credential                     the Credential Request; returns
+//                                                an SD-JWT VC built per RFC 9901
+//
+// This is a TEST issuer. It checks that a request carries SOME bearer token but
+// cannot validate one issued by the separate authorization server (Keycloak in
+// the test suite), so it does not try; what it DOES check properly is the
+// wallet's proof of possession, because that is the part the debugger produces
+// and therefore the part worth verifying.
+//
+// The authorization server the metadata advertises is configurable
+// (OID4VCI_AUTHORIZATION_SERVER), so the document can point the wallet at the
+// real IdP while the credential endpoint stays here.
+// ===========================================================================
+const crypto = require('crypto');
+
+const VCI_AS = process.env.OID4VCI_AUTHORIZATION_SERVER || '';
+const VCI_CONFIG_ID = 'IdentityCredential';
+const VCI_VCT = 'urn:idptools:sd-jwt-vc:identity';
+const VCI_SCOPE = 'identity_credential';
+// c_nonce values this issuer has handed out and not yet seen used. A nonce is
+// single-use (RFC-conformant behaviour, and it makes replay visible in a test).
+const vciNonces = new Map();
+const VCI_NONCE_TTL_MS = 5 * 60 * 1000;
+
+function b64u(buf) {
+  return Buffer.from(buf).toString('base64')
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function b64uDecode(s) {
+  return Buffer.from(String(s).replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+}
+function jsonFromB64u(s) { return JSON.parse(b64uDecode(s).toString('utf8')); }
+
+function vciMetadata(req) {
+  const base = baseUrlOf(req);
+  const authServer = VCI_AS || base;
+  const meta = {
+    // --- REQUIRED ---
+    credential_issuer: base,
+    credential_endpoint: base + '/oid4vci/credential',
+    credential_configurations_supported: {},
+    // --- OPTIONAL ---
+    authorization_servers: [authServer],
+    nonce_endpoint: base + '/oid4vci/nonce',
+    notification_endpoint: base + '/oid4vci/notification',
+    batch_credential_issuance: { batch_size: 4 },
+    credential_response_encryption: {
+      alg_values_supported: ['RSA-OAEP-256', 'ECDH-ES'],
+      enc_values_supported: ['A128GCM', 'A256GCM'],
+      encryption_required: false
+    },
+    display: [{
+      name: 'IdP Tools Mock Credential Issuer',
+      locale: 'en-US',
+      logo: { uri: base + '/images/logo.png', alt_text: 'IdP Tools' }
+    }]
+  };
+  meta.credential_configurations_supported[VCI_CONFIG_ID] = {
+    format: 'dc+sd-jwt',
+    scope: VCI_SCOPE,
+    vct: VCI_VCT,
+    cryptographic_binding_methods_supported: ['jwk'],
+    credential_signing_alg_values_supported: ['RS256'],
+    proof_types_supported: {
+      jwt: { proof_signing_alg_values_supported: ['ES256', 'RS256'] }
+    },
+    display: [{
+      name: 'Identity Credential',
+      locale: 'en-US',
+      background_color: '#12107c',
+      text_color: '#FFFFFF'
+    }],
+    claims: [
+      { path: ['given_name'], display: [{ locale: 'en-US', name: 'Given name' }] },
+      { path: ['family_name'], display: [{ locale: 'en-US', name: 'Family name' }] },
+      { path: ['email'], display: [{ locale: 'en-US', name: 'Email address' }] },
+      { path: ['birthdate'], display: [{ locale: 'en-US', name: 'Date of birth' }] },
+      { path: ['address', 'country'], display: [{ locale: 'en-US', name: 'Country' }] }
+    ]
+  };
+  return meta;
+}
+
+// OID4VCI adopts RFC 8414's signed_metadata: a JWT of the metadata signed by
+// the issuer. Signed with the same STS key, so the debugger can verify it
+// against /oauth2/jwks exactly as it verifies an RFC 8414 document.
+function sendVciMetadata(req, res) {
+  const meta = vciMetadata(req);
+  try {
+    meta.signed_metadata = jwt.sign(Object.assign({}, meta, { sub: meta.credential_issuer }),
+      STS.privateKeyPem,
+      { algorithm: 'RS256', issuer: meta.credential_issuer, expiresIn: 3600, keyid: 'sts-mock-1' });
+  } catch (e) {
+    console.error('OID4VCI signed_metadata: ' + e.message);
+  }
+  res.status(200).type('application/json').send(JSON.stringify(meta, null, 2));
+}
+
+app.get('/.well-known/openid-credential-issuer', sendVciMetadata);
+app.get('/.well-known/openid-credential-issuer/*', sendVciMetadata);
+
+// SD-JWT VC key resolution: how a verifier finds the issuer's public keys.
+function sendJwtVcIssuerMetadata(req, res) {
+  const base = baseUrlOf(req);
+  res.status(200).type('application/json').send(JSON.stringify({
+    issuer: base,
+    jwks_uri: base + '/oauth2/jwks'
+  }, null, 2));
+}
+app.get('/.well-known/jwt-vc-issuer', sendJwtVcIssuerMetadata);
+app.get('/.well-known/jwt-vc-issuer/*', sendJwtVcIssuerMetadata);
+
+// --- Nonce Endpoint ---------------------------------------------------------
+app.post('/oid4vci/nonce', function (req, res) {
+  const nonce = b64u(crypto.randomBytes(24));
+  const now = Date.now();
+  vciNonces.set(nonce, now + VCI_NONCE_TTL_MS);
+  // Opportunistic sweep, so a long-running mock does not grow without bound.
+  vciNonces.forEach(function (expires, key) { if (expires < now) vciNonces.delete(key); });
+  res.set('Cache-Control', 'no-store');
+  res.status(200).type('application/json').send(JSON.stringify({
+    c_nonce: nonce,
+    c_nonce_expires_in: VCI_NONCE_TTL_MS / 1000
+  }));
+});
+
+// --- the wallet's proof of possession --------------------------------------
+// A JWT proof (OID4VCI): typ openid4vci-proof+jwt, the holder's public key in
+// the header as a JWK, and claims binding it to this issuer and to a c_nonce
+// this issuer handed out. Returns the holder JWK on success.
+function verifyProofJwt(proofJwt, credentialIssuer) {
+  const parts = String(proofJwt || '').split('.');
+  if (parts.length !== 3) throw new Error('the proof is not a three-part JWS.');
+  let header, claims;
+  try { header = jsonFromB64u(parts[0]); claims = jsonFromB64u(parts[1]); }
+  catch (e) { throw new Error('the proof is not a readable JWT: ' + e.message); }
+
+  if (header.typ !== 'openid4vci-proof+jwt') {
+    throw new Error('the proof typ must be openid4vci-proof+jwt, got "' + header.typ + '".');
+  }
+  if (!header.jwk) throw new Error('the proof header carries no jwk (this issuer binds to a JWK).');
+  if (['ES256', 'RS256'].indexOf(header.alg) < 0) {
+    throw new Error('unsupported proof alg "' + header.alg + '".');
+  }
+  if (claims.aud !== credentialIssuer) {
+    throw new Error('the proof aud ("' + claims.aud + '") is not this credential issuer ("' +
+                    credentialIssuer + '").');
+  }
+  if (!claims.iat || Math.abs(Date.now() / 1000 - claims.iat) > 600) {
+    throw new Error('the proof iat is missing or too far from now.');
+  }
+  const expires = vciNonces.get(claims.nonce);
+  if (!expires) throw new Error('the proof nonce is not one this issuer handed out (or was already used).');
+  vciNonces.delete(claims.nonce);
+  if (expires < Date.now()) throw new Error('the proof nonce has expired.');
+
+  let key;
+  try { key = crypto.createPublicKey({ key: header.jwk, format: 'jwk' }); }
+  catch (e) { throw new Error('the proof header jwk is not a usable public key: ' + e.message); }
+  const data = Buffer.from(parts[0] + '.' + parts[1], 'ascii');
+  const sig = b64uDecode(parts[2]);
+  const opts = (header.alg === 'ES256')
+    ? { key: key, dsaEncoding: 'ieee-p1363' }
+    : { key: key };
+  if (!crypto.verify('sha256', data, opts, sig)) {
+    throw new Error('the proof signature does not verify with the key in its own header.');
+  }
+  return header.jwk;
+}
+
+// --- SD-JWT VC construction (RFC 9901) --------------------------------------
+// A Disclosure is base64url(JSON [salt, claim name, claim value]); the digest
+// that goes in _sd is base64url(SHA-256(the ASCII of that base64url string)).
+function makeDisclosure(name, value) {
+  const salt = b64u(crypto.randomBytes(16));
+  const encoded = b64u(Buffer.from(JSON.stringify([salt, name, value]), 'utf8'));
+  const digest = b64u(crypto.createHash('sha256').update(encoded, 'ascii').digest());
+  return { salt: salt, name: name, value: value, encoded: encoded, digest: digest };
+}
+
+function buildSdJwtVc(subjectClaims, holderJwk, credentialIssuer) {
+  const now = Math.floor(Date.now() / 1000);
+  // Everything the holder can choose to disclose, one Disclosure each. sub is
+  // not among them: it stays a plain claim, so the credential always says who
+  // it is about.
+  const disclosures = Object.keys(subjectClaims)
+    .filter(function (name) { return name !== 'sub'; })
+    .map(function (name) { return makeDisclosure(name, subjectClaims[name]); });
+  // A decoy digest: RFC 9901 section 4.2.5 — hash a random value so the count
+  // of _sd entries does not reveal how many claims there really are.
+  const decoy = b64u(crypto.createHash('sha256').update(b64u(crypto.randomBytes(16)), 'ascii').digest());
+  const digests = disclosures.map(function (d) { return d.digest; }).concat([decoy]).sort();
+
+  const payload = {
+    iss: credentialIssuer,
+    nbf: now,
+    exp: now + 30 * 24 * 3600,
+    vct: VCI_VCT,
+    sub: subjectClaims.sub || 'urn:uuid:' + crypto.randomUUID(),
+    cnf: { jwk: holderJwk },
+    _sd_alg: 'sha-256',
+    _sd: digests
+  };
+  // iat is added by the signer (jsonwebtoken drops a payload iat when it is
+  // told not to timestamp, so it is left to do it).
+  const issuerJwt = jwt.sign(payload, STS.privateKeyPem, {
+    algorithm: 'RS256',
+    header: { alg: 'RS256', typ: 'dc+sd-jwt', kid: 'sts-mock-1' }
+  });
+  // Combined Serialization: <JWT>~<D1>~...~<Dn>~ (the trailing ~ is required
+  // when no Key Binding JWT is present).
+  const serialized = [issuerJwt].concat(disclosures.map(function (d) { return d.encoded; })).join('~') + '~';
+  return { credential: serialized, disclosures: disclosures, payload: payload, decoy: decoy };
+}
+
+// The claims the credential asserts. Lifted from the access token when it is a
+// JWT (so the credential describes whoever actually authenticated), with
+// mock-issuer defaults for anything the token does not carry.
+function subjectClaimsFrom(accessToken) {
+  let t = {};
+  try {
+    const parts = String(accessToken || '').split('.');
+    if (parts.length === 3) t = jsonFromB64u(parts[1]) || {};
+  } catch (e) { /* opaque token — defaults it is */ }
+  const user = t.preferred_username || t.sub || 'mock-holder';
+  return {
+    sub: t.sub || ('urn:uuid:' + crypto.randomUUID()),
+    given_name: t.given_name || user,
+    family_name: t.family_name || 'Holder',
+    email: t.email || (user + '@example.com'),
+    birthdate: '1979-04-01',
+    nationality: 'US',
+    address: { street_address: '100 Main St', locality: 'Springfield', region: 'IL', country: 'US' }
+  };
+}
+
+function vciError(res, status, error, description) {
+  res.status(status).type('application/json').send(JSON.stringify({
+    error: error, error_description: description
+  }));
+}
+
+app.post('/oid4vci/credential', function (req, res) {
+  const auth = req.headers['authorization'] || '';
+  if (!/^Bearer\s+\S+/i.test(auth)) {
+    res.set('WWW-Authenticate', 'Bearer');
+    return vciError(res, 401, 'invalid_token', 'A Bearer access token is required.');
+  }
+  const accessToken = auth.replace(/^Bearer\s+/i, '').trim();
+
+  let body = {};
+  try { body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {}); }
+  catch (e) { return vciError(res, 400, 'invalid_request', 'The request body is not JSON: ' + e.message); }
+
+  const configId = body.credential_configuration_id || body.credential_identifier;
+  if (configId && configId !== VCI_CONFIG_ID) {
+    return vciError(res, 400, 'unsupported_credential_type',
+      'This issuer only offers credential_configuration_id "' + VCI_CONFIG_ID + '".');
+  }
+
+  // OID4VCI 1.0 sends proofs.jwt[]; the earlier single-proof form is accepted
+  // too, since wallets in the wild still send it.
+  let proofJwt = null;
+  if (body.proofs && Array.isArray(body.proofs.jwt) && body.proofs.jwt.length) proofJwt = body.proofs.jwt[0];
+  else if (body.proof && body.proof.jwt) proofJwt = body.proof.jwt;
+  if (!proofJwt) {
+    return vciError(res, 400, 'invalid_proof', 'A JWT proof of possession is required (proofs.jwt).');
+  }
+
+  let holderJwk;
+  try { holderJwk = verifyProofJwt(proofJwt, vciMetadata(req).credential_issuer); }
+  catch (e) { return vciError(res, 400, 'invalid_proof', e.message); }
+
+  const built = buildSdJwtVc(subjectClaimsFrom(accessToken), holderJwk, vciMetadata(req).credential_issuer);
+  console.log("RCBJ: " + JSON.stringify({
+    credentials: [{ credential: built.credential }]}));
+
+  res.set('Cache-Control', 'no-store');
+  res.status(200).type('application/json').send(JSON.stringify({
+    credentials: [{ credential: built.credential }],
+    notification_id: b64u(crypto.randomBytes(12))
+  }));
+});
+
+// Accepts the wallet's notification of what it did with the credential
+// (OID4VCI section 10). Nothing to record in a mock — 204 and done.
+app.post('/oid4vci/notification', function (req, res) { res.status(204).end(); });
+
+// ===========================================================================
+// The endpoints the RFC 8414 metadata advertises.
+//
+// A dummy authorization server: every endpoint in the metadata document answers,
+// and every token it issues is a real RS256 JWT signed with the STS key, so it
+// verifies against the JWKS the same document points at (/oauth2/jwks).
+//
+//   GET  /oauth2/authorize   authorization endpoint (code / implicit / hybrid)
+//   POST /oauth2/token       authorization_code, refresh_token, password,
+//                            client_credentials, token-exchange
+//   POST /oauth2/introspect  RFC 7662
+//   POST /oauth2/revoke      RFC 7009
+//   *    /oauth2/register    RFC 7591 registration + RFC 7592 management
+//   GET  /oauth2/jwks        the signing key (above, with the metadata)
+//   GET  /docs /policy /tos  the documents the metadata links to
+//
+// It authenticates NOBODY: the authorization endpoint issues a code for whoever
+// asks (the "user" is the login_hint, or a fixed mock subject), and any client
+// secret is accepted. That is the point — it exists so the debugger's panes have
+// something complete to talk to, not to enforce anything. What it does do
+// properly is the mechanics a client can check: PKCE verification, single-use
+// authorization codes, real signatures, honest introspection, and revocation
+// that actually takes effect.
+// ===========================================================================
+// Whoever signs in at the login screen. No password is ever checked; the
+// username they type is the identity every token then describes.
+function userFor(username) {
+  const name = String(username || 'mock-user');
+  return {
+    sub: 'urn:sts-mock:user:' + name,
+    username: name,
+    preferred_username: name,
+    name: name + ' (mock)',
+    given_name: name,
+    family_name: 'Mock',
+    email: name + '@sts-mock.example',
+    email_verified: true
+  };
+}
+const SESSION_COOKIE = 'sts_mock_session';
+const SESSION_TTL_MS = 60 * 60 * 1000;
+const LOGIN_TTL_MS = 10 * 60 * 1000;
+const ACCESS_TOKEN_TTL = 3600;
+const REFRESH_TOKEN_TTL = 30 * 24 * 3600;
+const AUTH_CODE_TTL_MS = 5 * 60 * 1000;
+
+const authzCodes = new Map();       // code -> the authorization request it came from
+const sessions = new Map();         // session id -> the signed-in user
+const pendingLogins = new Map();    // login id -> the authorization request being interrupted
+const revokedJtis = new Set();      // tokens revoked via /oauth2/revoke
+const registeredClients = new Map();// client_id -> { metadata, registrationAccessToken }
+
+function nowSec() { return Math.floor(Date.now() / 1000); }
+function randomId(bytes) { return b64u(crypto.randomBytes(bytes || 24)); }
+
+// Request bodies arrive as raw text (the SOAP parser takes every content type),
+// so form-encoded and JSON are both decoded here.
+function parseBody(req) {
+  const raw = typeof req.body === 'string' ? req.body : '';
+  const type = String(req.headers['content-type'] || '');
+  if (/json/i.test(type)) {
+    try { return JSON.parse(raw || '{}'); } catch (e) { return {}; }
+  }
+  const out = {};
+  new URLSearchParams(raw).forEach(function (v, k) { out[k] = v; });
+  return out;
+}
+
+// Client credentials from either client_secret_basic or client_secret_post. No
+// secret is ever checked; what matters is which client is being claimed.
+function clientFrom(req, body) {
+  const auth = req.headers['authorization'] || '';
+  if (/^Basic\s+/i.test(auth)) {
+    try {
+      const decoded = Buffer.from(auth.replace(/^Basic\s+/i, ''), 'base64').toString('utf8');
+      const i = decoded.indexOf(':');
+      return { client_id: decodeURIComponent(i < 0 ? decoded : decoded.slice(0, i)) };
+    } catch (e) { /* fall through */ }
+  }
+  return { client_id: body.client_id || '' };
+}
+
+function oauthError(res, status, error, description) {
+  res.status(status).type('application/json').set('Cache-Control', 'no-store')
+     .send(JSON.stringify({ error: error, error_description: description }));
+}
+
+// --- token minting ----------------------------------------------------------
+function signJwt(payload) {
+  return jwt.sign(payload, STS.privateKeyPem, { algorithm: 'RS256', keyid: 'sts-mock-1' });
+}
+
+function accessToken(base, opts) {
+  const iat = nowSec();
+  const user = opts.user || userFor(opts.username);
+  const payload = {
+    iss: base, sub: opts.sub || user.sub, aud: opts.audience || base + '/resource',
+    client_id: opts.client_id, scope: opts.scope || '', typ: 'Bearer',
+    jti: randomId(16), iat: iat, nbf: iat, exp: iat + ACCESS_TOKEN_TTL,
+    username: user.username
+  };
+  if (opts.act) payload.act = opts.act;
+  return signJwt(payload);
+}
+
+function refreshToken(base, opts) {
+  const iat = nowSec();
+  const user = opts.user || userFor(opts.username);
+  return signJwt({
+    // username travels with the refresh token, so refreshing keeps describing
+    // the person who actually signed in.
+    iss: base, sub: opts.sub || user.sub, aud: base, client_id: opts.client_id,
+    scope: opts.scope || '', typ: 'Refresh', jti: randomId(16), username: user.username,
+    iat: iat, nbf: iat, exp: iat + REFRESH_TOKEN_TTL
+  });
+}
+
+// OIDC section 3.1.3.6: at_hash / c_hash are the base64url of the left half of
+// the SHA-256 of the ASCII of the token.
+function halfHash(value) {
+  const h = crypto.createHash('sha256').update(String(value), 'ascii').digest();
+  return b64u(h.subarray(0, h.length / 2));
+}
+
+function idToken(base, opts) {
+  const iat = nowSec();
+  const user = opts.user || userFor(opts.username);
+  const payload = {
+    iss: base, sub: opts.sub || user.sub, aud: opts.client_id, typ: 'ID',
+    iat: iat, nbf: iat, exp: iat + ACCESS_TOKEN_TTL, auth_time: opts.auth_time || iat,
+    azp: opts.client_id, jti: randomId(16),
+    name: user.name, given_name: user.given_name, family_name: user.family_name,
+    preferred_username: user.preferred_username, email: user.email,
+    email_verified: user.email_verified
+  };
+  if (opts.nonce) payload.nonce = opts.nonce;
+  if (opts.access_token) payload.at_hash = halfHash(opts.access_token);
+  if (opts.code) payload.c_hash = halfHash(opts.code);
+  return signJwt(payload);
+}
+
+function hasScope(scope, name) {
+  return String(scope || '').split(/\s+/).indexOf(name) >= 0;
+}
+
+function tokenSet(base, opts) {
+  const access = accessToken(base, opts);
+  const body = {
+    access_token: access,
+    token_type: 'Bearer',
+    expires_in: ACCESS_TOKEN_TTL,
+    scope: opts.scope || ''
+  };
+  if (opts.withRefresh !== false) body.refresh_token = refreshToken(base, opts);
+  if (hasScope(opts.scope, 'openid')) {
+    body.id_token = idToken(base, Object.assign({}, opts, { access_token: access }));
+  }
+  return body;
+}
+
+// --- authorization endpoint + login screen ----------------------------------
+// A browser flow, so it behaves like one: an unauthenticated request is shown a
+// login screen, and only once the user has signed in does the endpoint issue
+// the authorization code (or the implicit/hybrid tokens) and redirect back to
+// the client.
+//
+//   GET  /oauth2/authorize   no session  -> the login screen
+//                            session     -> issue and redirect to redirect_uri
+//   POST /oauth2/login       signs the user in, then redirects BACK to
+//                            /oauth2/authorize with the original request, which
+//                            then proceeds as normal
+//
+// No password is checked — the username typed in is simply who the tokens then
+// describe. A session cookie means the next authorization request does not
+// prompt again; prompt=login forces it to.
+function cookiesOf(req) {
+  const out = {};
+  String(req.headers.cookie || '').split(';').forEach(function (part) {
+    const i = part.indexOf('=');
+    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+  });
+  return out;
+}
+
+function sessionOf(req) {
+  const id = cookiesOf(req)[SESSION_COOKIE];
+  if (!id) return null;
+  const session = sessions.get(id);
+  if (!session) return null;
+  if (session.expires < Date.now()) { sessions.delete(id); return null; }
+  return session;
+}
+
+// The authorization request, as the query string it arrived as. Kept whole so
+// the redirect back after login is the same request over again.
+function queryString(query, omit) {
+  const usp = new URLSearchParams();
+  Object.keys(query).forEach(function (k) {
+    if (omit && omit.indexOf(k) >= 0) return;
+    usp.set(k, query[k]);
+  });
+  return usp.toString();
+}
+
+function loginPage(base, login, error) {
+  const q = login.query;
+  const scope = q.scope || '(none requested)';
+  return '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">' +
+    '<title>Sign in — mock authorization server</title><style>' +
+    'body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;background:#f4f4f7;margin:0;' +
+    'display:flex;align-items:center;justify-content:center;min-height:100vh;color:#222}' +
+    '.card{background:#fff;border:1px solid #d5d5dd;border-radius:10px;padding:28px 32px;width:380px;' +
+    'box-shadow:0 6px 24px rgba(0,0,0,.08)}h1{font-size:1.25em;margin:0 0 4px}' +
+    'p.sub{color:#666;font-size:.85em;margin:0 0 18px}label{display:block;font-size:.85em;font-weight:600;' +
+    'margin:12px 0 4px}input[type=text],input[type=password]{width:100%;box-sizing:border-box;padding:8px 10px;' +
+    'border:1px solid #bbb;border-radius:5px;font-size:1em}.row{display:flex;gap:10px;margin-top:20px}' +
+    'button{flex:1;padding:9px 12px;border-radius:5px;border:1px solid #12107c;background:#12107c;color:#fff;' +
+    'font-size:.95em;cursor:pointer}button.secondary{background:#fff;color:#12107c}' +
+    '.err{background:#fdecea;border:1px solid #f5c6c2;color:#b00020;padding:8px 10px;border-radius:5px;' +
+    'font-size:.85em;margin-bottom:12px}.meta{margin-top:20px;padding-top:14px;border-top:1px solid #eee;' +
+    'font-size:.75em;color:#777;word-break:break-all}.meta div{margin:2px 0}code{font-family:ui-monospace,' +
+    'SFMono-Regular,Menlo,monospace}</style></head><body><div class="card">' +
+    '<h1>Sign in</h1>' +
+    '<p class="sub">Mock authorization server at <code>' + xmlEscape(base) + '</code></p>' +
+    (error ? '<div class="err">' + xmlEscape(error) + '</div>' : '') +
+    '<form method="post" action="/oauth2/login">' +
+    '<input type="hidden" name="login_id" value="' + xmlEscape(login.id) + '">' +
+    '<label for="username">Username</label>' +
+    '<input type="text" id="username" name="username" autocomplete="username" autofocus' +
+    ' value="' + xmlEscape(q.login_hint || '') + '">' +
+    '<label for="password">Password</label>' +
+    '<input type="password" id="password" name="password" autocomplete="current-password">' +
+    '<div class="row"><button type="submit" id="kc-login" name="action" value="login">Sign In</button>' +
+    '<button type="submit" id="kc-cancel" name="action" value="cancel" class="secondary">Cancel</button></div>' +
+    '</form><div class="meta">' +
+    '<div>No password is checked. The username you enter is the identity the issued tokens describe.</div>' +
+    '<div>client_id: <code>' + xmlEscape(q.client_id || '') + '</code></div>' +
+    '<div>scope: <code>' + xmlEscape(scope) + '</code></div>' +
+    '<div>redirect_uri: <code>' + xmlEscape(q.redirect_uri || '') + '</code></div>' +
+    '</div></div></body></html>\n';
+}
+
+// Build the authorization response for a signed-in user and redirect back to
+// the client. Everything after authentication — which is "as normal".
+function issueAuthorizationResponse(req, res, query, user, authTime) {
+  const base = baseUrlOf(req);
+  const redirectUri = String(query.redirect_uri);
+  const types = String(query.response_type || '').split(/\s+/).filter(Boolean);
+  const scope = String(query.scope || 'openid');
+  const out = {};
+
+  if (types.indexOf('code') >= 0) {
+    const code = randomId(24);
+    authzCodes.set(code, {
+      client_id: String(query.client_id), redirect_uri: redirectUri, scope: scope,
+      nonce: query.nonce, user: user, auth_time: authTime,
+      code_challenge: query.code_challenge, code_challenge_method: query.code_challenge_method || 'plain',
+      expires: Date.now() + AUTH_CODE_TTL_MS
+    });
+    out.code = code;
+  }
+  if (types.indexOf('token') >= 0) {
+    out.access_token = accessToken(base, { user: user, client_id: String(query.client_id), scope: scope });
+    out.token_type = 'Bearer';
+    out.expires_in = ACCESS_TOKEN_TTL;
+    out.scope = scope;
+  }
+  if (types.indexOf('id_token') >= 0) {
+    out.id_token = idToken(base, {
+      user: user, client_id: String(query.client_id), nonce: query.nonce, auth_time: authTime,
+      access_token: out.access_token, code: out.code
+    });
+  }
+  // Only a bare code goes in the query; anything carrying a token uses the
+  // fragment, per OAuth 2.0 / OIDC.
+  redirectBack(res, base, redirectUri, query.state, out,
+    types.length > 1 || types.indexOf('code') < 0);
+}
+
+function redirectBack(res, base, redirectUri, state, params, fragment) {
+  const usp = new URLSearchParams();
+  Object.keys(params).forEach(function (k) { if (params[k] !== undefined) usp.set(k, params[k]); });
+  if (state !== undefined) usp.set('state', state);
+  usp.set('iss', base);
+  const sep = fragment ? '#' : (redirectUri.indexOf('?') >= 0 ? '&' : '?');
+  res.redirect(302, redirectUri + sep + usp.toString());
+}
+
+app.get('/oauth2/authorize', function (req, res) {
+  const base = baseUrlOf(req);
+  const q = req.query || {};
+  const redirectUri = String(q.redirect_uri || '');
+
+  // Without a usable redirect_uri there is nowhere to report an error TO, so it
+  // is reported here instead (OAuth 2.0 section 4.1.2.1).
+  if (!redirectUri || !/^https?:\/\//i.test(redirectUri)) {
+    return oauthError(res, 400, 'invalid_request', 'A valid absolute redirect_uri is required.');
+  }
+  const fail = function (error, description) {
+    redirectBack(res, base, redirectUri, q.state, { error: error, error_description: description }, false);
+  };
+  if (!q.client_id) return fail('invalid_request', 'client_id is required.');
+  const types = String(q.response_type || '').split(/\s+/).filter(Boolean);
+  const known = ['code', 'token', 'id_token'];
+  if (!types.length || types.some(function (t) { return known.indexOf(t) < 0; })) {
+    return fail('unsupported_response_type', 'response_type "' + (q.response_type || '') + '" is not supported.');
+  }
+
+  // Already signed in? Then this is the second pass — after the login screen,
+  // or a later request on the same session — and the response goes out now.
+  const session = sessionOf(req);
+  const forcePrompt = String(q.prompt || '').split(/\s+/).indexOf('login') >= 0;
+  if (session && !forcePrompt) {
+    return issueAuthorizationResponse(req, res, q, session.user, session.authTime);
+  }
+  if (String(q.prompt || '').split(/\s+/).indexOf('none') >= 0) {
+    // OIDC: prompt=none must not show any UI.
+    return fail('login_required', 'No session, and prompt=none forbids showing the login screen.');
+  }
+
+  // Otherwise: authenticate the user first. The request is stashed so the login
+  // POST can send the browser back to it unchanged.
+  const login = {
+    id: randomId(18),
+    query: JSON.parse(JSON.stringify(q)),
+    expires: Date.now() + LOGIN_TTL_MS
+  };
+  pendingLogins.set(login.id, login);
+  pendingLogins.forEach(function (v, k) { if (v.expires < Date.now()) pendingLogins.delete(k); });
+  res.status(200).type('text/html').set('Cache-Control', 'no-store').send(loginPage(base, login, ''));
+});
+
+app.post('/oauth2/login', function (req, res) {
+  const base = baseUrlOf(req);
+  const body = parseBody(req);
+  const login = pendingLogins.get(String(body.login_id || ''));
+  if (!login || login.expires < Date.now()) {
+    pendingLogins.delete(String(body.login_id || ''));
+    return oauthError(res, 400, 'invalid_request',
+      'This login form has expired. Start the authorization request again.');
+  }
+  const redirectUri = String(login.query.redirect_uri);
+
+  if (String(body.action || '') === 'cancel') {
+    pendingLogins.delete(login.id);
+    return redirectBack(res, base, redirectUri, login.query.state,
+      { error: 'access_denied', error_description: 'The user cancelled at the login screen.' }, false);
+  }
+
+  const username = String(body.username || '').trim();
+  // The only two ways to fail: no username to put in the tokens, and the
+  // reserved password the rest of this mock also refuses.
+  if (!username) {
+    return res.status(200).type('text/html').set('Cache-Control', 'no-store')
+      .send(loginPage(base, login, 'Enter a username. It does not have to exist — it is the identity the ' +
+                                  'issued tokens will describe.'));
+  }
+  if (String(body.password || '') === 'invalid') {
+    return res.status(200).type('text/html').set('Cache-Control', 'no-store')
+      .send(loginPage(base, login, 'Authentication failed for ' + username + '.'));
+  }
+
+  pendingLogins.delete(login.id);
+  const sessionId = randomId(24);
+  sessions.set(sessionId, {
+    user: userFor(username), authTime: nowSec(), expires: Date.now() + SESSION_TTL_MS
+  });
+  res.set('Set-Cookie', SESSION_COOKIE + '=' + sessionId + '; Path=/; HttpOnly; SameSite=Lax');
+
+  // Back to the authorization endpoint with the original request — minus
+  // prompt, which has now been honoured and would otherwise prompt forever.
+  res.redirect(302, base + '/oauth2/authorize?' + queryString(login.query, ['prompt']));
+});
+
+// Ends the session, so the next authorization request prompts again.
+app.get('/oauth2/logout', function (req, res) {
+  const id = cookiesOf(req)[SESSION_COOKIE];
+  if (id) sessions.delete(id);
+  res.set('Set-Cookie', SESSION_COOKIE + '=; Path=/; Max-Age=0');
+  const target = req.query.post_logout_redirect_uri;
+  if (target && /^https?:\/\//i.test(String(target))) return res.redirect(302, String(target));
+  res.status(200).type('text/plain').send('Signed out of the mock authorization server.\n');
+});
+
+// --- token endpoint ---------------------------------------------------------
+app.post('/oauth2/token', function (req, res) {
+  const base = baseUrlOf(req);
+  const body = parseBody(req);
+  const client = clientFrom(req, body);
+  const grant = String(body.grant_type || '');
+  res.set('Cache-Control', 'no-store');
+
+  const respond = function (payload) {
+    res.status(200).type('application/json').send(JSON.stringify(payload));
+  };
+
+  if (grant === 'authorization_code') {
+    const record = authzCodes.get(String(body.code || ''));
+    if (!record) return oauthError(res, 400, 'invalid_grant', 'Unknown or already-used authorization code.');
+    authzCodes.delete(String(body.code));  // single use
+    if (record.expires < Date.now()) return oauthError(res, 400, 'invalid_grant', 'The authorization code has expired.');
+    if (body.redirect_uri && body.redirect_uri !== record.redirect_uri) {
+      return oauthError(res, 400, 'invalid_grant', 'redirect_uri does not match the authorization request.');
+    }
+    if (record.code_challenge) {
+      const verifier = String(body.code_verifier || '');
+      if (!verifier) return oauthError(res, 400, 'invalid_grant', 'PKCE was used, so code_verifier is required.');
+      const computed = record.code_challenge_method === 'S256'
+        ? b64u(crypto.createHash('sha256').update(verifier, 'ascii').digest())
+        : verifier;
+      if (computed !== record.code_challenge) {
+        return oauthError(res, 400, 'invalid_grant', 'The code_verifier does not match the code_challenge.');
+      }
+    }
+    return respond(tokenSet(base, {
+      user: record.user, client_id: record.client_id, scope: record.scope,
+      nonce: record.nonce, auth_time: record.auth_time
+    }));
+  }
+
+  if (grant === 'refresh_token') {
+    let claims;
+    try { claims = jwt.verify(String(body.refresh_token || ''), STS.certPem, { algorithms: ['RS256'] }); }
+    catch (e) { return oauthError(res, 400, 'invalid_grant', 'The refresh token is not valid: ' + e.message); }
+    if (revokedJtis.has(claims.jti)) return oauthError(res, 400, 'invalid_grant', 'The refresh token was revoked.');
+    return respond(tokenSet(base, {
+      user: userFor(claims.username), client_id: claims.client_id,
+      scope: body.scope ? String(body.scope) : claims.scope
+    }));
+  }
+
+  if (grant === 'client_credentials') {
+    // No user is involved, so no refresh token and no ID token.
+    return respond(tokenSet(base, {
+      sub: client.client_id || 'unknown-client', username: client.client_id,
+      client_id: client.client_id, scope: String(body.scope || ''), withRefresh: false,
+      user: Object.assign(userFor(client.client_id), { sub: client.client_id || 'unknown-client' })
+    }));
+  }
+
+  if (grant === 'password') {
+    const username = String(body.username || '');
+    if (!username || !body.password) {
+      return oauthError(res, 400, 'invalid_request', 'username and password are required.');
+    }
+    // The one credential this mock rejects, so a negative test has something to
+    // fail on (the WS-Trust side of this service does the same).
+    if (body.password === 'invalid') {
+      return oauthError(res, 400, 'invalid_grant', 'Authentication failed for user ' + username + '.');
+    }
+    return respond(tokenSet(base, {
+      user: userFor(username), client_id: client.client_id, scope: String(body.scope || 'openid')
+    }));
+  }
+
+  if (grant === 'urn:ietf:params:oauth:grant-type:token-exchange') {
+    const subjectToken = String(body.subject_token || '');
+    if (!subjectToken) return oauthError(res, 400, 'invalid_request', 'subject_token is required.');
+    let subject = {};
+    try { subject = jwt.verify(subjectToken, STS.certPem, { algorithms: ['RS256'] }); }
+    catch (e) {
+      // A token from somewhere else: exchange it anyway, but say who it was for
+      // as best we can read it.
+      try { subject = jsonFromB64u(subjectToken.split('.')[1]) || {}; } catch (e2) { subject = {}; }
+    }
+    let act;
+    if (body.actor_token) {
+      try { act = { sub: (jsonFromB64u(String(body.actor_token).split('.')[1]) || {}).sub }; }
+      catch (e) { act = undefined; }
+    }
+    const exchanged = tokenSet(base, {
+      sub: subject.sub || 'urn:sts-mock:exchanged',
+      user: Object.assign(userFor(subject.username), subject.sub ? { sub: subject.sub } : {}),
+      client_id: client.client_id, scope: String(body.scope || subject.scope || ''),
+      audience: body.audience || body.resource, act: act, withRefresh: false
+    });
+    exchanged.issued_token_type = 'urn:ietf:params:oauth:token-type:access_token';
+    return respond(exchanged);
+  }
+
+  return oauthError(res, 400, 'unsupported_grant_type', 'grant_type "' + grant + '" is not supported.');
+});
+
+// --- introspection (RFC 7662) ------------------------------------------------
+app.post('/oauth2/introspect', function (req, res) {
+  const body = parseBody(req);
+  res.set('Cache-Control', 'no-store');
+  const inactive = function () {
+    res.status(200).type('application/json').send(JSON.stringify({ active: false }));
+  };
+  const token = String(body.token || '');
+  if (!token) return inactive();
+  let claims;
+  try { claims = jwt.verify(token, STS.certPem, { algorithms: ['RS256'] }); }
+  catch (e) { return inactive(); }              // expired, forged, or not ours
+  if (revokedJtis.has(claims.jti)) return inactive();
+  res.status(200).type('application/json').send(JSON.stringify({
+    active: true,
+    scope: claims.scope || '',
+    client_id: claims.client_id,
+    username: claims.username,
+    token_type: claims.typ === 'Refresh' ? 'refresh_token' : 'Bearer',
+    exp: claims.exp, iat: claims.iat, nbf: claims.nbf,
+    sub: claims.sub, aud: claims.aud, iss: claims.iss, jti: claims.jti
+  }));
+});
+
+// --- revocation (RFC 7009) ---------------------------------------------------
+// "The authorization server responds with HTTP 200 for both a successful
+// revocation and an invalid token" — so this always succeeds. A revoked jti
+// stops introspecting as active and stops refreshing.
+app.post('/oauth2/revoke', function (req, res) {
+  const body = parseBody(req);
+  const token = String(body.token || '');
+  if (token) {
+    try {
+      const claims = jwt.verify(token, STS.certPem, { algorithms: ['RS256'] });
+      if (claims.jti) revokedJtis.add(claims.jti);
+    } catch (e) { /* nothing to revoke */ }
+  }
+  res.status(200).set('Cache-Control', 'no-store').end();
+});
+
+// --- dynamic client registration (RFC 7591) + management (RFC 7592) ----------
+function clientRecord(base, metadata, clientId, secret, token) {
+  return Object.assign({}, metadata, {
+    client_id: clientId,
+    client_id_issued_at: nowSec(),
+    client_secret: secret,
+    client_secret_expires_at: 0,               // 0 = never
+    registration_access_token: token,
+    registration_client_uri: base + '/oauth2/register/' + clientId
+  });
+}
+
+app.post('/oauth2/register', function (req, res) {
+  const base = baseUrlOf(req);
+  const metadata = parseBody(req);
+  if (metadata.redirect_uris && !Array.isArray(metadata.redirect_uris)) {
+    return oauthError(res, 400, 'invalid_redirect_uri', 'redirect_uris must be an array.');
+  }
+  const clientId = 'sts-mock-client-' + randomId(8);
+  const record = clientRecord(base, metadata, clientId, randomId(24), randomId(24));
+  registeredClients.set(clientId, record);
+  res.status(201).type('application/json').set('Cache-Control', 'no-store')
+     .send(JSON.stringify(record, null, 2));
+});
+
+// The management calls all authenticate with the registration access token the
+// registration handed out.
+function withRegisteredClient(req, res, handler) {
+  const record = registeredClients.get(req.params.client_id);
+  if (!record) return oauthError(res, 404, 'invalid_client', 'No such registered client.');
+  const auth = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '');
+  if (auth !== record.registration_access_token) {
+    res.set('WWW-Authenticate', 'Bearer');
+    return oauthError(res, 401, 'invalid_token', 'The registration access token does not match.');
+  }
+  return handler(record);
+}
+
+app.get('/oauth2/register/:client_id', function (req, res) {
+  withRegisteredClient(req, res, function (record) {
+    res.status(200).type('application/json').send(JSON.stringify(record, null, 2));
+  });
+});
+
+app.put('/oauth2/register/:client_id', function (req, res) {
+  withRegisteredClient(req, res, function (record) {
+    const updated = Object.assign({}, parseBody(req), {
+      client_id: record.client_id,
+      client_id_issued_at: record.client_id_issued_at,
+      client_secret: record.client_secret,
+      client_secret_expires_at: record.client_secret_expires_at,
+      registration_access_token: record.registration_access_token,
+      registration_client_uri: record.registration_client_uri
+    });
+    registeredClients.set(record.client_id, updated);
+    res.status(200).type('application/json').send(JSON.stringify(updated, null, 2));
+  });
+});
+
+app.delete('/oauth2/register/:client_id', function (req, res) {
+  withRegisteredClient(req, res, function (record) {
+    registeredClients.delete(record.client_id);
+    res.status(204).end();
+  });
+});
+
+// --- the documents the metadata links to ------------------------------------
+app.get('/docs', function (req, res) {
+  res.type('text/plain').send(
+    'Mock authorization server (service_documentation).\n\n' +
+    'Every endpoint in ' + baseUrlOf(req) + '/.well-known/oauth-authorization-server answers.\n' +
+    'Tokens are RS256 JWTs signed with the key at ' + baseUrlOf(req) + '/oauth2/jwks.\n' +
+    'No credential is ever verified: this server exists to exercise a client.\n');
+});
+app.get('/policy', function (req, res) {
+  res.type('text/plain').send('Mock authorization server policy (op_policy_uri). Test data only.\n');
+});
+app.get('/tos', function (req, res) {
+  res.type('text/plain').send('Mock authorization server terms of service (op_tos_uri). Test data only.\n');
+});
+
 app.listen(PORT, '0.0.0.0', function () {
   console.log('WS-Trust STS mock listening on :' + PORT + ' (issuer ' + ISSUER + '); POST SOAP RST to /sts');
   console.log('RFC 8414 metadata at /.well-known/oauth-authorization-server; JWKS at /oauth2/jwks');
+  console.log('OID4VCI issuer metadata at /.well-known/openid-credential-issuer; ' +
+              'credential endpoint at /oid4vci/credential');
+  console.log('Mock authorization server endpoints: /oauth2/authorize (login screen), /oauth2/login, ' +
+              '/oauth2/token, /oauth2/introspect, /oauth2/revoke, /oauth2/register, /oauth2/logout');
 });

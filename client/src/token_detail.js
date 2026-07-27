@@ -569,8 +569,43 @@ $(document).on("change", "#jwt_verification_type", function() {
   }
 });
 
+// ---------------------------------------------------------------------------
+// "Return to debugger" — point back at whichever page sent us here, named by a
+// ?from= parameter (the same convention the tools pages use). Only known pages
+// are honoured, so the parameter cannot become an open redirect.
+//
+// debugger2.html additionally wants redirectFromTokenDetail=true: it is what
+// tells that page to re-render the token panes it had before the detour.
+// ---------------------------------------------------------------------------
+var RETURN_TARGETS = {
+  'debugger.html': '/debugger.html',
+  'debugger2.html': '/debugger2.html?redirectFromTokenDetail=true',
+  'sd-jwt-vc-issuance-1.html': '/sd-jwt-vc-issuance-1.html',
+  'sd-jwt-vc-issuance-2.html': '/sd-jwt-vc-issuance-2.html',
+  'sd-jwt-vc-issuance-3.html': '/sd-jwt-vc-issuance-3.html'
+};
+var RETURN_LABELS = {
+  'sd-jwt-vc-issuance-1.html': 'Return to SD-JWT VC issuance (step 1)',
+  'sd-jwt-vc-issuance-2.html': 'Return to SD-JWT VC issuance (step 2)',
+  'sd-jwt-vc-issuance-3.html': 'Return to SD-JWT VC issuance (step 3)'
+};
+
+function setReturnLinks() {
+  var from = getParameterByName('from');
+  var target = RETURN_TARGETS[from];
+  if (!target) return;                       // no (or unknown) origin: leave the default
+  var label = RETURN_LABELS[from];
+  var links = document.querySelectorAll('a.return_link');
+  for (var i = 0; i < links.length; i++) {
+    links[i].setAttribute('href', target);
+    if (label) links[i].textContent = label;
+  }
+  log.debug('Return link points back at ' + target + '.');
+}
+
 window.onload = function() {
   log.debug("Entering onload function.");
+  setReturnLinks();
 
   // Restore claims validation fields from localStorage
   const storedPurpose = localStorage.getItem('jwt_purpose');

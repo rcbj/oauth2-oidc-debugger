@@ -1,0 +1,119 @@
+/* SD-JWT VC issuance workflow — the three pages share this sheet on top of
+   debugger.css, so the panes, tooltips and buttons look exactly like the rest
+   of the OAuth2 / OIDC debugger and only the credential-specific parts are new. */
+
+.vc-return { margin: 8px 0 2px; font-size: 0.9em; }
+.vc-title { margin: 6px 0 10px; }
+.vc-intro, .vc-note { max-width: 1100px; line-height: 1.45; }
+.vc-note { font-size: 0.9em; color: #333; }
+
+/* --- step indicator (partials/sd_jwt_vc_steps.html) --- */
+ol.vc-steps {
+  list-style: none;
+  display: flex;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 0;
+  flex-wrap: wrap;
+}
+ol.vc-steps li {
+  flex: 1 1 240px;
+  border: 1px solid #ccc;
+  border-left: 4px solid #ccc;
+  border-radius: 3px;
+  padding: 6px 10px;
+  background: #fafafa;
+}
+ol.vc-steps li a { font-weight: bold; text-decoration: none; }
+ol.vc-steps li span { display: block; font-size: 0.8em; color: #666; }
+ol.vc-steps li.vc-step-current { border-left-color: #12107c; background: #eef; }
+ol.vc-steps li.vc-step-done { border-left-color: #2e7d32; }
+
+/* --- status lines --- */
+.vc-status { font-size: 0.9em; }
+.vc-status.vc-ok { color: #2e7d32; }
+.vc-status.vc-bad { color: #b00020; }
+.vc-status.vc-pending { color: #8a6d00; }
+.not-defined-sample { color: #999; font-style: italic; }
+
+/* --- generated Configuration Parameters rows --- */
+#config_table td { padding: 1px 6px; vertical-align: top; }
+#config_table input[type="text"] { width: 42em; max-width: 100%; }
+tr.vc-group-heading td {
+  padding-top: 12px;
+  font-weight: bold;
+  border-bottom: 1px solid #ddd;
+}
+tr.vc-group-heading td span { font-weight: normal; font-size: 0.85em; color: #666; }
+
+/* --- token / credential text areas --- */
+.vc-token-table { width: 100%; max-width: 1100px; }
+.vc-token-table td { vertical-align: top; padding: 4px 6px; }
+.vc-token-table td:first-child { width: 12em; }
+textarea.vc-token {
+  width: 100%;
+  max-width: 900px;
+  font-family: monospace;
+  font-size: 0.8em;
+  word-break: break-all;
+}
+pre.vc-json {
+  background: #f7f7f7;
+  border: 1px solid #ddd;
+  padding: 8px;
+  max-width: 1100px;
+  overflow-x: auto;
+  font-size: 0.8em;
+}
+
+/* --- the approval box on step 2 --- */
+.vc-approval {
+  border: 2px solid #12107c;
+  border-radius: 4px;
+  padding: 10px 14px;
+  max-width: 1100px;
+  background: #f4f4ff;
+}
+.vc-approval h4 { margin-top: 0; }
+.vc-approval ul { margin: 6px 0 10px 18px; }
+/* "The call this will make" — the assembled HTTP request, above the buttons. */
+.vc-approval-request { display: block; margin: 10px 0 4px; }
+.vc-approval-request label { font-weight: 600; font-size: 0.9em; }
+.vc-approval textarea.vc-token { background: #fff; }
+.vc-approval .btn2 { margin-right: 8px; }
+
+/* --- disclosure / claim tables on step 3 --- */
+table.vc-table {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 1100px;
+  table-layout: fixed;
+  font-size: 0.85em;
+}
+table.vc-table th, table.vc-table td {
+  border: 1px solid #ccc;
+  padding: 3px 6px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+table.vc-table th { background: #f0f0f0; }
+table.vc-table td.vc-mono { font-family: monospace; font-size: 0.9em; }
+td.vc-ok, span.vc-ok { color: #2e7d32; }
+td.vc-bad, span.vc-bad { color: #b00020; }
+.vc-decoy { color: #888; font-style: italic; }
+
+/* The compact serialization, with the ~ separators called out. */
+.vc-serialized {
+  font-family: monospace;
+  font-size: 0.75em;
+  word-break: break-all;
+  background: #f7f7f7;
+  border: 1px solid #ddd;
+  padding: 8px;
+  max-width: 1100px;
+}
+.vc-serialized .vc-part-jwt { color: #12107c; }
+.vc-serialized .vc-part-disclosure { color: #2e7d32; }
+.vc-serialized .vc-tilde { color: #b00020; font-weight: bold; }

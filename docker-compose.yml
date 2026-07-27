@@ -29,6 +29,10 @@ services:
     ports:
       - "3000:3000"
   sts:
+    environment:
+      # The authorization server the mock OID4VCI Credential Issuer advertises
+      # (the SD-JWT VC issuance workflow follows this to the RFC 8414 document).
+      - OID4VCI_AUTHORIZATION_SERVER=http://localhost:8080/realms/debugger-testing
     container_name: sts
     image: rcbj/sts
     build:

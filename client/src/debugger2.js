@@ -2,6 +2,7 @@ const appconfig = require(process.env.CONFIG_FILE);
 // OpenID Provider Metadata (Discovery 1.0 s3) — shared with debugger.js so
 // both Configuration Parameters panes carry the same fields and defaults.
 const opMetadata = require("./op_metadata");
+const sdJwtVc = require("./sd_jwt_vc");
 const bunyan = require("bunyan");
 const DOMPurify = require("dompurify");
 const $ = require("jquery");
@@ -359,10 +360,20 @@ function successfulInternalTokenAPICall(data, textStatus, request)
       client_id: $("#token_client_id").val(),
       tokenHistoryIndex: getLatestTokenHistoryIndex()
     });
+    // If the SD-JWT VC workflow sent us here, the tokens are what it came for.
+    returnToSdJwtVcFlow();
 }
 
 function errorInternalTokenAPICall(request, status, error) {
   log.error("An error occurred calling the token endpoint.");
+  if (sdJwtVc.isFlowActive()) {
+    // Stay on this page — the error panes below say what went wrong — but end
+    // the workflow's hold on it.
+    sdJwtVc.endFlow();
+    $("#sdjwtvc_banner").html("<strong>SD-JWT VC issuance</strong> — the token endpoint call failed, so the " +
+      "workflow stopped here. The error is shown below; <a href='/sd-jwt-vc-issuance-1.html'>step 1</a> " +
+      "starts it again.");
+  }
   log.error("request: " + JSON.stringify(request));
   log.error("status: " + JSON.stringify(status));
   log.error("error: " + JSON.stringify(error));
@@ -1647,8 +1658,54 @@ $(document).ready(function() {
     $('#operation-history-panel').show();
   }
 
+  maybeContinueSdJwtVcFlow();
   log.debug("Leaving document.ready().");
 });
+
+// ---------------------------------------------------------------------------
+// SD-JWT VC issuance.
+//
+// When the workflow started on sd-jwt-vc-issuance-1.html marked itself active,
+// this page is a waypoint rather than a destination: exchange the authorization
+// code for tokens as usual, then hand the browser back to the workflow, which
+// needs the access token to make its OID4VCI Credential Request.
+//
+// The flag is only ever set by that workflow (and cleared as soon as it is
+// used), so an ordinary visit to this page behaves exactly as before.
+// ---------------------------------------------------------------------------
+function maybeContinueSdJwtVcFlow() {
+  if (!sdJwtVc.isFlowActive()) return false;
+  var code = getParameterByName('code');
+  if (!code) {
+    // No authorization code — the flow did not get this far. Say so rather
+    // than silently doing nothing; the error panes above have the detail.
+    $(".container").prepend(
+      "<div class='vc-handoff-banner'><strong>SD-JWT VC issuance</strong> — no authorization code came back " +
+      "from the identity provider, so there are no tokens to carry into the credential request. " +
+      "<a href='/sd-jwt-vc-issuance-1.html'>Return to step 1</a>.</div>");
+    sdJwtVc.endFlow();
+    return false;
+  }
+  $(".container").prepend(
+    "<div class='vc-handoff-banner' id='sdjwtvc_banner'><strong>SD-JWT VC issuance</strong> — exchanging the " +
+    "authorization code for tokens, then returning to <a href='" + sdJwtVc.STEP2_URL + "'>step 2</a> to request " +
+    "the credential.</div>");
+  window.setTimeout(tokenButtonClick, 250);
+  return true;
+}
+
+// Called from the token endpoint's success handler, once the tokens are in
+// local storage where step 2 of the workflow reads them.
+function returnToSdJwtVcFlow() {
+  if (!sdJwtVc.isFlowActive()) return false;
+  var target = sdJwtVc.returnUrl();
+  // Consumed here: a later, unrelated token call on this page must not be
+  // redirected too.
+  sdJwtVc.endFlow();
+  log.debug("SD-JWT VC issuance: returning to " + target);
+  window.location.href = target;
+  return true;
+}
 
 function generateUUID () { // Public Domain/MIT
     log.debug("Entering generateUUID().");

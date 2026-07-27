@@ -59,6 +59,9 @@ const BUNDLES = [
   ['saml_response', 'saml_response'],
   ['wstrust_tools', 'wstrust_tools'],
   ['wstrust_response', 'wstrust_response'],
+  ['sd_jwt_vc_issuance_1', 'sdjwtvc1'],
+  ['sd_jwt_vc_issuance_2', 'sdjwtvc2'],
+  ['sd_jwt_vc_issuance_3', 'sdjwtvc3'],
 ];
 
 const CALLBACK_HTML = `<!DOCTYPE html>

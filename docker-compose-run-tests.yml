@@ -103,6 +103,11 @@ services:
   sts:
     container_name: sts
     image: rcbj/sts
+    # The mock OID4VCI Credential Issuer this service also hosts advertises which
+    # authorization server protects it. On the compose network that is Keycloak,
+    # addressed the way the BROWSER in the tests container reaches it.
+    environment:
+      - OID4VCI_AUTHORIZATION_SERVER=http://keycloak:8080/realms/debugger-testing
     build:
       context: .
       dockerfile: sts/Dockerfile

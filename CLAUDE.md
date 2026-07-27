@@ -13,6 +13,22 @@ The project is split into two independent Node.js services:
 - **`/api/`** — Express backend (port 4000). Proxies token endpoint calls server-side and provides a `/claimdescription` endpoint with cached IANA JWT claim metadata.
 - **`/client/`** — Express frontend (port 3000). Serves static HTML/JS pages and handles the OAuth2 redirect callback at `/callback`, forwarding query params to `debugger2.html`.
 - **`/common/data.js`** — Shared `convertToOAuth2Format()` function used by both services to normalize grant parameters (including PKCE and custom params).
+- **`/sts/`** — A mock Security Token Service used by the test suite. It speaks WS-Trust; hosts a bare-minimum **OID4VCI Credential Issuer** (`/.well-known/openid-credential-issuer`, `/.well-known/jwt-vc-issuer`, `/oid4vci/nonce`, `/oid4vci/credential`) that mints SD-JWT VCs per RFC 9901; and acts as a **mock OAuth 2.0 authorization server** — an RFC 8414 metadata document plus every endpoint it advertises (`/oauth2/authorize`, `/oauth2/token`, `/oauth2/introspect`, `/oauth2/revoke`, `/oauth2/register`, `/oauth2/jwks`). The authorization endpoint shows a **login screen** (`/oauth2/login`, Keycloak's field ids) and the username typed there becomes the identity in every token; no password is ever checked. All tokens are RS256 JWTs signed with the STS key, so they verify against the advertised JWKS. The debugger's full OAuth2 / OIDC workflow can therefore run against it with no identity provider.
+
+### Shared client modules
+
+Several page bundles share modules rather than duplicating behaviour:
+
+| Module | Shared by | What it holds |
+|---|---|---|
+| `metadata_client.js` | `debugger.js`, `sd_jwt_vc_issuance_*.js` | fetching/tabulating a metadata document, its provenance note, base64url + Web Crypto JWS verification, and the `signed_metadata` verdict |
+| `op_metadata.js` | `debugger.js`, `debugger2.js`, `sd_jwt_vc_issuance_1.js` | the OpenID Provider metadata members (and, separately, the RFC 8414-only ones) with their defaults and `-->not defined<--` notes |
+| `vci_metadata.js` | `sd_jwt_vc_issuance_*.js` | the OID4VCI credential issuer metadata members (element ids and storage keys prefixed `vci_`) |
+| `sd_jwt_vc.js` | `sd_jwt_vc_issuance_*.js`, `debugger.js`, `debugger2.js` | the issuance workflow's storage keys and hand-off flag, plus SD-JWT parsing and digest computation |
+| `op_history.js` | `saml_history.js`, `wstrust_history.js` | the Operations History log |
+| `xmldsig.js` | the SAML and WS-Trust pages | in-browser XML Signature / XML Encryption |
+
+The **SD-JWT VC issuance workflow** (`sd-jwt-vc-issuance-{1,2,3}.html`) reuses the OIDC Authorization Code flow on `debugger.html` / `debugger2.html`: the `?sdjwtvc=1` query parameter marks the flow active, and `debugger2.html` returns to step 2 once it has the tokens. Both debugger pages behave exactly as before without that parameter. Step 1's authorization-server pane deliberately writes the **same localStorage keys** the debugger pages read.
 
 ### Frontend Build
 
@@ -27,6 +43,9 @@ Client-side JavaScript lives in `/client/src/` and is compiled into `/client/pub
 | `userinfo.js` | `userinfo.js` | Userinfo endpoint |
 | `jwks.js` | `jwks.js` | JWKS endpoint |
 | `logout.js` | `logout.js` | OIDC logout |
+| `sd_jwt_vc_issuance_1.js` | `sd_jwt_vc_issuance_1.js` | SD-JWT VC issuance step 1 (`sd-jwt-vc-issuance-1.html`) |
+| `sd_jwt_vc_issuance_2.js` | `sd_jwt_vc_issuance_2.js` | SD-JWT VC issuance step 2 (`sd-jwt-vc-issuance-2.html`) |
+| `sd_jwt_vc_issuance_3.js` | `sd_jwt_vc_issuance_3.js` | SD-JWT VC issuance step 3 (`sd-jwt-vc-issuance-3.html`) |
 
 The browserify build runs inside Docker. There is no local build script — to rebuild bundles you must use Docker.
 
@@ -71,6 +90,8 @@ Individual test files in `/tests/`:
 - `oauth2_client_credentials.js`
 - `oauth2_implicit.js`
 - `oidc_authorization_code.js`
+- `sd_jwt_vc_issuance.js` (the OID4VCI / SD-JWT VC workflow; needs the STS mock and Keycloak)
+- `oauth2_sts_endpoints.js` (the STS mock's authorization server endpoints; no browser)
 
 There is no linting toolchain configured in this project.
 

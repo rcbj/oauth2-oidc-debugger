@@ -296,6 +296,34 @@ function buildJobs() {
     });
   }
 
+  // The mock authorization server the STS service hosts: every endpoint its
+  // RFC 8414 document advertises answers, with real RS256 tokens that verify
+  // against the advertised JWKS. No browser — it drives the endpoints directly.
+  if (env.WSTRUST_STS_URL) {
+    jobs.push({
+      name: "OAuth2 Authorization Server endpoints (the STS mock's authorize / token / introspect / revoke / register)",
+      script: "oauth2_sts_endpoints.js",
+      env: { WSTRUST_STS_URL: env.WSTRUST_STS_URL },
+    });
+  }
+
+  // The SD-JWT VC issuance workflow (OID4VCI + RFC 9901): the mock Credential
+  // Issuer the STS service hosts, the three sd-jwt-vc-issuance pages, and the
+  // ?sdjwtvc=1 hand-off through debugger.html / debugger2.html. Needs both the
+  // STS mock (which is the credential issuer) and Keycloak (which authorizes
+  // the issuance), so it is gated on the STS like the other STS-backed jobs.
+  if (env.WSTRUST_STS_URL) {
+    jobs.push({
+      name: "SD-JWT VC Issuance (OID4VCI credential issuance end to end)",
+      script: "sd_jwt_vc_issuance.js",
+      env: {
+        WSTRUST_STS_URL: env.WSTRUST_STS_URL,
+        KEYCLOAK_BASE_URL: env.KEYCLOAK_BASE_URL || "",
+        OID4VCI_ISSUER_URL: env.OID4VCI_ISSUER_URL || "",
+      },
+    });
+  }
+
   // Operations History pane on the WS-Trust pages: records every attempted STS
   // call (timestamp, WS-Trust version, operation, user, result), dispatched as
   // "Sent" and resolved from the RSTR — or the SOAP Fault — on the response

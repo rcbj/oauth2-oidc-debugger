@@ -461,6 +461,60 @@ function dbgSetAllPanes(expand) {
           </tr>
           <tr>
             <td>
+              <div class="tooltip"><label>revocation endpoint auth methods supported: </label><span class="tooltiptext">Client authentication methods the Revocation Endpoint supports (RFC 8414 / RFC 7009). Comma-separated. Defined by RFC 8414, not by OpenID Connect Discovery 1.0. (OPTIONAL)</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="revocation_endpoint_auth_methods_supported" name="revocation_endpoint_auth_methods_supported" type="text" size="60" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>revocation endpoint auth signing alg values supported: </label><span class="tooltiptext">JWS algorithms the Revocation Endpoint supports for the private_key_jwt / client_secret_jwt assertion. Comma-separated. RFC 8414 only. (OPTIONAL)</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="revocation_endpoint_auth_signing_alg_values_supported" name="revocation_endpoint_auth_signing_alg_values_supported" type="text" size="60" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>introspection endpoint auth methods supported: </label><span class="tooltiptext">Client authentication methods the Introspection Endpoint supports (RFC 8414 / RFC 7662). Comma-separated. RFC 8414 only. (OPTIONAL)</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="introspection_endpoint_auth_methods_supported" name="introspection_endpoint_auth_methods_supported" type="text" size="60" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>introspection endpoint auth signing alg values supported: </label><span class="tooltiptext">JWS algorithms the Introspection Endpoint supports for the private_key_jwt / client_secret_jwt assertion. Comma-separated. RFC 8414 only. (OPTIONAL)</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="introspection_endpoint_auth_signing_alg_values_supported" name="introspection_endpoint_auth_signing_alg_values_supported" type="text" size="60" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>code challenge methods supported: </label><span class="tooltiptext">PKCE code challenge methods the authorization server supports (RFC 7636), e.g. S256, plain. Comma-separated. RFC 8414 only. (OPTIONAL)</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="code_challenge_methods_supported" name="code_challenge_methods_supported" type="text" size="60" />
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <div class="tooltip"><label>signed metadata: </label><span class="tooltiptext">A JWT of this metadata document signed by the issuer (RFC 8414 section 2.1). Use Validate Signature in the Metadata Retrieval pane to verify it. RFC 8414 only. (OPTIONAL)</span>
+              </div>
+            </td>
+            <td>
+              <input class="stored" id="signed_metadata" name="signed_metadata" type="text" size="60" />
+            </td>
+          </tr>
+          <tr>
+            <td>
               <div class="tooltip"><label>Display OIDC Related Artifacts? </label><span class="tooltiptext">Some OAuth2 identity providers return OIDC-related tokens even for plain OAuth2 calls. This option will display tokens in this case.</span>
               </div>
             </td>
