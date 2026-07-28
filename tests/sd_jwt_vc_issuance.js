@@ -2,6 +2,11 @@
 //
 // The SD-JWT VC issuance workflow, end to end:
 //
+//   step 0 (sd-jwt-vc-issuance-0.html)
+//     the use-case chooser: which OID4VCI Appendix H flow to run. The
+//     wallet-initiated one (H.6) is what most of this file drives; the
+//     issuer-initiated Credential Offer (H.1) has its own section at the end.
+//
 //   step 1 (sd-jwt-vc-issuance-1.html)
 //     retrieve the OID4VCI Credential Issuer Metadata, validate its
 //     signed_metadata, populate the Configuration Parameters pane from it;
@@ -80,7 +85,11 @@ function httpJson(url, options) {
   return fetch(url, options).then(function (r) {
     return r.text().then(function (text) {
       var body = null;
-      try { body = JSON.parse(text); } catch (e) { /* not JSON */ }
+      try {
+        body = JSON.parse(text);
+      } catch (e) {
+        // Not JSON: the caller gets the raw text instead.
+      }
       return { status: r.status, ok: r.ok, body: body, raw: text };
     });
   });
@@ -91,7 +100,12 @@ async function click(driver, locator) {
   var e = driver.findElement(locator);
   await driver.executeScript("arguments[0].scrollIntoView({ block: 'center' });", e);
   await driver.sleep(120);
-  try { await e.click(); } catch (err) { await driver.executeScript("arguments[0].click();", e); }
+  try {
+    await e.click();
+  } catch (err) {
+    // Something is overlapping the element; click it through the DOM instead.
+    await driver.executeScript("arguments[0].click();", e);
+  }
   await driver.sleep(250);
 }
 
@@ -760,6 +774,248 @@ async function staleProofRecovery(driver) {
 }
 
 // ---------------------------------------------------------------------------
+// OID4VCI Appendix H.1, Credential Offer - Same-Device.
+//
+// "While browsing the university's home page, the End-User finds a link 'request
+// your digital diploma' ... and is redirected to a digital Wallet. The Wallet
+// notifies the End-User that a Credential Issuer offered to issue a diploma
+// Credential."
+//
+// So this starts at the ISSUER, not at the wallet, and the whole thing runs on
+// the STS mock, which is the credential issuer, the authorization server and the
+// issuer's web page at once. Nothing is configured beforehand: a fresh browser
+// gets everything from the offer.
+// ---------------------------------------------------------------------------
+// Point the wallet at the WRONG issuer before the offer arrives. Clearing the
+// settings is not enough to prove an offer configured anything: the fields fall
+// back to this deployment's defaults, which name the same issuer the offer came
+// from, so the assertions would pass either way (a mutation of applyOffer()
+// proved exactly that). Deliberately wrong values cannot be satisfied by
+// accident — whatever is right afterwards was put there by the offer.
+var WRONG_ISSUER = "http://localhost:8181/not-the-offering-issuer";
+
+async function misconfigureTheWallet(driver) {
+  log.debug("Entering misconfigureTheWallet().");
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-1.html");
+  await driver.wait(until.elementLocated(By.id("vci_metadata_endpoint")), waitTime);
+  await driver.executeScript(
+    "window.localStorage.clear();" +
+    "var wrong = {" +
+    "  vci_metadata_endpoint: arguments[0] + '/.well-known/openid-credential-issuer'," +
+    "  vci_credential_configuration_id: 'NotTheOfferedCredential'," +
+    "  authorization_endpoint: arguments[0] + '/authorize'," +
+    "  token_endpoint: arguments[0] + '/token'" +
+    "};" +
+    "Object.keys(wrong).forEach(function (k) { window.localStorage.setItem(k, wrong[k]); });",
+    WRONG_ISSUER);
+  log.debug("Leaving misconfigureTheWallet(). The wallet now points at " + WRONG_ISSUER + ".");
+}
+
+async function credentialOfferSameDevice(driver) {
+  log.info("=== H.1: Credential Offer - Same-Device ===");
+
+  // ---- step 0: the chooser ------------------------------------------------
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-0.html");
+  await driver.wait(until.elementLocated(By.css("button.vc-usecase")), waitTime);
+  await driver.executeScript("window.localStorage.clear();");
+  await driver.navigate().refresh();
+  await driver.wait(until.elementLocated(By.css("button.vc-usecase")), waitTime);
+  await driver.sleep(300);
+
+  var cards = await driver.executeScript(
+    "return Array.prototype.slice.call(document.querySelectorAll('button.vc-usecase')).map(function (b) {" +
+    "  return { id: b.id, disabled: b.disabled," +
+    "           spec: b.querySelector('.vc-usecase-spec').textContent.trim()," +
+    "           title: b.querySelector('.vc-usecase-title').textContent.trim()," +
+    "           summary: b.querySelector('.vc-usecase-summary').textContent.trim()," +
+    "           mechanics: b.querySelector('.vc-usecase-mechanics').textContent.trim() };" +
+    "});");
+  assert.strictEqual(cards.length, 4, "step 0 should offer all four use cases, got " + cards.length + ".");
+  assert.deepStrictEqual(cards.map(function (c) { return c.spec; }), ["H.6", "H.1", "H.2", "H.3"],
+    "the use cases should be listed by their Appendix H section.");
+  cards.forEach(function (c) {
+    assert.ok(c.summary.length > 40, c.spec + " should be described, not just named.");
+    assert.ok(c.mechanics.length > 20, c.spec + " should say what it does on the wire.");
+  });
+  assert.deepStrictEqual(cards.filter(function (c) { return !c.disabled; }).map(function (c) { return c.spec; }),
+    ["H.6", "H.1"], "only the implemented use cases should be choosable.");
+  assert.strictEqual(cards.filter(function (c) { return c.disabled; }).length, 2,
+    "the use cases that are not implemented yet should still be listed.");
+  log.info("[H.1] OK — step 0 describes all four use cases; H.6 and H.1 are choosable.");
+
+  // ---- the issuer's web page ----------------------------------------------
+  await click(driver, By.id("vc_usecase_offer-same-device"));
+  await driver.wait(until.urlContains("/issuer"), fetchWait,
+    "choosing the offer use case should take the End-User to the ISSUER, not the wallet.");
+  var issuerPage = await driver.getCurrentUrl();
+  assert.ok(issuerPage.indexOf(issuerBase) === 0,
+    "the issuer page should belong to the configured credential issuer. Got: " + issuerPage);
+  assert.ok((await driver.findElements(By.linkText("Request your digital diploma"))).length,
+    "the issuer page should carry the offer link H.1 describes.");
+  log.info("[H.1] OK — the flow starts on the issuer page at " + issuerPage + ".");
+
+  // Everything the offer is supposed to supply is pointed somewhere WRONG
+  // first, so the assertions below cannot be satisfied by what step 1 left
+  // behind or by this deployment's defaults.
+  await misconfigureTheWallet(driver);
+  await driver.get(issuerPage);
+  await driver.wait(until.elementLocated(By.linkText("Request your digital diploma")), waitTime);
+
+  // ---- following the link hands the wallet an offer ------------------------
+  await click(driver, By.linkText("Request your digital diploma"));
+  await driver.wait(until.elementLocated(By.id("pane_offer")), fetchWait,
+    "the link should take the End-User back to the wallet with a Credential Offer.");
+  await driver.wait(async function () {
+    return !!(await value(driver, "authorization_endpoint"));
+  }, fetchWait, "the wallet should discover the offering issuer and its authorization server by itself.");
+  await driver.sleep(300);
+
+  var shown = await driver.executeScript(
+    "return { url: location.href," +
+    "         visible: document.getElementById('pane_offer').style.display !== 'none'," +
+    "         grant: document.getElementById('offer_grant').textContent.trim()," +
+    "         source: document.getElementById('offer_source').textContent.trim()," +
+    "         json: document.getElementById('offer_json').textContent," +
+    "         badge: (document.getElementById('vc_use_case_badge') || {}).textContent || '' };");
+  assert.ok(shown.visible, "the offer pane should be shown when an offer arrives.");
+  assert.ok(shown.url.indexOf("credential_offer=") !== -1,
+    "the offer should arrive in the URL, by value. Got: " + shown.url.slice(0, 80));
+  var offer = JSON.parse(shown.json);
+  assert.strictEqual(offer.credential_issuer, issuerBase, "the offer should name the issuer.");
+  assert.deepStrictEqual(offer.credential_configuration_ids, ["IdentityCredential"],
+    "the offer should name the credential on offer.");
+  var issuerState = ((offer.grants || {}).authorization_code || {}).issuer_state;
+  assert.ok(issuerState, "an H.1 offer uses the authorization_code grant and carries an issuer_state.");
+  assert.ok(shown.grant.indexOf("authorization_code") === 0 && shown.grant.indexOf(issuerState) !== -1,
+    "the pane should show the grant and its issuer_state. Got: " + shown.grant);
+  assert.ok(shown.source.indexOf("by value") !== -1,
+    "the pane should say how the offer arrived. Got: " + shown.source);
+  assert.ok(shown.badge.indexOf("H.1") !== -1,
+    "every page should say which use case is running. Got: " + shown.badge);
+
+  var applied = await driver.executeScript(
+    "return { metadataUrl: document.getElementById('vci_metadata_endpoint').value," +
+    "         credentialId: document.getElementById('vci_credential_configuration_id').value," +
+    "         credentialEndpoint: document.getElementById('vci_credential_endpoint').value," +
+    "         authorization: document.getElementById('authorization_endpoint').value," +
+    "         token: document.getElementById('token_endpoint').value };");
+  assert.strictEqual(applied.metadataUrl, issuerBase + "/.well-known/openid-credential-issuer",
+    "the offer should point the metadata URL at the offering issuer.");
+  assert.strictEqual(applied.credentialId, "IdentityCredential",
+    "the offered credential should be the one selected.");
+  assert.ok(applied.credentialEndpoint && applied.authorization && applied.token,
+    "the wallet should have discovered the issuer AND its authorization server: " + JSON.stringify(applied));
+  log.info("[H.1] OK — the offer is shown as received, and it configured the issuer, the credential and " +
+           "the authorization server with nothing typed in.");
+
+  // ---- authorize: the issuer_state must go back with the request ----------
+  //
+  // Which authorization server this reaches depends on what the issuer's
+  // metadata advertises: the STS mock itself when it is standalone, or Keycloak
+  // in the containerized suite. The issuer_state assertion holds either way; the
+  // ones about what the login screen SAYS only make sense for the mock, which is
+  // the one that knows it issued the offer.
+  var mockIsTheAs = applied.authorization.indexOf(issuerBase) === 0;
+  var signInUser = mockIsTheAs ? "diploma.student" : clientId;
+  var signInPassword = mockIsTheAs ? "any-password" : clientId;
+
+  // An earlier part of this run signed in at that authorization server, and the
+  // session would carry straight through without a prompt — correct behaviour,
+  // but it hides the authorization request this section exists to inspect.
+  // (driver.manage().deleteAllCookies() is no help: it only clears the origin
+  // the browser is currently on, which is the wallet, not the server.)
+  var logoutUrl = applied.authorization
+    .replace(/\/protocol\/openid-connect\/auth$/, "/protocol/openid-connect/logout")
+    .replace(/\/oauth2\/authorize$/, "/oauth2/logout");
+  log.info("[H.1] Signing out of " + logoutUrl + " so the authorization request is made afresh.");
+  await driver.get(logoutUrl);
+  await driver.sleep(600);
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-1.html");
+  await driver.wait(until.elementLocated(By.id("start_issuance_button")), waitTime);
+  await driver.sleep(400);
+
+  await click(driver, By.id("start_issuance_button"));
+  await driver.wait(until.elementLocated(By.id("username")), fetchWait,
+    "the workflow should reach the authorization server's login screen.");
+  var authzUrl = await driver.getCurrentUrl();
+  assert.ok(authzUrl.indexOf("issuer_state=" + issuerState) !== -1,
+    "the authorization request MUST carry the offer's issuer_state (OID4VCI section 4.1.1). Got: " + authzUrl);
+  if (mockIsTheAs) {
+    var loginText = await driver.executeScript("return document.body.innerText;");
+    assert.ok(loginText.indexOf(issuerState) !== -1,
+      "the authorization server should show the issuer_state it received.");
+    assert.ok(loginText.indexOf("from a Credential Offer this issuer made") !== -1,
+      "the authorization server should recognise its own issuer_state.");
+    log.info("[H.1] OK — issuer_state travelled into the authorization request, and the issuer " +
+             "recognised it as its own.");
+  } else {
+    log.info("[H.1] OK — issuer_state travelled into the authorization request (the authorization " +
+             "server here is " + applied.authorization.split("/protocol")[0] + ", not the mock, so what it " +
+             "displays is not asserted).");
+  }
+
+  // ---- and then the flow the other use case already proved ----------------
+  await driver.findElement(By.id("username")).sendKeys(signInUser);
+  await driver.findElement(By.id("password")).sendKeys(signInPassword);
+  await click(driver, By.id("kc-login"));
+  await driver.wait(until.urlContains("sd-jwt-vc-issuance-2.html"), fetchWait,
+    "after signing in the workflow should come back to step 2.");
+  await driver.wait(async function () {
+    return !!(await value(driver, "vc_proof_jwt"));
+  }, fetchWait, "step 2 should prepare the credential request.");
+  await click(driver, By.id("vc_approve_button"));
+  await driver.wait(until.urlContains("sd-jwt-vc-issuance-3.html"), fetchWait,
+    "approving should produce the credential.");
+  await driver.sleep(900);
+
+  var credential = await value(driver, "vc_credential_raw");
+  assert.ok(credential, "H.1 should end with a credential.");
+  var payload = jsonFromB64u(credential.split("~")[0].split(".")[1]);
+  assert.strictEqual(payload.iss, issuerBase, "the credential should come from the issuer that made the offer.");
+  assert.strictEqual(payload.vct, EXPECTED_VCT, "it should be the credential that was offered.");
+  assert.ok(String(payload.sub).length > 0 && String(payload.username || payload.sub).length > 0,
+    "the credential should describe a subject. Got: " + payload.sub);
+  if (mockIsTheAs) {
+    assert.ok(String(payload.sub).indexOf(signInUser) !== -1,
+      "it should describe the user who signed in. Got: " + payload.sub);
+  }
+  var failed = await driver.executeScript(
+    "return Array.prototype.slice.call(document.querySelectorAll('#vc_checks tbody tr'))" +
+    "  .filter(function (tr) { return tr.querySelectorAll('td')[1].textContent.trim() === 'FAILED'; })" +
+    "  .map(function (tr) { return tr.querySelectorAll('td')[0].textContent.trim(); });");
+  assert.strictEqual(failed.length, 0, "no check should fail on the H.1 credential: " + failed.join(", "));
+  log.info("[H.1] OK — the offered credential was issued to " + payload.sub + " and verifies.");
+
+  // ---- the offer can also travel by reference -----------------------------
+  await driver.get(issuerBase + "/issuer");
+  await click(driver, By.linkText("Request it (offer by reference)"));
+  await driver.wait(until.elementLocated(By.id("pane_offer")), fetchWait);
+  await driver.wait(async function () {
+    return (await text(driver, "offer_issuer")) === issuerBase;
+  }, fetchWait, "an offer passed by reference should be fetched and shown.");
+  var byRef = await driver.executeScript(
+    "return { url: location.href, source: document.getElementById('offer_source').textContent.trim() };");
+  assert.ok(byRef.url.indexOf("credential_offer_uri=") !== -1,
+    "the by-reference link should pass credential_offer_uri. Got: " + byRef.url.slice(0, 90));
+  assert.ok(byRef.source.indexOf("by reference") !== -1,
+    "the pane should say the offer was fetched by reference. Got: " + byRef.source);
+  log.info("[H.1] OK — an offer passed by reference (credential_offer_uri) is fetched and shown too.");
+
+  // ---- discarding it returns to the wallet-initiated use case -------------
+  await click(driver, By.id("offer_discard_button"));
+  await driver.sleep(300);
+  var afterDiscard = await driver.executeScript(
+    "return { visible: document.getElementById('pane_offer').style.display !== 'none'," +
+    "         badge: (document.getElementById('vc_use_case_badge') || {}).textContent || ''," +
+    "         stored: localStorage.getItem('sdjwtvc_credential_offer') };");
+  assert.strictEqual(afterDiscard.visible, false, "discarding should hide the offer pane.");
+  assert.strictEqual(afterDiscard.stored, null, "discarding should forget the offer.");
+  assert.ok(afterDiscard.badge.indexOf("H.6") !== -1,
+    "discarding should fall back to the wallet-initiated use case. Got: " + afterDiscard.badge);
+  log.info("[H.1] OK — the offer can be discarded, and the workflow falls back to wallet-initiated.");
+}
+
+// ---------------------------------------------------------------------------
 // The issuer's own defences — a mock that accepts anything would make the
 // checks above meaningless.
 // ---------------------------------------------------------------------------
@@ -899,6 +1155,7 @@ async function test() {
     await staleProofRecovery(driver);
     await inspectLinksReturnHere(driver);
     await stepTwoWithoutTokens(driver);
+    await credentialOfferSameDevice(driver);
     log.info("Test completed successfully.");
   } finally {
     await driver.quit();

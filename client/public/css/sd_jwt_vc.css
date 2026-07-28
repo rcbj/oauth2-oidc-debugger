@@ -29,6 +29,84 @@ ol.vc-steps li span { display: block; font-size: 0.8em; color: #666; }
 ol.vc-steps li.vc-step-current { border-left-color: #12107c; background: #eef; }
 ol.vc-steps li.vc-step-done { border-left-color: #2e7d32; }
 
+/* --- step 0: the use-case chooser ---
+   Big, calm buttons: a full-width card each, so the choice reads as "which of
+   these situations are you in" rather than "pick a protocol variant". */
+.vc-usecases {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 1100px;
+  margin: 18px 0 10px;
+}
+button.vc-usecase {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 18px 22px;
+  border: 1px solid #c9c9d4;
+  border-left: 6px solid #12107c;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  color: #222;
+  transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+}
+button.vc-usecase:hover,
+button.vc-usecase:focus {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .10);
+  transform: translateY(-2px);
+  border-color: #12107c;
+  outline: none;
+}
+button.vc-usecase-current { background: #f4f4ff; }
+button.vc-usecase-soon {
+  border-left-color: #b9b9c4;
+  background: #fafafa;
+  color: #777;
+  cursor: not-allowed;
+}
+button.vc-usecase-soon:hover { box-shadow: none; transform: none; border-color: #c9c9d4; }
+.vc-usecase-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.vc-usecase-spec {
+  font-size: .72em;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: #12107c;
+  background: #ececff;
+  border-radius: 3px;
+  padding: 2px 7px;
+}
+button.vc-usecase-soon .vc-usecase-spec { color: #666; background: #eee; }
+.vc-usecase-title { font-size: 1.18em; font-weight: 700; }
+.vc-usecase-flag {
+  font-size: .72em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #2e7d32;
+}
+.vc-usecase-flag-soon { color: #8a6d00; }
+.vc-usecase-summary { display: block; margin-top: 8px; font-size: .95em; line-height: 1.45; }
+.vc-usecase-detail { display: block; margin-top: 6px; font-size: .85em; color: #555; line-height: 1.45; }
+.vc-usecase-mechanics {
+  display: block;
+  margin-top: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .76em;
+  color: #666;
+}
+.vc-usecase-cta { display: block; margin-top: 12px; font-weight: 700; color: #12107c; }
+
+/* Which use case is running, under the step indicator on every page. */
+.vc-use-case-badge {
+  margin: -6px 0 14px;
+  font-size: .82em;
+  color: #555;
+}
+.vc-use-case-badge strong { color: #12107c; }
+
 /* --- status lines --- */
 .vc-status { font-size: 0.9em; }
 .vc-status.vc-ok { color: #2e7d32; }

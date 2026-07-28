@@ -79,6 +79,90 @@ download_saml_metadata()
   echo "Leaving download_saml_metadata()."
 }
 
+# ---------------------------------------------------------------------------
+# The SAML SP key pair used by the SAML tests.
+#
+# Generated FRESH on every run and never written to the repository: the private
+# key exists only in this shell's environment (and the environment of the test
+# processes it spawns) for the life of the run. It is created in a temporary
+# directory which is deleted immediately after the PEMs are read.
+#
+# Exports:
+#   SAML_SP_PRIVATE_KEY   the private key, PEM (PKCS#1) — the tests sign the
+#                         AuthnRequest / LogoutRequest with it, and decrypt an
+#                         encrypted assertion with it
+#   SAML_SP_CERT          the matching self-signed certificate, PEM
+#   SAML_SP_SIGNING_CERT  the same certificate as base64 DER (no PEM armour),
+#                         which is the form Keycloak's saml.signing.certificate
+#                         attribute takes — configureKeycloak registers it on the
+#                         SAML client so it validates the request signature
+#
+# An outer wrapper may supply SAML_SP_PRIVATE_KEY / SAML_SP_CERT itself; in that
+# case they are used as they are and nothing is generated.
+# ---------------------------------------------------------------------------
+generateSpKeyPair()
+{
+  echo "Entering generateSpKeyPair()."
+  # This script runs under `set -x`, which would echo the private key into the
+  # run log (and a CI build log). Trace off for the duration, restored on the way
+  # out — only lengths and fingerprints are printed.
+  local xtrace_was_on=""
+  case "$-" in
+    *x*) xtrace_was_on="yes"; set +x ;;
+  esac
+
+  if [ -n "${SAML_SP_PRIVATE_KEY:-}" ] && [ -n "${SAML_SP_CERT:-}" ];
+  then
+    echo "SAML SP key pair was supplied by the caller; using it as-is."
+    SAML_SP_SIGNING_CERT=$(echo "${SAML_SP_CERT}" | grep -v -- '-----' | tr -d '\n\r')
+    export SAML_SP_PRIVATE_KEY SAML_SP_CERT SAML_SP_SIGNING_CERT
+    [ -n "${xtrace_was_on}" ] && set -x
+    echo "Leaving generateSpKeyPair()."
+    return 0
+  fi
+
+  if ! command -v openssl >/dev/null 2>&1;
+  then
+    echo "ERROR: openssl is required to generate the test SAML SP key pair." >&2
+    exit 1
+  fi
+
+  local dir
+  dir=$(mktemp -d)
+  # Two days is plenty for a test run and keeps a stray copy short-lived.
+  openssl req -x509 -newkey rsa:2048 -sha256 -days 2 -nodes \
+    -keyout "${dir}/sp-key.pem" -out "${dir}/sp-cert.pem" \
+    -subj "/CN=OAuth2 OIDC Debugger Test SP" >/dev/null 2>&1
+  check_return_code $?
+  # PKCS#1 ("BEGIN RSA PRIVATE KEY"), which is what the debugger's key fields
+  # have always been given. node-forge reads either form, so this is only for
+  # consistency with what a user would paste in by hand.
+  if openssl rsa -in "${dir}/sp-key.pem" -traditional -out "${dir}/sp-key-pkcs1.pem" >/dev/null 2>&1;
+  then
+    mv "${dir}/sp-key-pkcs1.pem" "${dir}/sp-key.pem"
+  fi
+
+  SAML_SP_PRIVATE_KEY=$(cat "${dir}/sp-key.pem")
+  SAML_SP_CERT=$(cat "${dir}/sp-cert.pem")
+  SAML_SP_SIGNING_CERT=$(grep -v -- '-----' "${dir}/sp-cert.pem" | tr -d '\n\r')
+  # Off disk immediately — the key lives in the environment only.
+  rm -rf "${dir}"
+  export SAML_SP_PRIVATE_KEY SAML_SP_CERT SAML_SP_SIGNING_CERT
+
+  if [ -z "${SAML_SP_PRIVATE_KEY}" ] || [ -z "${SAML_SP_SIGNING_CERT}" ];
+  then
+    [ -n "${xtrace_was_on}" ] && set -x
+    echo "ERROR: the generated SAML SP key pair is empty." >&2
+    exit 1
+  fi
+  # A fingerprint identifies the pair in the log without revealing anything.
+  local fingerprint
+  fingerprint=$(echo "${SAML_SP_CERT}" | openssl x509 -noout -fingerprint -sha256 2>/dev/null | cut -d= -f2)
+  [ -n "${xtrace_was_on}" ] && set -x
+  echo "Generated a fresh SAML SP key pair for this run: RSA 2048, SHA-256 fingerprint ${fingerprint}."
+  echo "Leaving generateSpKeyPair()."
+}
+
 configureKeycloak()
 {
   echo "Entering configureKeycloak()."
@@ -535,10 +619,11 @@ configureKeycloak()
   #
   # The client's clientId IS the SP entityID (must equal the AuthnRequest Issuer
   # the client sends — client env spEntityId). Client signature validation is
-  # ENABLED: the fixed test SP signing certificate (tests/fixtures/sp-cert.pem,
-  # provided as SAML_SP_SIGNING_CERT by the run scripts) is registered here, and
-  # tests/saml_sso.js signs the AuthnRequest with the matching private key
-  # (tests/fixtures/sp-key.pem), so Keycloak validates the request signature.
+  # ENABLED: the SP signing certificate generated for THIS run
+  # (generateSpKeyPair, provided as SAML_SP_SIGNING_CERT) is registered here, and
+  # tests/saml_sso.js signs the AuthnRequest with the matching private key from
+  # SAML_SP_PRIVATE_KEY, so Keycloak validates the request signature. No key pair
+  # is stored in this repository.
   SAML_SP_ENTITY_ID="${SAML_SP_ENTITY_ID:-http://localhost:3000/saml/sp}"
   SAML_API_BASE_URL="${API_BASE_URL:-http://localhost:4000}"
   # ACS / SLO service URLs registered on the Keycloak client (the endpoints the
@@ -549,8 +634,9 @@ configureKeycloak()
   # so the browser reads the response from the URL (no server round-trip).
   SAML_ACS_URL="${SAML_ACS_URL:-${SAML_API_BASE_URL}/samlacs}"
   SAML_SLO_URL="${SAML_SLO_URL:-${SAML_API_BASE_URL}/samlslo}"
-  # AuthnRequest signature validation. Enabled by default (registers the fixed SP
-  # signing cert so the signed requests from tests/saml_sso.js validate). Set
+  # AuthnRequest signature validation. Enabled by default (registers this run's
+  # generated SP signing cert so the signed requests from tests/saml_sso.js
+  # validate). Set
   # SAML_SIG_VALIDATION=false (local-run-tests.sh --saml-dev) to turn it off so a
   # browser-generated / unregistered SP key can drive the SAML flow manually.
   SAML_SIG_VALIDATION="${SAML_SIG_VALIDATION:-true}"
@@ -559,7 +645,7 @@ configureKeycloak()
     SAML_SIG_ATTRS='"saml.authnrequest.signed": "false", "saml.client.signature": "false",'
   else
     if [ -z "${SAML_SP_SIGNING_CERT}" ]; then
-      echo "SAML_SP_SIGNING_CERT is blank. The run script must export the SP signing certificate (base64 DER of tests/fixtures/sp-cert.pem) so Keycloak can validate the AuthnRequest signature."
+      echo "SAML_SP_SIGNING_CERT is blank. The run script must call generateSpKeyPair (common/common.sh) so Keycloak can validate the AuthnRequest signature."
       exit 1
     fi
     SAML_SIG_ATTRS='"saml.authnrequest.signed": "true", "saml.client.signature": "true", "saml.signing.certificate": "'"${SAML_SP_SIGNING_CERT}"'",'
@@ -643,7 +729,7 @@ configureKeycloak()
   # to the one above but adds saml.encrypt=true + saml.encryption.certificate set
   # to the SAME fixed test SP certificate. Keycloak therefore encrypts the
   # assertion to that cert; the Response page decrypts it with the matching
-  # private key (tests/fixtures/sp-key.pem). Only provisioned when the SP cert is
+  # private key generated for this run. Only provisioned when the SP cert is
   # available (i.e. signature validation is enabled).
   SAML_ENC_SP_ENTITY_ID="${SAML_ENC_SP_ENTITY_ID:-${SAML_SP_ENTITY_ID}-enc}"
   if [ -n "${SAML_SP_SIGNING_CERT}" ];

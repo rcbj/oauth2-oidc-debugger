@@ -772,6 +772,14 @@ function recalculateAuthorizationRequestDescription()
          $("#display_authz_request_form_textarea1").val( $("#display_authz_request_form_textarea1").val() + "&\n" + "code_challenge=" + $("#authz_pkce_code_challenge").val()  + "&\n" +
                                                                                           "code_challenge_method=" + $("#authz_pkce_code_method").val());
        }
+       // OID4VCI: an authorization request that follows a Credential Offer sends
+       // the offer's issuer_state back (section 4.1.1).
+       var sdJwtVcIssuerState = sdJwtVc.get("sdjwtvc_issuer_state");
+       if (sdJwtVcIssuerState) {
+         $("#display_authz_request_form_textarea1").val(
+           $("#display_authz_request_form_textarea1").val() + "&\n" +
+           "issuer_state=" + encodeURIComponent(sdJwtVcIssuerState));
+       }
     } else if (	grant_type == "token" || 
 		grant_type == "id_token token" || 
 		grant_type == "id_token") {
@@ -848,6 +856,7 @@ function triggerDeviceAuthorizationCall()
     window.location.href = "/debugger2.html";
   };
   var onDeviceError = function(request, status, error) {
+    log.debug("Entering onDeviceError().");
     log.error("An error occurred calling the device authorization endpoint.");
     log.error("request: " + JSON.stringify(request));
     log.error("status: " + JSON.stringify(status));
@@ -861,6 +870,7 @@ function triggerDeviceAuthorizationCall()
     $("#device_authz_error_textarea").val(
       "HTTP Status: " + (request ? request.status : "") + " " + (request ? request.statusText : "") + "\n" +
       "Response Body: " + (request ? request.responseText : ""));
+    log.debug("Leaving onDeviceError().");
   };
 
   if (appconfig.backendAvailable === false) {
@@ -893,6 +903,7 @@ function triggerDeviceAuthorizationCall()
 }
 
 function onload() {
+  log.debug("Entering onload().");
   log.debug("Entering onload function.");
   $("#password-form-group1").hide();
   $("#password-form-group2").hide();
@@ -1027,6 +1038,7 @@ function onload() {
   }
   maybeStartSdJwtVcFlow();
   log.debug("Leaving onload().");
+  log.debug("Leaving onload().");
 }
 
 // ---------------------------------------------------------------------------
@@ -1059,6 +1071,17 @@ function maybeStartSdJwtVcFlow() {
       "started. Go back to <a href='/sd-jwt-vc-issuance-1.html'>step 1</a> and retrieve the metadata.</p>");
     return false;
   }
+  // An issuer-initiated issuance (OID4VCI Appendix H.1) carries an issuer_state
+  // from the Credential Offer; the authorization request has to send it back so
+  // the issuer can tie the two together. It rides in as a custom authorization
+  // parameter, which this page already knows how to append.
+  var issuerState = sdJwtVc.get("sdjwtvc_issuer_state");
+  if (issuerState) {
+    log.debug("SD-JWT VC issuance: adding issuer_state to the authorization request.");
+    $("#sdjwtvc_banner").append(
+      "<p>The Credential Offer's <code>issuer_state</code> is being sent with the authorization request.</p>");
+  }
+
   // Let the rest of onload() finish laying the page out before navigating.
   window.setTimeout(triggerAuthZEndpointCall, 250);
   log.debug("Leaving maybeStartSdJwtVcFlow().");
@@ -1428,6 +1451,7 @@ function metadataSource() {
 // Signature button, which only means something for RFC 8414 (signed_metadata is
 // an RFC 8414 member; OIDC Discovery does not define it).
 function updateMetadataSourceUi() {
+  log.debug("Entering updateMetadataSourceUi().");
   var which = metadataSource();
   var src = METADATA_SOURCES[which];
   $("#metadata_source_hint").html(
@@ -1439,6 +1463,7 @@ function updateMetadataSourceUi() {
     $("#signed_metadata_row").hide();
     $("#signed_metadata_status").text("");
   }
+  log.debug("Leaving updateMetadataSourceUi().");
 }
 
 // Picking a source retunes the hint and offers that source's URL:
@@ -1450,6 +1475,7 @@ function updateMetadataSourceUi() {
 //     default value of the field when RFC 8414 is what you asked for;
 //   * anything else the user typed is left alone.
 function onMetadataSourceChange(evt) {
+  log.debug("Entering onMetadataSourceChange().");
   // The enclosing <form> carries onclick="return OnSubmitOIDCDiscoveryEndpointForm()",
   // so a click on these radios would otherwise bubble up, retrieve the document
   // before the source had changed, and — because that handler returns false —
@@ -1471,6 +1497,7 @@ function onMetadataSourceChange(evt) {
   // NOT false: this is a radio's onclick, and returning false would cancel the
   // default action, leaving the button unchecked while the rest of the page
   // acted on the new source.
+  log.debug("Leaving onMetadataSourceChange().");
   return true;
 }
 
@@ -1571,7 +1598,9 @@ function saveDiscoveryInfo(info) {
   try {
     localStorage.setItem(DISCOVERY_INFO_KEY, JSON.stringify(info));
     localStorage.setItem(DISCOVERY_SOURCE_KEY, JSON.stringify(discoveryProvenance));
-  } catch (e) { log.error("Could not store the discovery document: " + e.message); }
+  } catch (e) {
+    log.error("Could not store the discovery document: " + e.message);
+  }
 }
 
 // Take the table off the screen. Safe during page load: restoreDiscoveryInfo()
@@ -1596,11 +1625,15 @@ function forgetDiscoveryInfo() {
 }
 
 function restoreDiscoveryInfo() {
+  log.debug("Entering restoreDiscoveryInfo().");
   if (!localStorage) return;
   var saved = localStorage.getItem(DISCOVERY_INFO_KEY);
   if (!saved) return;
-  try { discoveryProvenance = JSON.parse(localStorage.getItem(DISCOVERY_SOURCE_KEY) || "null"); }
-  catch (e) { discoveryProvenance = null; }
+  try {
+    discoveryProvenance = JSON.parse(localStorage.getItem(DISCOVERY_SOURCE_KEY) || "null");
+  } catch (e) {
+    discoveryProvenance = null;
+  }
   try {
     var info = JSON.parse(saved);
     if (!info || typeof info !== "object") return;
@@ -1613,6 +1646,7 @@ function restoreDiscoveryInfo() {
     log.error("Could not read the stored discovery document: " + e.message);
     localStorage.removeItem(DISCOVERY_INFO_KEY);
   }
+  log.debug("Leaving restoreDiscoveryInfo().");
 }
 
 function buildDiscoveryInfoTable(discoveryInfo) {
@@ -1631,9 +1665,11 @@ function buildDiscoveryInfoTable(discoveryInfo) {
                                       '</table>';
   $("#discovery_info_meta_data_populate").html(discovery_info_meta_data_html);
   $("#discovery_info_table").html(html);
+  log.debug("Leaving buildDiscoveryInfoTable().");
 }
 
 function onSubmitPopulateFormsWithDiscoveryInformation() {
+  log.debug("Entering onSubmitPopulateFormsWithDiscoveryInformation().");
   log.debug('Entering OnSubmitPopulateFormsWithDiscoveryInformation().');
   var authorizationEndpoint = discoveryInfo["authorization_endpoint"];
   var idTokenSigningAlgValuesSupported = discoveryInfo["id_token_signing_alg_values_supported"];
@@ -1731,6 +1767,7 @@ function onSubmitPopulateFormsWithDiscoveryInformation() {
   // default client metadata document) from the discovery metadata.
   populateClientMetadataFromDiscovery();
   log.debug('Leaving OnSubmitPopulateFormsWithDiscoveryInformation().');
+  log.debug("Leaving onSubmitPopulateFormsWithDiscoveryInformation().");
   return true;
 }
 
@@ -1753,6 +1790,7 @@ function onClickClearAllForms() {
 // Mirror the cleared pane into local storage, so the next page load does not
 // restore what was just cleared.
 function clearConfigurationStorage() {
+  log.debug("Entering clearConfigurationStorage().");
   if (!localStorage) return;
   ["authorization_endpoint", "token_endpoint", "introspection_endpoint",
    "revocation_endpoint", "device_authorization_endpoint", "registration_endpoint",
@@ -1776,6 +1814,7 @@ function clearConfigurationStorage() {
   localStorage.setItem("authzcustomParametersCheck-yes", true);
   localStorage.setItem("authzcustomParametersCheck-no", false);
   opMetadata.clearStorage();
+  log.debug("Leaving clearConfigurationStorage().");
 }
 
 function onSubmitClearAllForms() {
@@ -2015,10 +2054,12 @@ function onClickShowAuthzFieldSet(id) {
     }
   }
   log.debug('Leaving onClickShowAuthzFieldSet().');
+  log.debug("Leaving onClickShowAuthzFieldSet().");
   return false;
 }
 
 function onClickShowGenericFieldSet(id) {
+  log.debug("Entering onClickShowGenericFieldSet().");
   log.debug('Entering onClickShowConfigFieldSet(). id=' 
             + id + ', style.display='
             + $("#" + id).css("display"));
@@ -2031,6 +2072,7 @@ function onClickShowGenericFieldSet(id) {
     $(jid).show();
   }
   log.debug('Leaving onClickShowGenericFieldSet().');
+  log.debug("Leaving onClickShowGenericFieldSet().");
   return false;
 }
 
@@ -2250,6 +2292,7 @@ function registerClient() {
   if (!md) {
     return false;
   }
+  log.debug("Leaving registerClient().");
   return callRegistrationProxy("POST", $("#dcr_registration_endpoint").val(),
     $("#dcr_initial_access_token").val(), md, function (data) {
       // Capture the issued credentials and the client configuration endpoint.
@@ -2292,6 +2335,7 @@ function updateClient() {
   if (!md) {
     return false;
   }
+  log.debug("Leaving updateClient().");
   return callRegistrationProxy("PUT", $("#registration_client_uri").val(),
     $("#registration_access_token").val(), md, function (data) {
       // Reflect the updated registration and pick up any rotated token.
@@ -2315,6 +2359,7 @@ function displayDcrResponse(data) {
 }
 
 function displayDcrError(request, message) {
+  log.debug("Entering displayDcrError().");
   var text;
   if (message) {
     text = message;
@@ -2332,9 +2377,11 @@ function displayDcrError(request, message) {
                   "</fieldset>";
   $("#display_dcr_error_class").html(DOMPurify.sanitize(errorHtml));
   $("#dcr_error_textarea").val(text);
+  log.debug("Leaving displayDcrError().");
 }
 
 function writeDcrValuesToLocalStorage() {
+  log.debug("Entering writeDcrValuesToLocalStorage().");
   if (localStorage) {
     // The Registration Endpoint shares the "registration_endpoint" key with the
     // Configuration pane; only persist it when set so a blank DCR copy does not
@@ -2348,9 +2395,11 @@ function writeDcrValuesToLocalStorage() {
     localStorage.setItem("dcr_initial_access_token", $("#dcr_initial_access_token").val());
     localStorage.setItem("dcr_client_metadata", $("#dcr_client_metadata").val());
   }
+  log.debug("Leaving writeDcrValuesToLocalStorage().");
 }
 
 function loadDcrValuesFromLocalStorage() {
+  log.debug("Entering loadDcrValuesFromLocalStorage().");
   if (localStorage) {
     if (localStorage.getItem("registration_endpoint")) {
       $("#dcr_registration_endpoint").val(localStorage.getItem("registration_endpoint"));
@@ -2372,12 +2421,14 @@ function loadDcrValuesFromLocalStorage() {
     $("#dcr_client_metadata").val(clientMetadata);
     localStorage.setItem("dcr_client_metadata", clientMetadata);
   }
+  log.debug("Leaving loadDcrValuesFromLocalStorage().");
 }
 
 // Render a preview of the HTTP request that "Register New Client" will send to
 // the Registration Endpoint (a POST of the client metadata, RFC 7591 Section 3.1),
 // analogous to the request preview in the Request Authorization Code pane.
 function recalculateDcrRequestDescription() {
+  log.debug("Entering recalculateDcrRequestDescription().");
   var ta = $("#dcr_request_textarea");
   if (!ta || ta.length === 0) {
     return;
@@ -2399,6 +2450,7 @@ function recalculateDcrRequestDescription() {
     // Leave the body verbatim so the user can see/fix invalid JSON.
   }
   ta.val(request + body);
+  log.debug("Leaving recalculateDcrRequestDescription().");
 }
 
 module.exports = {

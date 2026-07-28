@@ -36,17 +36,13 @@ if (!global.window.crypto) global.window.crypto = webcrypto;
 
 // Locate the frontend crypto module. In the tests container it is copied next to
 // this script (tests/Dockerfile); from a repo checkout it lives in client/src.
-function loadXmldsig() {
-  const candidates = [
-    path.join(__dirname, "xmldsig.js"),
-    path.join(__dirname, "..", "client", "src", "xmldsig.js"),
-  ];
-  for (const p of candidates) {
-    if (fs.existsSync(p)) return require(p);
-  }
-  throw new Error("could not locate client/src/xmldsig.js (looked in: " + candidates.join(", ") + ")");
-}
-const xd = loadXmldsig();
+// requireSharedModule also makes the tests' own dependencies resolvable for it —
+// see module_paths.js.
+const { requireSharedModule } = require("./module_paths.js");
+const xd = requireSharedModule([
+  path.join(__dirname, "xmldsig.js"),
+  path.join(__dirname, "..", "client", "src", "xmldsig.js"),
+], "client/src/xmldsig.js");
 
 const { SignedXml } = require("xml-crypto");
 const xmlenc = require("xml-encryption");
@@ -101,8 +97,12 @@ function verifyWithXmlCrypto(signedXml, certPem, idAttributes) {
   if (idAttributes) sig.idAttributes = sig.idAttributes.concat(idAttributes);
   sig.loadSignature(sigNodes[0]);
   let ok = false, detail = "";
-  try { ok = sig.checkSignature(signedXml); }
-  catch (e) { detail = e.message; ok = false; }
+  try {
+    ok = sig.checkSignature(signedXml);
+  } catch (e) {
+    detail = e.message;
+    ok = false;
+  }
   if (!ok && !detail && sig.validationErrors) detail = JSON.stringify(sig.validationErrors);
   return { ok, detail };
 }
@@ -175,7 +175,10 @@ async function encryptionTests() {
         certPem: kp.certPem, dataAlg: c.dataAlg, keyAlg: c.keyAlg,
         type: XENC + "Element", c14nMode: "none", digest: SHA1, mgf: XENC11 + "mgf1sha1",
       });
-    } catch (e) { check(c.name + " (encrypt)", false, e.message); continue; }
+    } catch (e) {
+      check(c.name + " (encrypt)", false, e.message);
+      continue;
+    }
     const { err, res } = await decryptWithXmlEnc(encXml, kp.privateKeyPem);
     if (err) { check(c.name, false, "decrypt error: " + err.message); continue; }
     check(c.name + " round-trips", res === PLAINTEXT, 'decrypted="' + String(res).slice(0, 80) + '"');
@@ -204,9 +207,16 @@ function decryptRoundTripTests() {
         certPem: kp.certPem, dataAlg: c.dataAlg, keyAlg: c.keyAlg,
         type: XENC + "Element", c14nMode: "none", digest: c.digest, mgf: c.mgf,
       });
-    } catch (e) { check(c.name + " (encrypt)", false, e.message); continue; }
-    try { dec = xd.decryptXml(enc, { privateKeyPem: kp.privateKeyPem }); }
-    catch (e) { check(c.name, false, "decrypt error: " + e.message); continue; }
+    } catch (e) {
+      check(c.name + " (encrypt)", false, e.message);
+      continue;
+    }
+    try {
+      dec = xd.decryptXml(enc, { privateKeyPem: kp.privateKeyPem });
+    } catch (e) {
+      check(c.name, false, "decrypt error: " + e.message);
+      continue;
+    }
     check(c.name + " round-trips", dec === PLAINTEXT, 'decrypted="' + String(dec).slice(0, 80) + '"');
   }
 
@@ -216,12 +226,21 @@ function decryptRoundTripTests() {
     type: XENC + "Element", c14nMode: "none", digest: SHA1, mgf: XENC11 + "mgf1sha1",
   });
   const wrapped = '<saml:EncryptedAssertion xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">' + encA + '</saml:EncryptedAssertion>';
-  let decW; try { decW = xd.decryptXml(wrapped, { privateKeyPem: kp.privateKeyPem }); } catch (e) { decW = "ERR:" + e.message; }
+  let decW;
+  try {
+    decW = xd.decryptXml(wrapped, { privateKeyPem: kp.privateKeyPem });
+  } catch (e) {
+    decW = "ERR:" + e.message;
+  }
   check("EncryptedAssertion wrapper decrypts", decW === PLAINTEXT, String(decW).slice(0, 80));
 
   // Negative control: the wrong private key MUST fail to decrypt.
   let threw = false;
-  try { xd.decryptXml(encA, { privateKeyPem: other.privateKeyPem }); } catch (e) { threw = true; }
+  try {
+    xd.decryptXml(encA, { privateKeyPem: other.privateKeyPem });
+  } catch (e) {
+    threw = true;
+  }
   check("negative control: wrong private key is REJECTED", threw, "decrypted with the wrong key");
 }
 
@@ -326,7 +345,10 @@ function envelopedSignatureTests() {
         sigAlg: "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
         refUri: c.refUri, placement: c.placement,
       });
-    } catch (e) { check(c.name + " (sign)", false, e.message); continue; }
+    } catch (e) {
+      check(c.name + " (sign)", false, e.message);
+      continue;
+    }
 
     const r = verifyWithXmlCrypto(signed, kp.certPem, c.idAttrs);
     check(c.name + " assertion verifies (xml-crypto)", r.ok, r.detail);
@@ -370,7 +392,12 @@ function envelopedSignatureTests() {
     type: XENC + "Element", c14nMode: "none", digest: XENC + "sha256", mgf: XENC11 + "mgf1sha256",
   });
   const wrapped = '<saml:EncryptedAssertion xmlns:saml="' + SAML2_NS + '">' + enc + '</saml:EncryptedAssertion>';
-  let dec; try { dec = xd.decryptXml(wrapped, { privateKeyPem: kp.privateKeyPem }); } catch (e) { dec = "ERR:" + e.message; }
+  let dec;
+  try {
+    dec = xd.decryptXml(wrapped, { privateKeyPem: kp.privateKeyPem });
+  } catch (e) {
+    dec = "ERR:" + e.message;
+  }
   check("sign-then-encrypt round-trips", dec === signed20, String(dec).slice(0, 80));
   const rd = verifyWithXmlCrypto(String(dec), kp.certPem);
   check("decrypted assertion still verifies", rd.ok, rd.detail);

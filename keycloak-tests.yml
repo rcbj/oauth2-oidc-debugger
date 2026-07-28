@@ -26,8 +26,9 @@ services:
     hostname: sts
     network_mode: "host"
     environment:
+      # Log level, chosen the same way as for api and client.
+      - CONFIG_FILE=./env/local.js
       # Host networking: Keycloak is on the same loopback.
-      - OID4VCI_AUTHORIZATION_SERVER=http://localhost:8080/realms/debugger-testing
     build:
       context: .
       dockerfile: sts/Dockerfile

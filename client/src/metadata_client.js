@@ -21,9 +21,25 @@
 // vci_metadata.js (credential issuer metadata).
 // ---------------------------------------------------------------------------
 
+var bunyan = require("bunyan");
+// The log level comes from the same configuration the pages use. A consumer
+// outside the browser bundles (the node-based tests load this module directly)
+// may not have one, so fall back to info rather than failing to load.
+var log = bunyan.createLogger({
+  name: "metadata_client",
+  level: (function () {
+    try {
+      return require(process.env.CONFIG_FILE).logLevel || "info";
+    } catch (e) {
+      return "info";
+    }
+  })()
+});
+
 // --- escaping ---------------------------------------------------------------
 // Every table below is built by string concatenation from a document fetched
 // off the network, so nothing reaches the markup unescaped.
+
 function escapeHtmlText(v) {
   if (v === null || v === undefined) return "";
   var s = (typeof v === "object") ? JSON.stringify(v) : String(v);
@@ -68,7 +84,11 @@ function valueToDisplay(value) {
 function looksLikeJsonStructure(text) {
   var t = String(text == null ? "" : text).trim();
   if (!(t.charAt(0) === "{" || t.charAt(0) === "[")) return false;
-  try { return isJsonStructure(JSON.parse(t)); } catch (e) { return false; }
+  try {
+    return isJsonStructure(JSON.parse(t));
+  } catch (e) {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +101,7 @@ function looksLikeJsonStructure(text) {
 // A <select> — the boolean members — is never swapped.
 // ---------------------------------------------------------------------------
 function setMetadataField(id, text) {
+  log.debug("Entering setMetadataField().");
   var e = document.getElementById(id);
   if (!e) return null;
   var value = (text == null) ? "" : String(text);
@@ -106,6 +127,7 @@ function setMetadataField(id, text) {
     e.rows = Math.min(24, Math.max(3, value.split("\n").length));
   }
   e.value = value;
+  log.debug("Leaving setMetadataField().");
   return e;
 }
 
@@ -132,6 +154,7 @@ function utf8ToB64u(s) {
 // --- JWS verification (Web Crypto) ------------------------------------------
 // JWS alg -> the Web Crypto import/verify parameters.
 function jwsAlgParams(alg) {
+  log.debug("Entering jwsAlgParams().");
   var rsa = { RS256: "SHA-256", RS384: "SHA-384", RS512: "SHA-512" };
   var pss = { PS256: "SHA-256", PS384: "SHA-384", PS512: "SHA-512" };
   var ec = { ES256: ["P-256", "SHA-256"], ES384: ["P-384", "SHA-384"], ES512: ["P-521", "SHA-512"] };
@@ -145,6 +168,7 @@ function jwsAlgParams(alg) {
   if (ec[alg]) {
     return { imp: { name: "ECDSA", namedCurve: ec[alg][0] }, ver: { name: "ECDSA", hash: { name: ec[alg][1] } } };
   }
+  log.debug("Leaving jwsAlgParams().");
   return null;
 }
 
@@ -161,6 +185,7 @@ function jwkForImport(jwk) {
 // names the token in any error, since the same code verifies signed_metadata,
 // an SD-JWT VC, and a proof JWT.
 async function verifyJwsWithJwks(token, jwks, label) {
+  log.debug("Entering verifyJwsWithJwks().");
   label = label || "the JWT";
   var parts = String(token).split(".");
   if (parts.length !== 3) throw new Error(label + " is not a three-part JWS.");
@@ -184,8 +209,11 @@ async function verifyJwsWithJwks(token, jwks, label) {
       if (await crypto.subtle.verify(params.ver, key, sig, data)) {
         return { valid: true, header: header, kid: candidates[i].kid || "(no kid)" };
       }
-    } catch (e) { /* wrong key for this alg — try the next one */ }
+    } catch (e) {
+      // wrong key for this alg — try the next one
+    }
   }
+  log.debug("Leaving verifyJwsWithJwks().");
   return { valid: false, header: header, kid: header.kid || "(no kid)" };
 }
 
@@ -209,6 +237,7 @@ async function verifyJwsWithJwks(token, jwks, label) {
 var SIGNED_METADATA_SKIP = ["iss", "sub", "iat", "exp", "nbf", "aud", "jti"];
 
 function validateSignedMetadata(doc, options) {
+  log.debug("Entering validateSignedMetadata().");
   options = options || {};
   var issuerMember = options.issuerMember || "issuer";
   var jwksUri = options.jwksUri || (doc && doc.jwks_uri);
@@ -226,6 +255,7 @@ function validateSignedMetadata(doc, options) {
   }
 
   progress("Fetching " + jwksUri + " …");
+  log.debug("Leaving validateSignedMetadata().");
   return fetch(jwksUri)
     .then(function (r) {
       if (!r.ok) { throw new Error("jwks_uri returned HTTP " + r.status); }
@@ -234,8 +264,11 @@ function validateSignedMetadata(doc, options) {
     .then(function (jwks) { return verifyJwsWithJwks(doc.signed_metadata, jwks, "signed_metadata"); })
     .then(function (res) {
       var claims;
-      try { claims = b64uToJson(String(doc.signed_metadata).split(".")[1]); }
-      catch (e) { claims = {}; }
+      try {
+        claims = b64uToJson(String(doc.signed_metadata).split(".")[1]);
+      } catch (e) {
+        claims = {};
+      }
       var lines = [];
       lines.push(res.valid
         ? "VALID — signature verified (alg " + res.header.alg + ", kid " + res.kid + ")."
@@ -273,6 +306,7 @@ function validateSignedMetadata(doc, options) {
 //   provenance  { docLabel, url } describing THIS document, or null
 // ---------------------------------------------------------------------------
 function buildInfoTable(info, provenance) {
+  log.debug("Entering buildInfoTable().");
   var note = "";
   if (provenance && (provenance.url || provenance.docLabel)) {
     note = "<p class='discovery-info-note'>Showing <strong>" +
@@ -290,6 +324,7 @@ function buildInfoTable(info, provenance) {
       : escapeHtmlText(value);
     html += "<tr><td>" + escapeHtmlText(key) + "</td><td>" + cell + "</td></tr>";
   });
+  log.debug("Leaving buildInfoTable().");
   return html + "</table>";
 }
 
@@ -302,6 +337,8 @@ function buildInfoTable(info, provenance) {
 // as it arrived.
 // ---------------------------------------------------------------------------
 function createStore(infoKey, sourceKey) {
+  log.debug("Entering createStore().");
+  log.debug("Leaving createStore().");
   return {
     infoKey: infoKey,
     sourceKey: sourceKey,
@@ -309,7 +346,10 @@ function createStore(infoKey, sourceKey) {
       try {
         localStorage.setItem(infoKey, JSON.stringify(info));
         localStorage.setItem(sourceKey, JSON.stringify(provenance || null));
-      } catch (e) { /* no storage / quota */ }
+      } catch (e) {
+        // No storage, or over quota: the document is still on screen, it just
+        // will not survive a reload.
+      }
     },
     read: function () {
       try {
@@ -317,17 +357,24 @@ function createStore(infoKey, sourceKey) {
         if (!saved) return null;
         var info = JSON.parse(saved);
         return (info && typeof info === "object") ? info : null;
-      } catch (e) { return null; }
+      } catch (e) {
+        return null;
+      }
     },
     readProvenance: function () {
-      try { return JSON.parse(localStorage.getItem(sourceKey) || "null"); }
-      catch (e) { return null; }
+      try {
+        return JSON.parse(localStorage.getItem(sourceKey) || "null");
+      } catch (e) {
+        return null;
+      }
     },
     forget: function () {
       try {
         localStorage.removeItem(infoKey);
         localStorage.removeItem(sourceKey);
-      } catch (e) { /* no storage */ }
+      } catch (e) {
+        // No storage: there was nothing stored to forget.
+      }
     }
   };
 }

@@ -360,8 +360,13 @@ app.post('/samlartifactctx', function (req, res) {
 function decodeSamlMessage(b64) {
   var buf = Buffer.from(String(b64 || ''), 'base64');
   if (buf.length && buf[0] === 0x3c /* '<' */) return buf.toString('utf8');
-  try { return zlib.inflateRawSync(buf).toString('utf8'); }
-  catch (e) { return buf.toString('utf8'); }
+  try {
+    return zlib.inflateRawSync(buf).toString('utf8');
+  } catch (e) {
+    // Not DEFLATEd after all (a POST-binding message that did not start with
+    // '<', e.g. leading whitespace): read it as plain XML.
+    return buf.toString('utf8');
+  }
 }
 
 // Pull the <samlp:Response> element out of a SOAP <ArtifactResponse> envelope.
@@ -396,8 +401,11 @@ function resolveArtifact(artifact, relayState) {
              '<samlp:Artifact>' + artifact + '</samlp:Artifact>' +
              '</samlp:ArtifactResolve>';
     var signed;
-    try { signed = signXmlEnveloped(ar, ctx.privateKeyPem, ctx.certPem, 'ArtifactResolve'); }
-    catch (e) { return reject(new Error('signing ArtifactResolve failed: ' + e.message)); }
+    try {
+      signed = signXmlEnveloped(ar, ctx.privateKeyPem, ctx.certPem, 'ArtifactResolve');
+    } catch (e) {
+      return reject(new Error('signing ArtifactResolve failed: ' + e.message));
+    }
 
     // Optional WS-Addressing SOAP headers. WS-Addressing is a SOAP-layer
     // mechanism (not part of the AuthnRequest); it applies only to this SOAP

@@ -25,13 +25,33 @@
 //                and "Result"; `key` names the field on a recorded entry.
 //     emptyText  shown when nothing has been recorded yet.
 
+
+var bunyan = require("bunyan");
+// The log level comes from the same configuration the pages use. A consumer
+// outside the browser bundles (the node-based tests load this module directly)
+// may not have one, so fall back to info rather than failing to load.
+var log = bunyan.createLogger({
+  name: "op_history",
+  level: (function () {
+    try {
+      return require(process.env.CONFIG_FILE).logLevel || "info";
+    } catch (e) {
+      return "info";
+    }
+  })()
+});
+
 var RESULT_SENT = 'Sent';
 var RESULT_SUCCESS = 'Success';
 var RESULT_FAILURE = 'Failure';
 var LIMIT = 1000;
 
 function hasStorage() {
-  try { return !!window.localStorage; } catch (e) { return false; }
+  try {
+    return !!window.localStorage;
+  } catch (e) {
+    return false;
+  }
 }
 
 function escapeHtml(s) {
@@ -51,6 +71,7 @@ function resultClass(result) {
 }
 
 function createHistory(config) {
+  log.debug("Entering createHistory().");
   var STORE_KEY = config.storeKey;
   var COLUMNS = config.columns || [];
   var EMPTY_TEXT = config.emptyText || 'No calls recorded yet.';
@@ -60,14 +81,20 @@ function createHistory(config) {
     try {
       var h = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
       return Object.prototype.toString.call(h) === '[object Array]' ? h : [];
-    } catch (e) { return []; }
+    } catch (e) {
+      return [];
+    }
   }
 
   function write(history) {
     if (!hasStorage()) return;
     // Keep the most recent entries once the cap is reached.
     if (history.length > LIMIT) history = history.slice(history.length - LIMIT);
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(history)); } catch (e) { /* quota */ }
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(history));
+    } catch (e) {
+      // No storage available in this context.
+    }
   }
 
   // Append an entry. Its recognized fields are the configured columns plus
@@ -162,6 +189,7 @@ function createHistory(config) {
     box.innerHTML = html + '</tbody></table></div>';
   }
 
+  log.debug("Leaving createHistory().");
   return {
     SENT: RESULT_SENT,
     SUCCESS: RESULT_SUCCESS,

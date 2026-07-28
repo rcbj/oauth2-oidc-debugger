@@ -16,7 +16,7 @@ var waitTime = appconfig.waitTime;
 var OAUTH2_CARD = By.css('a.landing-card[href="/debugger.html"]');
 var SAML_CARD = By.css('a.landing-card[href="/saml_request.html"]');
 var WSTRUST_CARD = By.css('a.landing-card[href="/wstrust_tools.html"]');
-var SDJWTVC_CARD = By.css('a.landing-card[href="/sd-jwt-vc-issuance-1.html"]');
+var SDJWTVC_CARD = By.css('a.landing-card[href="/sd-jwt-vc-issuance-0.html"]');
 var CHOICES = By.css('.landing-choices');
 // The header "Home" nav link (returns to the landing page).
 var HOME_LINK = By.css('.header_debugger a[href="/index.html"]');
@@ -103,13 +103,13 @@ async function navigationActivities(driver) {
   await waitVisible(driver, CHOICES);
   log.info("Back on the landing page.");
 
-  // 8. Choose the SD-JWT VC issuance workflow -> sd-jwt-vc-issuance-1.html.
+  // 8. Choose the SD-JWT VC issuance workflow -> the use-case chooser.
   log.info("Click the SD-JWT VC Issuance card.");
   await click(driver, SDJWTVC_CARD);
-  await driver.wait(until.urlContains("sd-jwt-vc-issuance-1.html"), waitTime);
-  await driver.wait(until.elementLocated(By.id("vci_metadata_endpoint")), waitTime);
-  log.info("Landed on sd-jwt-vc-issuance-1.html.");
-  await checkFooterVersion(driver, "sd-jwt-vc-issuance-1.html");
+  await driver.wait(until.urlContains("sd-jwt-vc-issuance-0.html"), waitTime);
+  await driver.wait(until.elementLocated(By.css("button.vc-usecase")), waitTime);
+  log.info("Landed on sd-jwt-vc-issuance-0.html (choose a use case).");
+  await checkFooterVersion(driver, "sd-jwt-vc-issuance-0.html");
 
   // 9. Return to Home -> landing page.
   log.info("Click Home -> landing page.");

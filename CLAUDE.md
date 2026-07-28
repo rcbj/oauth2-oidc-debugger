@@ -13,7 +13,7 @@ The project is split into two independent Node.js services:
 - **`/api/`** — Express backend (port 4000). Proxies token endpoint calls server-side and provides a `/claimdescription` endpoint with cached IANA JWT claim metadata.
 - **`/client/`** — Express frontend (port 3000). Serves static HTML/JS pages and handles the OAuth2 redirect callback at `/callback`, forwarding query params to `debugger2.html`.
 - **`/common/data.js`** — Shared `convertToOAuth2Format()` function used by both services to normalize grant parameters (including PKCE and custom params).
-- **`/sts/`** — A mock Security Token Service used by the test suite. It speaks WS-Trust; hosts a bare-minimum **OID4VCI Credential Issuer** (`/.well-known/openid-credential-issuer`, `/.well-known/jwt-vc-issuer`, `/oid4vci/nonce`, `/oid4vci/credential`) that mints SD-JWT VCs per RFC 9901; and acts as a **mock OAuth 2.0 authorization server** — an RFC 8414 metadata document plus every endpoint it advertises (`/oauth2/authorize`, `/oauth2/token`, `/oauth2/introspect`, `/oauth2/revoke`, `/oauth2/register`, `/oauth2/jwks`). The authorization endpoint shows a **login screen** (`/oauth2/login`, Keycloak's field ids) and the username typed there becomes the identity in every token; no password is ever checked. All tokens are RS256 JWTs signed with the STS key, so they verify against the advertised JWKS. The debugger's full OAuth2 / OIDC workflow can therefore run against it with no identity provider.
+- **`/sts/`** — A mock Security Token Service used by the test suite. It speaks WS-Trust; hosts a bare-minimum **OID4VCI Credential Issuer** (`/.well-known/openid-credential-issuer`, `/.well-known/jwt-vc-issuer`, `/oid4vci/nonce`, `/oid4vci/credential`) that mints SD-JWT VCs per RFC 9901; hosts the issuer side of an OID4VCI **Credential Offer** for use case H.1 (`/issuer`, `/issuer/offer`, `/oid4vci/credential-offer/:id`, sending the End-User to `OID4VCI_WALLET_URL`); and acts as a **mock OAuth 2.0 authorization server** — an RFC 8414 metadata document plus every endpoint it advertises (`/oauth2/authorize`, `/oauth2/token`, `/oauth2/introspect`, `/oauth2/revoke`, `/oauth2/register`, `/oauth2/jwks`). It selects its configuration (log level) with `CONFIG_FILE` like the other services (`sts/env/*.js`), and at the default `debug` level it logs every endpoint call (path, request/response headers and bodies, status, elapsed time) and every assertion/JWT/SD-JWT VC before and after signing or encryption. The authorization endpoint shows a **login screen** (`/oauth2/login`, Keycloak's field ids) and the username typed there becomes the identity in every token; no password is ever checked. All tokens are RS256 JWTs signed with the STS key, so they verify against the advertised JWKS. The debugger's full OAuth2 / OIDC workflow can therefore run against it with no identity provider.
 
 ### Shared client modules
 
@@ -28,7 +28,9 @@ Several page bundles share modules rather than duplicating behaviour:
 | `op_history.js` | `saml_history.js`, `wstrust_history.js` | the Operations History log |
 | `xmldsig.js` | the SAML and WS-Trust pages | in-browser XML Signature / XML Encryption |
 
-The **SD-JWT VC issuance workflow** (`sd-jwt-vc-issuance-{1,2,3}.html`) reuses the OIDC Authorization Code flow on `debugger.html` / `debugger2.html`: the `?sdjwtvc=1` query parameter marks the flow active, and `debugger2.html` returns to step 2 once it has the tokens. Both debugger pages behave exactly as before without that parameter. Step 1's authorization-server pane deliberately writes the **same localStorage keys** the debugger pages read.
+The **SD-JWT VC issuance workflow** (`sd-jwt-vc-issuance-{0,1,2,3}.html`) reuses the OIDC Authorization Code flow on `debugger.html` / `debugger2.html`: the `?sdjwtvc=1` query parameter marks the flow active, and `debugger2.html` returns to step 2 once it has the tokens. Both debugger pages behave exactly as before without that parameter. Step 1's authorization-server pane deliberately writes the **same localStorage keys** the debugger pages read.
+
+Step 0 chooses which OID4VCI **Appendix H use case** to run. The list lives in one place — `USE_CASES` in `client/src/sd_jwt_vc.js` — and both the chooser's cards and the badge every other page shows are generated from it, so they cannot disagree; `setUseCase()` redraws the badge itself, because an arriving Credential Offer changes the use case after the page has already been laid out. **H.6** (wallet-initiated) is what the workflow has always done. **H.1** (issuer-initiated) starts at the issuer's own page, comes back to step 1 with a Credential Offer in `credential_offer` or `credential_offer_uri`, and carries the offer's `issuer_state` into the authorization request (`debugger.js` appends it as a custom authorization parameter). H.2 and H.3 are listed as not implemented yet.
 
 ### Frontend Build
 
@@ -43,6 +45,7 @@ Client-side JavaScript lives in `/client/src/` and is compiled into `/client/pub
 | `userinfo.js` | `userinfo.js` | Userinfo endpoint |
 | `jwks.js` | `jwks.js` | JWKS endpoint |
 | `logout.js` | `logout.js` | OIDC logout |
+| `sd_jwt_vc_issuance_0.js` | `sd_jwt_vc_issuance_0.js` | SD-JWT VC issuance step 0, the use-case chooser (`sd-jwt-vc-issuance-0.html`) |
 | `sd_jwt_vc_issuance_1.js` | `sd_jwt_vc_issuance_1.js` | SD-JWT VC issuance step 1 (`sd-jwt-vc-issuance-1.html`) |
 | `sd_jwt_vc_issuance_2.js` | `sd_jwt_vc_issuance_2.js` | SD-JWT VC issuance step 2 (`sd-jwt-vc-issuance-2.html`) |
 | `sd_jwt_vc_issuance_3.js` | `sd_jwt_vc_issuance_3.js` | SD-JWT VC issuance step 3 (`sd-jwt-vc-issuance-3.html`) |
@@ -92,6 +95,8 @@ Individual test files in `/tests/`:
 - `oidc_authorization_code.js`
 - `sd_jwt_vc_issuance.js` (the OID4VCI / SD-JWT VC workflow; needs the STS mock and Keycloak)
 - `oauth2_sts_endpoints.js` (the STS mock's authorization server endpoints; no browser)
+
+**The SAML SP key pair is never committed.** `generateSpKeyPair()` in `common/common.sh` generates a fresh self-signed RSA pair per run and exports `SAML_SP_PRIVATE_KEY` / `SAML_SP_CERT` (read by the tests through `common/sp_keypair.js`) and `SAML_SP_SIGNING_CERT` (registered on the Keycloak SAML client). It lives only in the run's environment — the containerized suite generates its own inside the tests container. Do not reintroduce a key pair under `tests/fixtures/` (gitignored, along with `sp-key.pem` / `sp-cert.pem`).
 
 There is no linting toolchain configured in this project.
 

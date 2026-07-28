@@ -111,6 +111,7 @@ function onActAsChange() { show('wst_actas_row', checked('wst_use_actas')); save
 // (Bearer key type is 1.3+, ActAs is 1.4) and refresh the namespace-derived
 // wsa:Action. Hidden options are also reset so they aren't sent.
 function onVersionChange() {
+  log.debug("Entering onVersionChange().");
   var v = trustVersion();
   var kt = el('wst_key_type');
   if (kt) {
@@ -123,12 +124,14 @@ function onVersionChange() {
   onActAsChange();      // adjust the ActAs textarea row to the (possibly reset) checkbox
   onOperationChange();  // refresh wsa:Action for the new namespace + rebuild
   saveState();
+  log.debug("Leaving onVersionChange().");
   return false;
 }
 
 // Show the Target Token field only for the operations that need one
 // (Renew/Validate/Cancel act on an existing token; Issue mints a new one).
 function onOperationChange() {
+  log.debug("Entering onOperationChange().");
   var op = val('wst_operation');
   show('wst_target_section', op !== 'issue');
   // Auto-fill wsa:Action to match the operation + version, unless the user has
@@ -139,6 +142,7 @@ function onOperationChange() {
   }
   saveState();
   autoBuildRequest();
+  log.debug("Leaving onOperationChange().");
   return false;
 }
 
@@ -146,6 +150,7 @@ function onOperationChange() {
 // Signing key-pair generation (RSA via node-forge) + self-signed certificate.
 // ---------------------------------------------------------------------------
 function generateKeys() {
+  log.debug("Entering generateKeys().");
   var bits = parseInt(val('wst_key_bits'), 10) || 2048;
   setStatus('wst_call_status', 'Generating ' + bits + '-bit RSA key pair…');
   setTimeout(function () {
@@ -161,6 +166,7 @@ function generateKeys() {
       setStatus('wst_call_status', 'Key generation error: ' + e.message);
     }
   }, 20);
+  log.debug("Leaving generateKeys().");
   return false;
 }
 
@@ -183,8 +189,13 @@ function downloadKeys() {
 // Import a SAML assertion from the SAML workflow's last response (saved by
 // saml_response.js under 'saml_last_response'); extract the <Assertion>.
 function importSamlAssertion() {
+  log.debug("Entering importSamlAssertion().");
   var saved = '';
-  try { saved = (window.localStorage && localStorage.getItem('saml_last_response')) || ''; } catch (e) { saved = ''; }
+  try {
+    saved = (window.localStorage && localStorage.getItem('saml_last_response')) || '';
+  } catch (e) {
+    saved = '';
+  }
   if (!saved) {
     setStatus('wst_config_status', 'No SAML response found — run a SAML SSO first (SAML Debugger), or paste an assertion manually.');
     return false;
@@ -201,6 +212,7 @@ function importSamlAssertion() {
     log.error('importSamlAssertion: ' + e.message);
     setStatus('wst_config_status', 'Import failed: ' + e.message);
   }
+  log.debug("Leaving importSamlAssertion().");
   return false;
 }
 
@@ -217,6 +229,7 @@ function tokenTypeUri() { return wm.tokenTypeUri(val('wst_token_type'), val('wst
 // The credential element that goes inside <wsse:Security> (UsernameToken, an
 // embedded SAML assertion, or nothing).
 function buildSecurityCredential() {
+  log.debug("Entering buildSecurityCredential().");
   var mode = val('wst_cred_mode');
   if (mode === 'usernametoken') {
     var user = val('wst_username');
@@ -244,10 +257,13 @@ function buildSecurityCredential() {
     // Embed the assertion XML as-is (already an element).
     return val('wst_saml_token').trim();
   }
+  log.debug("Leaving buildSecurityCredential().");
   return '';
 }
 
 function buildRstBody() {
+  log.debug("Entering buildRstBody().");
+  log.debug("Leaving buildRstBody().");
   return wm.buildRst({
     version: val('wst_trust_version'),
     operation: val('wst_operation'),
@@ -272,6 +288,7 @@ function soapEnvelopeNs() {
 // Build the full SOAP envelope (unsigned/unencrypted). Body and Timestamp carry
 // wsu:Id attributes so signing can reference them without mutating the tree.
 function buildSoapEnvelope() {
+  log.debug("Entering buildSoapEnvelope().");
   var soapNs = soapEnvelopeNs();
   var op = val('wst_operation');
   var headerParts = [];
@@ -303,6 +320,7 @@ function buildSoapEnvelope() {
     ? '<soap:Header>' + headerParts.join('') + securityHeader + '</soap:Header>'
     : '';
 
+  log.debug("Leaving buildSoapEnvelope().");
   return '<soap:Envelope xmlns:soap="' + soapNs + '" xmlns:wsa="' + WSA_NS + '" xmlns:wsu="' + WSU_NS + '">' +
     header +
     '<soap:Body wsu:Id="_body">' + buildRstBody() + '</soap:Body>' +
@@ -334,6 +352,7 @@ function signWsSecurity(soapXml) {
 // won't process an encrypted request body). Replaces the RST inside <soap:Body>
 // with an <xenc:EncryptedData>.
 function encryptSoapBody(soapXml) {
+  log.debug("Entering encryptSoapBody().");
   var doc = new DOMParser().parseFromString(soapXml, 'application/xml');
   var body = firstByLocal(doc, 'Body');
   if (!body) throw new Error('No <soap:Body> to encrypt.');
@@ -352,6 +371,7 @@ function encryptSoapBody(soapXml) {
   });
   var encNode = doc.importNode(new DOMParser().parseFromString(encXml, 'application/xml').documentElement, true);
   body.replaceChild(encNode, rst);
+  log.debug("Leaving encryptSoapBody().");
   return new XMLSerializer().serializeToString(doc);
 }
 
@@ -367,10 +387,15 @@ function buildFinalRequest() {
 // Auto-rebuild the Generated Request field on any change.
 // ---------------------------------------------------------------------------
 function autoBuildRequest() {
-  try { buildRequestUi(); } catch (e) { log.error('autoBuildRequest: ' + e.message); }
+  try {
+    buildRequestUi();
+  } catch (e) {
+    log.error('autoBuildRequest: ' + e.message);
+  }
   return false;
 }
 function buildRequestUi() {
+  log.debug("Entering buildRequestUi().");
   try {
     var xml = buildFinalRequest();
     setVal('wst_generated_request', formatXml(xml));
@@ -383,11 +408,13 @@ function buildRequestUi() {
     log.error('buildRequestUi: ' + e.message);
     setStatus('wst_call_status', 'Build failed: ' + e.message);
   }
+  log.debug("Leaving buildRequestUi().");
   return false;
 }
 
 // Minimal, dependency-free XML pretty-printer (shared shape with saml_response.js).
 function formatXml(xml) {
+  log.debug("Entering formatXml().");
   if (!xml) return '';
   xml = xml.replace(/(>)(<)(\/*)/g, '$1\n$2$3');
   var pad = 0, out = '';
@@ -398,6 +425,7 @@ function formatXml(xml) {
     out += new Array(pad + 1).join('  ') + node + '\n';
     pad += indent;
   });
+  log.debug("Leaving formatXml().");
   return out.trim();
 }
 
@@ -415,6 +443,7 @@ function contentTypeFor(soapVersion, action) {
 }
 
 function stashAndGo(requestXml, responseXml, httpStatus, historyId) {
+  log.debug("Entering stashAndGo().");
   var meta = {
     operation: val('wst_operation'),
     trustVersion: val('wst_trust_version'),
@@ -434,8 +463,11 @@ function stashAndGo(requestXml, responseXml, httpStatus, historyId) {
     if (window.localStorage) {
       localStorage.setItem(EXCHANGE_KEY, JSON.stringify({ requestXml: requestXml, responseXml: responseXml, meta: meta }));
     }
-  } catch (e) { log.error('stash: ' + e.message); }
+  } catch (e) {
+    log.error('stash: ' + e.message);
+  }
   window.location.assign('/wstrust_response.html');
+  log.debug("Leaving stashAndGo().");
 }
 
 
@@ -494,6 +526,7 @@ function clearOperationHistory() {
 }
 
 function callSts() {
+  log.debug("Entering callSts().");
   var url = val('wst_sts_url').trim();
   if (!url) {
     setStatus('wst_call_status', 'Enter the STS endpoint URL first.');
@@ -508,8 +541,9 @@ function callSts() {
   var action = val('wst_wsa_action') || wsaActionUri(op);
 
   var soap;
-  try { soap = buildFinalRequest(); }
-  catch (e) {
+  try {
+    soap = buildFinalRequest();
+  } catch (e) {
     setStatus('wst_call_status', 'Build failed: ' + e.message);
     return opFailure('build failed: ' + e.message);
   }
@@ -546,6 +580,7 @@ function callSts() {
       setStatus('wst_call_status', 'STS call failed: ' + e.message + ' — a cross-origin SOAP endpoint often blocks direct browser calls (CORS); switch to backend routing.');
       opFailure(e.message + ' (CORS, if routed through the browser)');
     });
+  log.debug("Leaving callSts().");
   return false;
 }
 
@@ -553,14 +588,22 @@ function callSts() {
 // Misc UI (shared shapes with saml_request.js).
 // ---------------------------------------------------------------------------
 function copyField(id) {
+  log.debug("Entering copyField().");
   var e = el(id);
   if (!e) return false;
   var text = e.value || '';
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).catch(function (err) { log.error('copyField: ' + err); });
   } else {
-    try { e.focus(); e.select(); document.execCommand('copy'); } catch (err) { log.error('copyField fallback: ' + err.message); }
+    try {
+      e.focus();
+      e.select();
+      document.execCommand('copy');
+    } catch (err) {
+      log.error('copyField fallback: ' + err.message);
+    }
   }
+  log.debug("Leaving copyField().");
   return false;
 }
 function togglePane(bodyId) {
@@ -582,7 +625,11 @@ function showTab(evt, tabId) {
 function viewCertificate(fieldId) {
   var pem = val(fieldId);
   if (!pem) { setStatus('wst_call_status', 'No certificate to view yet.'); return false; }
-  try { if (window.localStorage) localStorage.setItem('saml_cert_view', pem); } catch (e) { /* ignore */ }
+  try {
+    if (window.localStorage) localStorage.setItem('saml_cert_view', pem);
+  } catch (e) {
+    // No storage available in this context.
+  }
   window.open('/saml_cert.html?from=wstrust_tools.html', '_blank');
   return false;
 }

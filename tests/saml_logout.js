@@ -1,9 +1,11 @@
 const { Builder, By, until, logging } = require("selenium-webdriver");
 const chrome = require("selenium-webdriver/chrome");
 const assert = require("assert");
-const fs = require("fs");
 const path = require("path");
 const { Command, Option } = require('commander');
+// The SP key pair is generated per run and passed in through the environment;
+// it is deliberately not stored in this repository. See common/sp_keypair.js.
+const { readSpKeyPair } = require("../common/sp_keypair.js");
 var appconfig = require(process.env.CONFIG_FILE);
 
 var bunyan = require("bunyan");
@@ -87,10 +89,11 @@ async function ssoLogin(driver, metadataUrl, spEntityId, user, binding, loginWai
   await driver.findElement(spField).clear();
   await driver.findElement(spField).sendKeys(spEntityId);
 
-  // Fixed SP signing key pair (its cert is registered on the Keycloak client, so
-  // both the AuthnRequest and the LogoutRequest signatures validate).
-  var spKey = fs.readFileSync(path.join(__dirname, "fixtures", "sp-key.pem"), "utf8");
-  var spCert = fs.readFileSync(path.join(__dirname, "fixtures", "sp-cert.pem"), "utf8");
+  // This run's SP signing key pair (its cert is registered on the Keycloak
+  // client, so both the AuthnRequest and the LogoutRequest signatures validate).
+  var spPair = readSpKeyPair();
+  var spKey = spPair.privateKey;
+  var spCert = spPair.certificate;
   await driver.executeScript(
     "document.getElementById('saml_sp_private_key').value = arguments[0];" +
     "document.getElementById('saml_sp_public_key').value = arguments[1];",

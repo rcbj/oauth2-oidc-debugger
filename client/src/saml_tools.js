@@ -77,6 +77,7 @@ function isV2() { return version() === '2.0'; }
 // ---------------------------------------------------------------------------
 function persistedEls() { return document.querySelectorAll('.stored'); }
 function saveState() {
+  log.debug("Entering saveState().");
   if (!window.localStorage) return;
   var els = persistedEls();
   for (var i = 0; i < els.length; i++) {
@@ -84,9 +85,15 @@ function saveState() {
     var v = els[i].type === 'checkbox' ? (els[i].checked ? '1' : '0') : els[i].value;
     localStorage.setItem(STORE_PREFIX + els[i].id, v);
   }
-  try { localStorage.setItem(ATTRS_KEY, JSON.stringify(attributes)); } catch (e) { /* ignore */ }
+  try {
+    localStorage.setItem(ATTRS_KEY, JSON.stringify(attributes));
+  } catch (e) {
+    // No storage available in this context.
+  }
+  log.debug("Leaving saveState().");
 }
 function restoreState() {
+  log.debug("Entering restoreState().");
   if (!window.localStorage) return;
   var els = persistedEls();
   for (var i = 0; i < els.length; i++) {
@@ -101,8 +108,12 @@ function restoreState() {
     try {
       var parsed = JSON.parse(saved);
       if (Object.prototype.toString.call(parsed) === '[object Array]') attributes = parsed;
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      // A stored value from an older build, or hand-edited: start from the
+      // built-in attributes rather than failing to load the page.
+    }
   }
+  log.debug("Leaving restoreState().");
 }
 
 // ---------------------------------------------------------------------------
@@ -117,6 +128,7 @@ function num(id, dflt) { var n = parseInt(val(id), 10); return isNaN(n) ? dflt :
 // SubjectConfirmationData / session expiries from "now". Called on load and by
 // the Refresh button, and whenever the validity window is changed.
 function refreshTimestamps() {
+  log.debug("Entering refreshTimestamps().");
   var now = new Date();
   var skewMs = num('sa_skew_seconds', 60) * 1000;
   var lifeMs = num('sa_validity_minutes', 5) * 60 * 1000;
@@ -127,6 +139,7 @@ function refreshTimestamps() {
   setVal('sa_confirm_notonorafter', toInstant(new Date(now.getTime() + lifeMs)));
   setVal('sa_session_notonorafter', toInstant(new Date(now.getTime() + (lifeMs * 12))));
   autoBuild();
+  log.debug("Leaving refreshTimestamps().");
   return false;
 }
 
@@ -151,6 +164,7 @@ var ATTR_NAMEFORMAT_URI = 'urn:oasis:names:tc:SAML:2.0:attrname-format:uri';
 var ATTR_NAMEFORMAT_UNSPEC = 'urn:oasis:names:tc:SAML:2.0:attrname-format:unspecified';
 
 function addAttribute() {
+  log.debug("Entering addAttribute().");
   var name = val('sa_attr_name').trim();
   if (!name) { setStatus('sa_compose_status', 'Enter an attribute name.'); return false; }
   attributes.push({
@@ -165,6 +179,7 @@ function addAttribute() {
   saveState();
   autoBuild();
   setStatus('sa_compose_status', 'Attribute added (' + attributes.length + ' total).');
+  log.debug("Leaving addAttribute().");
   return false;
 }
 
@@ -187,6 +202,7 @@ function clearAttributes() {
 // Render the attribute table. Values come from user input, so every cell is
 // escaped before it goes near innerHTML.
 function renderAttributes() {
+  log.debug("Entering renderAttributes().");
   var body = el('sa_attr_rows');
   if (!body) return;
   if (!attributes.length) {
@@ -205,6 +221,7 @@ function renderAttributes() {
       '</tr>';
   }
   body.innerHTML = html;
+  log.debug("Leaving renderAttributes().");
 }
 
 function attrFullName(a) { return (a.prefix || '') + a.name; }
@@ -228,6 +245,7 @@ function confirmationMethod() {
 
 // <saml:Subject> for SAML 2.0 — NameID plus an optional SubjectConfirmation.
 function subject20(pad) {
+  log.debug("Entering subject20().");
   var lines = [];
   lines.push(pad + '<saml:Subject>');
   lines.push(pad + '  <saml:NameID' + attrOpt('Format', val('sa_nameid_format')) +
@@ -244,6 +262,7 @@ function subject20(pad) {
     lines.push(pad + '  </saml:SubjectConfirmation>');
   }
   lines.push(pad + '</saml:Subject>');
+  log.debug("Leaving subject20().");
   return lines.join('\n') + '\n';
 }
 
@@ -251,6 +270,7 @@ function subject20(pad) {
 // optional SubjectConfirmation carrying a <ConfirmationMethod> element. In 1.x
 // the Subject belongs to each statement, not to the assertion.
 function subject1x(pad) {
+  log.debug("Entering subject1x().");
   var lines = [];
   lines.push(pad + '<saml:Subject>');
   lines.push(pad + '  <saml:NameIdentifier' + attrOpt('Format', val('sa_nameid_format')) +
@@ -262,6 +282,7 @@ function subject1x(pad) {
     lines.push(pad + '  </saml:SubjectConfirmation>');
   }
   lines.push(pad + '</saml:Subject>');
+  log.debug("Leaving subject1x().");
   return lines.join('\n') + '\n';
 }
 
@@ -294,6 +315,7 @@ function attributeElements1x(pad) {
 // SAML 2.0 assertion (saml-core-2.0-os §2.3.3). Child order is fixed by the
 // schema: Issuer, [Signature], [Subject], [Conditions], [Advice], statements*.
 function buildAssertion20() {
+  log.debug("Entering buildAssertion20().");
   var ns = ' xmlns:saml="' + SAML2_NS + '"';
   if (attrsUseXsiType() && isOn('sa_opt_attrs')) ns += ' xmlns:xs="' + XS_NS + '" xmlns:xsi="' + XSI_NS + '"';
 
@@ -355,6 +377,7 @@ function buildAssertion20() {
   }
 
   out += '</saml:Assertion>';
+  log.debug("Leaving buildAssertion20().");
   return out;
 }
 
@@ -363,6 +386,7 @@ function buildAssertion20() {
 // unlike 2.0 where it follows the Issuer. The Subject lives inside each
 // statement, and 1.0 has no DoNotCacheCondition (added in 1.1).
 function buildAssertion1x() {
+  log.debug("Entering buildAssertion1x().");
   var minor = version() === '1.1' ? '1' : '0';
   var ns = ' xmlns:saml="' + SAML1_NS + '"';
   if (attrsUseXsiType() && isOn('sa_opt_attrs')) ns += ' xmlns:xs="' + XS_NS + '" xmlns:xsi="' + XSI_NS + '"';
@@ -420,6 +444,7 @@ function buildAssertion1x() {
   }
 
   out += '</saml:Assertion>';
+  log.debug("Leaving buildAssertion1x().");
   return out;
 }
 
@@ -455,6 +480,7 @@ function syncEncryptInput(xml) {
 // Re-apply every step the user has already applied, in order, and show the
 // furthest-along signed form in pane 1.
 function refreshPipeline() {
+  log.debug("Entering refreshPipeline().");
   var displayed = baseAssertion;
 
   if (signActive) {
@@ -495,13 +521,18 @@ function refreshPipeline() {
   setVal('sa_assertion', displayed);
   syncEncryptInput(displayed);
   if (encActive) runEncrypt();
+  log.debug("Leaving refreshPipeline().");
   return displayed;
 }
 
 // Regenerate the Assertion field from the current settings. Called on every
 // change; guarded so a transient build error can never break the handler.
 function autoBuild() {
-  try { buildAssertionUi(); } catch (e) { log.error('autoBuild: ' + e.message); }
+  try {
+    buildAssertionUi();
+  } catch (e) {
+    log.error('autoBuild: ' + e.message);
+  }
   return false;
 }
 
@@ -512,6 +543,7 @@ function autoBuild() {
 // It is deliberately not offered for the signed assertion, where reformatting
 // would change the digested octets and invalidate the signature.
 function formatXmlElement(node, indent) {
+  log.debug("Entering formatXmlElement().");
   var attrs = '';
   for (var i = 0; i < node.attributes.length; i++) {
     attrs += ' ' + node.attributes[i].name + '="' + esc(node.attributes[i].value) + '"';
@@ -533,10 +565,12 @@ function formatXmlElement(node, indent) {
   if (text.trim()) lines.push(indent + '  ' + esc(text.trim()));
   for (var k = 0; k < kids.length; k++) lines.push(formatXmlElement(kids[k], indent + '  '));
   lines.push(indent + '</' + node.nodeName + '>');
+  log.debug("Leaving formatXmlElement().");
   return lines.join('\n');
 }
 
 function prettyPrintAssertion() {
+  log.debug("Entering prettyPrintAssertion().");
   if (!baseAssertion.trim()) { setStatus('sa_compose_status', 'Nothing to format yet.'); return false; }
   var doc = new DOMParser().parseFromString(baseAssertion, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length) {
@@ -549,6 +583,7 @@ function prettyPrintAssertion() {
   baseAssertion = formatXmlElement(doc.documentElement, '');
   refreshPipeline();
   setStatus('sa_compose_status', 'Assertion pretty printed' + (signActive ? ' and re-signed' : '') + '.');
+  log.debug("Leaving prettyPrintAssertion().");
   return false;
 }
 
@@ -565,7 +600,13 @@ function buildAssertionUi() {
 // Spec compliance check. Parses the generated assertion and applies the
 // structural rules of the selected version's schema/spec.
 // ---------------------------------------------------------------------------
-function isAbsoluteUri(v) { try { new URL(v); return true; } catch (e) { return false; } }
+function isAbsoluteUri(v) {
+try {
+  new URL(v);
+  return true;
+} catch (e) {
+  return false;
+} }
 function isInstant(v) { return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(v || ''); }
 function isNCName(v) { return /^[A-Za-z_][A-Za-z0-9._\-]*$/.test(v || ''); }
 function firstLocal(root, name) {
@@ -578,6 +619,7 @@ function countLocal(root, name) {
 }
 
 function checkCompliance() {
+  log.debug("Entering checkCompliance().");
   var results = [];
   function pass(c, m) { results.push('PASS  ' + c + ': ' + m); }
   function fail(c, m) { results.push('FAIL  ' + c + ': ' + m); }
@@ -758,6 +800,7 @@ function checkCompliance() {
   results.unshift('SAML ' + v + ' compliance: ' + (failures ? failures + ' failure(s)' : 'no failures') +
     (warnings ? ', ' + warnings + ' warning(s)' : '') + '.');
   setVal('sa_compliance_output', results.join('\n'));
+  log.debug("Leaving checkCompliance().");
   return false;
 }
 
@@ -765,6 +808,7 @@ function checkCompliance() {
 // Pane 2 — signing key pair + enveloped XML Signature
 // ---------------------------------------------------------------------------
 function generateKeys() {
+  log.debug("Entering generateKeys().");
   var bits = num('sa_key_bits', 2048);
   setStatus('sa_sign_status', 'Generating ' + bits + '-bit RSA key pair…');
   // Defer so the status paints before the (synchronous, slow) keygen runs.
@@ -780,10 +824,12 @@ function generateKeys() {
       setStatus('sa_sign_status', 'Key generation error: ' + e.message);
     }
   }, 20);
+  log.debug("Leaving generateKeys().");
   return false;
 }
 
 function generateEncryptionKeys() {
+  log.debug("Entering generateEncryptionKeys().");
   var bits = num('sa_enc_key_bits', 2048);
   setStatus('sa_enc_status', 'Generating ' + bits + '-bit RSA key pair…');
   setTimeout(function () {
@@ -798,6 +844,7 @@ function generateEncryptionKeys() {
       setStatus('sa_enc_status', 'Key generation error: ' + e.message);
     }
   }, 20);
+  log.debug("Leaving generateEncryptionKeys().");
   return false;
 }
 
@@ -843,6 +890,7 @@ function signatureRefUri() {
 // Turn signing on. From here the signature is recomputed on every change until
 // Reset (or until the private key goes away), and pane 1 shows the signed form.
 function signAssertion() {
+  log.debug("Entering signAssertion().");
   if (!baseAssertion) { setStatus('sa_sign_status', 'Compose an assertion first.'); return false; }
   if (!val('sa_private_key')) {
     setStatus('sa_sign_status', 'No signing key — click Generate Keys (or paste a PKCS#8 private key).');
@@ -853,10 +901,12 @@ function signAssertion() {
   setVal('sa_verify_input', '');
   refreshPipeline();
   saveState();
+  log.debug("Leaving signAssertion().");
   return false;
 }
 
 function verifySignature() {
+  log.debug("Entering verifySignature().");
   var xml = val('sa_verify_input') || val('sa_signed_assertion');
   if (!xml) { setVal('sa_verify_output', 'Nothing to verify — sign an assertion or paste one above.'); return false; }
   try {
@@ -878,6 +928,7 @@ function verifySignature() {
     log.error('verifySignature: ' + e.message);
     setVal('sa_verify_output', 'Verification error: ' + e.message);
   }
+  log.debug("Leaving verifySignature().");
   return false;
 }
 
@@ -894,6 +945,7 @@ function encryptAssertion() {
 }
 
 function runEncrypt() {
+  log.debug("Entering runEncrypt().");
   var xml = val('sa_enc_plaintext') || val('sa_signed_assertion') || val('sa_assertion');
   if (!xml) { setStatus('sa_enc_status', 'Nothing to encrypt.'); return false; }
   try {
@@ -926,10 +978,12 @@ function runEncrypt() {
     log.error('runEncrypt: ' + e.message);
     setStatus('sa_enc_status', 'Encryption error: ' + e.message);
   }
+  log.debug("Leaving runEncrypt().");
   return false;
 }
 
 function decryptAssertion() {
+  log.debug("Entering decryptAssertion().");
   var xml = val('sa_dec_input') || val('sa_encrypted');
   if (!xml) { setVal('sa_dec_output', 'Nothing to decrypt.'); return false; }
   var priv = val('sa_enc_private_key');
@@ -941,6 +995,7 @@ function decryptAssertion() {
     log.error('decryptAssertion: ' + e.message);
     setVal('sa_dec_output', 'Decryption error: ' + e.message);
   }
+  log.debug("Leaving decryptAssertion().");
   return false;
 }
 
@@ -948,14 +1003,22 @@ function decryptAssertion() {
 // UI plumbing (mirrors saml_request.js)
 // ---------------------------------------------------------------------------
 function copyField(id) {
+  log.debug("Entering copyField().");
   var e = el(id);
   if (!e) return false;
   var text = e.value || '';
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).catch(function (err) { log.error('copyField: ' + err); });
   } else {
-    try { e.focus(); e.select(); document.execCommand('copy'); } catch (err) { log.error('copyField fallback: ' + err.message); }
+    try {
+      e.focus();
+      e.select();
+      document.execCommand('copy');
+    } catch (err) {
+      log.error('copyField fallback: ' + err.message);
+    }
   }
+  log.debug("Leaving copyField().");
   return false;
 }
 
@@ -968,7 +1031,11 @@ function togglePane(bodyId) {
 function viewCertificate(fieldId) {
   var pem = val(fieldId);
   if (!pem) { setStatus('sa_sign_status', 'No certificate to view yet — generate a key pair first.'); return false; }
-  try { if (window.localStorage) localStorage.setItem('saml_cert_view', pem); } catch (e) { /* ignore */ }
+  try {
+    if (window.localStorage) localStorage.setItem('saml_cert_view', pem);
+  } catch (e) {
+    // No storage available in this context.
+  }
   window.open('/saml_cert.html?from=saml_tools.html', '_blank');
   return false;
 }
@@ -994,6 +1061,7 @@ function setOptionAvailable(selectId, optValue, available, fallback) {
 //     authentication statement.
 // Called on load, on every version change, and on every checkbox change.
 function applyVisibility() {
+  log.debug("Entering applyVisibility().");
   var v = version();
   var v2 = isV2();
 
@@ -1058,6 +1126,7 @@ function applyVisibility() {
         ? 'SAML 1.1: the <ds:Signature> is the assertion’s last child, and the Reference points at AssertionID (an xs:ID as of 1.1).'
         : 'SAML 1.0: the <ds:Signature> is the assertion’s last child, and the Reference uses URI="" (the whole document) because 1.0’s AssertionID is not an xs:ID.');
   }
+  log.debug("Leaving applyVisibility().");
 }
 
 // Show only the controls that exist in the selected version, then rebuild.
@@ -1076,6 +1145,7 @@ function setReturnLink() {
 // the other endpoint-shaped fields) follow wherever this debugger is deployed.
 // Applied on load and by Reset, and only to fields the user has left empty.
 function seedDefaults() {
+  log.debug("Entering seedDefaults().");
   var origin = (window.location && window.location.origin) || appconfig.uiUrl || '';
   if (!val('sa_issuer')) setVal('sa_issuer', origin ? origin.replace(/\/+$/, '') + '/issuer' : '');
   if (!val('sa_audience')) setVal('sa_audience', appconfig.spEntityId || (origin + '/saml/sp'));
@@ -1088,6 +1158,7 @@ function seedDefaults() {
     setVal('sa_enc_cert', val('sa_public_key'));
     setVal('sa_enc_private_key', val('sa_private_key'));
   }
+  log.debug("Leaving seedDefaults().");
 }
 
 // Every control in all three panes, excluding the buttons.
@@ -1100,6 +1171,7 @@ function paneFields() {
 // the generated key pairs and any signed/encrypted output — they are throwaway
 // test material, and the defaults for those fields are empty.
 function resetToDefaults() {
+  log.debug("Entering resetToDefaults().");
   if (window.localStorage) {
     var stored = persistedEls();
     for (var s = 0; s < stored.length; s++) {
@@ -1138,6 +1210,7 @@ function resetToDefaults() {
   refreshTimestamps();   // rebuilds the assertion
   setStatus('sa_compose_status', 'All three panes reset to their default values.');
   saveState();
+  log.debug("Leaving resetToDefaults().");
   return false;
 }
 

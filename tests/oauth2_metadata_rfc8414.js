@@ -105,8 +105,11 @@ async function testMetadataDocument() {
     "the metadata endpoint must allow cross-origin reads.");
 
   var doc;
-  try { doc = JSON.parse(res.body); }
-  catch (e) { throw new Error("metadata is not valid JSON: " + e.message); }
+  try {
+    doc = JSON.parse(res.body);
+  } catch (e) {
+    throw new Error("metadata is not valid JSON: " + e.message);
+  }
 
   var missing = RFC8414_MEMBERS.filter(function (m) { return !(m in doc); });
   assert.strictEqual(missing.length, 0, "metadata is missing RFC 8414 members: " + missing.join(", "));
@@ -148,8 +151,11 @@ async function testSignedMetadata(doc) {
   var certRes = await get(stsBase + "/sts/cert");
   assert.strictEqual(certRes.status, 200, "could not fetch the STS certificate for verification.");
   var claims;
-  try { claims = jwt.verify(doc.signed_metadata, certRes.body, { algorithms: ["RS256"] }); }
-  catch (e) { throw new Error("signed_metadata does not verify against the STS certificate: " + e.message); }
+  try {
+    claims = jwt.verify(doc.signed_metadata, certRes.body, { algorithms: ["RS256"] });
+  } catch (e) {
+    throw new Error("signed_metadata does not verify against the STS certificate: " + e.message);
+  }
 
   assert.strictEqual(claims.iss, doc.issuer, "signed_metadata iss must be the issuer.");
   assert.ok(!("signed_metadata" in claims), "signed_metadata must not contain itself.");
@@ -293,8 +299,12 @@ async function click(driver, locator) {
   var el = driver.findElement(locator);
   await driver.executeScript("arguments[0].scrollIntoView({ block: 'center' });", el);
   await driver.sleep(150);
-  try { await el.click(); }
-  catch (e) { await driver.executeScript("arguments[0].click();", el); }
+  try {
+    await el.click();
+  } catch (e) {
+    // Something is overlapping the element; click it through the DOM instead.
+    await driver.executeScript("arguments[0].click();", el);
+  }
   await driver.sleep(300);
 }
 function paneState(driver) {
@@ -639,7 +649,10 @@ async function test() {
     const prefs = new logging.Preferences();
     prefs.setLevel(logging.Type.BROWSER, logging.Level.SEVERE);
     options.setLoggingPrefs(prefs);
-  } catch (e) { /* browser logs are a bonus */ }
+  } catch (e) {
+    // Browser logs are a bonus; a driver that cannot collect them still runs the test.
+    log.info("browser logging preferences unavailable: " + e.message);
+  }
   const driver = await new Builder().forBrowser("chrome").setChromeOptions(options).build();
 
   try {
@@ -650,7 +663,10 @@ async function test() {
     try {
       severe = (await driver.manage().logs().get(logging.Type.BROWSER))
         .filter(function (e) { return e.level && e.level.name === "SEVERE"; });
-    } catch (e) { /* unavailable */ }
+    } catch (e) {
+      // No browser log on this driver, so there is nothing to assert about.
+      log.info("the browser log is unavailable here: " + e.message);
+    }
     assert.strictEqual(severe.length, 0,
       "the page logged console errors:\n  " + severe.map(function (e) { return e.message; }).join("\n  "));
     log.info("Test completed successfully.");

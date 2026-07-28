@@ -60,6 +60,8 @@ function status(id, text, cls) {
 // ES256, because it is what OID4VCI wallets use and what the mock issuer
 // advertises in proof_signing_alg_values_supported.
 function generateHolderKey() {
+  log.debug("Entering generateHolderKey().");
+  log.debug("Leaving generateHolderKey().");
   return crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"])
     .then(function (pair) {
       return Promise.all([
@@ -92,6 +94,7 @@ function loadOrGenerateHolderKey() {
 }
 
 function regenerateHolderKey() {
+  log.debug("Entering regenerateHolderKey().");
   generateHolderKey().then(function (pub) {
     setJson("vc_holder_jwk", pub);
     // A new key invalidates the proof built for the old one, so build another.
@@ -109,11 +112,13 @@ function regenerateHolderKey() {
   }).catch(function (e) {
     status("vc_approval_status", "Could not generate a holder key pair: " + e.message, "vc-bad");
   });
+  log.debug("Leaving regenerateHolderKey().");
   return false;
 }
 
 // --- the proof of possession ------------------------------------------------
 function signProof(nonce) {
+  log.debug("Entering signProof().");
   var header = { typ: PROOF_TYP, alg: PROOF_ALG, jwk: request.holderPublicJwk };
   var payload = {
     iss: sdJwtVc.get("client_id") || "",
@@ -123,6 +128,7 @@ function signProof(nonce) {
   if (nonce) payload.nonce = nonce;
   var signingInput = metadataClient.utf8ToB64u(JSON.stringify(header)) + "." +
                      metadataClient.utf8ToB64u(JSON.stringify(payload));
+  log.debug("Leaving signProof().");
   return crypto.subtle.importKey("jwk", request.holderPrivateJwk,
       { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"])
     .then(function (key) {
@@ -139,6 +145,7 @@ function signProof(nonce) {
 }
 
 function fetchNonce() {
+  log.debug("Entering fetchNonce().");
   var url = request.config.nonceEndpoint;
   if (!url) {
     // The Nonce Endpoint is optional. Without one there is no c_nonce to carry.
@@ -146,6 +153,7 @@ function fetchNonce() {
     setText("vc_nonce", "— (this issuer publishes no nonce_endpoint)");
     return Promise.resolve("");
   }
+  log.debug("Leaving fetchNonce().");
   return fetch(url, { method: "POST", headers: { "Content-Length": "0" } })
     .then(function (r) {
       if (!r.ok) throw new Error("the nonce endpoint returned HTTP " + r.status + ".");
@@ -173,6 +181,7 @@ function fetchNonce() {
 // issuer says so.
 // ---------------------------------------------------------------------------
 function prepareRequest() {
+  log.debug("Entering prepareRequest().");
   if (!request.config.credentialEndpoint) {
     setText("vc_nonce", "— (no issuer is configured)");
     setValue("vc_proof_jwt", "");
@@ -184,6 +193,7 @@ function prepareRequest() {
       "issuer metadata in step 1.", "vc-bad");
     return Promise.resolve(false);
   }
+  log.debug("Leaving prepareRequest().");
   return fetchNonce()
     .then(function (nonce) { return signProof(nonce); })
     .then(function () {
@@ -216,6 +226,7 @@ function buildRequestBody() {
 // variable it was built in, so what is shown is literally what is being sent.
 // ---------------------------------------------------------------------------
 function renderProofJwt(body) {
+  log.debug("Entering renderProofJwt().");
   var jwt = body && body.proofs && body.proofs.jwt && body.proofs.jwt[0];
   if (!jwt) {
     setValue("jwt_header", "");
@@ -231,6 +242,7 @@ function renderProofJwt(body) {
     setValue("jwt_header", "Could not decode the proof JWT: " + e.message);
     setValue("jwt_payload", "");
   }
+  log.debug("Leaving renderProofJwt().");
 }
 
 // ---------------------------------------------------------------------------
@@ -241,6 +253,7 @@ function renderProofJwt(body) {
 // not be the whole call.
 // ---------------------------------------------------------------------------
 function renderAssembledCall() {
+  log.debug("Entering renderAssembledCall().");
   var endpoint = request.config ? request.config.credentialEndpoint : "";
   if (!endpoint || !request.body) {
     setValue("vc_approval_request", "");
@@ -258,11 +271,13 @@ function renderAssembledCall() {
   ];
   var text = lines.join("\n");
   setValue("vc_approval_request", text);
+  log.debug("Leaving renderAssembledCall().");
   return text;
 }
 
 // --- the credential request -------------------------------------------------
 function approveIssuance() {
+  log.debug("Entering approveIssuance().");
   var accessToken = sdJwtVc.get("token_access_token") || "";
   if (!accessToken) {
     status("vc_approval_status",
@@ -288,7 +303,11 @@ function approveIssuance() {
     }).then(function (r) {
       return r.text().then(function (text) {
         var parsed = null;
-        try { parsed = JSON.parse(text); } catch (e) { /* not JSON */ }
+        try {
+          parsed = JSON.parse(text);
+        } catch (e) {
+          // Not JSON: keep the default.
+        }
         return { ok: r.ok, statusCode: r.status, body: parsed, raw: text };
       });
     });
@@ -345,6 +364,7 @@ function approveIssuance() {
       status("vc_approval_status", "The credential request failed: " + e.message, "vc-bad");
       el("vc_approve_button").disabled = false;
     });
+  log.debug("Leaving approveIssuance().");
   return false;
 }
 
@@ -373,6 +393,7 @@ function denyIssuance() {
 
 // --- page state -------------------------------------------------------------
 function showTokens() {
+  log.debug("Entering showTokens().");
   var access = sdJwtVc.get("token_access_token") || "";
   var id = sdJwtVc.get("token_id_token") || "";
   var refresh = sdJwtVc.get("token_refresh_token") || "";
@@ -383,7 +404,9 @@ function showTokens() {
   var claims = null;
   try {
     if (id && id.split(".").length === 3) claims = metadataClient.b64uToJson(id.split(".")[1]);
-  } catch (e) { /* not a JWT */ }
+  } catch (e) {
+    // not a JWT
+  }
   setJson("vc_id_token_claims", claims);
 
   if (!access) {
@@ -393,10 +416,12 @@ function showTokens() {
   } else {
     status("tokens_status", "Access token present" + (id ? " with an ID token." : "."), "vc-ok");
   }
+  log.debug("Leaving showTokens().");
   return claims;
 }
 
 function showRequestConfig(idTokenClaims) {
+  log.debug("Entering showRequestConfig().");
   var cfg = sdJwtVc.storedRequestConfig();
   request.config = cfg;
   setText("vc_credential_endpoint", cfg.credentialEndpoint || "—");
@@ -421,6 +446,7 @@ function showRequestConfig(idTokenClaims) {
     });
   }
   setText("vc_approval_claims", claimNames.length ? claimNames.join(", ") : "not stated in the metadata");
+  log.debug("Leaving showRequestConfig().");
 }
 
 function togglePane(id) {
@@ -430,12 +456,16 @@ function togglePane(id) {
 }
 
 function onload() {
+  log.debug("Entering onload().");
   // The hand-off has done its job; from here the workflow is on its own pages.
   sdJwtVc.endFlow();
+  sdJwtVc.renderUseCaseBadge();
   var step = document.getElementById("vc_step_2");
   if (step) step.className = "vc-step-current";
   var done = document.getElementById("vc_step_1");
   if (done) done.className = "vc-step-done";
+  var zero = document.getElementById("vc_step_0");
+  if (zero) zero.className = "vc-step-done";
 
   var claims = showTokens();
   showRequestConfig(claims);
@@ -461,6 +491,7 @@ function onload() {
       status("vc_approval_status", "Could not prepare the credential request: " + e.message, "vc-bad");
     });
   log.debug("SD-JWT VC issuance step 2 ready.");
+  log.debug("Leaving onload().");
 }
 
 if (typeof window !== "undefined") {

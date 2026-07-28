@@ -2,9 +2,9 @@
 set -x
 #
 # IN-CONTAINER entrypoint for the tests image (tests/Dockerfile CMD). It runs
-# INSIDE the tests container on the compose network, where common.sh and
-# fixtures/ have been copied next to it and the debugger/keycloak/api services
-# are reachable by their compose DNS names (client:3000, keycloak:8080, ...).
+# INSIDE the tests container on the compose network, where common.sh has been
+# copied next to it and the debugger/keycloak/api services are reachable by their
+# compose DNS names (client:3000, keycloak:8080, ...).
 #
 # Do NOT run this from the host — use ./docker-run-tests.sh (repo root), which
 # builds and brings up the whole containerized stack (docker-compose-run-tests.yml)
@@ -46,11 +46,6 @@ init()
   export WSTRUST_STS_URL
   CONFIG_FILE="${CONFIG_FILE:-./env/local.js}"
   CURRENT_DIR=`echo "$(dirname "$(realpath "$0")")"`
-  # SP signing cert (base64 DER) registered on the Keycloak SAML client so it can
-  # validate the AuthnRequest signature. Fixtures are copied next to this script
-  # in the tests image (see tests/Dockerfile).
-  SAML_SP_SIGNING_CERT=$(grep -v -- '-----' "${CURRENT_DIR}/fixtures/sp-cert.pem" | tr -d '\n\r')
-  export SAML_SP_SIGNING_CERT
   COMMON_SH=${CURRENT_DIR}/common.sh
   if [ -r "${COMMON_SH}" ];
   then
@@ -60,6 +55,11 @@ init()
     exit 1
   fi
   common_setup
+  check_return_code $?
+  # A fresh SP key pair for this run, generated inside this container: the tests
+  # sign and decrypt with the private key, and configureKeycloak registers the
+  # certificate on the SAML client. Nothing is baked into the image.
+  generateSpKeyPair
   check_return_code $?
   NODEJS_BASE_DIR=.
 }

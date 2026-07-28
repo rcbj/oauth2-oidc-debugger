@@ -20,6 +20,22 @@
 //         shown as JSON, 'string' -> plain text
 //   desc  the tooltip
 // ---------------------------------------------------------------------------
+
+var bunyan = require("bunyan");
+// The log level comes from the same configuration the pages use. A consumer
+// outside the browser bundles (the node-based tests load this module directly)
+// may not have one, so fall back to info rather than failing to load.
+var log = bunyan.createLogger({
+  name: "vci_metadata",
+  level: (function () {
+    try {
+      return require(process.env.CONFIG_FILE).logLevel || "info";
+    } catch (e) {
+      return "info";
+    }
+  })()
+});
+
 var VCI_METADATA = [
   { name: "credential_issuer", type: "string", dflt: "http://localhost:8081",
     desc: "REQUIRED. The Credential Issuer identifier — the URL the issuer metadata was published under, and the value a wallet's proof of possession must name as its audience." },
@@ -80,14 +96,22 @@ function toField(value) {
 
 function writeToLocalStorage() {
   VCI_METADATA.concat(VCI_CONFIG_METADATA).forEach(function (m) {
-    try { localStorage.setItem(idFor(m.name), fieldValue(idFor(m.name))); } catch (e) { /* no storage */ }
+    try {
+      localStorage.setItem(idFor(m.name), fieldValue(idFor(m.name)));
+    } catch (e) {
+      // No storage available in this context.
+    }
   });
 }
 
 function loadFromLocalStorage() {
   VCI_METADATA.concat(VCI_CONFIG_METADATA).forEach(function (m) {
     var v = null;
-    try { v = localStorage.getItem(idFor(m.name)); } catch (e) { /* no storage */ }
+    try {
+      v = localStorage.getItem(idFor(m.name));
+    } catch (e) {
+      // No storage available in this context.
+    }
     setFieldValue(idFor(m.name), (v === null || v === undefined) ? m.dflt : v);
   });
 }
@@ -100,7 +124,11 @@ function clearStorage() {
   // "" rather than removed: an ABSENT key falls back to the dummy default on
   // the next load, which would undo the clear.
   VCI_METADATA.concat(VCI_CONFIG_METADATA).forEach(function (m) {
-    try { localStorage.setItem(idFor(m.name), ""); } catch (e) { /* no storage */ }
+    try {
+      localStorage.setItem(idFor(m.name), "");
+    } catch (e) {
+      // No storage available in this context.
+    }
   });
 }
 
@@ -108,11 +136,16 @@ function clearStorage() {
 // one credential configuration the user picked out of
 // credential_configurations_supported.
 function populateFromMetadata(info, configId) {
+  log.debug("Entering populateFromMetadata().");
   info = info || {};
   VCI_METADATA.forEach(function (m) {
     var v = toField(info[m.name]);
     setFieldValue(idFor(m.name), v);
-    try { localStorage.setItem(idFor(m.name), v); } catch (e) { /* no storage */ }
+    try {
+      localStorage.setItem(idFor(m.name), v);
+    } catch (e) {
+      // No storage available in this context.
+    }
   });
 
   var configs = info.credential_configurations_supported || {};
@@ -129,8 +162,13 @@ function populateFromMetadata(info, configId) {
       v = toField(cfg[m.name]);
     }
     setFieldValue(idFor(m.name), v);
-    try { localStorage.setItem(idFor(m.name), v); } catch (e) { /* no storage */ }
+    try {
+      localStorage.setItem(idFor(m.name), v);
+    } catch (e) {
+      // No storage available in this context.
+    }
   });
+  log.debug("Leaving populateFromMetadata().");
   return id;
 }
 

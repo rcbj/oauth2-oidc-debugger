@@ -14,6 +14,22 @@
 // keys, defined here once.
 // ---------------------------------------------------------------------------
 
+
+var bunyan = require("bunyan");
+// The log level comes from the same configuration the pages use. A consumer
+// outside the browser bundles (the node-based tests load this module directly)
+// may not have one, so fall back to info rather than failing to load.
+var log = bunyan.createLogger({
+  name: "sd_jwt_vc",
+  level: (function () {
+    try {
+      return require(process.env.CONFIG_FILE).logLevel || "info";
+    } catch (e) {
+      return "info";
+    }
+  })()
+});
+
 var metadataClient = require("./metadata_client");
 var vciMetadata = require("./vci_metadata");
 
@@ -30,24 +46,193 @@ var KEYS = {
   // The holder key pair the proof of possession is signed with (JWK; the
   // private half never leaves the browser).
   HOLDER_JWK: "sdjwtvc_holder_jwk",
-  HOLDER_PRIVATE_JWK: "sdjwtvc_holder_private_jwk"
+  HOLDER_PRIVATE_JWK: "sdjwtvc_holder_private_jwk",
+  // Which OID4VCI Appendix H use case the workflow is running.
+  USE_CASE: "sdjwtvc_use_case",
+  // The Credential Offer, when the use case has one: { offer, source, receivedAt }.
+  OFFER: "sdjwtvc_credential_offer"
 };
+
+// ---------------------------------------------------------------------------
+// Which use case the workflow is running.
+//
+// OID4VCI Appendix H describes several; they differ on the wire in how the
+// issuance is started and which grant is used, so the workflow carries the
+// choice rather than guessing. Step 0 (sd-jwt-vc-issuance-0.html) is where it
+// is made; every later page shows which one is running.
+//
+//   id           the value stored under KEYS.USE_CASE
+//   label        the short name shown in the badge
+//   spec         the Appendix H section
+//   available    false for the ones not implemented yet — step 0 shows them,
+//                clearly, rather than pretending they are not coming
+// ---------------------------------------------------------------------------
+var USE_CASES = [
+  {
+    id: "wallet-initiated",
+    spec: "H.6",
+    label: "Wallet-initiated",
+    title: "Start from the wallet",
+    summary: "You know which issuer you want. The wallet retrieves its metadata, you pick a credential, " +
+             "and the wallet asks for it.",
+    detail: "Nothing is offered to you: the wallet drives the whole thing. This is what the workflow did " +
+            "before the other use cases existed, and it is the plain Authorization Code flow with no " +
+            "Credential Offer involved.",
+    mechanics: "Issuer metadata by URL → Authorization Code + PKCE → Credential Request.",
+    available: true
+  },
+  {
+    id: "offer-same-device",
+    spec: "H.1",
+    label: "Credential Offer — same device",
+    title: "The issuer offers you a credential",
+    summary: "You are on the issuer's web page and follow a link that offers you a credential. It hands " +
+             "your wallet a Credential Offer, on this same device.",
+    detail: "The issuer builds a Credential Offer naming itself, the credential on offer, and an " +
+            "issuer_state that ties what follows back to the offer. Your wallet shows you what was " +
+            "offered before anything is requested.",
+    mechanics: "Credential Offer (by value or by reference) → Authorization Code + PKCE with issuer_state → " +
+               "Credential Request.",
+    available: true
+  },
+  {
+    id: "offer-cross-device",
+    spec: "H.2",
+    label: "Credential Offer — cross device",
+    title: "Scan a code, type a transaction code",
+    summary: "The issuer shows a QR code on another screen. Your wallet scans it and you type a short " +
+             "transaction code sent to you separately.",
+    detail: "The offer carries a pre-authorized code instead of sending you to a login page, so there is " +
+            "no authorization request at all — the transaction code is what proves it is really you.",
+    mechanics: "Credential Offer with a pre-authorized_code grant + tx_code → Token Request → " +
+               "Credential Request.",
+    available: false
+  },
+  {
+    id: "offer-deferred",
+    spec: "H.3",
+    label: "Credential Offer — deferred",
+    title: "The credential is not ready yet",
+    summary: "The issuer accepts your request but needs time — background checks, a human in the loop — " +
+             "and your wallet collects the credential later.",
+    detail: "The credential endpoint answers with a transaction identifier instead of a credential, and " +
+            "the wallet comes back to the deferred endpoint until it is ready.",
+    mechanics: "Credential Request → transaction_id → Deferred Credential Request → Credential.",
+    available: false
+  }
+];
+
+var DEFAULT_USE_CASE = "wallet-initiated";
+
+function useCases() { return USE_CASES; }
+
+function useCaseById(id) {
+  for (var i = 0; i < USE_CASES.length; i++) {
+    if (USE_CASES[i].id === id) return USE_CASES[i];
+  }
+  return null;
+}
+
+function currentUseCase() {
+  return useCaseById(get(KEYS.USE_CASE)) || useCaseById(DEFAULT_USE_CASE);
+}
+
+function setUseCase(id) {
+  var uc = useCaseById(id);
+  if (!uc) return null;
+  set(KEYS.USE_CASE, uc.id);
+  // The use case can change part-way through a page's life — an arriving
+  // Credential Offer switches it after the badge has already been drawn — so
+  // redraw it here rather than leaving every caller to remember.
+  if (typeof document !== "undefined" && document.getElementById("vc_use_case_badge")) {
+    renderUseCaseBadge();
+  }
+  return uc;
+}
+
+// Show which use case is running, in the step indicator every page includes.
+function renderUseCaseBadge() {
+  var host = document.getElementById("vc_steps");
+  if (!host) return null;
+  var uc = currentUseCase();
+  var existing = document.getElementById("vc_use_case_badge");
+  if (existing) existing.parentNode.removeChild(existing);
+  var badge = document.createElement("p");
+  badge.id = "vc_use_case_badge";
+  badge.className = "vc-use-case-badge";
+  badge.innerHTML = 'Use case: <strong>' + uc.spec + ' &middot; ' + uc.label + '</strong> — ' +
+                    uc.mechanics + ' <a href="/sd-jwt-vc-issuance-0.html">change</a>';
+  host.parentNode.insertBefore(badge, host.nextSibling);
+  return uc;
+}
+
+// ---------------------------------------------------------------------------
+// The Credential Offer (OID4VCI section 4), for the use cases that have one.
+// ---------------------------------------------------------------------------
+function storeOffer(offer, source) {
+  setJson(KEYS.OFFER, { offer: offer, source: source, receivedAt: new Date().toISOString() });
+}
+
+function storedOffer() { return getJson(KEYS.OFFER); }
+
+function forgetOffer() { remove(KEYS.OFFER); }
+
+// The issuer_state an authorization_code offer carries, if there is one. The
+// authorization request has to send it back.
+function offerIssuerState() {
+  var stored = storedOffer();
+  var grants = stored && stored.offer && stored.offer.grants;
+  var authz = grants && grants.authorization_code;
+  return (authz && authz.issuer_state) || "";
+}
 
 var FLOW_ACTIVE = "active";
 var STEP2_URL = "/sd-jwt-vc-issuance-2.html";
 var STEP3_URL = "/sd-jwt-vc-issuance-3.html";
 
 function ls() {
-  try { return window.localStorage; } catch (e) { return null; }
+  try {
+    return window.localStorage;
+  } catch (e) {
+    // Blocked (private mode, third-party restrictions): the workflow degrades to
+    // "nothing was remembered" rather than failing.
+    return null;
+  }
 }
-function get(key) { var s = ls(); return s ? s.getItem(key) : null; }
-function set(key, value) { var s = ls(); if (s) { try { s.setItem(key, value); } catch (e) { /* quota */ } } }
-function remove(key) { var s = ls(); if (s) { try { s.removeItem(key); } catch (e) { /* no storage */ } } }
+function get(key) {
+  var s = ls();
+  return s ? s.getItem(key) : null;
+}
+
+function set(key, value) {
+  var s = ls();
+  if (!s) return;
+  try {
+    s.setItem(key, value);
+  } catch (e) {
+    // Over quota, or storage disabled: there is nothing to fall back to.
+  }
+}
+
+function remove(key) {
+  var s = ls();
+  if (!s) return;
+  try {
+    s.removeItem(key);
+  } catch (e) {
+    // No storage in this context; nothing to remove.
+  }
+}
 
 function getJson(key) {
   var raw = get(key);
   if (!raw) return null;
-  try { return JSON.parse(raw); } catch (e) { return null; }
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    // A value written by an older build, or hand-edited: treat it as absent.
+    return null;
+  }
 }
 function setJson(key, value) { set(key, JSON.stringify(value)); }
 
@@ -66,7 +251,9 @@ function returnUrl() { return get(KEYS.RETURN) || STEP2_URL; }
 // Read from localStorage rather than the DOM: steps 2 and 3 do not carry the
 // Configuration Parameters pane, but they run on what it saved.
 function storedRequestConfig() {
+  log.debug("Entering storedRequestConfig().");
   function v(name) { return get(vciMetadata.idFor(name)) || ""; }
+  log.debug("Leaving storedRequestConfig().");
   return {
     credentialIssuer: v("credential_issuer"),
     credentialEndpoint: v("credential_endpoint"),
@@ -93,6 +280,7 @@ function storedRequestConfig() {
 // an object property or [salt, value] for an array element.
 // ---------------------------------------------------------------------------
 function parseSdJwt(serialized) {
+  log.debug("Entering parseSdJwt().");
   var raw = String(serialized || "").trim();
   if (!raw) throw new Error("There is no credential to parse.");
   var parts = raw.split("~");
@@ -107,10 +295,16 @@ function parseSdJwt(serialized) {
   if (jwtParts.length !== 3) throw new Error("The issuer-signed part is not a three-part JWS.");
 
   var header, payload;
-  try { header = metadataClient.b64uToJson(jwtParts[0]); }
-  catch (e) { throw new Error("Cannot read the issuer-signed JWT header: " + e.message); }
-  try { payload = metadataClient.b64uToJson(jwtParts[1]); }
-  catch (e) { throw new Error("Cannot read the issuer-signed JWT payload: " + e.message); }
+  try {
+    header = metadataClient.b64uToJson(jwtParts[0]);
+  } catch (e) {
+    throw new Error("Cannot read the issuer-signed JWT header: " + e.message);
+  }
+  try {
+    payload = metadataClient.b64uToJson(jwtParts[1]);
+  } catch (e) {
+    throw new Error("Cannot read the issuer-signed JWT payload: " + e.message);
+  }
 
   var disclosures = parts.filter(function (p) { return p !== ""; }).map(function (encoded) {
     var d = { encoded: encoded, salt: "", name: null, value: undefined, arrayElement: false, error: "" };
@@ -129,6 +323,7 @@ function parseSdJwt(serialized) {
     return d;
   });
 
+  log.debug("Leaving parseSdJwt().");
   return {
     serialized: raw,
     issuerJwt: issuerJwt,
@@ -157,6 +352,7 @@ function digestForDisclosure(encoded, sdAlg) {
 // Every _sd digest in the payload, at any nesting depth, plus the {"...": digest}
 // form used for selectively-disclosable ARRAY elements.
 function collectSdDigests(node, out) {
+  log.debug("Entering collectSdDigests().");
   out = out || [];
   if (!node || typeof node !== "object") return out;
   if (Object.prototype.toString.call(node) === "[object Array]") {
@@ -173,6 +369,7 @@ function collectSdDigests(node, out) {
       collectSdDigests(node[k], out);
     }
   });
+  log.debug("Leaving collectSdDigests().");
   return out;
 }
 
@@ -193,6 +390,17 @@ function disclosedClaims(parsed) {
 
 module.exports = {
   KEYS: KEYS,
+  USE_CASES: USE_CASES,
+  DEFAULT_USE_CASE: DEFAULT_USE_CASE,
+  useCases: useCases,
+  useCaseById: useCaseById,
+  currentUseCase: currentUseCase,
+  setUseCase: setUseCase,
+  renderUseCaseBadge: renderUseCaseBadge,
+  storeOffer: storeOffer,
+  storedOffer: storedOffer,
+  forgetOffer: forgetOffer,
+  offerIssuerState: offerIssuerState,
   STEP2_URL: STEP2_URL,
   STEP3_URL: STEP3_URL,
   get: get,

@@ -82,6 +82,7 @@ RUN browserify src/saml_tools.js -o public/js/saml_tools.js --debug --standalone
 RUN browserify src/saml_response.js -o public/js/saml_response.js --debug --standalone saml_response -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ]
 RUN browserify src/wstrust_tools.js -o public/js/wstrust_tools.js --debug --standalone wstrust_tools -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ]
 RUN browserify src/wstrust_response.js -o public/js/wstrust_response.js --debug --standalone wstrust_response -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ]
+RUN browserify src/sd_jwt_vc_issuance_0.js -o public/js/sd_jwt_vc_issuance_0.js --debug --standalone sdjwtvc0 -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ]
 RUN browserify src/sd_jwt_vc_issuance_1.js -o public/js/sd_jwt_vc_issuance_1.js --debug --standalone sdjwtvc1 -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ]
 RUN browserify src/sd_jwt_vc_issuance_2.js -o public/js/sd_jwt_vc_issuance_2.js --debug --standalone sdjwtvc2 -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ]
 RUN browserify src/sd_jwt_vc_issuance_3.js -o public/js/sd_jwt_vc_issuance_3.js --debug --standalone sdjwtvc3 -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ]
@@ -97,7 +98,7 @@ RUN if [ "$COVERAGE" = "true" ]; then \
       npm install --no-save babelify babel-plugin-istanbul @babel/core nyc ; \
     fi
 RUN if [ "$COVERAGE" = "true" ]; then \
-      for entry in "jwks:jwks" "debugger:debug" "token_detail:token_detail" "debugger2:debugger2" "userinfo:userinfo" "introspection:introspection" "logout:logout" "jwt_tools:jwt_tools" "encoding_tools:encoding_tools" "digital_signature:digital_signature" "saml_request:saml_request" "saml_cert:saml_cert" "saml_tools:saml_tools" "saml_response:saml_response" "wstrust_tools:wstrust_tools" "wstrust_response:wstrust_response" "sd_jwt_vc_issuance_1:sdjwtvc1" "sd_jwt_vc_issuance_2:sdjwtvc2" "sd_jwt_vc_issuance_3:sdjwtvc3"; do \
+      for entry in "jwks:jwks" "debugger:debug" "token_detail:token_detail" "debugger2:debugger2" "userinfo:userinfo" "introspection:introspection" "logout:logout" "jwt_tools:jwt_tools" "encoding_tools:encoding_tools" "digital_signature:digital_signature" "saml_request:saml_request" "saml_cert:saml_cert" "saml_tools:saml_tools" "saml_response:saml_response" "wstrust_tools:wstrust_tools" "wstrust_response:wstrust_response" "sd_jwt_vc_issuance_0:sdjwtvc0" "sd_jwt_vc_issuance_1:sdjwtvc1" "sd_jwt_vc_issuance_2:sdjwtvc2" "sd_jwt_vc_issuance_3:sdjwtvc3"; do \
         src_name="${entry%%:*}" ; \
         standalone="${entry##*:}" ; \
         browserify src/${src_name}.js -o public/js/${src_name}.js --debug --standalone ${standalone} -t [ envify purge --CONFIG_FILE ${CONFIG_FILE} ] -t [ babelify --plugins [ istanbul ] ] && \

@@ -9,6 +9,7 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "bunyan": "latest",
     "@xmldom/xmldom": "^0.9.8",
     "body-parser": "^2.2.2",
     "cors": "^2.8.5",

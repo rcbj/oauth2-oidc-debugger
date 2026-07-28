@@ -35,8 +35,11 @@ function log(m) { console.log(m); }
 let engine = null;
 
 let lib = null;
-try { lib = require("libxmljs2"); }
-catch (e) { log("note: libxmljs2 unavailable (" + e.message.split("\n")[0].trim() + ")"); }
+try {
+  lib = require("libxmljs2");
+} catch (e) {
+  log("note: libxmljs2 unavailable (" + e.message.split("\n")[0].trim() + ")");
+}
 
 if (lib) {
   const compiled = {};
@@ -46,8 +49,11 @@ if (lib) {
       if (!compiled[xsd]) compiled[xsd] = lib.parseXml(xsd);
       const doc = lib.parseXml(xml);
       let ok;
-      try { ok = doc.validate(compiled[xsd]); }
-      catch (e) { return { ok: false, detail: "validate threw: " + e.message }; }
+      try {
+        ok = doc.validate(compiled[xsd]);
+      } catch (e) {
+        return { ok: false, detail: "validate threw: " + e.message };
+      }
       return { ok, detail: ok ? "" : doc.validationErrors.map(e => e.message.trim()).join("; ") };
     },
   };
@@ -55,7 +61,13 @@ if (lib) {
   const probe = spawnSync("xmllint", ["--version"], { encoding: "utf8" });
   if (!probe.error && probe.status === 0) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wstrust-xsd-"));
-    process.on("exit", () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* ignore */ } });
+    process.on("exit", () => {
+      try {
+        fs.rmSync(dir, { recursive: true, force: true });
+      } catch (e) {
+        // A leftover temp directory is not worth failing the run over.
+      }
+    });
     const xsdFiles = {};
     let n = 0;
     const docFile = path.join(dir, "message.xml");
@@ -91,10 +103,14 @@ function loadFrom(candidates, what) {
   for (const p of candidates) { if (fs.existsSync(p)) return p; }
   throw new Error("could not locate " + what + " (looked in: " + candidates.join(", ") + ")");
 }
-const wm = require(loadFrom([
+// requireSharedModule keeps the tests' dependencies resolvable for a module
+// loaded out of client/src (wstrust_msg.js logs through bunyan) — see
+// module_paths.js.
+const { requireSharedModule } = require("./module_paths.js");
+const wm = requireSharedModule([
   path.join(__dirname, "wstrust_msg.js"),
   path.join(__dirname, "..", "client", "src", "wstrust_msg.js"),
-], "client/src/wstrust_msg.js"));
+], "client/src/wstrust_msg.js");
 const templatePath = loadFrom([
   path.join(__dirname, "schemas", "ws-trust-rst.template.xsd"),
   path.join(__dirname, "..", "tests", "schemas", "ws-trust-rst.template.xsd"),

@@ -10,6 +10,7 @@ RUN apt-get update
 # prebuilt binary for this ABI, or one built against a different Node version).
 RUN apt-get -y install curl \
         jq \
+        openssl \
         libxml2-utils \
         libatomic1 \
         libasound2t64 \
@@ -57,7 +58,7 @@ RUN node -v
 RUN npm -v
 
 # Bundle app source
-COPY tests/oauth2_* tests/oidc_* tests/token_introspection.js tests/jwt_tools.js tests/encoding_tools.js tests/digital_signature.js tests/saml_sso.js tests/saml_logout.js tests/saml_encrypted_sso.js tests/saml_tools.js tests/saml_operation_history.js tests/wstrust_operation_history.js tests/wstrust.js tests/xmlsec_interop.js tests/wstrust_schema_validate.js tests/navigation.js tests/sd_jwt_vc_issuance.js ./
+COPY tests/oauth2_* tests/oidc_* tests/token_introspection.js tests/jwt_tools.js tests/encoding_tools.js tests/digital_signature.js tests/saml_sso.js tests/saml_logout.js tests/saml_encrypted_sso.js tests/saml_tools.js tests/saml_operation_history.js tests/wstrust_operation_history.js tests/wstrust.js tests/xmlsec_interop.js tests/wstrust_schema_validate.js tests/navigation.js tests/sd_jwt_vc_issuance.js tests/module_paths.js ./
 # The XML Signature/Encryption interop test drives the frontend crypto module
 # directly (no browser); copy it next to the test so it can require('./xmldsig.js')
 # and resolve its deps (node-forge, etc.) from this image's node_modules. The
@@ -69,10 +70,13 @@ COPY tests/run-report.js ./
 # Shared test helpers (populateMetadata, ...). The test scripts require it as
 # ../common/tests.js; WORKDIR is /usr/src/app, so it must land in /usr/src/common.
 COPY common/tests.js /usr/src/common/tests.js
+# The SAML SP key pair reader. The pair itself is generated per run inside the
+# container (common.sh generateSpKeyPair) and passed through the environment —
+# nothing is baked into the image.
+COPY common/sp_keypair.js /usr/src/common/sp_keypair.js
 # Centralized test config (waitTime, etc.); selected via CONFIG_FILE.
 COPY tests/env ./env
 # Fixed SP signing key/cert for the SAML signature-validation test + provisioning.
-COPY tests/fixtures ./fixtures
 RUN ls
 RUN wget -q -O chrome-linux64.zip https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/121.0.6167.85/linux64/chrome-linux64.zip && \
     unzip chrome-linux64.zip && \

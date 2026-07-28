@@ -51,10 +51,6 @@ init()
   export WSTRUST_STS_URL
   CONFIG_FILE=./env/local.js
   CURRENT_DIR=`echo "$(dirname "$(realpath "$0")")"`
-  # SP signing cert (base64 DER) registered on the Keycloak SAML client so it can
-  # validate the AuthnRequest signature (test signs with tests/fixtures/sp-key.pem).
-  SAML_SP_SIGNING_CERT=$(grep -v -- '-----' "${CURRENT_DIR}/tests/fixtures/sp-cert.pem" | tr -d '\n\r')
-  export SAML_SP_SIGNING_CERT
   COMMON_SH=${CURRENT_DIR}/common/common.sh
   if [ -r "${COMMON_SH}" ];
   then
@@ -64,6 +60,11 @@ init()
     exit 1
   fi
   common_setup
+  check_return_code $?
+  # A fresh SP key pair for this run: exported for the tests (which sign and
+  # decrypt with it) and for configureKeycloak (which registers the certificate
+  # on the SAML client). Nothing is written to the repository.
+  generateSpKeyPair
   check_return_code $?
   NODEJS_BASE_DIR=tests
 }

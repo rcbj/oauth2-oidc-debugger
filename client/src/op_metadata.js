@@ -24,6 +24,22 @@
 //   dflt  dummy default, in the same spirit as the other localhost placeholders.
 //         The four booleans default to the values the spec itself defines.
 // ---------------------------------------------------------------------------
+
+var bunyan = require("bunyan");
+// The log level comes from the same configuration the pages use. A consumer
+// outside the browser bundles (the node-based tests load this module directly)
+// may not have one, so fall back to info rather than failing to load.
+var log = bunyan.createLogger({
+  name: "op_metadata",
+  level: (function () {
+    try {
+      return require(process.env.CONFIG_FILE).logLevel || "info";
+    } catch (e) {
+      return "info";
+    }
+  })()
+});
+
 var metadataClient = require("./metadata_client");
 
 var OP_METADATA = [
@@ -139,7 +155,11 @@ function clearOpMetadataFields() {
 // would resurrect the defaults on the next load and undo the clear.
 function clearOpMetadataStorage() {
   ALL_METADATA.forEach(function (m) {
-    try { localStorage.setItem(m.name, ""); } catch (e) { /* no storage */ }
+    try {
+      localStorage.setItem(m.name, "");
+    } catch (e) {
+      // No storage available in this context.
+    }
   });
 }
 
@@ -171,6 +191,7 @@ var LEGACY_FIELDS = {
 };
 
 function markNotDefined(id, on) {
+  log.debug("Entering markNotDefined().");
   var e = el(id);
   if (!e) return;
   // Only ever annotate an EMPTY field: an overridden value speaks for itself.
@@ -200,6 +221,7 @@ function markNotDefined(id, on) {
     if (e.placeholder === NOT_DEFINED_NOTE) e.placeholder = "";
     e.classList.remove(NOT_DEFINED_CLASS);
   }
+  log.debug("Leaving markNotDefined().");
 }
 
 // Annotate every member the document does not define; un-annotate the rest.
@@ -221,10 +243,20 @@ function clearNotDefinedNotes() {
 // Apply the notes from the discovery document held in storage (if any). Called
 // on load by both debugger pages.
 function applyNotesFromStoredDiscovery() {
+  log.debug("Entering applyNotesFromStoredDiscovery().");
   var saved = null;
-  try { saved = localStorage.getItem(DISCOVERY_INFO_KEY); } catch (e) { return; }
+  try {
+    saved = localStorage.getItem(DISCOVERY_INFO_KEY);
+  } catch (e) {
+    return;
+  }
   if (!saved) { clearNotDefinedNotes(); return; }
-  try { applyNotDefinedNotes(JSON.parse(saved)); } catch (e) { clearNotDefinedNotes(); }
+  try {
+    applyNotDefinedNotes(JSON.parse(saved));
+  } catch (e) {
+    clearNotDefinedNotes();
+  }
+  log.debug("Leaving applyNotesFromStoredDiscovery().");
 }
 
 module.exports = {

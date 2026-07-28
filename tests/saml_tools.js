@@ -75,8 +75,12 @@ async function getValue(driver, id) {
 }
 async function waitForValue(driver, id, pred, msg, timeout) {
   await driver.wait(async function () {
-    try { return pred((await driver.findElement(By.id(id)).getAttribute("value")) || ""); }
-    catch (e) { return false; }
+    try {
+      return pred((await driver.findElement(By.id(id)).getAttribute("value")) || "");
+    } catch (e) {
+      // The element is not there yet — keep waiting.
+      return false;
+    }
   }, timeout || cryptoWait, msg);
   return await getValue(driver, id);
 }
@@ -901,8 +905,12 @@ async function testCryptoOnce(driver) {
 async function testNoConsoleErrors(driver) {
   log.info("=== Browser console ===");
   var entries;
-  try { entries = await driver.manage().logs().get(logging.Type.BROWSER); }
-  catch (e) { log.info("[console] SKIP — the browser log is unavailable here: " + e.message); return; }
+  try {
+    entries = await driver.manage().logs().get(logging.Type.BROWSER);
+  } catch (e) {
+    log.info("[console] SKIP — the browser log is unavailable here: " + e.message);
+    return;
+  }
   var severe = (entries || []).filter(function (e) {
     return e.level && e.level.name === 'SEVERE';
   }).map(function (e) { return e.message; });
@@ -1039,7 +1047,9 @@ async function test() {
     const prefs = new logging.Preferences();
     prefs.setLevel(logging.Type.BROWSER, logging.Level.SEVERE);
     options.setLoggingPrefs(prefs);
-  } catch (e) { log.info("browser logging preferences unavailable: " + e.message); }
+  } catch (e) {
+    log.info("browser logging preferences unavailable: " + e.message);
+  }
   const driver = await new Builder().forBrowser("chrome").setChromeOptions(options).build();
 
   try {

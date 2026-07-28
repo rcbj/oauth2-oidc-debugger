@@ -72,7 +72,11 @@ async function postForm(url, body, headers) {
   });
   const text = await r.text();
   let json = null;
-  try { json = JSON.parse(text); } catch (e) { /* not JSON */ }
+  try {
+    json = JSON.parse(text);
+  } catch (e) {
+    // Not JSON: the caller gets the raw text instead.
+  }
   return { status: r.status, body: json, raw: text };
 }
 

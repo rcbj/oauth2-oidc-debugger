@@ -46,6 +46,7 @@ function tags(root, localName) { return root.getElementsByTagNameNS('*', localNa
 
 // Minimal, dependency-free XML pretty-printer.
 function formatXml(xml) {
+  log.debug("Entering formatXml().");
   if (!xml) return '';
   var reg = /(>)(<)(\/*)/g;
   xml = xml.replace(reg, '$1\n$2$3');
@@ -57,11 +58,16 @@ function formatXml(xml) {
     out += new Array(pad + 1).join('  ') + node + '\n';
     pad += indent;
   });
+  log.debug("Leaving formatXml().");
   return out.trim();
 }
 
 function serialize(node) {
-  try { return new XMLSerializer().serializeToString(node); } catch (e) { return ''; }
+  try {
+    return new XMLSerializer().serializeToString(node);
+  } catch (e) {
+    return '';
+  }
 }
 
 // --- decoding a SAMLResponse handed in via the URL query --------------------
@@ -78,12 +84,20 @@ function base64ToBytes(b64) {
   return bytes;
 }
 function bytesToUtf8(bytes) {
-  try { return new TextDecoder('utf-8').decode(bytes); }
-  catch (e) {
+  log.debug("Entering bytesToUtf8().");
+  try {
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch (e) {
     var s = '';
     for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-    try { return decodeURIComponent(escape(s)); } catch (e2) { return s; }
+    try {
+      return decodeURIComponent(escape(s));
+    } catch (e2) {
+      // Not UTF-8 after all: hand back the byte-per-character reading.
+      return s;
+    }
   }
+  log.debug("Leaving bytesToUtf8().");
 }
 // RAW DEFLATE inflate (no zlib header) via the native DecompressionStream —
 // the mirror of the deflate-raw saml_request.js uses to build a Redirect request.
@@ -100,9 +114,14 @@ function inflateRaw(bytes) {
   });
 }
 function decodeSamlParam(b64) {
+  log.debug("Entering decodeSamlParam().");
   var bytes;
-  try { bytes = base64ToBytes(b64); }
-  catch (e) { return Promise.reject(new Error('not valid base64: ' + e.message)); }
+  try {
+    bytes = base64ToBytes(b64);
+  } catch (e) {
+    return Promise.reject(new Error('not valid base64: ' + e.message));
+  }
+  log.debug("Leaving decodeSamlParam().");
   return inflateRaw(bytes)
     // A successful inflate that yields XML is a Redirect-binding message; if the
     // bytes weren't actually deflated, treat the base64 as a raw (POST) message.
@@ -124,6 +143,7 @@ function clearOperationHistory() {
 }
 
 function resolveHistoryFromStatus(doc, msgType) {
+  log.debug("Entering resolveHistoryFromStatus().");
   // A LogoutResponse answers the Single Logout; anything else answers the
   // AuthnRequest.
   var operation = (msgType === 'LogoutResponse') ? 'Single Logout' : 'Send AuthnRequest';
@@ -149,6 +169,7 @@ function resolveHistoryFromStatus(doc, msgType) {
   if (message) detail += ' — ' + message;
   history.resolvePending(history.FAILURE, detail, operation);
   renderOperationHistory();
+  log.debug("Leaving resolveHistoryFromStatus().");
 }
 
 // The answer never arrived (or could not be read) — the call still failed.
@@ -158,6 +179,7 @@ function resolveHistoryUnreadable(reason) {
 }
 
 function render(responseXml, isFresh) {
+  log.debug("Entering render().");
   setVal('saml_resp_xml', formatXml(responseXml));
 
   var doc = new DOMParser().parseFromString(responseXml, 'application/xml');
@@ -168,7 +190,11 @@ function render(responseXml, isFresh) {
   }
 
   // Cache so a return trip to this page (which may lack the ?id=) repopulates.
-  try { if (window.localStorage) localStorage.setItem(SAML_RESP_KEY, responseXml); } catch (e) { /* ignore */ }
+  try {
+    if (window.localStorage) localStorage.setItem(SAML_RESP_KEY, responseXml);
+  } catch (e) {
+    // No storage available in this context.
+  }
 
   // The root element is the protocol message: <Response> (login) or
   // <LogoutResponse> (SLO) — both carry Version/IssueInstant/InResponseTo/ID/
@@ -203,6 +229,7 @@ function render(responseXml, isFresh) {
   // entry; a cached one redisplayed on a later visit says nothing about it.
   if (isFresh) resolveHistoryFromStatus(doc, msgType);
   setStatus((msgType || 'Response') + ' loaded.');
+  log.debug("Leaving render().");
 }
 
 // Persist the NameID + SessionIndex so the config page's Single Logout can build
@@ -224,6 +251,7 @@ function row(cells) {
 }
 
 function buildAttributesTable(assertion) {
+  log.debug("Entering buildAttributesTable().");
   var container = el('saml_attrs_table');
   if (!assertion) { container.innerHTML = '<em>No assertion available.</em>'; return; }
 
@@ -293,6 +321,7 @@ function buildAttributesTable(assertion) {
   }
   html += '</table>';
   container.innerHTML = html;
+  log.debug("Leaving buildAttributesTable().");
 }
 
 // Two-column key/value row (value may already contain HTML).
@@ -322,6 +351,7 @@ function responseSignerCert(responseEl) {
 }
 
 function buildResponseDetailsTable(doc) {
+  log.debug("Entering buildResponseDetailsTable().");
   var container = el('saml_resp_details');
   // The document root is the protocol message (Response / LogoutResponse / …).
   var msg = doc.documentElement;
@@ -352,12 +382,14 @@ function buildResponseDetailsTable(doc) {
   html += kv('SAML Status', statusHtml(msg));
   html += '</table>';
   container.innerHTML = html;
+  log.debug("Leaving buildResponseDetailsTable().");
 }
 
 // Render <samlp:Status>: a colored friendly label for the top-level StatusCode,
 // the full code URI, an optional nested (second-level) StatusCode, and any
 // StatusMessage — this is the key result for a LogoutResponse and error responses.
 function statusHtml(msg) {
+  log.debug("Entering statusHtml().");
   var statusEl = tags(msg, 'Status')[0];
   if (!statusEl) return '<em>(no Status)</em>';
   var codes = tags(statusEl, 'StatusCode');
@@ -371,6 +403,7 @@ function statusHtml(msg) {
   if (top) out += ' <span style="color:#888; word-break:break-all;">' + esc(top) + '</span>';
   if (sub) out += '<br>Sub-status: ' + esc(sub);
   if (sm) out += '<br>Message: ' + esc(sm);
+  log.debug("Leaving statusHtml().");
   return out;
 }
 
@@ -383,7 +416,11 @@ function shortStatus(uri) {
 
 function viewSignerCert() {
   if (!responseSignerCertPem) return false;
-  try { if (window.localStorage) localStorage.setItem('saml_cert_view', responseSignerCertPem); } catch (e) { /* ignore */ }
+  try {
+    if (window.localStorage) localStorage.setItem('saml_cert_view', responseSignerCertPem);
+  } catch (e) {
+    // No storage available in this context.
+  }
   window.open('/saml_cert.html?from=saml_response.html', '_blank');
   return false;
 }
@@ -403,14 +440,22 @@ function showTab(evt, tabId) {
 }
 
 function copyField(id) {
+  log.debug("Entering copyField().");
   var e = el(id);
   if (!e) return false;
   var text = e.value || '';
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).catch(function (err) { log.error('copyField: ' + err); });
   } else {
-    try { e.focus(); e.select(); document.execCommand('copy'); } catch (err) { log.error('copyField fallback: ' + err.message); }
+    try {
+      e.focus();
+      e.select();
+      document.execCommand('copy');
+    } catch (err) {
+      log.error('copyField fallback: ' + err.message);
+    }
   }
+  log.debug("Leaving copyField().");
   return false;
 }
 
@@ -418,7 +463,11 @@ function copyField(id) {
 // cached response was found and rendered.
 function renderFromStorage(msgIfMissing) {
   var saved = null;
-  try { saved = window.localStorage && localStorage.getItem(SAML_RESP_KEY); } catch (e) { saved = null; }
+  try {
+    saved = window.localStorage && localStorage.getItem(SAML_RESP_KEY);
+  } catch (e) {
+    saved = null;
+  }
   if (saved) { render(saved); return true; }
   if (msgIfMissing) setStatus(msgIfMissing);
   return false;
@@ -426,6 +475,7 @@ function renderFromStorage(msgIfMissing) {
 
 // Render a signature-verification result (from xd.verifyXmlSignature) as a table.
 function formatSigResult(res) {
+  log.debug("Entering formatSigResult().");
   if (res.error) return '<span style="color:#b00;">Cannot validate: ' + esc(res.error) + '</span>';
   var color = res.valid ? '#2e7d32' : '#b00';
   var refs = (res.references || []).length;
@@ -437,12 +487,14 @@ function formatSigResult(res) {
   html += '<tr><td class="saml-key">Canonicalization</td><td>' + esc(res.canonicalization || '') + '</td></tr>';
   html += '<tr><td class="saml-key">Signer (cert CN)</td><td>' + esc(res.signerSubject || '(from KeyInfo)') + '</td></tr>';
   html += '</table>';
+  log.debug("Leaving formatSigResult().");
   return html;
 }
 
 // Validate the enveloped XML digital signature on the extracted assertion, using
 // the certificate embedded in the signature's KeyInfo. Reuses xmldsig.js.
 function validateAssertionSignature() {
+  log.debug("Entering validateAssertionSignature().");
   var details = el('saml_sig_details');
   if (!lastAssertionXml || lastAssertionXml.indexOf('<') < 0) {
     setVal('saml_sig_status', 'No assertion available to validate.');
@@ -450,10 +502,15 @@ function validateAssertionSignature() {
     return false;
   }
   var res;
-  try { res = xd.verifyXmlSignature(lastAssertionXml); }
-  catch (e) { setVal('saml_sig_status', 'Validation error: ' + e.message); return false; }
+  try {
+    res = xd.verifyXmlSignature(lastAssertionXml);
+  } catch (e) {
+    setVal('saml_sig_status', 'Validation error: ' + e.message);
+    return false;
+  }
   setVal('saml_sig_status', res.error ? ('Cannot validate: ' + res.error) : (res.valid ? 'Assertion signature VALID.' : 'Assertion signature INVALID.'));
   if (details) details.innerHTML = formatSigResult(res);
+  log.debug("Leaving validateAssertionSignature().");
   return false;
 }
 
@@ -461,13 +518,18 @@ function validateAssertionSignature() {
 // with the recipient (SP) private key, then show + re-render the plaintext
 // assertion. Reuses xmldsig.js decryptXml.
 function decryptAssertion() {
+  log.debug("Entering decryptAssertion().");
   if (!lastEncryptedXml) { setVal('saml_dec_status', 'No <xenc:EncryptedData> / <saml:EncryptedAssertion> found in this response.'); return false; }
   var keyEl = el('saml_dec_key');
   var key = keyEl ? keyEl.value : '';
   if (!key.trim()) { setVal('saml_dec_status', 'Paste the recipient (SP) private key to decrypt.'); return false; }
   var plaintext;
-  try { plaintext = xd.decryptXml(lastEncryptedXml, { privateKeyPem: key }); }
-  catch (e) { setVal('saml_dec_status', 'Decryption failed: ' + e.message); return false; }
+  try {
+    plaintext = xd.decryptXml(lastEncryptedXml, { privateKeyPem: key });
+  } catch (e) {
+    setVal('saml_dec_status', 'Decryption failed: ' + e.message);
+    return false;
+  }
   lastAssertionXml = plaintext;
   setVal('saml_assertion_xml', formatXml(plaintext));
   try {
@@ -475,8 +537,11 @@ function decryptAssertion() {
     var a = tags(adoc, 'Assertion')[0] || null;
     buildAttributesTable(a);
     saveSubjectForLogout(a);
-  } catch (e) { log.error('decrypt render: ' + e.message); }
+  } catch (e) {
+    log.error('decrypt render: ' + e.message);
+  }
   setVal('saml_dec_status', 'Decrypted. The assertion is shown in the XML tab; use Validate Signature to verify it.');
+  log.debug("Leaving decryptAssertion().");
   return false;
 }
 
@@ -488,7 +553,10 @@ window.onload = function () {
     var dk = el('saml_dec_key');
     var sk = window.localStorage && localStorage.getItem('samltools_saml_sp_private_key');
     if (dk && !dk.value && sk) dk.value = sk;
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    // No storage, or nothing stashed by the SAML Test Tools page: the field is
+    // simply left for the user to paste into.
+  }
 
   var id = qp('id');
   var direct = qp('SAMLResponse');

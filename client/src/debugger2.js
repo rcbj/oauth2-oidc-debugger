@@ -45,6 +45,7 @@ function getParameterByName(name, url)
 }
 
 function logoutButtonClick()  {
+  log.debug("Entering logoutButtonClick().");
   log.debug("Logout link clicked.");
   var nameValuePairs = {};
 
@@ -64,10 +65,12 @@ function logoutButtonClick()  {
   clearLocalStorage();
   window.location.href = logoutUrl;
 
+  log.debug("Leaving logoutButtonClick().");
   return false;
 };
 
 function tokenButtonClick() {
+  log.debug("Entering tokenButtonClick().");
   log.debug("Entering token Submit button clicked function.");
   $('#step3').show();
   $('#step4').show();
@@ -108,6 +111,7 @@ function tokenButtonClick() {
       error: errorInternalTokenAPICall
     });
   }
+  log.debug("Leaving tokenButtonClick().");
   return false; // don't reload the page.
 }
 
@@ -365,6 +369,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
 }
 
 function errorInternalTokenAPICall(request, status, error) {
+  log.debug("Entering errorInternalTokenAPICall().");
   log.error("An error occurred calling the token endpoint.");
   if (sdJwtVc.isFlowActive()) {
     // Stay on this page — the error panes below say what went wrong — but end
@@ -382,9 +387,11 @@ function errorInternalTokenAPICall(request, status, error) {
     client_id: $("#token_client_id").val(),
     detail: 'error'
   });
+  log.debug("Leaving errorInternalTokenAPICall().");
 }
 
 function buildInternalRefreshAPIRequestMessage() {
+  log.debug("Entering buildInternalRefreshAPIRequestMessage().");
   log.debug("Entering buildInternalTokenAPIRequestMessage()."); 
   // validate and process form here
   var token_endpoint = $("#token_endpoint").val();
@@ -420,10 +427,12 @@ function buildInternalRefreshAPIRequestMessage() {
     formData.client_secret = client_secret
   }
   log.debug("Leaving buildInternalTokenAPIRequestMessage().");
+  log.debug("Leaving buildInternalRefreshAPIRequestMessage().");
   return formData;
 }
 
 function refreshButtonClick() {
+  log.debug("Entering refreshButtonClick().");
   log.debug("Entering refresh Submit button clicked function.");
   log.debug("Write values to local storage.");
   writeValuesToLocalStorage();
@@ -453,10 +462,12 @@ function refreshButtonClick() {
       error: errorInternalRefreshAPICall
     });
   } 
+  log.debug("Leaving refreshButtonClick().");
   return false;
 }
 
 function successfulInternalRefreshAPICall(data, textStatus, request) {
+  log.debug("Entering successfulInternalRefreshAPICall().");
   log.debug("Entering ajax success function for Refresh Token call: data=" 
             + JSON.stringify(data)
             + ", textStatus="
@@ -491,9 +502,11 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
     tokenHistoryIndex: getLatestTokenHistoryIndex()
   });
   log.debug("Leaving ajax success function for Refresh Token.");
+  log.debug("Leaving successfulInternalRefreshAPICall().");
 }
 
 function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, currentIDToken) {
+  log.debug("Entering recreateRefreshTokenDisplay().");
   log.debug("Entering displayRefreshTokenPane().");
   var refresh_endpoint_result_html = "";
   log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
@@ -601,6 +614,7 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
   populateRevocationTokenWithLatestAccessToken();
   populateTokenExchangeSubjectWithLatestAccessToken();
   log.debug("Leaving displayRefreshTokenPane().");
+  log.debug("Leaving recreateRefreshTokenDisplay().");
 }
 
 function errorInternalRefreshAPICall(request, status, error) {
@@ -1018,7 +1032,11 @@ function loadValuesFromLocalStorage()
   var savedActiveIndex = parseInt(localStorage.getItem('token_history_active_index'));
   if (!isNaN(savedActiveIndex)) {
     var cvHistory = [];
-    try { cvHistory = JSON.parse(localStorage.getItem('token_history') || '[]'); } catch(e) {}
+    try {
+      cvHistory = JSON.parse(localStorage.getItem('token_history') || '[]');
+    } catch (e) {
+      // Absent or unreadable storage: keep the default.
+    }
     if (savedActiveIndex >= 0 && savedActiveIndex < cvHistory.length) {
       renderCurrentlyViewing(savedActiveIndex, cvHistory[savedActiveIndex]);
     }
@@ -1674,6 +1692,7 @@ $(document).ready(function() {
 // used), so an ordinary visit to this page behaves exactly as before.
 // ---------------------------------------------------------------------------
 function maybeContinueSdJwtVcFlow() {
+  log.debug("Entering maybeContinueSdJwtVcFlow().");
   if (!sdJwtVc.isFlowActive()) return false;
   var code = getParameterByName('code');
   if (!code) {
@@ -1691,6 +1710,7 @@ function maybeContinueSdJwtVcFlow() {
     "authorization code for tokens, then returning to <a href='" + sdJwtVc.STEP2_URL + "'>step 2</a> to request " +
     "the credential.</div>");
   window.setTimeout(tokenButtonClick, 250);
+  log.debug("Leaving maybeContinueSdJwtVcFlow().");
   return true;
 }
 
@@ -2080,6 +2100,7 @@ function extractSid(access_token) {
 }
 
 function saveTokenSetToHistory(access_token, refresh_token, id_token, source) {
+  log.debug("Entering saveTokenSetToHistory().");
   var history = [];
   try { 
     history = JSON.parse(localStorage.getItem('token_history') || '[]'); 
@@ -2105,9 +2126,11 @@ function saveTokenSetToHistory(access_token, refresh_token, id_token, source) {
   });
   localStorage.setItem('token_history', JSON.stringify(history));
   renderTokenHistory();
+  log.debug("Leaving saveTokenSetToHistory().");
 }
 
 function selectTokenSet(index) {
+  log.debug("Entering selectTokenSet().");
   var history = [];
   try {
     history = JSON.parse(localStorage.getItem('token_history') || '[]'); 
@@ -2130,10 +2153,12 @@ function selectTokenSet(index) {
   }
   renderTokenHistory();
   renderCurrentlyViewing(index, entry);
+  log.debug("Leaving selectTokenSet().");
   return false;
 }
 
 function renderCurrentlyViewing(index, entry) {
+  log.debug("Entering renderCurrentlyViewing().");
   var html = '<div class="dbg-pane">' +
                '<legend class="dbg-legend" data-target="currently_viewing_fieldset">Currently Viewing</legend>' +
                '<fieldset id="currently_viewing_fieldset">' +
@@ -2189,11 +2214,17 @@ function renderCurrentlyViewing(index, entry) {
              '</div>';
   $('#currently-viewing-panel').html(html);
   $('#currently-viewing-panel').show();
+  log.debug("Leaving renderCurrentlyViewing().");
 }
 
 function renderTokenHistory() {
+  log.debug("Entering renderTokenHistory().");
   var history = [];
-  try { history = JSON.parse(localStorage.getItem('token_history') || '[]'); } catch(e) {}
+  try {
+    history = JSON.parse(localStorage.getItem('token_history') || '[]');
+  } catch (e) {
+    // Absent or unreadable storage: keep the default.
+  }
   if (history.length === 0) {
     $("#token-history-panel").hide();
     return;
@@ -2257,6 +2288,7 @@ function renderTokenHistory() {
 
   $("#token-history-panel").html(html);
   $("#token-history-panel").show();
+  log.debug("Leaving renderTokenHistory().");
 }
 
 function regenerateState() {
@@ -2447,6 +2479,7 @@ function generateCustomParametersListUI()
 }
 
 function onClickShowFieldSet(expand_button_id, field_set_id) {
+  log.debug("Entering onClickShowFieldSet().");
   log.debug('Entering onClickShowConfigFieldSet(). expand_button_id='
     + expand_button_id + ', field_set_id=' + field_set_id
     + ', fieldset.style.display=' + $("#" + field_set_id).css("display")
@@ -2464,6 +2497,7 @@ function onClickShowFieldSet(expand_button_id, field_set_id) {
     event.preventDefault();
   });
   log.debug('Leaving onClickShowConfigFieldSet().');
+  log.debug("Leaving onClickShowFieldSet().");
   return false;
 }
 
@@ -2717,6 +2751,7 @@ function getLatestTokenHistoryIndex() {
 // Appends an entry to the cumulative operation history. options may include
 // detail, client_id, nonce, and tokenHistoryIndex.
 function saveOperationToHistory(operation, options) {
+  log.debug("Entering saveOperationToHistory().");
   options = options || {};
   var history = [];
   try {
@@ -2737,9 +2772,11 @@ function saveOperationToHistory(operation, options) {
   });
   localStorage.setItem('operation_history', JSON.stringify(history));
   renderOperationHistory();
+  log.debug("Leaving saveOperationToHistory().");
 }
 
 function renderOperationHistory() {
+  log.debug("Entering renderOperationHistory().");
   var history = [];
   try {
     history = JSON.parse(localStorage.getItem('operation_history') || '[]');
@@ -2776,6 +2813,7 @@ function renderOperationHistory() {
   });
   html += '</table></div></fieldset></div>';
   $("#operation-history-panel").html(html);
+  log.debug("Leaving renderOperationHistory().");
 }
 
 function clearOperationHistory() {
@@ -2944,6 +2982,7 @@ function revokeButtonClick() {
       error: errorRevocationAPICall
     });
   }
+  log.debug("Leaving revokeButtonClick().");
   return false;
 }
 
@@ -2971,6 +3010,7 @@ function successfulRevocationAPICall(data, textStatus, jqXHR) {
 }
 
 function errorRevocationAPICall(jqXHR, status, error) {
+  log.debug("Entering errorRevocationAPICall().");
   log.error("An error occurred calling the revocation endpoint.");
   log.error("status: " + JSON.stringify(status));
   log.error("error: " + JSON.stringify(error));
@@ -2991,6 +3031,7 @@ function errorRevocationAPICall(jqXHR, status, error) {
     client_id: $("#revocation_client_id").val(),
     detail: ($("#revocation_token_type_hint").val() || 'token') + ', error'
   });
+  log.debug("Leaving errorRevocationAPICall().");
 }
 
 function displayRevocationResult(message, isError) {
@@ -3246,6 +3287,7 @@ function tokenExchangeButtonClick() {
       error: errorTokenExchangeAPICall
     });
   }
+  log.debug("Leaving tokenExchangeButtonClick().");
   return false;
 }
 
@@ -3271,6 +3313,7 @@ function successfulTokenExchangeAPICall(data, textStatus, jqXHR) {
 }
 
 function errorTokenExchangeAPICall(jqXHR, status, error) {
+  log.debug("Entering errorTokenExchangeAPICall().");
   log.error("An error occurred calling the token endpoint for token exchange.");
   log.error("status: " + JSON.stringify(status));
   log.error("error: " + JSON.stringify(error));
@@ -3291,6 +3334,7 @@ function errorTokenExchangeAPICall(jqXHR, status, error) {
     client_id: $("#tokenexchange_client_id").val(),
     detail: ($("#tokenexchange_delegation").is(":checked") ? 'delegation' : 'impersonation') + ', error'
   });
+  log.debug("Leaving errorTokenExchangeAPICall().");
 }
 
 function displayTokenExchangeResult(message, isError) {

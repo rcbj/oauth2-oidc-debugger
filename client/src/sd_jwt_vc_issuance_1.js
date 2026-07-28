@@ -90,6 +90,7 @@ function esc(v) { return metadataClient.escapeHtmlText(v); }
 // Pane 3 — the generated rows.
 // ---------------------------------------------------------------------------
 function fieldRow(id, label, desc, type) {
+  log.debug("Entering fieldRow().");
   var input;
   if (type === "boolean") {
     input = '<select class="stored" id="' + esc(id) + '" name="' + esc(id) + '">' +
@@ -104,6 +105,7 @@ function fieldRow(id, label, desc, type) {
   } else {
     input = '<input class="stored" type="text" id="' + esc(id) + '" name="' + esc(id) + '" max="512" />';
   }
+  log.debug("Leaving fieldRow().");
   return '<tr>' +
            '<td><div class="tooltip"><label>' + esc(label) + ': </label>' +
              '<span class="tooltiptext">' + esc(desc) + '</span></div></td>' +
@@ -117,6 +119,7 @@ function groupRow(title, subtitle) {
 }
 
 function buildConfigRows() {
+  log.debug("Entering buildConfigRows().");
   var html = "";
 
   html += groupRow("OAuth 2.0 client", "used by the authorization request in step 2");
@@ -149,6 +152,7 @@ function buildConfigRows() {
 
   var body = el("config_rows");
   if (body) body.innerHTML = html;
+  log.debug("Leaving buildConfigRows().");
 }
 
 // --- reading and writing the pane ------------------------------------------
@@ -174,6 +178,7 @@ function defaultFor(f) {
 }
 
 function saveConfiguration() {
+  log.debug("Entering saveConfiguration().");
   plainFields().forEach(function (f) { sdJwtVc.set(f.name, val(f.name)); });
   // debugger2.html reads the client id and scope it posts to the token endpoint
   // from their own keys, so keep those in step with the client fields here.
@@ -188,6 +193,7 @@ function saveConfiguration() {
   sdJwtVc.set("debugger_initialized", true);
   updateHandoffSummary();
   status("config_status", "Saved.", "vc-ok");
+  log.debug("Leaving saveConfiguration().");
   return false;
 }
 
@@ -203,6 +209,7 @@ function clearConfiguration() {
 }
 
 function restoreDefaults() {
+  log.debug("Entering restoreDefaults().");
   plainFields().forEach(function (f) { setVal(f.name, defaultFor(f)); });
   opMetadata.ALL_METADATA.forEach(function (m) {
     metadataClient.setMetadataField(m.name, m.dflt);
@@ -213,6 +220,7 @@ function restoreDefaults() {
   });
   saveConfiguration();
   status("config_status", "Defaults restored.", "vc-ok");
+  log.debug("Leaving restoreDefaults().");
   return false;
 }
 
@@ -229,6 +237,7 @@ function renderVciTable() {
 }
 
 function renderCredentialConfigurations() {
+  log.debug("Entering renderCredentialConfigurations().");
   var select = el("vci_credential_configuration_select");
   var row = el("vci_configuration_row");
   if (!select || !row) return;
@@ -247,9 +256,11 @@ function renderCredentialConfigurations() {
            esc(label) + '</option>';
   }).join("");
   row.style.display = "";
+  log.debug("Leaving renderCredentialConfigurations().");
 }
 
 function retrieveVciMetadata() {
+  log.debug("Entering retrieveVciMetadata().");
   var url = val(VCI_URL_KEY);
   sdJwtVc.set(VCI_URL_KEY, url);
   if (!isUrl(url)) {
@@ -257,7 +268,7 @@ function retrieveVciMetadata() {
     return false;
   }
   status("vci_signed_metadata_status", "Retrieving " + url + " …", "vc-pending");
-  metadataClient.fetchJson(url)
+  return metadataClient.fetchJson(url)
     .then(function (doc) {
       vciInfo = doc || {};
       VCI_STORE.save(vciInfo, { docLabel: VCI_DOC_LABEL, url: url });
@@ -279,7 +290,6 @@ function retrieveVciMetadata() {
     .catch(function (e) {
       status("vci_signed_metadata_status", "Could not retrieve the metadata: " + e.message, "vc-bad");
     });
-  return false;
 }
 
 // Once the issuer says which authorization server protects it, offer that
@@ -298,6 +308,7 @@ function defaultAuthorizationServerUrl() {
 }
 
 function clearVciMetadata() {
+  log.debug("Entering clearVciMetadata().");
   vciInfo = {};
   VCI_STORE.forget();
   sdJwtVc.set(VCI_URL_KEY, "");
@@ -309,6 +320,7 @@ function clearVciMetadata() {
   vciMetadata.clearStorage();
   updateHandoffSummary();
   status("vci_signed_metadata_status", "Cleared.", "vc-ok");
+  log.debug("Leaving clearVciMetadata().");
   return false;
 }
 
@@ -354,6 +366,7 @@ function resolveIssuerJwksUri(doc) {
 }
 
 function validateVciSignature() {
+  log.debug("Entering validateVciSignature().");
   var out = function (text, cls) { status("vci_signed_metadata_status", text, cls); };
   if (!vciInfo || !Object.keys(vciInfo).length) {
     out("Retrieve the credential issuer metadata first.", "vc-bad");
@@ -372,6 +385,7 @@ function validateVciSignature() {
     .then(function (verdict) {
       out(verdict, verdict.indexOf("VALID") === 0 ? "vc-ok" : "vc-bad");
     });
+  log.debug("Leaving validateVciSignature().");
   return false;
 }
 
@@ -391,6 +405,7 @@ function renderAsTable() {
 }
 
 function retrieveAsMetadata() {
+  log.debug("Entering retrieveAsMetadata().");
   var url = val("oidc_discovery_endpoint");
   sdJwtVc.set("oidc_discovery_endpoint", url);
   if (!isUrl(url)) {
@@ -398,7 +413,7 @@ function retrieveAsMetadata() {
     return false;
   }
   status("as_signed_metadata_status", "Retrieving " + url + " …", "vc-pending");
-  metadataClient.fetchJson(url)
+  return metadataClient.fetchJson(url)
     .then(function (doc) {
       asInfo = doc || {};
       AS_STORE.save(asInfo, { source: "rfc8414", docLabel: AS_DOC_LABEL, url: url });
@@ -414,10 +429,10 @@ function retrieveAsMetadata() {
     .catch(function (e) {
       status("as_signed_metadata_status", "Could not retrieve the metadata: " + e.message, "vc-bad");
     });
-  return false;
 }
 
 function clearAsMetadata() {
+  log.debug("Entering clearAsMetadata().");
   asInfo = {};
   AS_STORE.forget();
   el("discovery_info_table").innerHTML = "";
@@ -430,6 +445,7 @@ function clearAsMetadata() {
   opMetadata.clearNotes();
   updateHandoffSummary();
   status("as_signed_metadata_status", "Cleared — here and on the debugger pages.", "vc-ok");
+  log.debug("Leaving clearAsMetadata().");
   return false;
 }
 
@@ -448,6 +464,7 @@ function populateFromAs() {
 // the document on display: the endpoints that live under their own element ids,
 // the scope, and every other member the document defines.
 function populateFromAsDocument() {
+  log.debug("Entering populateFromAsDocument().");
   ENDPOINT_FIELDS.forEach(function (f) {
     var v = opMetadata.toField(asInfo[f.member]);
     setVal(f.name, v);
@@ -463,6 +480,7 @@ function populateFromAsDocument() {
   // think is a first visit; this configuration is not one.
   sdJwtVc.set("initialized", true);
   updateHandoffSummary();
+  log.debug("Leaving populateFromAsDocument().");
 }
 
 // The scope the authorization request will ask for.
@@ -475,6 +493,7 @@ function populateFromAsDocument() {
 // asking for authorization to issue that credential — is appended when the
 // server advertises it.
 function populateScope() {
+  log.debug("Entering populateScope().");
   var supported = asInfo.scopes_supported;
   var have = (Object.prototype.toString.call(supported) === "[object Array]") ? supported : [];
   var current = (val("scope") || "").split(/\s+/).filter(Boolean);
@@ -491,6 +510,7 @@ function populateScope() {
   setVal("scope", scopes);
   sdJwtVc.set("scope", scopes);
   sdJwtVc.set("token_scope", scopes);
+  log.debug("Leaving populateScope().");
 }
 
 function validateAsSignature() {
@@ -522,6 +542,7 @@ function updateHandoffSummary() {
 }
 
 function startIssuance() {
+  log.debug("Entering startIssuance().");
   saveConfiguration();
   var missing = [];
   if (!val("authorization_endpoint")) missing.push("authorization_endpoint");
@@ -537,15 +558,163 @@ function startIssuance() {
   // debugger.html runs whichever grant its select says; this workflow needs the
   // OIDC Authorization Code flow.
   sdJwtVc.set("authorization_grant_type", "oidc_authorization_code_flow");
+  // An authorization_code offer carries an issuer_state, and the authorization
+  // request has to send it back — that is what ties the request to the offer.
+  var issuerState = sdJwtVc.offerIssuerState();
+  sdJwtVc.set("sdjwtvc_issuer_state", issuerState || "");
+  if (issuerState) log.debug("The authorization request will carry issuer_state=" + issuerState);
   sdJwtVc.startFlow();
   status("handoff_status", "Starting the OIDC Authorization Code flow …", "vc-pending");
   window.location.href = "/debugger.html?sdjwtvc=1";
+  log.debug("Leaving startIssuance().");
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// The Credential Offer (OID4VCI section 4) — how an issuer-initiated issuance
+// (Appendix H.1) arrives here.
+//
+// The issuer sends the End-User to this page with either the offer itself
+// (credential_offer, URL-encoded JSON) or a URL to fetch it from
+// (credential_offer_uri). Either way it is shown before anything is requested,
+// and it fills in the issuer and the credential so the user does not have to.
+// ---------------------------------------------------------------------------
+function queryParam(name) {
+  try {
+    return new URLSearchParams(window.location.search).get(name) || "";
+  } catch (e) {
+    return "";
+  }
+}
+
+function renderOffer(stored) {
+  log.debug("Entering renderOffer().");
+  var pane = el("pane_offer");
+  if (!pane) return;
+  if (!stored || !stored.offer) {
+    pane.style.display = "none";
+    log.debug("Leaving renderOffer(). There is no offer to show.");
+    return;
+  }
+  var offer = stored.offer;
+  var grants = offer.grants || {};
+  var grantName = Object.keys(grants)[0] || "(none stated — the wallet chooses)";
+  var issuerState = (grants.authorization_code || {}).issuer_state;
+  pane.style.display = "";
+  el("offer_issuer").textContent = offer.credential_issuer || "—";
+  el("offer_configuration_ids").textContent =
+    (offer.credential_configuration_ids || []).join(", ") || "—";
+  el("offer_grant").textContent = grantName + (issuerState ? " (issuer_state " + issuerState + ")" : "");
+  el("offer_source").textContent = stored.source === "reference"
+    ? "by reference (credential_offer_uri), fetched from the issuer"
+    : "by value (credential_offer), in the URL";
+  el("offer_json").textContent = JSON.stringify(offer, null, 2);
+  log.debug("Leaving renderOffer().");
+}
+
+// Everything the offer decides: which issuer to talk to, and which credential.
+function applyOffer(offer) {
+  log.debug("Entering applyOffer().");
+  var issuer = offer.credential_issuer || "";
+  if (issuer) {
+    var metadataUrl = issuer.replace(/\/+$/, "") + VCI_WELL_KNOWN;
+    setVal(VCI_URL_KEY, metadataUrl);
+    sdJwtVc.set(VCI_URL_KEY, metadataUrl);
+    setVal(vciMetadata.idFor("credential_issuer"), issuer);
+  }
+  var ids = offer.credential_configuration_ids || [];
+  if (ids.length) {
+    setVal(vciMetadata.idFor("credential_configuration_id"), ids[0]);
+    sdJwtVc.set(vciMetadata.idFor("credential_configuration_id"), ids[0]);
+  }
+  log.debug("Leaving applyOffer(). issuer=" + issuer + ", credential=" + (ids[0] || "(none)"));
+}
+
+// Retrieve the offered issuer's metadata straight away: the user was offered a
+// credential, not asked to go and look one up.
+function offerRetrieved() {
+  log.debug("Entering offerRetrieved().");
+  status("vci_signed_metadata_status", "Retrieving the offering issuer's metadata …", "vc-pending");
+  // The offer names the issuer; the issuer's metadata names the authorization
+  // server. A wallet handed an offer discovers both without being asked, so the
+  // user only has to approve.
+  var chained = retrieveVciMetadata();
+  if (chained && chained.then) {
+    chained.then(function () {
+      status("as_signed_metadata_status",
+        "Retrieving the metadata of the authorization server the issuer named …", "vc-pending");
+      return retrieveAsMetadata();
+    }).then(function () {
+      status("offer_status",
+        "Offer accepted. The issuer and its authorization server are configured below; " +
+        "start the issuance when you are ready.", "vc-ok");
+    });
+  }
+  log.debug("Leaving offerRetrieved().");
+}
+
+function acceptOfferFromQuery() {
+  log.debug("Entering acceptOfferFromQuery().");
+  var byValue = queryParam("credential_offer");
+  var byReference = queryParam("credential_offer_uri");
+
+  if (byValue) {
+    var offer;
+    try {
+      offer = JSON.parse(byValue);
+    } catch (e) {
+      status("offer_status", "The credential_offer parameter is not readable JSON: " + e.message, "vc-bad");
+      log.error("credential_offer is not JSON: " + e.message);
+      return false;
+    }
+    sdJwtVc.setUseCase("offer-same-device");
+    sdJwtVc.storeOffer(offer, "value");
+    applyOffer(offer);
+    renderOffer(sdJwtVc.storedOffer());
+    offerRetrieved();
+    log.debug("Leaving acceptOfferFromQuery(). Took an offer passed by value.");
+    return true;
+  }
+
+  if (byReference) {
+    sdJwtVc.setUseCase("offer-same-device");
+    status("offer_status", "Fetching the Credential Offer from " + byReference + " …", "vc-pending");
+    metadataClient.fetchJson(byReference)
+      .then(function (offer) {
+        sdJwtVc.storeOffer(offer, "reference");
+        applyOffer(offer);
+        renderOffer(sdJwtVc.storedOffer());
+        status("offer_status", "Offer fetched.", "vc-ok");
+        offerRetrieved();
+      })
+      .catch(function (e) {
+        status("offer_status", "Could not fetch the Credential Offer: " + e.message, "vc-bad");
+        log.error("credential_offer_uri: " + e.message);
+      });
+    log.debug("Leaving acceptOfferFromQuery(). Fetching an offer passed by reference.");
+    return true;
+  }
+  log.debug("Leaving acceptOfferFromQuery(). No offer in the URL.");
+  return false;
+}
+
+function discardOffer() {
+  log.debug("Entering discardOffer().");
+  sdJwtVc.forgetOffer();
+  sdJwtVc.setUseCase("wallet-initiated");
+  renderOffer(null);
+  sdJwtVc.renderUseCaseBadge();
+  log.debug("Leaving discardOffer().");
   return false;
 }
 
 // ---------------------------------------------------------------------------
 function isUrl(url) {
-  try { return Boolean(new URL(url)); } catch (e) { return false; }
+  try {
+    return Boolean(new URL(url));
+  } catch (e) {
+    return false;
+  }
 }
 
 function togglePane(id) {
@@ -557,6 +726,7 @@ function togglePane(id) {
 function clickLink() { return true; }
 
 function onload() {
+  log.debug("Entering onload().");
   buildConfigRows();
   loadConfiguration();
 
@@ -586,8 +756,17 @@ function onload() {
 
   var step = document.getElementById("vc_step_1");
   if (step) step.className = "vc-step-current";
+  var step0 = document.getElementById("vc_step_0");
+  if (step0) step0.className = "vc-step-done";
+  sdJwtVc.renderUseCaseBadge();
+
+  // An offer in the URL is an issuer-initiated issuance arriving (H.1); one in
+  // storage is that same offer surviving a reload.
+  if (!acceptOfferFromQuery()) renderOffer(sdJwtVc.storedOffer());
+
   updateHandoffSummary();
   log.debug("SD-JWT VC issuance step 1 ready.");
+  log.debug("Leaving onload().");
 }
 
 if (typeof window !== "undefined") {
@@ -596,6 +775,8 @@ if (typeof window !== "undefined") {
 
 module.exports = {
   retrieveVciMetadata: retrieveVciMetadata,
+  discardOffer: discardOffer,
+  acceptOfferFromQuery: acceptOfferFromQuery,
   clearVciMetadata: clearVciMetadata,
   populateFromVci: populateFromVci,
   onCredentialConfigurationChange: onCredentialConfigurationChange,

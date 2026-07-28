@@ -54,10 +54,8 @@ services:
       dockerfile: sts/Dockerfile
     network_mode: "host"
     environment:
-      # The authorization server the mock OID4VCI Credential Issuer advertises:
-      # the local Keycloak on the same loopback, which is also where the
-      # SD-JWT VC issuance job points the browser.
-      - OID4VCI_AUTHORIZATION_SERVER=http://localhost:8080/realms/debugger-testing
+      # Log level, chosen the same way as for api and client.
+      - CONFIG_FILE=./env/local.js
 
   tests:
     image: rcbj/test-live

@@ -57,6 +57,7 @@ function renderSerialized(raw) {
 
 // --- the checks table -------------------------------------------------------
 function renderChecks(checks) {
+  log.debug("Entering renderChecks().");
   var rows = checks.map(function (c) {
     return "<tr>" +
       "<td>" + esc(c.name) + "</td>" +
@@ -68,10 +69,12 @@ function renderChecks(checks) {
   el("vc_checks").innerHTML =
     "<thead><tr><th style='width:22%'>Check</th><th style='width:10%'>Result</th><th>Detail</th></tr></thead>" +
     "<tbody>" + rows + "</tbody>";
+  log.debug("Leaving renderChecks().");
 }
 
 // --- disclosures ------------------------------------------------------------
 function renderDisclosures(rows, sdDigests) {
+  log.debug("Entering renderDisclosures().");
   var body = rows.map(function (r, i) {
     var valueText = (r.value === undefined) ? "" :
       (typeof r.value === "object" ? JSON.stringify(r.value) : String(r.value));
@@ -97,6 +100,7 @@ function renderDisclosures(rows, sdDigests) {
         "_sd carries " + sdDigests.length + " digest(s), so " + undisclosed +
         " digest(s) have no Disclosure here — undisclosed claims, decoys, or both. " +
         "A verifier cannot tell which, which is the point.");
+  log.debug("Leaving renderDisclosures().");
 }
 
 // --- issuer key resolution --------------------------------------------------
@@ -104,6 +108,7 @@ function renderDisclosures(rows, sdDigests) {
 // the iss value. The credential issuer metadata retrieved in step 1 is used as
 // a fallback when it carries a jwks_uri of its own.
 function resolveIssuerJwks(iss) {
+  log.debug("Entering resolveIssuerJwks().");
   var doc = sdJwtVc.getJson("vci_info") || {};
   var direct = doc.jwks_uri;
   var wellKnown = iss ? String(iss).replace(/\/+$/, "") + JWT_VC_ISSUER_WELL_KNOWN : "";
@@ -118,6 +123,7 @@ function resolveIssuerJwks(iss) {
         throw new Error("the JWT VC issuer metadata names no keys.");
       })
     : Promise.reject(new Error("the credential has no iss to resolve keys from."));
+  log.debug("Leaving resolveIssuerJwks().");
   return chain.catch(function (e) {
     if (!direct) throw e;
     return metadataClient.fetchJson(direct).then(function (j) { return { jwks: j, from: direct }; });
@@ -126,6 +132,7 @@ function resolveIssuerJwks(iss) {
 
 // --- verification -----------------------------------------------------------
 function verify() {
+  log.debug("Entering verify().");
   if (!parsed) return false;
   var checks = [];
   var payload = parsed.payload || {};
@@ -226,6 +233,7 @@ function verify() {
       renderChecks(checks);
       status("vc_credential_status", "Could not verify the issuer signature: " + e.message, "vc-bad");
     });
+  log.debug("Leaving verify().");
   return false;
 }
 
@@ -237,7 +245,11 @@ function holderKeyMatches(jwk) {
 
 function isoOf(seconds) {
   if (!seconds) return "—";
-  try { return new Date(seconds * 1000).toISOString(); } catch (e) { return String(seconds); }
+  try {
+    return new Date(seconds * 1000).toISOString();
+  } catch (e) {
+    return String(seconds);
+  }
 }
 
 // --- page actions -----------------------------------------------------------
@@ -265,9 +277,11 @@ function togglePane(id) {
 }
 
 function onload() {
+  log.debug("Entering onload().");
+  sdJwtVc.renderUseCaseBadge();
   var step = document.getElementById("vc_step_3");
   if (step) step.className = "vc-step-current";
-  ["vc_step_1", "vc_step_2"].forEach(function (id) {
+  ["vc_step_0", "vc_step_1", "vc_step_2"].forEach(function (id) {
     var e = document.getElementById(id);
     if (e) e.className = "vc-step-done";
   });
@@ -301,6 +315,7 @@ function onload() {
     (parsed.kbJwt ? " and a Key Binding JWT" : "") + ".", "vc-ok");
   verify();
   log.debug("SD-JWT VC issuance step 3 ready.");
+  log.debug("Leaving onload().");
 }
 
 if (typeof window !== "undefined") {

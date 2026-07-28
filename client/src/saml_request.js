@@ -80,12 +80,17 @@ function saveState() {
   }
 }
 function restoreState() {
+  log.debug("Entering restoreState().");
   if (!window.localStorage) return;
   // NameIDFormat <select> options come from metadata; rebuild them first so the
   // saved selection has a matching <option>.
   var savedOpts = localStorage.getItem(NAMEID_OPTIONS_KEY);
   if (savedOpts) {
-    try { populateNameIdOptions(JSON.parse(savedOpts)); } catch (e) { /* ignore */ }
+    try {
+      populateNameIdOptions(JSON.parse(savedOpts));
+    } catch (e) {
+      // Not JSON: keep the default.
+    }
   }
   var els = persistedEls();
   for (var i = 0; i < els.length; i++) {
@@ -95,12 +100,14 @@ function restoreState() {
     if (els[i].type === 'checkbox') els[i].checked = (v === '1' || v === 'true' || v === 'on');
     else els[i].value = v;
   }
+  log.debug("Leaving restoreState().");
 }
 
 // ---------------------------------------------------------------------------
 // Metadata loading + parsing
 // ---------------------------------------------------------------------------
 function loadMetadata() {
+  log.debug("Entering loadMetadata().");
   var url = val('saml_metadata_url').trim();
   if (!url) {
     setStatus('saml_metadata_status', 'Enter a metadata URL first.');
@@ -127,12 +134,14 @@ function loadMetadata() {
       setStatus('saml_metadata_status', 'Load failed: ' + e.message +
         (appconfig.backendAvailable ? '' : ' — the browser fetched the metadata URL directly; the IdP endpoint may not permit cross-origin (CORS) requests.'));
     });
+  log.debug("Leaving loadMetadata().");
   return false;
 }
 
 // Show + parse a metadata document (from a URL load or an uploaded file). The
 // "Loaded and parsed." status is the signal the test suite waits on.
 function applyMetadata(xmlText, url) {
+  log.debug("Entering applyMetadata().");
   // Show the raw document in the Metadata Document tab (even if parsing fails).
   setVal('saml_metadata_doc', xmlText);
   try {
@@ -148,6 +157,7 @@ function applyMetadata(xmlText, url) {
     setStatus('saml_metadata_status', 'Parse error: ' + e.message);
     opFailure('Load IdP Metadata', 'parse error: ' + e.message, { binding: '—' });
   }
+  log.debug("Leaving applyMetadata().");
 }
 
 // Upload a metadata document from a local file (no URL fetch / backend needed).
@@ -157,6 +167,7 @@ function uploadMetadata() {
   return false;
 }
 function onMetadataFileChange(evt) {
+  log.debug("Entering onMetadataFileChange().");
   var input = evt && evt.target;
   var file = input && input.files && input.files[0];
   if (!file) return false;
@@ -168,6 +179,7 @@ function onMetadataFileChange(evt) {
   };
   reader.onerror = function () { setStatus('saml_metadata_status', 'Could not read file: ' + file.name); };
   reader.readAsText(file);
+  log.debug("Leaving onMetadataFileChange().");
   return false;
 }
 
@@ -177,6 +189,7 @@ function tags(root, localName) {
 }
 
 function parseMetadata(xmlText) {
+  log.debug("Entering parseMetadata().");
   var doc = new DOMParser().parseFromString(xmlText, 'application/xml');
   if (doc.getElementsByTagName('parsererror').length) {
     throw new Error('malformed XML');
@@ -247,9 +260,11 @@ function parseMetadata(xmlText) {
   // edits persist (localStorage). loadMetadata() calls saveState() after this.
   if (signerCert) setVal('saml_enc_cert', signerCert);
   onNameIdFormatChange();
+  log.debug("Leaving parseMetadata().");
 }
 
 function populateNameIdOptions(formats) {
+  log.debug("Entering populateNameIdOptions().");
   var sel = el('saml_nameid_format');
   if (!sel) return;
   sel.innerHTML = '';
@@ -270,6 +285,7 @@ function populateNameIdOptions(formats) {
     }
   }
   sel.value = ''; // default to "none chosen"
+  log.debug("Leaving populateNameIdOptions().");
 }
 
 // Trim the long urn:...:nameid-format:xxx to its last segment for display.
@@ -282,6 +298,7 @@ function shortNameId(fmt) {
 // NameIDFormat -> username-hint restriction
 // ---------------------------------------------------------------------------
 function hintRuleFor(fmt) {
+  log.debug("Entering hintRuleFor().");
   var f = (fmt || '').toLowerCase();
   if (f.indexOf('emailaddress') >= 0) {
     return { placeholder: 'user@example.com', help: 'emailAddress format: enter an email address.',
@@ -300,6 +317,7 @@ function hintRuleFor(fmt) {
              test: function () { return true; }, allowed: false };
   }
   // unspecified, kerberos, entity, or unknown -> free text
+  log.debug("Leaving hintRuleFor().");
   return { placeholder: 'username', help: 'unspecified format: any value is allowed.',
            test: function () { return true; }, allowed: true };
 }
@@ -369,6 +387,7 @@ function onWsaChange() {
 // SP key-pair generation (RSA via node-forge) + self-signed certificate
 // ---------------------------------------------------------------------------
 function generateKeys() {
+  log.debug("Entering generateKeys().");
   var bits = parseInt(val('saml_key_bits'), 10) || 2048;
   setStatus('saml_call_status', 'Generating ' + bits + '-bit RSA key pair…');
   // Defer so the status paints before the (synchronous, slow) keygen runs.
@@ -388,10 +407,12 @@ function generateKeys() {
       setStatus('saml_call_status', 'Key generation error: ' + e.message);
     }
   }, 20);
+  log.debug("Leaving generateKeys().");
   return false;
 }
 
 function spSelfSignedCertPem(kp) {
+  log.debug("Entering spSelfSignedCertPem().");
   var cert = forge.pki.createCertificate();
   cert.publicKey = kp.publicKey;
   cert.serialNumber = '01';
@@ -402,6 +423,7 @@ function spSelfSignedCertPem(kp) {
   cert.setSubject(attrs);
   cert.setIssuer(attrs);
   cert.sign(kp.privateKey, forge.md.sha256.create());
+  log.debug("Leaving spSelfSignedCertPem().");
   return forge.pki.certificateToPem(cert).trim() + '\n';
 }
 
@@ -434,6 +456,7 @@ function certPemToB64(pem) {
 }
 
 function buildSpMetadata() {
+  log.debug("Entering buildSpMetadata().");
   var entityId = val('saml_sp_entity_id');
   var acs = val('saml_acs_url');
   var slo = appconfig.sloUrl || '';
@@ -457,6 +480,7 @@ function buildSpMetadata() {
       '\n    <md:AssertionConsumerService Binding="' + BINDING.artifact + '" Location="' + xmlEscape(acs) + '" index="1"/>'
     : '';
 
+  log.debug("Leaving buildSpMetadata().");
   return '<?xml version="1.0" encoding="UTF-8"?>' +
          '\n<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="' + xmlEscape(entityId) + '">' +
          '\n  <md:SPSSODescriptor AuthnRequestsSigned="true" WantAssertionsSigned="true"' +
@@ -508,6 +532,7 @@ function responseProtocolBinding(binding) {
 }
 
 function buildAuthnRequest() {
+  log.debug("Entering buildAuthnRequest().");
   var version = val('saml_version');
   var binding = val('saml_binding');
   var dest = ssoDestination(binding);
@@ -533,6 +558,7 @@ function buildAuthnRequest() {
   }
   var nameIdPolicy = '\n  <samlp:NameIDPolicy' + (fmt ? ' Format="' + xmlEscape(fmt) + '"' : '') + ' AllowCreate="true"/>';
 
+  log.debug("Leaving buildAuthnRequest().");
   return '<samlp:AuthnRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"' +
          ' xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"' +
          ' ID="' + id + '" Version="2.0" IssueInstant="' + instant + '"' +
@@ -598,6 +624,7 @@ function digestBase64(str, mdFactory) {
 // SigAlg and the POST enveloped SignatureMethod/DigestMethod. The SP key is RSA,
 // so these are the RSA-family methods from xmldsig / xmldsig-more (RFC 6931).
 function sigAlgSpec(uri) {
+  log.debug("Entering sigAlgSpec().");
   switch (uri) {
     case 'http://www.w3.org/2000/09/xmldsig#rsa-sha1':
       return { md: forge.md.sha1.create, digestUri: 'http://www.w3.org/2000/09/xmldsig#sha1' };
@@ -609,6 +636,7 @@ function sigAlgSpec(uri) {
     default:
       return { md: forge.md.sha256.create, digestUri: 'http://www.w3.org/2001/04/xmlenc#sha256' };
   }
+  log.debug("Leaving sigAlgSpec().");
 }
 function selectedSigAlg() { return val('saml_sig_alg') || SIG_ALG_RSA_SHA256; }
 
@@ -618,7 +646,9 @@ function selectedSigAlg() { return val('saml_sig_alg') || SIG_ALG_RSA_SHA256; }
 // EncryptedData when encryption is enabled (the signature then covers the
 // deflated encrypted payload).
 function signRedirect(xml, dest, relayState, doSign) {
+  log.debug("Entering signRedirect().");
   if (doSign === undefined) doSign = true;
+  log.debug("Leaving signRedirect().");
   return deflateRaw(xml).then(function (bytes) {
     var qs = 'SAMLRequest=' + encodeURIComponent(bytesToBase64(bytes));
     if (relayState) qs += '&RelayState=' + encodeURIComponent(relayState);
@@ -638,6 +668,7 @@ function signRedirect(xml, dest, relayState, doSign) {
 // HTTP-POST binding: enveloped XML-DSIG. Returns the signed XML string. The
 // <Signature> is placed after <Issuer> per the SAML schema.
 function signPostEnveloped(xml) {
+  log.debug("Entering signPostEnveloped().");
   var certB64 = certPemToB64(val('saml_sp_public_key'));
   var alg = selectedSigAlg();
   var spec = sigAlgSpec(alg);
@@ -680,6 +711,7 @@ function signPostEnveloped(xml) {
   }
   if (issuer) root.insertBefore(sigNode, issuer.nextSibling);
   else root.insertBefore(sigNode, root.firstChild);
+  log.debug("Leaving signPostEnveloped().");
   return new XMLSerializer().serializeToString(doc);
 }
 
@@ -695,6 +727,7 @@ function canonicalize(apex) { return c14nSerialize(apex, {}); }
 
 // All in-scope namespace declarations for `el` (walking ancestors), prefix→uri.
 function c14nInScopeNs(el) {
+  log.debug("Entering c14nInScopeNs().");
   var map = {};
   var chain = [], n = el;
   while (n && n.nodeType === 1) { chain.unshift(n); n = n.parentNode; }
@@ -705,6 +738,7 @@ function c14nInScopeNs(el) {
       else if (a.name.indexOf('xmlns:') === 0) map[a.name.slice(6)] = a.value;
     }
   });
+  log.debug("Leaving c14nInScopeNs().");
   return map;
 }
 function c14nTextEscape(s) {
@@ -716,6 +750,7 @@ function c14nAttrEscape(s) {
 }
 // `rendered` maps prefix→uri already output by an ancestor and still in scope.
 function c14nSerialize(el, rendered) {
+  log.debug("Entering c14nSerialize().");
   var inscope = c14nInScopeNs(el);
 
   // Prefixes visibly utilized by THIS element: its own prefix, plus the prefix
@@ -767,6 +802,7 @@ function c14nSerialize(el, rendered) {
     else if (child.nodeType === 3 || child.nodeType === 4) out += c14nTextEscape(child.nodeValue);
     child = child.nextSibling;
   }
+  log.debug("Leaving c14nSerialize().");
   return out + '</' + el.nodeName + '>';
 }
 
@@ -776,6 +812,7 @@ function c14nSerialize(el, rendered) {
 // namespace; descendants render only their own declarations.
 function canonicalizeInclusive(apex) { return c14nIncl(apex, {}, true); }
 function c14nIncl(el, rendered, isApex) {
+  log.debug("Entering c14nIncl().");
   var nsSource = {};
   if (isApex) { nsSource = c14nInScopeNs(el); }
   else {
@@ -819,6 +856,7 @@ function c14nIncl(el, rendered, isApex) {
     else if (child.nodeType === 3 || child.nodeType === 4) out += c14nTextEscape(child.nodeValue);
     child = child.nextSibling;
   }
+  log.debug("Leaving c14nIncl().");
   return out + '</' + el.nodeName + '>';
 }
 
@@ -875,6 +913,7 @@ function mgfMdFor(uri) {
 // Serialize the target to the octets that get encrypted, honoring the selected
 // canonicalization and Type (Element = whole element, Content = children only).
 function encPlaintext(xml, c14nMode, type) {
+  log.debug("Entering encPlaintext().");
   var isContent = type && type.indexOf('#Content') >= 0;
   if (c14nMode === 'exc-c14n' || c14nMode === 'c14n') {
     var fn = (c14nMode === 'c14n') ? canonicalizeInclusive : canonicalize;
@@ -890,10 +929,12 @@ function encPlaintext(xml, c14nMode, type) {
   var d2 = new DOMParser().parseFromString(xml, 'application/xml');
   var r2 = d2.documentElement, s = '', c = r2.firstChild;
   while (c) { s += new XMLSerializer().serializeToString(c); c = c.nextSibling; }
+  log.debug("Leaving encPlaintext().");
   return s;
 }
 
 function encryptAuthnRequest(xml) {
+  log.debug("Entering encryptAuthnRequest().");
   var certField = val('saml_enc_cert');
   if (!certField.trim()) throw new Error('No encryption certificate — load metadata or paste a recipient certificate.');
   var certB64 = certPemToB64(certField);
@@ -940,6 +981,7 @@ function encryptAuthnRequest(xml) {
   var wrappedB64 = forge.util.encode64(wrapped);
 
   // 3. Assemble <xenc:EncryptedData> with the nested <xenc:EncryptedKey>.
+  log.debug("Leaving encryptAuthnRequest().");
   return '<xenc:EncryptedData xmlns:xenc="' + XENC_NS + '" Type="' + type + '">' +
       '<xenc:EncryptionMethod Algorithm="' + dataAlg + '"/>' +
       '<ds:KeyInfo xmlns:ds="' + DS_NS + '">' +
@@ -968,11 +1010,16 @@ function opStatus(signOn, encOn, what) {
 // and after programmatic updates (metadata load, key generation) that don't fire
 // change events. Guarded so a transient build error can never break the handler.
 function autoBuildRequest() {
-  try { buildRequestUi(); } catch (e) { log.error('autoBuildRequest: ' + e.message); }
+  try {
+    buildRequestUi();
+  } catch (e) {
+    log.error('autoBuildRequest: ' + e.message);
+  }
   return false;
 }
 
 function buildRequestUi() {
+  log.debug("Entering buildRequestUi().");
   if (!validateHint()) {
     setStatus('saml_call_status', 'Username hint does not match the selected NameIDFormat.');
     return false;
@@ -1027,6 +1074,7 @@ function buildRequestUi() {
     setStatus('saml_call_status', 'Build failed: ' + e.message);
     return false;
   }
+  log.debug("Leaving buildRequestUi().");
 }
 
 // ---------------------------------------------------------------------------
@@ -1036,6 +1084,7 @@ function buildRequestUi() {
 // ArtifactResolve later; we register the SP context, then sign+send in-browser.
 // ---------------------------------------------------------------------------
 function callIdp() {
+  log.debug("Entering callIdp().");
   if (val('saml_version') !== '2.0') {
     setStatus('saml_call_status', 'Only SAML 2.0 can be sent. SAML 1.x is IdP-initiated (reference only).');
     return opFailure('Send AuthnRequest', 'SAML 1.x is IdP-initiated — nothing to send.');
@@ -1112,8 +1161,12 @@ function callIdp() {
         .then(function (res) {
           artifactSent = true;
           var id = opSent('Send AuthnRequest', 'sent to ' + dest);
-          try { window.location.assign(res.location); }
-          catch (e) { opFailed(id, e.message); throw e; }
+          try {
+            window.location.assign(res.location);
+          } catch (e) {
+            opFailed(id, e.message);
+            throw e;
+          }
         })
         .catch(function (e) {
           log.error('callIdp artifact: ' + e.message);
@@ -1144,10 +1197,12 @@ function callIdp() {
     setStatus('saml_call_status', 'Send failed: ' + e.message);
     return opFailure('Send AuthnRequest', e.message);
   }
+  log.debug("Leaving callIdp().");
 }
 
 // Auto-submit an HTTP-POST-binding request to the IdP SSO endpoint.
 function submitPostForm(action, params) {
+  log.debug("Entering submitPostForm().");
   var form = document.createElement('form');
   form.method = 'POST';
   form.action = action;
@@ -1160,6 +1215,7 @@ function submitPostForm(action, params) {
   });
   document.body.appendChild(form);
   form.submit();
+  log.debug("Leaving submitPostForm().");
 }
 
 // ---------------------------------------------------------------------------
@@ -1169,11 +1225,13 @@ function submitPostForm(action, params) {
 function lastLogin(key) { return (window.localStorage && localStorage.getItem(key)) || ''; }
 
 function buildLogoutRequest() {
+  log.debug("Entering buildLogoutRequest().");
   var slo = val('saml_slo_redirect') || val('saml_slo_post');
   var issuer = val('saml_sp_entity_id');
   var nameid = lastLogin('saml_last_nameid');
   var fmt = lastLogin('saml_last_nameid_format');
   var sidx = lastLogin('saml_last_session_index');
+  log.debug("Leaving buildLogoutRequest().");
   return '<samlp:LogoutRequest xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"' +
          ' xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"' +
          ' ID="' + genId() + '" Version="2.0" IssueInstant="' + new Date().toISOString() + '"' +
@@ -1185,6 +1243,7 @@ function buildLogoutRequest() {
 }
 
 function singleLogout() {
+  log.debug("Entering singleLogout().");
   var sloBinding = bindingLabel(val('saml_binding') === 'post' ? 'post' : 'redirect');
   if (val('saml_version') !== '2.0') {
     setStatus('saml_call_status', 'Single Logout requires SAML 2.0.');
@@ -1236,6 +1295,7 @@ function singleLogout() {
       if (sloSentId) opFailed(sloSentId, e.message);
       else opFailure('Single Logout', e.message, { binding: sloBinding });
     });
+  log.debug("Leaving singleLogout().");
   return false;
 }
 
@@ -1309,14 +1369,22 @@ function clearOperationHistory() {
 }
 
 function copyField(id) {
+  log.debug("Entering copyField().");
   var e = el(id);
   if (!e) return false;
   var text = e.value || '';
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).catch(function (err) { log.error('copyField: ' + err); });
   } else {
-    try { e.focus(); e.select(); document.execCommand('copy'); } catch (err) { log.error('copyField fallback: ' + err.message); }
+    try {
+      e.focus();
+      e.select();
+      document.execCommand('copy');
+    } catch (err) {
+      log.error('copyField fallback: ' + err.message);
+    }
   }
+  log.debug("Leaving copyField().");
   return false;
 }
 
@@ -1349,7 +1417,11 @@ function showTab(evt, tabId) {
 function viewCertificate(fieldId) {
   var pem = val(fieldId);
   if (!pem) { setStatus('saml_metadata_status', 'No certificate to view yet.'); return false; }
-  try { if (window.localStorage) localStorage.setItem('saml_cert_view', pem); } catch (e) { /* ignore */ }
+  try {
+    if (window.localStorage) localStorage.setItem('saml_cert_view', pem);
+  } catch (e) {
+    // No storage available in this context.
+  }
   window.open('/saml_cert.html?from=saml_request.html', '_blank');
   return false;
 }
@@ -1379,14 +1451,24 @@ var CONFIG_URL_FIELDS = {
 var CONFIG_URI_FIELDS = { saml_idp_entity_id: 'IdP entityID' };
 
 function isHttpUrl(v) {
-  try { var u = new URL(v); return u.protocol === 'http:' || u.protocol === 'https:'; }
-  catch (e) { return false; }
+  try {
+    var u = new URL(v);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch (e) {
+    return false;
+  }
 }
 function isAbsoluteUri(v) {
-  try { new URL(v); return true; } catch (e) { return false; }
+  try {
+    new URL(v);
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 function validateConfigUrls() {
+  log.debug("Entering validateConfigUrls().");
   var bad = [];
   Object.keys(CONFIG_URL_FIELDS).forEach(function (id) {
     var v = val(id).trim();
@@ -1401,6 +1483,7 @@ function validateConfigUrls() {
   } else {
     setStatus('saml_config_status', 'Configuration URLs valid.');
   }
+  log.debug("Leaving validateConfigUrls().");
   return bad.length === 0;
 }
 

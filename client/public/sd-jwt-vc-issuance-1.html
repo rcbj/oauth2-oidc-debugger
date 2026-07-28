@@ -63,6 +63,48 @@ function vcSetAllPanes(expand) {
 }
 </script>
 
+<!-- ====== The Credential Offer, when the issuer started this (H.1) ====== -->
+<div class="step0 dbg-pane" id="pane_offer" style="display: none;">
+  <legend class="dbg-legend" id="offer_expand_button" onclick="return sdjwtvc1.togglePane('offer_fieldset');">Credential Offer</legend>
+  <fieldset name="offer_fieldset" id="offer_fieldset" style="display: block;">
+    <p class="vc-note" id="offer_intro">An issuer has offered you a credential. This is the Credential Offer it
+    sent, exactly as received &mdash; nothing has been requested yet.</p>
+    <table class="vc-token-table">
+      <tbody>
+        <tr>
+          <td><div class="tooltip"><label>Offered by</label><span class="tooltiptext">credential_issuer from the offer. The panes below are filled in from it, so the rest of the workflow talks to this issuer.</span></div></td>
+          <td><code id="offer_issuer">&mdash;</code></td>
+        </tr>
+        <tr>
+          <td><div class="tooltip"><label>Credential offered</label><span class="tooltiptext">credential_configuration_ids — which entry of the issuer's credential_configurations_supported is on offer.</span></div></td>
+          <td><code id="offer_configuration_ids">&mdash;</code></td>
+        </tr>
+        <tr>
+          <td><div class="tooltip"><label>Grant</label><span class="tooltiptext">The grants member says how to get authorized. authorization_code sends you to the issuer to sign in; its issuer_state ties that request back to this offer.</span></div></td>
+          <td><code id="offer_grant">&mdash;</code></td>
+        </tr>
+        <tr>
+          <td><div class="tooltip"><label>How it arrived</label><span class="tooltiptext">By value the offer travels in the credential_offer query parameter; by reference the wallet fetches it from credential_offer_uri.</span></div></td>
+          <td><code id="offer_source">&mdash;</code></td>
+        </tr>
+        <tr>
+          <td><div class="tooltip"><label>The offer</label><span class="tooltiptext">The Credential Offer object itself (OID4VCI section 4).</span></div></td>
+          <td><pre class="vc-json" id="offer_json">&nbsp;</pre></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip">
+              <input class="btn2" id="offer_discard_button" type="button" value="Discard this offer" onclick="return sdjwtvc1.discardOffer();" />
+              <span class="tooltiptext">Forget the offer and carry on as a wallet-initiated issuance. The metadata and configuration below stay as they are.</span>
+            </div>
+          </td>
+          <td><div class="vc-status" id="offer_status">&nbsp;</div></td>
+        </tr>
+      </tbody>
+    </table>
+  </fieldset>
+</div>
+
 <!-- ============ Pane 1: Credential Issuer Metadata (OID4VCI) ============ -->
 <div class="step0 dbg-pane" id="pane_vci">
   <legend class="dbg-legend" id="vci_expand_button" onclick="return sdjwtvc1.togglePane('vci_fieldset');">Credential Issuer Metadata (OID4VCI)</legend>
@@ -85,7 +127,7 @@ function vcSetAllPanes(expand) {
         <tr>
           <td>
             <div class="tooltip">
-              <input class="btn_vci_retrieve btn2" id="vci_retrieve_button" type="button" value="Retrieve" onclick="return sdjwtvc1.retrieveVciMetadata();" />
+              <input class="btn_vci_retrieve btn2" id="vci_retrieve_button" type="button" value="Retrieve" onclick="sdjwtvc1.retrieveVciMetadata(); return false;" />
               <span class="tooltiptext">Fetch the Credential Issuer Metadata document from the URL above.</span>
             </div>
           </td>
@@ -145,7 +187,7 @@ function vcSetAllPanes(expand) {
         <tr>
           <td>
             <div class="tooltip">
-              <input class="btn_oidc_discovery_endpoint btn2" id="as_retrieve_button" type="button" value="Retrieve" onclick="return sdjwtvc1.retrieveAsMetadata();" />
+              <input class="btn_oidc_discovery_endpoint btn2" id="as_retrieve_button" type="button" value="Retrieve" onclick="sdjwtvc1.retrieveAsMetadata(); return false;" />
               <span class="tooltiptext">Fetch the authorization server metadata document from the URL above.</span>
             </div>
           </td>

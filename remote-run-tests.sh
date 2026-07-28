@@ -98,13 +98,8 @@ init()
       ;;
   esac
 
-  # SP signing cert (base64 DER) registered on the Keycloak SAML client so it can
-  # validate the AuthnRequest signature (tests/saml_sso.js signs with the matching
-  # private key tests/fixtures/sp-key.pem).
-  SAML_SP_SIGNING_CERT=$(grep -v -- '-----' "${CURRENT_DIR}/tests/fixtures/sp-cert.pem" | tr -d '\n\r')
-
   export DEBUGGER_BASE_URL KEYCLOAK_BASE_URL KEYCLOAK_LOCALHOST_BASE_URL CONFIG_FILE
-  export API_BASE_URL SAML_SP_ENTITY_ID SAML_SP_SIGNING_CERT SAML_BACKEND_AVAILABLE
+  export API_BASE_URL SAML_SP_ENTITY_ID SAML_BACKEND_AVAILABLE
   # Only exported when set (backendless targets); otherwise common.sh derives them.
   [ -n "${SAML_ACS_URL:-}" ] && export SAML_ACS_URL
   [ -n "${SAML_SLO_URL:-}" ] && export SAML_SLO_URL
@@ -132,6 +127,11 @@ init()
     exit 1
   fi
   common_setup
+  check_return_code $?
+  # A fresh SP key pair for this run: the tests sign and decrypt with the private
+  # key, configureKeycloak registers the certificate on the SAML client, and
+  # nothing is written to the repository.
+  generateSpKeyPair
   check_return_code $?
   NODEJS_BASE_DIR=tests
 
