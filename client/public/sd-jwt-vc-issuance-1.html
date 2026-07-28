@@ -105,6 +105,38 @@ function vcSetAllPanes(expand) {
   </fieldset>
 </div>
 
+<!-- ====== Taking an offer that arrived on another device (H.2 / H.3) ====== -->
+<div class="step0 dbg-pane" id="pane_scan">
+  <legend class="dbg-legend" id="scan_expand_button" onclick="return sdjwtvc1.togglePane('scan_fieldset');">Receive a Credential Offer</legend>
+  <fieldset name="scan_fieldset" id="scan_fieldset" style="display: block;">
+    <p class="vc-note">In a cross-device flow the issuer shows a QR code on its own screen and your wallet is
+    somewhere else, so the offer does not arrive in this browser by itself. Paste what the QR code contains
+    &mdash; an <code>openid-credential-offer://</code> URI, an <code>https://</code> link carrying
+    <code>credential_offer</code> or <code>credential_offer_uri</code>, or the Credential Offer JSON itself.</p>
+    <table border="0">
+      <tbody>
+        <tr>
+          <td>
+            <div class="tooltip"><label for="scan_offer_input">Scanned offer</label>
+              <span class="tooltiptext">Whatever the QR code encodes. OID4VCI defines the openid-credential-offer:// URI scheme for exactly this hand-over.</span>
+            </div>
+          </td>
+          <td><textarea id="scan_offer_input" name="scan_offer_input" rows="3" cols="90" placeholder="openid-credential-offer://?credential_offer=%7B%22credential_issuer%22..."></textarea></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip">
+              <input class="btn2" id="scan_offer_button" type="button" value="Take this offer" onclick="return sdjwtvc1.takeScannedOffer();" />
+              <span class="tooltiptext">Read the offer, then discover the issuer it names and the authorization server that issuer names — the same thing that happens when an offer arrives in the URL.</span>
+            </div>
+          </td>
+          <td><div class="vc-status" id="scan_status">&nbsp;</div></td>
+        </tr>
+      </tbody>
+    </table>
+  </fieldset>
+</div>
+
 <!-- ============ Pane 1: Credential Issuer Metadata (OID4VCI) ============ -->
 <div class="step0 dbg-pane" id="pane_vci">
   <legend class="dbg-legend" id="vci_expand_button" onclick="return sdjwtvc1.togglePane('vci_fieldset');">Credential Issuer Metadata (OID4VCI)</legend>

@@ -324,6 +324,22 @@ function buildJobs() {
     });
   }
 
+  // The same SD-JWT VC issuance workflow, driven against walt.id's issuer-api2
+  // instead of our mock: a real, independently written OpenID4VCI 1.0
+  // Credential Issuer. This is the interoperability check — same pages, same
+  // buttons, someone else's implementation on the other end — so it is gated on
+  // that container being up rather than on the STS.
+  if (env.WALTID_ISSUER_URL) {
+    jobs.push({
+      name: "SD-JWT VC Issuance against walt.id (OID4VCI interoperability)",
+      script: "sd_jwt_vc_waltid.js",
+      env: {
+        WALTID_ISSUER_URL: env.WALTID_ISSUER_URL,
+        KEYCLOAK_BASE_URL: env.KEYCLOAK_BASE_URL || "",
+      },
+    });
+  }
+
   // Operations History pane on the WS-Trust pages: records every attempted STS
   // call (timestamp, WS-Trust version, operation, user, result), dispatched as
   // "Sent" and resolved from the RSTR — or the SOAP Fault — on the response

@@ -163,6 +163,185 @@ generateSpKeyPair()
   echo "Leaving generateSpKeyPair()."
 }
 
+# ---------------------------------------------------------------------------
+# The walt.id issuer's signing key, generated fresh for each run.
+#
+# The waltid-issuer container (waltid/config/*.conf) reads its key leaf by leaf
+# out of the environment, so that no private key is committed here — the same
+# rule generateSpKeyPair() follows for the SAML SP. It signs both the
+# credentials it issues and its own access tokens, and its did:jwk — the public
+# half of this key, encoded into the identifier — becomes the `iss` of every
+# credential it issues.
+#
+# Exports:
+#   WALTID_KEY_D / _X / _Y     the P-256 key, as JWK members
+#   WALTID_ISSUER_DID          did:jwk of the public half
+#   WALTID_CI_TOKEN_KEY        the same key as the JSON string walt.id's
+#                              ciTokenKey field expects
+# Honours values supplied by the caller, so a run can pin a key if it needs to.
+# ---------------------------------------------------------------------------
+generateWaltidIssuerKey()
+{
+  echo "Entering generateWaltidIssuerKey()."
+  # As in generateSpKeyPair: this file runs under `set -x`, and a private key
+  # must not be echoed into a run (or CI) log.
+  local xtrace_was_on=""
+  case "$-" in
+    *x*) xtrace_was_on="yes"; set +x ;;
+  esac
+
+  if [ -n "${WALTID_KEY_D:-}" ] && [ -n "${WALTID_ISSUER_DID:-}" ] && [ -n "${WALTID_CI_TOKEN_KEY:-}" ];
+  then
+    export WALTID_KEY_D WALTID_KEY_X WALTID_KEY_Y WALTID_ISSUER_DID WALTID_CI_TOKEN_KEY
+    [ -n "${xtrace_was_on}" ] && set -x
+    echo "A walt.id issuer key was supplied by the caller; using it as-is."
+    echo "Leaving generateWaltidIssuerKey()."
+    return 0
+  fi
+
+  if ! command -v node >/dev/null 2>&1;
+  then
+    [ -n "${xtrace_was_on}" ] && set -x
+    echo "ERROR: node is required to generate the walt.id issuer key." >&2
+    exit 1
+  fi
+
+  # One line per exported value, so nothing has to be parsed out of JSON here.
+  local generated
+  generated=$(node -e '
+    var crypto = require("crypto");
+    var kp = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+    var jwk = kp.privateKey.export({ format: "jwk" });
+    var pub = { crv: jwk.crv, kty: jwk.kty, x: jwk.x, y: jwk.y };
+    // did:jwk is base64url of the JSON public key, per the did:jwk method.
+    var did = "did:jwk:" + Buffer.from(JSON.stringify(pub)).toString("base64url");
+    console.log(jwk.d);
+    console.log(jwk.x);
+    console.log(jwk.y);
+    console.log(did);
+    console.log(JSON.stringify({ type: "jwk", jwk: { kty: jwk.kty, d: jwk.d, crv: jwk.crv, x: jwk.x, y: jwk.y } }));
+  ')
+  if [ -z "${generated}" ];
+  then
+    [ -n "${xtrace_was_on}" ] && set -x
+    echo "ERROR: could not generate the walt.id issuer key." >&2
+    exit 1
+  fi
+
+  WALTID_KEY_D=$(echo "${generated}" | sed -n '1p')
+  WALTID_KEY_X=$(echo "${generated}" | sed -n '2p')
+  WALTID_KEY_Y=$(echo "${generated}" | sed -n '3p')
+  WALTID_ISSUER_DID=$(echo "${generated}" | sed -n '4p')
+  WALTID_CI_TOKEN_KEY=$(echo "${generated}" | sed -n '5p')
+  export WALTID_KEY_D WALTID_KEY_X WALTID_KEY_Y WALTID_ISSUER_DID WALTID_CI_TOKEN_KEY
+
+  if [ -z "${WALTID_KEY_D}" ] || [ -z "${WALTID_ISSUER_DID}" ];
+  then
+    [ -n "${xtrace_was_on}" ] && set -x
+    echo "ERROR: the generated walt.id issuer key is incomplete." >&2
+    exit 1
+  fi
+
+  [ -n "${xtrace_was_on}" ] && set -x
+  # The DID is public — it is published in every credential this issuer signs.
+  echo "Generated a fresh walt.id issuer key for this run: P-256, ${WALTID_ISSUER_DID}."
+  echo "Leaving generateWaltidIssuerKey()."
+}
+
+# ---------------------------------------------------------------------------
+# Render the walt.id configuration with this run's values written in.
+#
+# waltid/config/*.conf are templates that name their inputs as ${WALTID_...}.
+# They could be mounted as they are and left for the config loader to expand —
+# walt.id's own files rely on exactly that — but a third party's expansion rules
+# are not something to bet a test run on: when it does not happen the service
+# dies before it listens, and all you get is a 502 from the proxy in front of it.
+#
+# So the values are substituted HERE, and the container mounts the rendered
+# copies. Nothing is left to interpret, and when something is wrong the effective
+# configuration is a file you can read.
+#
+# The rendered directory is gitignored: it holds this run's private key.
+# ---------------------------------------------------------------------------
+renderWaltidConfig()
+{
+  echo "Entering renderWaltidConfig()."
+  local xtrace_was_on=""
+  case "$-" in
+    *x*) xtrace_was_on="yes"; set +x ;;
+  esac
+
+  local repo_root="${1:-.}"
+  local template_dir="${repo_root}/waltid/config"
+  local out_dir="${repo_root}/waltid/generated-config"
+
+  if [ ! -d "${template_dir}" ];
+  then
+    [ -n "${xtrace_was_on}" ] && set -x
+    echo "ERROR: ${template_dir} does not exist; cannot render the walt.id configuration." >&2
+    exit 1
+  fi
+  if [ -z "${WALTID_KEY_D:-}" ] || [ -z "${WALTID_BASE_URL:-}" ];
+  then
+    [ -n "${xtrace_was_on}" ] && set -x
+    echo "ERROR: renderWaltidConfig needs WALTID_BASE_URL and the issuer key. Call generateWaltidIssuerKey first, and set WALTID_BASE_URL to the address the BROWSER uses." >&2
+    exit 1
+  fi
+
+  rm -rf "${out_dir}"
+  mkdir -p "${out_dir}"
+  check_return_code $?
+
+  # Only the names this deployment defines are substituted; anything else in the
+  # templates — ${defaultIssuerKey} and friends — is HOCON's own referencing and
+  # must survive untouched.
+  WALTID_TEMPLATE_DIR="${template_dir}" WALTID_OUT_DIR="${out_dir}" node -e '
+    var fs = require("fs");
+    var path = require("path");
+    var names = ["WALTID_BASE_URL", "WALTID_CI_TOKEN_KEY", "WALTID_ISSUER_DID",
+                 "WALTID_KEY_D", "WALTID_KEY_X", "WALTID_KEY_Y",
+                 "WALTID_KEYCLOAK_AUTHORIZE_URL", "WALTID_KEYCLOAK_TOKEN_URL",
+                 "WALTID_KEYCLOAK_CLIENT_ID", "WALTID_KEYCLOAK_CLIENT_SECRET"];
+    var from = process.env.WALTID_TEMPLATE_DIR;
+    var to = process.env.WALTID_OUT_DIR;
+    var missing = [];
+    var rendered = [];
+    fs.readdirSync(from).filter(function (f) { return /\.conf$/.test(f); }).forEach(function (f) {
+      var text = fs.readFileSync(path.join(from, f), "utf8");
+      names.forEach(function (name) {
+        if (text.indexOf("${" + name + "}") === -1) return;
+        var value = process.env[name];
+        if (value === undefined || value === "") {
+          if (missing.indexOf(name) === -1) missing.push(name);
+          return;
+        }
+        text = text.split("${" + name + "}").join(value);
+      });
+      fs.writeFileSync(path.join(to, f), text);
+      rendered.push(f);
+    });
+    if (missing.length) {
+      console.error("ERROR: the walt.id configuration references " + missing.join(", ") +
+                    ", which are not set.");
+      process.exit(1);
+    }
+    console.log("Rendered " + rendered.length + " walt.id configuration file(s): " + rendered.join(", "));
+  '
+  local rc=$?
+  [ -n "${xtrace_was_on}" ] && set -x
+  check_return_code ${rc}
+
+  # Anything left unexpanded would be read literally by the service, so say so
+  # here rather than letting it fail as a connection refused later.
+  if grep -l '\${WALTID_' "${out_dir}"/*.conf >/dev/null 2>&1;
+  then
+    echo "ERROR: the rendered walt.id configuration still contains \${WALTID_...} references:" >&2
+    grep -n '\${WALTID_' "${out_dir}"/*.conf >&2
+    exit 1
+  fi
+  echo "Leaving renderWaltidConfig()."
+}
+
 configureKeycloak()
 {
   echo "Entering configureKeycloak()."
@@ -806,6 +985,46 @@ configureKeycloak()
   fi
   declare -gx DYNAMIC_CLIENT_REGISTRATION_DISCOVERY_ENDPOINT="${KEYCLOAK_BASE_URL}/realms/debugger-testing/.well-known/openid-configuration"
   declare -gx DYNAMIC_CLIENT_REGISTRATION_INITIAL_ACCESS_TOKEN="${DCR_INITIAL_ACCESS_TOKEN}"
+
+  # ---- the client the walt.id issuer authenticates End-Users with ------------
+  # walt.id's issuer-api2 never authenticates anyone itself: its authorization
+  # endpoint redirects to an external OpenID Provider and issues its own code
+  # once that provider returns an id_token. This is that provider's client —
+  # confidential, because walt.id makes a back-channel token call with a secret.
+  #
+  # The secret is a fixed test value, like the keycloak/keycloak admin password
+  # this realm already uses: it is a throwaway client in a throwaway realm on a
+  # private network, and both sides (this client and waltid/config) have to agree
+  # on it before either starts.
+  WALTID_KEYCLOAK_CLIENT_ID="${WALTID_KEYCLOAK_CLIENT_ID:-waltid-issuer}"
+  WALTID_KEYCLOAK_CLIENT_SECRET="${WALTID_KEYCLOAK_CLIENT_SECRET:-waltid-issuer-test-secret}"
+  # Where Keycloak sends the browser back to. It must match the callback route
+  # walt.id serves, under whichever base URL that container was given.
+  WALTID_ISSUER_BASE_URL="${WALTID_BASE_URL:-http://waltid-issuer:7005}"
+  curl \
+    -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing/clients" \
+    -H "Authorization: Bearer ${KEYCLOAK_ACCESS_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{
+          "clientId": "'"${WALTID_KEYCLOAK_CLIENT_ID}"'",
+          "name": "walt.id issuer (external authentication)",
+          "protocol": "openid-connect",
+          "enabled": true,
+          "publicClient": false,
+          "secret": "'"${WALTID_KEYCLOAK_CLIENT_SECRET}"'",
+          "standardFlowEnabled": true,
+          "directAccessGrantsEnabled": false,
+          "serviceAccountsEnabled": false,
+          "redirectUris": [
+            "'"${WALTID_ISSUER_BASE_URL}"'/openid4vci/external/oauth/callback",
+            "http://waltid-issuer:7005/openid4vci/external/oauth/callback",
+            "http://localhost:7005/openid4vci/external/oauth/callback"
+          ],
+          "webOrigins": ["+"],
+          "attributes": { "post.logout.redirect.uris": "+" }
+        }'
+  check_return_code $?
+  echo "Registered the walt.id issuer's Keycloak client ${WALTID_KEYCLOAK_CLIENT_ID} (callback under ${WALTID_ISSUER_BASE_URL})."
 
   echo "Leaving configureKeycloak()."
 }

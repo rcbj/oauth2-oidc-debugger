@@ -57,6 +57,54 @@ function vcSetAllPanes(expand) {
 }
 </script>
 
+<!-- ====== Pane 0: the Token Request, for a pre-authorized offer (H.2/H.3) ====== -->
+<div class="step0 dbg-pane" id="pane_pre_authorized" style="display: none;">
+  <legend class="dbg-legend" id="preauth_expand_button" onclick="return sdjwtvc2.togglePane('preauth_fieldset');">Token Request (pre-authorized code)</legend>
+  <fieldset name="preauth_fieldset" id="preauth_fieldset" style="display: block;">
+    <p class="vc-note">This offer carries a <code>pre-authorized_code</code>, so there was no authorization
+    request and nobody was sent to a login page: the End-User was identified by the issuer beforehand and this
+    code is the proof of it. The wallet goes straight to the token endpoint with the grant type
+    <code>urn:ietf:params:oauth:grant-type:pre-authorized_code</code>.</p>
+    <table class="vc-token-table">
+      <tbody>
+        <tr>
+          <td><div class="tooltip"><label>Pre-authorized code</label><span class="tooltiptext">From the Credential Offer. Single use, like an authorization code.</span></div></td>
+          <td><code id="vc_pre_authorized_code">&mdash;</code></td>
+        </tr>
+        <tr id="vc_tx_code_row">
+          <td>
+            <div class="tooltip"><label for="vc_tx_code">Transaction Code</label>
+              <span class="tooltiptext">The code the issuer displayed on ITS screen (tx_code). It never travels in the offer — that separation is what makes the cross-device flow safe to start from a QR code anyone could photograph.</span>
+            </div>
+          </td>
+          <td>
+            <input type="text" id="vc_tx_code" name="vc_tx_code" size="20" autocomplete="off"
+                   oninput="return sdjwtvc2.onTxCodeChange();" />
+            <span class="vc-note" id="vc_tx_code_hint">&nbsp;</span>
+          </td>
+        </tr>
+        <tr>
+          <td><div class="tooltip"><label>The call</label><span class="tooltiptext">The Token Request exactly as it will be sent: method, URL, headers and the form-encoded body.</span></div></td>
+          <td><textarea class="vc-token" rows="9" readonly id="vc_token_request"></textarea></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip">
+              <input class="btn2" id="vc_token_request_button" type="button" value="Send the Token Request" onclick="return sdjwtvc2.sendTokenRequest();" />
+              <span class="tooltiptext">Redeem the pre-authorized code for an access token. Nothing is issued yet — the credential is requested further down this page.</span>
+            </div>
+          </td>
+          <td><div class="vc-status" id="vc_token_status">&nbsp;</div></td>
+        </tr>
+        <tr>
+          <td><div class="tooltip"><label>Response</label><span class="tooltiptext">The token endpoint's answer, verbatim.</span></div></td>
+          <td><pre class="vc-json" id="vc_token_response" style="display: none;">&nbsp;</pre></td>
+        </tr>
+      </tbody>
+    </table>
+  </fieldset>
+</div>
+
 <!-- ============ Pane 1: the tokens ============ -->
 <div class="step0 dbg-pane" id="pane_tokens">
   <legend class="dbg-legend" id="tokens_expand_button" onclick="return sdjwtvc2.togglePane('tokens_fieldset');">Tokens from the OIDC Authorization Code Flow</legend>
@@ -179,6 +227,47 @@ function vcSetAllPanes(expand) {
       <div class="vc-status" id="vc_approval_status">&nbsp;</div>
     </div>
     <pre class="vc-json" id="vc_response_body" style="display:none;">&nbsp;</pre>
+  </fieldset>
+</div>
+
+<!-- ====== The issuer needs more time (H.3) ====== -->
+<div class="step0 dbg-pane" id="pane_deferred" style="display: none;">
+  <legend class="dbg-legend" id="deferred_expand_button" onclick="return sdjwtvc2.togglePane('deferred_fieldset');">Deferred Issuance</legend>
+  <fieldset name="deferred_fieldset" id="deferred_fieldset" style="display: block;">
+    <p class="vc-note">The issuer answered <code>202</code> with a <code>transaction_id</code> instead of a
+    credential: it cannot issue this one immediately (a background check, a human in the loop). The wallet
+    comes back to the <strong>Deferred Credential Endpoint</strong> with that identifier until the credential is
+    ready. The issuer says how long to wait between attempts in <code>interval</code>, and the
+    <code>transaction_id</code> stops working the moment the credential has been collected.</p>
+    <table class="vc-token-table">
+      <tbody>
+        <tr>
+          <td><div class="tooltip"><label>Transaction</label><span class="tooltiptext">transaction_id from the Credential Response. It identifies this deferred issuance and nothing else.</span></div></td>
+          <td><code id="vc_transaction_id">&mdash;</code></td>
+        </tr>
+        <tr>
+          <td><div class="tooltip"><label>Endpoint</label><span class="tooltiptext">deferred_credential_endpoint from the credential issuer metadata. An issuer that cannot defer does not publish one.</span></div></td>
+          <td><code id="vc_deferred_endpoint">&mdash;</code></td>
+        </tr>
+        <tr>
+          <td><div class="tooltip"><label>The call</label><span class="tooltiptext">The Deferred Credential Request as it is sent, each time.</span></div></td>
+          <td><textarea class="vc-token" rows="8" readonly id="vc_deferred_request"></textarea></td>
+        </tr>
+        <tr>
+          <td><div class="tooltip"><label>Attempts</label><span class="tooltiptext">Every poll and what came back, so the waiting is visible rather than implied.</span></div></td>
+          <td><pre class="vc-json" id="vc_deferred_attempts">&mdash;</pre></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip">
+              <input class="btn2" id="vc_deferred_poll_button" type="button" value="Check again now" onclick="return sdjwtvc2.pollDeferred();" />
+              <span class="tooltiptext">Ask the Deferred Credential Endpoint again without waiting for the interval. The wallet is already retrying on its own.</span>
+            </div>
+          </td>
+          <td><div class="vc-status" id="vc_deferred_status">&nbsp;</div></td>
+        </tr>
+      </tbody>
+    </table>
   </fieldset>
 </div>
 

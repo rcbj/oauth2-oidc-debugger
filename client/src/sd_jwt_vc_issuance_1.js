@@ -296,15 +296,25 @@ function retrieveVciMetadata() {
 // server's RFC 8414 endpoint in pane 2 — unless the user has already put
 // something else there.
 function defaultAuthorizationServerUrl() {
+  log.debug("Entering defaultAuthorizationServerUrl().");
   var servers = vciInfo.authorization_servers;
+  // OID4VCI section 11.2.3: authorization_servers is OPTIONAL, and when it is
+  // absent the entity providing the Credential Issuer is also the authorization
+  // server. walt.id's issuer omits it and is its own — so falling back to the
+  // credential issuer is the difference between discovering that server and
+  // leaving the pane pointed at whatever was there before.
   var as = (Object.prototype.toString.call(servers) === "[object Array]" && servers.length)
-    ? servers[0] : "";
-  if (!as) return;
+    ? servers[0] : (vciInfo.credential_issuer || "");
+  if (!as) {
+    log.debug("Leaving defaultAuthorizationServerUrl(). The document names no server.");
+    return;
+  }
   var current = val("oidc_discovery_endpoint");
   if (current && current.indexOf(AS_WELL_KNOWN) < 0) return;
   if (current && current.indexOf(as) === 0) return;
-  setVal("oidc_discovery_endpoint", as.replace(/\/+$/, "") + AS_WELL_KNOWN);
+  setVal("oidc_discovery_endpoint", metadataClient.wellKnownCandidates(as, AS_WELL_KNOWN)[0]);
   sdJwtVc.set("oidc_discovery_endpoint", val("oidc_discovery_endpoint"));
+  log.debug("Leaving defaultAuthorizationServerUrl(). " + val("oidc_discovery_endpoint"));
 }
 
 function clearVciMetadata() {
@@ -360,9 +370,14 @@ function resolveIssuerJwksUri(doc) {
   if (doc && doc.jwks_uri) return Promise.resolve(doc.jwks_uri);
   var issuer = (doc && doc.credential_issuer) || "";
   if (!issuer) return Promise.resolve("");
-  return metadataClient.fetchJson(issuer.replace(/\/+$/, "") + JWT_VC_ISSUER_WELL_KNOWN)
-    .then(function (m) { return (m && m.jwks_uri) || ""; })
-    .catch(function () { return ""; });
+  return metadataClient.fetchWellKnown(issuer, JWT_VC_ISSUER_WELL_KNOWN)
+    .then(function (found) { return (found.doc && found.doc.jwks_uri) || ""; })
+    .catch(function (e) {
+      // No JWT VC issuer document, or it named no keys: the caller reports the
+      // signature as unverifiable, which is more useful than an exception here.
+      log.debug("resolveIssuerJwksUri(): " + e.message);
+      return "";
+    });
 }
 
 function validateVciSignature() {
@@ -544,6 +559,34 @@ function updateHandoffSummary() {
 function startIssuance() {
   log.debug("Entering startIssuance().");
   saveConfiguration();
+
+  // A pre-authorized offer (H.2 / H.3) authorizes the issuance by itself: the
+  // End-User was identified out of band and the code in the offer is the proof
+  // of it. There is no authorization request, so there is nothing for
+  // debugger.html to do — the wallet goes straight to the token endpoint, which
+  // step 2 does because that is where the request can be shown before it is
+  // sent.
+  var preAuthorized = sdJwtVc.offerPreAuthorizedCode();
+  if (preAuthorized) {
+    var lacking = [];
+    if (!val("token_endpoint")) lacking.push("token_endpoint");
+    if (!val(vciMetadata.idFor("credential_endpoint"))) lacking.push("credential_endpoint");
+    if (lacking.length) {
+      status("handoff_status",
+        "Cannot start: " + lacking.join(", ") + " " + (lacking.length === 1 ? "is" : "are") +
+        " empty. Retrieve the metadata documents above first.", "vc-bad");
+      log.debug("Leaving startIssuance(). The pre-authorized flow is not configured.");
+      return false;
+    }
+    sdJwtVc.startFlow();
+    status("handoff_status",
+      "This offer carries a pre-authorized code, so there is no authorization request — " +
+      "going straight to the Token Request …", "vc-pending");
+    window.location.href = sdJwtVc.STEP2_URL;
+    log.debug("Leaving startIssuance(). Pre-authorized: skipping the authorization request.");
+    return false;
+  }
+
   var missing = [];
   if (!val("authorization_endpoint")) missing.push("authorization_endpoint");
   if (!val("token_endpoint")) missing.push("token_endpoint");
@@ -600,11 +643,29 @@ function renderOffer(stored) {
   var grants = offer.grants || {};
   var grantName = Object.keys(grants)[0] || "(none stated — the wallet chooses)";
   var issuerState = (grants.authorization_code || {}).issuer_state;
+  var preAuth = sdJwtVc.preAuthorizedGrant(offer);
+  var txCode = sdJwtVc.offerTxCode(offer);
   pane.style.display = "";
   el("offer_issuer").textContent = offer.credential_issuer || "—";
   el("offer_configuration_ids").textContent =
     (offer.credential_configuration_ids || []).join(", ") || "—";
-  el("offer_grant").textContent = grantName + (issuerState ? " (issuer_state " + issuerState + ")" : "");
+  var grantText = grantName;
+  if (issuerState) {
+    grantText += " (issuer_state " + issuerState + ")";
+  } else if (preAuth) {
+    // The code itself is shown: this is a debugger, and the whole request it
+    // will be spent on is displayed on the next page anyway.
+    grantText += " (pre-authorized_code " + (preAuth["pre-authorized_code"] || "—") + ")";
+    if (txCode) {
+      grantText += " — a Transaction Code is required: " +
+                   (txCode.length ? txCode.length + " " : "") +
+                   (txCode.input_mode || "characters") +
+                   (txCode.description ? ", \u201c" + txCode.description + "\u201d" : "");
+    } else {
+      grantText += " — no Transaction Code required";
+    }
+  }
+  el("offer_grant").textContent = grantText;
   el("offer_source").textContent = stored.source === "reference"
     ? "by reference (credential_offer_uri), fetched from the issuer"
     : "by value (credential_offer), in the URL";
@@ -617,7 +678,9 @@ function applyOffer(offer) {
   log.debug("Entering applyOffer().");
   var issuer = offer.credential_issuer || "";
   if (issuer) {
-    var metadataUrl = issuer.replace(/\/+$/, "") + VCI_WELL_KNOWN;
+    // An issuer identifier can carry a path, and then the well-known segment goes
+    // in front of it rather than after — see wellKnownCandidates().
+    var metadataUrl = metadataClient.wellKnownCandidates(issuer, VCI_WELL_KNOWN)[0];
     setVal(VCI_URL_KEY, metadataUrl);
     sdJwtVc.set(VCI_URL_KEY, metadataUrl);
     setVal(vciMetadata.idFor("credential_issuer"), issuer);
@@ -651,6 +714,117 @@ function offerRetrieved() {
     });
   }
   log.debug("Leaving offerRetrieved().");
+}
+
+// ---------------------------------------------------------------------------
+// An offer that arrived on ANOTHER device (H.2 / H.3).
+//
+// Nothing navigates the wallet here: the End-User scanned a QR code with their
+// phone, or copied what it encodes. OID4VCI registers the
+// openid-credential-offer:// URI scheme for that hand-over, but the payload is
+// the same in every form, so all three are accepted — the URI, an https link
+// carrying the same query parameters, and the bare JSON.
+// ---------------------------------------------------------------------------
+function readScannedOffer(input) {
+  log.debug("Entering readScannedOffer().");
+  var text = String(input || "").trim();
+  if (!text) {
+    log.debug("Leaving readScannedOffer(). Nothing was pasted.");
+    return { error: "Paste the offer first — whatever the QR code contains." };
+  }
+
+  // The bare Credential Offer object.
+  if (text.charAt(0) === "{") {
+    try {
+      var direct = JSON.parse(text);
+      log.debug("Leaving readScannedOffer(). Read the offer as JSON.");
+      return { offer: direct, source: "value" };
+    } catch (e) {
+      log.debug("Leaving readScannedOffer(). That is not readable JSON.");
+      return { error: "That looks like JSON but does not parse: " + e.message };
+    }
+  }
+
+  // A URI carrying the offer. The scheme may be one no URL parser knows, so the
+  // query is taken from the string itself rather than by parsing the whole URI.
+  var query = text.indexOf("?") !== -1 ? text.slice(text.indexOf("?") + 1) : text;
+  var params;
+  try {
+    params = new URLSearchParams(query);
+  } catch (e) {
+    log.debug("Leaving readScannedOffer(). The query could not be read: " + e.message);
+    return { error: "That is not a Credential Offer URI: " + e.message };
+  }
+
+  var byValue = params.get("credential_offer");
+  if (byValue) {
+    try {
+      log.debug("Leaving readScannedOffer(). The offer was passed by value.");
+      return { offer: JSON.parse(byValue), source: "value" };
+    } catch (e) {
+      log.debug("Leaving readScannedOffer(). credential_offer is not JSON.");
+      return { error: "The credential_offer parameter is not readable JSON: " + e.message };
+    }
+  }
+
+  var byReference = params.get("credential_offer_uri");
+  if (byReference) {
+    log.debug("Leaving readScannedOffer(). The offer is by reference: " + byReference);
+    return { uri: byReference, source: "reference" };
+  }
+
+  log.debug("Leaving readScannedOffer(). No offer in what was pasted.");
+  return { error: "No credential_offer or credential_offer_uri in that. Paste the whole thing the QR " +
+                  "code contains." };
+}
+
+function takeScannedOffer() {
+  log.debug("Entering takeScannedOffer().");
+  var read = readScannedOffer(val("scan_offer_input"));
+  if (read.error) {
+    status("scan_status", read.error, "vc-bad");
+    log.debug("Leaving takeScannedOffer(). " + read.error);
+    return false;
+  }
+
+  var accept = function (offer, source) {
+    // Which cross-device use case this is depends on the offer, not on what was
+    // chosen in step 0: only the issuer knows whether it can issue immediately.
+    // Deferral shows up later, in the Credential Response, so the offer alone
+    // cannot distinguish H.2 from H.3 — leave the choice as it stands unless it
+    // makes no sense for a pre-authorized offer.
+    if (sdJwtVc.preAuthorizedGrant(offer)) {
+      var current = sdJwtVc.currentUseCase();
+      if (current.id !== "offer-cross-device" && current.id !== "offer-deferred") {
+        sdJwtVc.setUseCase("offer-cross-device");
+      }
+    } else {
+      sdJwtVc.setUseCase("offer-same-device");
+    }
+    sdJwtVc.storeOffer(offer, source);
+    applyOffer(offer);
+    renderOffer(sdJwtVc.storedOffer());
+    status("scan_status", "Offer taken. Discovering the issuer it names …", "vc-ok");
+    offerRetrieved();
+  };
+
+  if (read.uri) {
+    status("scan_status", "Fetching the Credential Offer from " + read.uri + " …", "vc-pending");
+    metadataClient.fetchJson(read.uri)
+      .then(function (offer) {
+        accept(offer, "reference");
+      })
+      .catch(function (e) {
+        status("scan_status", "Could not fetch the Credential Offer: " + e.message, "vc-bad");
+        log.error("credential_offer_uri: " + e.message);
+      });
+    log.debug("Leaving takeScannedOffer(). Fetching by reference.");
+    return false;
+  }
+
+  accept(read.offer, read.source);
+  log.debug("Leaving takeScannedOffer(). Took an offer passed by value.");
+  return false;
 }
 
 function acceptOfferFromQuery() {
@@ -777,6 +951,8 @@ module.exports = {
   retrieveVciMetadata: retrieveVciMetadata,
   discardOffer: discardOffer,
   acceptOfferFromQuery: acceptOfferFromQuery,
+  takeScannedOffer: takeScannedOffer,
+  readScannedOffer: readScannedOffer,
   clearVciMetadata: clearVciMetadata,
   populateFromVci: populateFromVci,
   onCredentialConfigurationChange: onCredentialConfigurationChange,

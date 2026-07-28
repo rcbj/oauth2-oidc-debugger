@@ -610,7 +610,10 @@ function asMetadata(req) {
     // should not promise a grant this server would refuse. (No device_code:
     // there is no device authorization endpoint to start that flow.)
     grant_types_supported: ['authorization_code', 'implicit', 'refresh_token', 'client_credentials',
-                            'password', 'urn:ietf:params:oauth:grant-type:token-exchange'],
+                            'password', 'urn:ietf:params:oauth:grant-type:token-exchange',
+                            // OID4VCI's pre-authorized code grant, which the
+                            // cross-device Credential Offers use.
+                            'urn:ietf:params:oauth:grant-type:pre-authorized_code'],
     token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post',
                                             'client_secret_jwt', 'private_key_jwt', 'none'],
     token_endpoint_auth_signing_alg_values_supported: ['RS256', 'RS384', 'RS512', 'ES256', 'PS256', 'HS256'],
@@ -715,6 +718,7 @@ app.get('/oauth2/jwks', function (req, res) {
 // real IdP while the credential endpoint stays here.
 // ===========================================================================
 const crypto = require('crypto');
+const qrcode = require('qrcode');
 
 const VCI_AS = process.env.OID4VCI_AUTHORIZATION_SERVER || '';
 const VCI_CONFIG_ID = 'IdentityCredential';
@@ -750,6 +754,9 @@ function vciMetadata(req) {
     // --- OPTIONAL ---
     authorization_servers: [authServer],
     nonce_endpoint: base + '/oid4vci/nonce',
+    // OPTIONAL, and a wallet must not assume it: an issuer that cannot defer
+    // omits it entirely (walt.id's does). Ours can, so it says so.
+    deferred_credential_endpoint: base + '/oid4vci/deferred_credential',
     notification_endpoint: base + '/oid4vci/notification',
     batch_credential_issuance: { batch_size: 4 },
     credential_response_encryption: {
@@ -851,26 +858,91 @@ app.get('/.well-known/jwt-vc-issuer/*', sendJwtVcIssuerMetadata);
 const WALLET_BASE_URL = process.env.OID4VCI_WALLET_URL || 'http://localhost:3000';
 const credentialOffers = new Map();     // id -> { offer, issuerState, expires }
 const issuerStates = new Map();         // issuer_state -> { configurationIds, expires }
+// Pre-authorized codes (OID4VCI Appendix H.2 / H.3): the End-User authorized the
+// issuance out of band, so there is no authorization request at all — the code
+// in the offer IS the authorization. `txCode` is the Transaction Code the issuer
+// shows on its own screen and the End-User types into the wallet; `deferred`
+// marks an issuance the credential endpoint will not complete immediately.
+const preAuthorizedCodes = new Map();   // code -> { configurationIds, txCode, user, deferred, expires }
+// Deferred issuance transactions (OID4VCI section 9): the credential endpoint
+// answered 202 with one of these instead of a credential.
+const deferredTransactions = new Map(); // transaction_id -> { claims, holderJwk, readyAt, expires }
+// Access tokens minted from a deferred offer: the credential endpoint answers
+// 202 for these instead of issuing straight away.
+const deferredAccessTokens = new Set();
+// How long a deferred issuance "takes". Short enough for a test to wait for it,
+// long enough that the first poll genuinely comes back still-pending.
+const DEFERRED_READY_MS = Number(process.env.OID4VCI_DEFERRED_READY_MS || 4000);
+const DEFERRED_INTERVAL_S = Number(process.env.OID4VCI_DEFERRED_INTERVAL_S || 2);
 const OFFER_TTL_MS = 10 * 60 * 1000;
+// A pre-authorized offer is made to an End-User the issuer has ALREADY
+// identified (H.2: they uploaded documents to an employee portal days before),
+// so the issuer knows the subject without anyone signing in.
+const VCI_OFFER_USERNAME = process.env.OID4VCI_OFFER_USERNAME || 'diploma.student';
 
-function buildCredentialOffer(req, configurationIds) {
-  log.debug("Entering buildCredentialOffer().");
+// Build a Credential Offer for one of the Appendix H use cases.
+//
+//   same-device  (H.1) authorization_code + issuer_state: the wallet still has
+//                      to take the End-User through the authorization server.
+//   cross-device (H.2) pre-authorized_code + tx_code: the End-User already
+//                      identified themselves to the issuer by some other route,
+//                      so the code IS the authorization and the Transaction
+//                      Code shown on the issuer's screen is what ties the
+//                      wallet on the other device to this End-User.
+//   deferred     (H.3) the same pre-authorized offer, but flagged so the
+//                      credential endpoint answers 202 with a transaction_id
+//                      instead of a credential.
+function buildCredentialOffer(req, configurationIds, mode) {
+  log.debug("Entering buildCredentialOffer(). mode=" + mode);
   const base = baseUrlOf(req);
-  const issuerState = randomId(18);
-  issuerStates.set(issuerState, {
-    configurationIds: configurationIds,
-    expires: Date.now() + OFFER_TTL_MS
-  });
+  const expires = Date.now() + OFFER_TTL_MS;
   const offer = {
     credential_issuer: base,
-    credential_configuration_ids: configurationIds,
-    grants: {
-      authorization_code: { issuer_state: issuerState }
-    }
+    credential_configuration_ids: configurationIds
   };
+  let issuerState = "";
+  let preAuthorizedCode = "";
+  let txCodeValue = "";
+
+  if (mode === 'cross-device' || mode === 'deferred') {
+    preAuthorizedCode = randomId(24);
+    // Five numeric digits, which is what the issuer's page displays. The value
+    // never travels in the offer — only its shape does — because the whole
+    // point is that it reaches the End-User by a different channel.
+    txCodeValue = String(Math.floor(Math.random() * 90000) + 10000);
+    preAuthorizedCodes.set(preAuthorizedCode, {
+      configurationIds: configurationIds,
+      txCode: txCodeValue,
+      user: userFor(VCI_OFFER_USERNAME),
+      deferred: mode === 'deferred',
+      expires: expires
+    });
+    offer.grants = {
+      'urn:ietf:params:oauth:grant-type:pre-authorized_code': {
+        'pre-authorized_code': preAuthorizedCode,
+        tx_code: {
+          input_mode: 'numeric',
+          length: txCodeValue.length,
+          // No apostrophe: this string is URL-encoded into the offer, and an
+          // apostrophe survives encodeURIComponent only to be XML-escaped into
+          // "&apos;" when the offer URI is displayed — which turns one query
+          // parameter into two for anything reading it off the page.
+          description: 'Type the ' + txCodeValue.length + '-digit code shown by the issuer.'
+        },
+        interval: 5
+      }
+    };
+  } else {
+    issuerState = randomId(18);
+    issuerStates.set(issuerState, { configurationIds: configurationIds, expires: expires });
+    offer.grants = { authorization_code: { issuer_state: issuerState } };
+  }
+
   logArtifact('OID4VCI Credential Offer', 'as built', offer);
-  log.debug("Leaving buildCredentialOffer(). issuer_state=" + issuerState);
-  return { offer: offer, issuerState: issuerState };
+  log.debug("Leaving buildCredentialOffer(). mode=" + mode + ", issuer_state=" + issuerState +
+            ", pre-authorized=" + (preAuthorizedCode ? "yes" : "no"));
+  return { offer: offer, issuerState: issuerState,
+           preAuthorizedCode: preAuthorizedCode, txCode: txCodeValue, mode: mode || 'same-device' };
 }
 
 // The issuer's own web page — where H.1 starts.
@@ -887,6 +959,7 @@ app.get('/issuer', function (req, res) {
     'p{line-height:1.5;color:#333}a.cta{display:inline-block;margin-top:14px;margin-right:10px;padding:10px 16px;' +
     'border-radius:6px;background:#12107c;color:#fff;text-decoration:none;font-weight:600}' +
     'a.cta.secondary{background:#fff;color:#12107c;border:1px solid #12107c}' +
+    'p.alt{margin-top:20px;font-size:.92em;color:#555}' +
     '.meta{margin-top:22px;padding-top:14px;border-top:1px solid #eee;font-size:.78em;color:#777}' +
     'code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}</style></head><body><div class="card">' +
     '<h1>Mock University</h1>' +
@@ -894,9 +967,14 @@ app.get('/issuer', function (req, res) {
     '(<code>' + xmlEscape(configId) + '</code>) that you can keep in your wallet.</p>' +
     '<p><a class="cta" href="/issuer/offer">Request your digital diploma</a>' +
     '<a class="cta secondary" href="/issuer/offer?by=reference">Request it (offer by reference)</a></p>' +
-    '<div class="meta">This is the Credential Issuer\'s web page in OID4VCI Appendix H.1. Following the link ' +
-    'builds a Credential Offer and sends you to your wallet at <code>' + xmlEscape(WALLET_BASE_URL) + '</code>. ' +
-    'The issuer is <code>' + xmlEscape(base) + '</code>.</div>' +
+    '<p class="alt">On a different device? These show a QR code to scan with your wallet instead:<br>' +
+    '<a class="cta secondary" href="/issuer/offer?mode=cross-device">Show a QR code (cross-device)</a>' +
+    '<a class="cta secondary" href="/issuer/offer?mode=deferred">Show a QR code (issuance takes a while)</a></p>' +
+    '<div class="meta">This is the Credential Issuer\'s web page in OID4VCI Appendix H. The first two links ' +
+    'build a Credential Offer and send you to your wallet at <code>' + xmlEscape(WALLET_BASE_URL) + '</code> ' +
+    '(H.1, same device). The other two hand the offer over by QR code and a Transaction Code instead — H.2, ' +
+    'and H.3 where the issuer needs time to produce the credential. The issuer is ' +
+    '<code>' + xmlEscape(base) + '</code>.</div>' +
     '</div></body></html>\n';
   res.status(200).type('text/html').send(page);
   log.debug("Leaving the issuer web page.");
@@ -909,31 +987,98 @@ app.get('/issuer/offer', function (req, res) {
   const configurationIds = req.query.credential_configuration_ids
     ? String(req.query.credential_configuration_ids).split(',').filter(Boolean)
     : [VCI_CONFIG_ID];
-  const built = buildCredentialOffer(req, configurationIds);
+  const mode = String(req.query.mode || 'same-device');
+  const built = buildCredentialOffer(req, configurationIds, mode);
   const wallet = String(req.query.wallet || WALLET_BASE_URL).replace(/\/+$/, '') +
                  '/sd-jwt-vc-issuance-1.html';
 
-  // Sweep expired offers/states while we are here.
+  // Sweep expired offers/states/codes while we are here.
   const now = Date.now();
   credentialOffers.forEach(function (v, k) { if (v.expires < now) credentialOffers.delete(k); });
   issuerStates.forEach(function (v, k) { if (v.expires < now) issuerStates.delete(k); });
+  preAuthorizedCodes.forEach(function (v, k) { if (v.expires < now) preAuthorizedCodes.delete(k); });
+  deferredTransactions.forEach(function (v, k) { if (v.expires < now) deferredTransactions.delete(k); });
 
-  let target;
+  // How the offer reaches the wallet: in the URL, or behind a URI it fetches.
+  let offerQuery;
   if (String(req.query.by || '') === 'reference') {
-    // By reference: the wallet fetches the offer from credential_offer_uri.
     const id = randomId(12);
     credentialOffers.set(id, { offer: built.offer, expires: now + OFFER_TTL_MS });
     const offerUri = base + '/oid4vci/credential-offer/' + id;
-    target = wallet + '?credential_offer_uri=' + encodeURIComponent(offerUri);
+    offerQuery = 'credential_offer_uri=' + encodeURIComponent(offerUri);
     log.debug("The offer is passed by reference: " + offerUri);
   } else {
-    // By value: the offer travels in the URL, URL-encoded JSON.
-    target = wallet + '?credential_offer=' + encodeURIComponent(JSON.stringify(built.offer));
+    offerQuery = 'credential_offer=' + encodeURIComponent(JSON.stringify(built.offer));
     log.debug("The offer is passed by value.");
   }
-  res.redirect(302, target);
-  log.debug("Leaving the credential offer endpoint. Sent the End-User to " + wallet + ".");
+
+  // Same device (H.1): the wallet is right here, so send the browser to it.
+  if (built.mode !== 'cross-device' && built.mode !== 'deferred') {
+    res.redirect(302, wallet + '?' + offerQuery);
+    log.debug("Leaving the credential offer endpoint. Sent the End-User to " + wallet + ".");
+    return;
+  }
+
+  // Cross device (H.2 / H.3): the wallet is on the End-User's OTHER device, so
+  // the offer is displayed for it to scan — as the openid-credential-offer URI
+  // a wallet registers for — and the Transaction Code is shown here, on the
+  // issuer's screen, never in the offer.
+  const offerUri = 'openid-credential-offer://?' + offerQuery;
+  renderOfferQrPage(res, {
+    base: base,
+    mode: built.mode,
+    offerUri: offerUri,
+    walletUrl: wallet + '?' + offerQuery,
+    txCode: built.txCode,
+    offer: built.offer
+  });
+  log.debug("Leaving the credential offer endpoint. Displayed a QR code for the wallet to scan.");
 });
+
+// The issuer's screen in a cross-device flow: a QR code carrying the Credential
+// Offer, and — separately, which is the whole point — the Transaction Code.
+function renderOfferQrPage(res, opts) {
+  log.debug("Entering renderOfferQrPage(). mode=" + opts.mode);
+  qrcode.toDataURL(opts.offerUri, { errorCorrectionLevel: 'M', margin: 2, width: 320 })
+    .then(function (dataUrl) {
+      const deferred = opts.mode === 'deferred';
+      const page = '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">' +
+        '<title>Mock University — scan to receive your credential</title><style>' +
+        'body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;background:#f4f4f7;margin:0;' +
+        'display:flex;align-items:center;justify-content:center;min-height:100vh;color:#222}' +
+        '.card{background:#fff;border:1px solid #d5d5dd;border-radius:10px;padding:30px 34px;width:560px;' +
+        'box-shadow:0 6px 24px rgba(0,0,0,.08);text-align:center}h1{font-size:1.25em;margin:0 0 6px}' +
+        'p{line-height:1.5;color:#333}img.qr{margin:14px auto;display:block;border:1px solid #eee;border-radius:8px}' +
+        '.txcode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:2.1em;letter-spacing:.28em;' +
+        'font-weight:700;color:#12107c;background:#f0f0fa;border-radius:8px;padding:12px 6px;margin:6px 0 2px}' +
+        '.uri{word-break:break-all;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72em;' +
+        'color:#555;background:#fafafa;border:1px solid #eee;border-radius:6px;padding:8px;text-align:left}' +
+        '.meta{margin-top:20px;padding-top:14px;border-top:1px solid #eee;font-size:.78em;color:#777;text-align:left}' +
+        'code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}' +
+        '</style></head><body><div class="card">' +
+        '<h1>Scan this with your wallet</h1>' +
+        '<p>Your digital diploma is ready to be claimed' +
+        (deferred ? ', though issuing it will take us a little time once you ask.' : '.') + '</p>' +
+        '<img class="qr" id="offer_qr" alt="Credential Offer QR code" src="' + dataUrl + '">' +
+        '<p>Then type this Transaction Code into your wallet:</p>' +
+        '<div class="txcode" id="tx_code">' + xmlEscape(opts.txCode) + '</div>' +
+        '<p style="font-size:.8em;color:#777">It is shown here, and only here — it does not travel in the QR code.</p>' +
+        '<div class="uri" id="offer_uri">' + xmlEscape(opts.offerUri) + '</div>' +
+        '<div class="meta">OID4VCI Appendix ' + (deferred ? 'H.3' : 'H.2') + '. The offer uses the ' +
+        '<code>pre-authorized_code</code> grant: you already identified yourself to this issuer, so your wallet ' +
+        'goes straight to the token endpoint — there is no authorization request. ' +
+        (deferred ? 'The credential endpoint will answer with a <code>transaction_id</code> and your wallet will ' +
+                    'have to come back for the credential. ' : '') +
+        'If your wallet is on this device, <a id="open_in_wallet" href="' + xmlEscape(opts.walletUrl) + '">open it here</a>.' +
+        '</div></div></body></html>\n';
+      res.status(200).type('text/html').send(page);
+      log.debug("Leaving renderOfferQrPage(). Rendered a QR code.");
+    })
+    .catch(function (e) {
+      log.error("could not render the offer QR code: " + e.message);
+      res.status(500).type('text/plain').send('Could not render the Credential Offer QR code: ' + e.message);
+    });
+}
 
 app.get('/oid4vci/credential-offer/:id', function (req, res) {
   log.debug("Entering the credential offer retrieval endpoint. id=" + req.params.id);
@@ -1156,6 +1301,29 @@ app.post('/oid4vci/credential', function (req, res) {
     return vciError(res, 400, 'invalid_proof', e.message);
   }
 
+  // A deferred issuance (OID4VCI section 8.3 / Appendix H.3): the issuer cannot
+  // produce the credential yet, so it answers 202 with a transaction_id and the
+  // wallet comes back to the Deferred Credential Endpoint for it. Everything
+  // needed to mint the credential is kept here; only the answer is postponed.
+  if (deferredAccessTokens.has(accessToken)) {
+    deferredAccessTokens.delete(accessToken);
+    const transactionId = randomId(16);
+    deferredTransactions.set(transactionId, {
+      claims: subjectClaimsFrom(accessToken),
+      holderJwk: holderJwk,
+      accessToken: accessToken,
+      readyAt: Date.now() + DEFERRED_READY_MS,
+      expires: Date.now() + OFFER_TTL_MS
+    });
+    const deferredResponse = { transaction_id: transactionId, interval: DEFERRED_INTERVAL_S };
+    logArtifact('OID4VCI Credential Response', 'deferred', deferredResponse);
+    res.set('Cache-Control', 'no-store');
+    res.status(202).type('application/json').send(JSON.stringify(deferredResponse));
+    log.debug("Leaving the OID4VCI credential endpoint. Deferred as " + transactionId +
+              ", ready in " + DEFERRED_READY_MS + "ms.");
+    return;
+  }
+
   const built = buildSdJwtVc(subjectClaimsFrom(accessToken), holderJwk, vciMetadata(req).credential_issuer);
   const response = {
     credentials: [{ credential: built.credential }],
@@ -1166,6 +1334,62 @@ app.post('/oid4vci/credential', function (req, res) {
   res.status(200).type('application/json').send(JSON.stringify(response));
   log.debug("Leaving the OID4VCI credential endpoint. Issued a " + built.disclosures.length +
             "-disclosure SD-JWT VC.");
+});
+
+// The Deferred Credential Endpoint (OID4VCI section 9). 202 with the same
+// transaction_id while the issuance is still "in progress", 200 with the
+// credential once it is ready, and invalid_transaction_id for a transaction
+// this issuer never made or has already handed over.
+app.post('/oid4vci/deferred_credential', function (req, res) {
+  log.debug("Entering the OID4VCI deferred credential endpoint.");
+  const auth = req.headers['authorization'] || '';
+  if (!/^Bearer\s+\S+/i.test(auth)) {
+    res.set('WWW-Authenticate', 'Bearer');
+    log.debug("Leaving the OID4VCI deferred credential endpoint. No access token.");
+    return vciError(res, 401, 'invalid_token', 'A Bearer access token is required.');
+  }
+
+  let body = {};
+  try {
+    body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+  } catch (e) {
+    log.error('the deferred credential request body is not JSON: ' + e.message);
+    log.debug("Leaving the OID4VCI deferred credential endpoint. Unreadable body.");
+    return vciError(res, 400, 'invalid_request', 'The request body is not JSON: ' + e.message);
+  }
+
+  const transactionId = String(body.transaction_id || '');
+  const record = deferredTransactions.get(transactionId);
+  if (!record || record.expires < Date.now()) {
+    deferredTransactions.delete(transactionId);
+    log.debug("Leaving the OID4VCI deferred credential endpoint. No such transaction.");
+    return vciError(res, 400, 'invalid_transaction_id',
+      'That transaction_id was not issued by this Credential Issuer, or it has already been used.');
+  }
+
+  if (Date.now() < record.readyAt) {
+    const pending = { transaction_id: transactionId, interval: DEFERRED_INTERVAL_S };
+    logArtifact('OID4VCI Deferred Credential Response', 'still pending', pending);
+    res.set('Cache-Control', 'no-store');
+    res.status(202).type('application/json').send(JSON.stringify(pending));
+    log.debug("Leaving the OID4VCI deferred credential endpoint. Still " +
+              (record.readyAt - Date.now()) + "ms to go.");
+    return;
+  }
+
+  // Ready. The transaction_id MUST be invalidated once the credential has been
+  // obtained, so a second poll with it is an error rather than a second copy.
+  deferredTransactions.delete(transactionId);
+  const built = buildSdJwtVc(record.claims, record.holderJwk, vciMetadata(req).credential_issuer);
+  const response = {
+    credentials: [{ credential: built.credential }],
+    notification_id: b64u(crypto.randomBytes(12))
+  };
+  logArtifact('OID4VCI Deferred Credential Response', 'as returned', response);
+  res.set('Cache-Control', 'no-store');
+  res.status(200).type('application/json').send(JSON.stringify(response));
+  log.debug("Leaving the OID4VCI deferred credential endpoint. Issued a " +
+            built.disclosures.length + "-disclosure SD-JWT VC.");
 });
 
 // Accepts the wallet's notification of what it did with the credential
@@ -1705,6 +1929,50 @@ app.post('/oauth2/token', function (req, res) {
       user: record.user, client_id: record.client_id, scope: record.scope,
       nonce: record.nonce, auth_time: record.auth_time
     }));
+  }
+
+  // OID4VCI's pre-authorized code grant (Appendix H.2 / H.3, RFC-registered as
+  // urn:ietf:params:oauth:grant-type:pre-authorized_code). No authorization
+  // request happened: the End-User was identified out of band and the code in
+  // the Credential Offer is the authorization. When the offer said a
+  // Transaction Code is required, the wallet must present the one the End-User
+  // read off the issuer's screen.
+  if (grant === 'urn:ietf:params:oauth:grant-type:pre-authorized_code') {
+    const code = String(body['pre-authorized_code'] || '');
+    const record = preAuthorizedCodes.get(code);
+    if (!record) {
+      log.debug("Leaving the token endpoint. The grant was refused.");
+      return oauthError(res, 400, 'invalid_grant', 'Unknown or already-used pre-authorized code.');
+    }
+    if (record.expires < Date.now()) {
+      preAuthorizedCodes.delete(code);
+      log.debug("Leaving the token endpoint. The grant was refused.");
+      return oauthError(res, 400, 'invalid_grant', 'The pre-authorized code has expired.');
+    }
+    const presented = String(body.tx_code || '');
+    if (record.txCode) {
+      if (!presented) {
+        log.debug("Leaving the token endpoint. The grant was refused: no tx_code.");
+        return oauthError(res, 400, 'invalid_grant',
+          'This pre-authorized code requires the Transaction Code shown by the issuer (tx_code).');
+      }
+      if (presented !== record.txCode) {
+        log.debug("Leaving the token endpoint. The grant was refused: the tx_code is wrong.");
+        return oauthError(res, 400, 'invalid_grant', 'The Transaction Code is not correct.');
+      }
+    }
+    // Single use, like an authorization code.
+    preAuthorizedCodes.delete(code);
+    const issued = tokenSet(base, {
+      user: record.user, client_id: client.client_id, scope: VCI_SCOPE, withRefresh: false
+    });
+    // Remember which access token belongs to a deferred issuance, so the
+    // credential endpoint knows to answer 202 rather than a credential.
+    if (record.deferred) {
+      deferredAccessTokens.add(issued.access_token);
+      log.debug("This access token belongs to a DEFERRED issuance.");
+    }
+    return respond(issued);
   }
 
   if (grant === 'refresh_token') {

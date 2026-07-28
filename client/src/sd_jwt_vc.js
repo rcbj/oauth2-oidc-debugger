@@ -106,7 +106,7 @@ var USE_CASES = [
             "no authorization request at all — the transaction code is what proves it is really you.",
     mechanics: "Credential Offer with a pre-authorized_code grant + tx_code → Token Request → " +
                "Credential Request.",
-    available: false
+    available: true
   },
   {
     id: "offer-deferred",
@@ -118,7 +118,7 @@ var USE_CASES = [
     detail: "The credential endpoint answers with a transaction identifier instead of a credential, and " +
             "the wallet comes back to the deferred endpoint until it is ready.",
     mechanics: "Credential Request → transaction_id → Deferred Credential Request → Credential.",
-    available: false
+    available: true
   }
 ];
 
@@ -176,6 +176,39 @@ function storeOffer(offer, source) {
 function storedOffer() { return getJson(KEYS.OFFER); }
 
 function forgetOffer() { remove(KEYS.OFFER); }
+
+// The pre-authorized code grant, if that is what the offer carries. An offer has
+// one grant or the other: authorization_code sends the End-User through the
+// authorization server, pre-authorized_code says that already happened
+// somewhere else and this code is the proof of it.
+//
+// Every one of these reads the STORED offer when called with no argument, the
+// same way offerIssuerState() does — a page usually wants "the offer in hand".
+var PRE_AUTHORIZED_GRANT = "urn:ietf:params:oauth:grant-type:pre-authorized_code";
+
+function offerOrStored(offer) {
+  if (offer) return offer;
+  var stored = storedOffer();
+  return (stored && stored.offer) || null;
+}
+
+function preAuthorizedGrant(offer) {
+  var grants = (offerOrStored(offer) || {}).grants || {};
+  return grants[PRE_AUTHORIZED_GRANT] || null;
+}
+
+// The Transaction Code the offer says is required — its SHAPE, never its value:
+// the value reaches the End-User by another channel entirely, which is the
+// point of it. { input_mode, length, description } or null.
+function offerTxCode(offer) {
+  var grant = preAuthorizedGrant(offer);
+  return (grant && grant.tx_code) || null;
+}
+
+function offerPreAuthorizedCode(offer) {
+  var grant = preAuthorizedGrant(offer);
+  return (grant && grant["pre-authorized_code"]) || "";
+}
 
 // The issuer_state an authorization_code offer carries, if there is one. The
 // authorization request has to send it back.
@@ -259,6 +292,8 @@ function storedRequestConfig() {
     credentialEndpoint: v("credential_endpoint"),
     nonceEndpoint: v("nonce_endpoint"),
     notificationEndpoint: v("notification_endpoint"),
+    // OPTIONAL, and absent from issuers that cannot defer an issuance at all.
+    deferredCredentialEndpoint: v("deferred_credential_endpoint"),
     credentialConfigurationId: v("credential_configuration_id"),
     format: v("format"),
     vct: v("vct"),
@@ -401,6 +436,10 @@ module.exports = {
   storedOffer: storedOffer,
   forgetOffer: forgetOffer,
   offerIssuerState: offerIssuerState,
+  PRE_AUTHORIZED_GRANT: PRE_AUTHORIZED_GRANT,
+  preAuthorizedGrant: preAuthorizedGrant,
+  offerTxCode: offerTxCode,
+  offerPreAuthorizedCode: offerPreAuthorizedCode,
   STEP2_URL: STEP2_URL,
   STEP3_URL: STEP3_URL,
   get: get,

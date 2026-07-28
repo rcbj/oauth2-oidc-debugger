@@ -275,6 +275,185 @@ function renderAssembledCall() {
   return text;
 }
 
+// ---------------------------------------------------------------------------
+// The Token Request, for an offer that carries a pre-authorized code
+// (OID4VCI Appendix H.2 / H.3).
+//
+// There was no authorization request and nobody signed in: the End-User was
+// identified by the issuer through some other channel days or minutes ago, and
+// the code in the offer is what that produced. When the offer says a
+// Transaction Code is required, it must be presented too — and it reached the
+// End-User separately from the offer, which is what stops a photographed QR
+// code from being enough on its own.
+// ---------------------------------------------------------------------------
+function preAuthorizedOffer() {
+  var code = sdJwtVc.offerPreAuthorizedCode();
+  if (!code) return null;
+  return { code: code, txCode: sdJwtVc.offerTxCode() };
+}
+
+function tokenRequestBody() {
+  log.debug("Entering tokenRequestBody().");
+  var offer = preAuthorizedOffer();
+  if (!offer) {
+    log.debug("Leaving tokenRequestBody(). There is no pre-authorized offer.");
+    return null;
+  }
+  var params = {
+    grant_type: sdJwtVc.PRE_AUTHORIZED_GRANT,
+    "pre-authorized_code": offer.code
+  };
+  var clientId = sdJwtVc.get("client_id") || "";
+  if (clientId) params.client_id = clientId;
+  var typed = (el("vc_tx_code") && el("vc_tx_code").value || "").trim();
+  if (typed) params.tx_code = typed;
+  log.debug("Leaving tokenRequestBody().");
+  return params;
+}
+
+function encodeForm(params) {
+  var out = [];
+  Object.keys(params).forEach(function (k) {
+    out.push(encodeURIComponent(k) + "=" + encodeURIComponent(params[k]));
+  });
+  return out.join("&");
+}
+
+function renderTokenRequest() {
+  log.debug("Entering renderTokenRequest().");
+  var params = tokenRequestBody();
+  var endpoint = sdJwtVc.get("token_endpoint") || "";
+  if (!params) {
+    setValue("vc_token_request", "");
+    log.debug("Leaving renderTokenRequest(). Nothing to render.");
+    return "";
+  }
+  var body = encodeForm(params);
+  var text = [
+    "POST " + (endpoint || "(no token_endpoint is configured — retrieve the metadata in step 1)"),
+    "Content-Type: application/x-www-form-urlencoded",
+    "Content-Length: " + body.length,
+    "",
+    body
+  ].join("\n");
+  setValue("vc_token_request", text);
+  log.debug("Leaving renderTokenRequest().");
+  return text;
+}
+
+function onTxCodeChange() {
+  renderTokenRequest();
+  return true;
+}
+
+// Show the pane, and say what the offer demands before anything is sent.
+function showPreAuthorizedPane() {
+  log.debug("Entering showPreAuthorizedPane().");
+  var offer = preAuthorizedOffer();
+  var pane = el("pane_pre_authorized");
+  if (!pane) return false;
+  if (!offer) {
+    pane.style.display = "none";
+    log.debug("Leaving showPreAuthorizedPane(). Not a pre-authorized issuance.");
+    return false;
+  }
+  pane.style.display = "";
+  setText("vc_pre_authorized_code", offer.code);
+  var row = el("vc_tx_code_row");
+  if (offer.txCode) {
+    if (row) row.style.display = "";
+    var hint = "The issuer requires a Transaction Code" +
+      (offer.txCode.length ? " of " + offer.txCode.length + " " : " ") +
+      (offer.txCode.input_mode === "numeric" ? "digits" : "characters") + ". " +
+      (offer.txCode.description || "");
+    setText("vc_tx_code_hint", hint.trim());
+    if (el("vc_tx_code") && offer.txCode.length) el("vc_tx_code").maxLength = offer.txCode.length;
+  } else if (row) {
+    row.style.display = "none";
+  }
+  renderTokenRequest();
+  status("vc_token_status", offer.txCode
+    ? "Type the Transaction Code the issuer showed you, then send the Token Request."
+    : "Send the Token Request to redeem the pre-authorized code.", "vc-pending");
+  log.debug("Leaving showPreAuthorizedPane().");
+  return true;
+}
+
+function sendTokenRequest() {
+  log.debug("Entering sendTokenRequest().");
+  var params = tokenRequestBody();
+  var endpoint = sdJwtVc.get("token_endpoint") || "";
+  if (!params) {
+    status("vc_token_status", "There is no pre-authorized offer to redeem.", "vc-bad");
+    return false;
+  }
+  if (!endpoint) {
+    status("vc_token_status",
+      "No token_endpoint is configured. Retrieve the authorization server metadata in step 1.", "vc-bad");
+    return false;
+  }
+  var offer = preAuthorizedOffer();
+  if (offer.txCode && !params.tx_code) {
+    status("vc_token_status",
+      "This offer requires the Transaction Code the issuer displayed. Type it in first.", "vc-bad");
+    log.debug("Leaving sendTokenRequest(). No tx_code was typed.");
+    return false;
+  }
+
+  el("vc_token_request_button").disabled = true;
+  status("vc_token_status", "Redeeming the pre-authorized code …", "vc-pending");
+  fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: encodeForm(params)
+  })
+    .then(function (r) {
+      return r.text().then(function (text) {
+        var parsed = null;
+        try {
+          parsed = JSON.parse(text);
+        } catch (e) {
+          // Not JSON: the raw text is what gets shown.
+        }
+        return { ok: r.ok, statusCode: r.status, body: parsed, raw: text };
+      });
+    })
+    .then(function (response) {
+      var box = el("vc_token_response");
+      if (box) {
+        box.style.display = "block";
+        box.textContent = response.body ? JSON.stringify(response.body, null, 2) : response.raw;
+      }
+      if (!response.ok || !response.body || !response.body.access_token) {
+        var err = (response.body && (response.body.error_description || response.body.error)) ||
+                  ("HTTP " + response.statusCode);
+        status("vc_token_status", "The token endpoint refused the request: " + err, "vc-bad");
+        el("vc_token_request_button").disabled = false;
+        log.debug("Leaving sendTokenRequest(). Refused: " + err);
+        return;
+      }
+      // Stored under the same names the OIDC leg uses, so everything downstream
+      // — this page, token_detail.html — reads it without knowing which flow
+      // produced it.
+      sdJwtVc.set("token_access_token", response.body.access_token);
+      if (response.body.id_token) sdJwtVc.set("token_id_token", response.body.id_token);
+      if (response.body.refresh_token) sdJwtVc.set("token_refresh_token", response.body.refresh_token);
+      status("vc_token_status",
+        "An access token was issued. The credential request below can now be authorized with it.", "vc-ok");
+      showTokens();
+      renderAssembledCall();
+      status("vc_approval_status",
+        "Ready: the proof of possession is signed and the request below is what Approve will send.", "vc-ok");
+    })
+    .catch(function (e) {
+      log.error("the token request failed: " + e.message);
+      status("vc_token_status", "The token request failed: " + e.message, "vc-bad");
+      el("vc_token_request_button").disabled = false;
+    });
+  log.debug("Leaving sendTokenRequest().");
+  return false;
+}
+
 // --- the credential request -------------------------------------------------
 function approveIssuance() {
   log.debug("Entering approveIssuance().");
@@ -337,6 +516,13 @@ function approveIssuance() {
         el("vc_approve_button").disabled = false;
         return;
       }
+      // The issuer may not be able to issue immediately (OID4VCI section 8.3):
+      // then the response is a transaction_id, and the credential is collected
+      // from the Deferred Credential Endpoint instead.
+      if (response.body && response.body.transaction_id && !extractCredential(response.body)) {
+        beginDeferred(response.body, response.statusCode);
+        return;
+      }
       var credential = extractCredential(response.body);
       if (!credential) {
         status("vc_approval_status",
@@ -344,18 +530,7 @@ function approveIssuance() {
         el("vc_approve_button").disabled = false;
         return;
       }
-      sdJwtVc.set(sdJwtVc.KEYS.CREDENTIAL, credential);
-      sdJwtVc.setJson(sdJwtVc.KEYS.CREDENTIAL_META, {
-        issuer: request.config.credentialIssuer,
-        endpoint: request.config.credentialEndpoint,
-        configurationId: request.config.credentialConfigurationId,
-        format: request.config.format,
-        vct: request.config.vct,
-        requestedAt: new Date().toISOString(),
-        notificationId: (response.body && response.body.notification_id) || "",
-        request: request.body,
-        holderJwk: request.holderPublicJwk
-      });
+      keepCredential(credential, response.body, {});
       status("vc_approval_status", "Credential issued. Opening step 3 …", "vc-ok");
       window.location.href = sdJwtVc.STEP3_URL;
     })
@@ -365,6 +540,209 @@ function approveIssuance() {
       el("vc_approve_button").disabled = false;
     });
   log.debug("Leaving approveIssuance().");
+  return false;
+}
+
+// Everything that has to be remembered about an issued credential, wherever it
+// finally came from — the credential endpoint or the deferred one.
+function keepCredential(credential, responseBody, extra) {
+  log.debug("Entering keepCredential().");
+  sdJwtVc.set(sdJwtVc.KEYS.CREDENTIAL, credential);
+  var meta = {
+    issuer: request.config.credentialIssuer,
+    endpoint: request.config.credentialEndpoint,
+    configurationId: request.config.credentialConfigurationId,
+    format: request.config.format,
+    vct: request.config.vct,
+    requestedAt: new Date().toISOString(),
+    notificationId: (responseBody && responseBody.notification_id) || "",
+    request: request.body,
+    holderJwk: request.holderPublicJwk
+  };
+  Object.keys(extra || {}).forEach(function (k) { meta[k] = extra[k]; });
+  sdJwtVc.setJson(sdJwtVc.KEYS.CREDENTIAL_META, meta);
+  log.debug("Leaving keepCredential().");
+}
+
+// ---------------------------------------------------------------------------
+// Deferred issuance (OID4VCI section 9, Appendix H.3).
+//
+// The Credential Response carried a transaction_id instead of a credential, so
+// the wallet keeps coming back to the Deferred Credential Endpoint until it
+// gets one. `interval` is the issuer saying how long to wait between attempts;
+// every attempt is shown, because a wallet that silently spins is exactly what
+// a debugger should not be.
+// ---------------------------------------------------------------------------
+var deferred = {
+  transactionId: "",
+  intervalSeconds: 0,
+  attempts: [],
+  timer: 0,
+  polling: false
+};
+
+function deferredEndpoint() {
+  return (request.config && request.config.deferredCredentialEndpoint) ||
+         sdJwtVc.get("vci_deferred_credential_endpoint") || "";
+}
+
+function renderDeferredRequest() {
+  log.debug("Entering renderDeferredRequest().");
+  var endpoint = deferredEndpoint();
+  var body = JSON.stringify({ transaction_id: deferred.transactionId }, null, 2);
+  var accessToken = sdJwtVc.get("token_access_token") || "";
+  setValue("vc_deferred_request", [
+    "POST " + (endpoint || "(this issuer publishes no deferred_credential_endpoint)"),
+    "Content-Type: application/json",
+    "Authorization: Bearer " + (accessToken || "(no access token)"),
+    "Content-Length: " + body.length,
+    "",
+    body
+  ].join("\n"));
+  log.debug("Leaving renderDeferredRequest().");
+}
+
+function renderDeferredAttempts() {
+  var e = el("vc_deferred_attempts");
+  if (!e) return;
+  e.textContent = deferred.attempts.length
+    ? deferred.attempts.map(function (a, i) {
+        return (i + 1) + ". " + a.at + "  HTTP " + a.status + "  " + a.summary;
+      }).join("\n")
+    : "—";
+}
+
+function beginDeferred(body, statusCode) {
+  log.debug("Entering beginDeferred(). transaction_id=" + body.transaction_id);
+  deferred.transactionId = String(body.transaction_id);
+  deferred.intervalSeconds = Number(body.interval) || 5;
+  deferred.attempts = [];
+  var pane = el("pane_deferred");
+  if (pane) pane.style.display = "";
+  setText("vc_transaction_id", deferred.transactionId);
+  setText("vc_deferred_endpoint", deferredEndpoint() || "— none published —");
+  renderDeferredRequest();
+  renderDeferredAttempts();
+  status("vc_approval_status",
+    "The issuer answered " + statusCode + ": it cannot issue this credential yet. Collecting it from the " +
+    "Deferred Credential Endpoint …", "vc-pending");
+
+  if (!deferredEndpoint()) {
+    status("vc_deferred_status",
+      "The issuer deferred the issuance but publishes no deferred_credential_endpoint, so there is nowhere " +
+      "to collect the credential from. That is the issuer's bug, not the wallet's.", "vc-bad");
+    log.debug("Leaving beginDeferred(). No endpoint to poll.");
+    return;
+  }
+  status("vc_deferred_status",
+    "Waiting for the issuer. It asked for " + deferred.intervalSeconds +
+    "s between attempts; the wallet will keep checking.", "vc-pending");
+  scheduleDeferredPoll(0);
+  log.debug("Leaving beginDeferred().");
+}
+
+function scheduleDeferredPoll(delaySeconds) {
+  if (deferred.timer) window.clearTimeout(deferred.timer);
+  deferred.timer = window.setTimeout(function () {
+    pollDeferred();
+  }, Math.max(0, delaySeconds) * 1000);
+}
+
+function pollDeferred() {
+  log.debug("Entering pollDeferred().");
+  if (!deferred.transactionId) {
+    status("vc_deferred_status", "There is no deferred issuance in progress.", "vc-bad");
+    return false;
+  }
+  if (deferred.polling) {
+    log.debug("Leaving pollDeferred(). A poll is already in flight.");
+    return false;
+  }
+  var endpoint = deferredEndpoint();
+  if (!endpoint) {
+    status("vc_deferred_status", "This issuer publishes no deferred_credential_endpoint.", "vc-bad");
+    return false;
+  }
+  deferred.polling = true;
+  renderDeferredRequest();
+  fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + (sdJwtVc.get("token_access_token") || "")
+    },
+    body: JSON.stringify({ transaction_id: deferred.transactionId })
+  })
+    .then(function (r) {
+      return r.text().then(function (text) {
+        var parsed = null;
+        try {
+          parsed = JSON.parse(text);
+        } catch (e) {
+          // Not JSON: the raw text is recorded instead.
+        }
+        return { ok: r.ok, statusCode: r.status, body: parsed, raw: text };
+      });
+    })
+    .then(function (response) {
+      deferred.polling = false;
+      var credential = extractCredential(response.body);
+      var summary;
+      if (credential) {
+        summary = "the credential was issued";
+      } else if (response.body && response.body.transaction_id) {
+        summary = "still pending (interval " + (response.body.interval || deferred.intervalSeconds) + "s)";
+      } else {
+        summary = (response.body && (response.body.error_description || response.body.error)) || response.raw;
+      }
+      deferred.attempts.push({
+        at: new Date().toISOString(),
+        status: response.statusCode,
+        summary: String(summary).slice(0, 200)
+      });
+      renderDeferredAttempts();
+
+      if (credential) {
+        keepCredential(credential, response.body, {
+          deferred: true,
+          transactionId: deferred.transactionId,
+          deferredEndpoint: endpoint,
+          deferredAttempts: deferred.attempts.length
+        });
+        // Spent: the issuer invalidates it once the credential is collected.
+        deferred.transactionId = "";
+        status("vc_deferred_status",
+          "The credential was issued after " + deferred.attempts.length +
+          (deferred.attempts.length === 1 ? " attempt." : " attempts."), "vc-ok");
+        status("vc_approval_status", "Credential issued. Opening step 3 …", "vc-ok");
+        window.location.href = sdJwtVc.STEP3_URL;
+        return;
+      }
+
+      if (response.statusCode === 202 && response.body && response.body.transaction_id) {
+        var wait = Number(response.body.interval) || deferred.intervalSeconds;
+        deferred.intervalSeconds = wait;
+        status("vc_deferred_status",
+          "Attempt " + deferred.attempts.length + ": the issuer is still working on it. Checking again in " +
+          wait + "s.", "vc-pending");
+        scheduleDeferredPoll(wait);
+        return;
+      }
+
+      var err = (response.body && (response.body.error_description || response.body.error)) ||
+                ("HTTP " + response.statusCode);
+      status("vc_deferred_status", "The deferred request was refused: " + err, "vc-bad");
+      log.debug("Leaving pollDeferred(). Refused: " + err);
+    })
+    .catch(function (e) {
+      deferred.polling = false;
+      log.error("the deferred credential request failed: " + e.message);
+      deferred.attempts.push({ at: new Date().toISOString(), status: 0, summary: e.message });
+      renderDeferredAttempts();
+      status("vc_deferred_status", "The deferred request failed: " + e.message +
+             " Use “Check again now” to retry.", "vc-bad");
+    });
+  log.debug("Leaving pollDeferred().");
   return false;
 }
 
@@ -469,6 +847,9 @@ function onload() {
 
   var claims = showTokens();
   showRequestConfig(claims);
+  // A pre-authorized offer has no OIDC leg behind it: the token request is
+  // this page's job, and it is shown before it is sent like everything else.
+  showPreAuthorizedPane();
   loadOrGenerateHolderKey()
     .then(function (pub) {
       setJson("vc_holder_jwk", pub);
@@ -500,6 +881,10 @@ if (typeof window !== "undefined") {
 
 module.exports = {
   approveIssuance: approveIssuance,
+  sendTokenRequest: sendTokenRequest,
+  onTxCodeChange: onTxCodeChange,
+  showPreAuthorizedPane: showPreAuthorizedPane,
+  pollDeferred: pollDeferred,
   renderProofJwt: renderProofJwt,
   renderAssembledCall: renderAssembledCall,
   denyIssuance: denyIssuance,

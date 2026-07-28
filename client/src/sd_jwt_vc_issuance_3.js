@@ -104,6 +104,31 @@ function renderDisclosures(rows, sdDigests) {
 }
 
 // --- issuer key resolution --------------------------------------------------
+// A did:jwk identifier IS the key: the part after the method prefix is the
+// base64url JWK itself, so it resolves without a network call. walt.id's issuer
+// signs with one (iss = "did:jwk:eyJrdHkiOiJFQyIs…"), and a credential whose
+// key is sitting in its own iss should not be reported as unverifiable.
+function jwkFromDid(iss) {
+  log.debug("Entering jwkFromDid(). iss=" + String(iss).slice(0, 40));
+  var prefix = "did:jwk:";
+  if (String(iss || "").indexOf(prefix) !== 0) {
+    log.debug("Leaving jwkFromDid(). Not a did:jwk.");
+    return null;
+  }
+  var encoded = String(iss).slice(prefix.length).split("#")[0];
+  var jwk;
+  try {
+    jwk = metadataClient.b64uToJson(encoded);
+  } catch (e) {
+    // A did:jwk whose body is not base64url JSON is simply not resolvable here;
+    // the other resolution paths still get their turn.
+    log.debug("Leaving jwkFromDid(). Undecodable: " + e.message);
+    return null;
+  }
+  log.debug("Leaving jwkFromDid(). Decoded a " + (jwk && jwk.kty) + " key.");
+  return jwk && jwk.kty ? jwk : null;
+}
+
 // SD-JWT VC: the issuer publishes its keys at /.well-known/jwt-vc-issuer under
 // the iss value. The credential issuer metadata retrieved in step 1 is used as
 // a fallback when it carries a jwks_uri of its own.
@@ -111,10 +136,18 @@ function resolveIssuerJwks(iss) {
   log.debug("Entering resolveIssuerJwks().");
   var doc = sdJwtVc.getJson("vci_info") || {};
   var direct = doc.jwks_uri;
-  var wellKnown = iss ? String(iss).replace(/\/+$/, "") + JWT_VC_ISSUER_WELL_KNOWN : "";
-  var chain = wellKnown
-    ? metadataClient.fetchJson(wellKnown).then(function (m) {
-        if (m && m.jwks) return { jwks: m.jwks, from: wellKnown };
+
+  var embedded = jwkFromDid(iss);
+  if (embedded) {
+    log.debug("Leaving resolveIssuerJwks(). The key is embedded in the did:jwk iss.");
+    return Promise.resolve({ jwks: { keys: [embedded] }, from: "the did:jwk in iss" });
+  }
+  // The well-known segment goes in front of an issuer identifier's path, not
+  // after it; both forms are tried. See metadata_client.wellKnownCandidates().
+  var chain = iss
+    ? metadataClient.fetchWellKnown(iss, JWT_VC_ISSUER_WELL_KNOWN).then(function (found) {
+        var m = found.doc;
+        if (m && m.jwks) return { jwks: m.jwks, from: found.url };
         if (m && m.jwks_uri) {
           return metadataClient.fetchJson(m.jwks_uri).then(function (j) {
             return { jwks: j, from: m.jwks_uri };
@@ -125,8 +158,25 @@ function resolveIssuerJwks(iss) {
     : Promise.reject(new Error("the credential has no iss to resolve keys from."));
   log.debug("Leaving resolveIssuerJwks().");
   return chain.catch(function (e) {
-    if (!direct) throw e;
-    return metadataClient.fetchJson(direct).then(function (j) { return { jwks: j, from: direct }; });
+    if (direct) {
+      return metadataClient.fetchJson(direct).then(function (j) { return { jwks: j, from: direct }; });
+    }
+    // Last resort: the keys of the Credential Issuer this credential was asked
+    // for in step 1. An issuer whose iss is not a resolvable URL (a DID method
+    // this page cannot resolve, say) still publishes them under its own
+    // identifier — that is where walt.id's live.
+    var issuerId = doc.credential_issuer;
+    if (!issuerId) throw e;
+    return metadataClient.fetchWellKnown(issuerId, JWT_VC_ISSUER_WELL_KNOWN)
+      .then(function (found) {
+        if (found.doc && found.doc.jwks) return { jwks: found.doc.jwks, from: found.url };
+        if (found.doc && found.doc.jwks_uri) {
+          return metadataClient.fetchJson(found.doc.jwks_uri).then(function (j) {
+            return { jwks: j, from: found.doc.jwks_uri };
+          });
+        }
+        throw e;
+      });
   });
 }
 

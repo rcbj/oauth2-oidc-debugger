@@ -180,6 +180,38 @@ function jwkForImport(jwk) {
   return null;
 }
 
+// Which published keys are worth trying for a JWT that names `kid`.
+//
+// An exact match is the normal case. Two others are not: an issuer that
+// identifies its keys with DID URLs (walt.id does — `did:jwk:…#<thumbprint>`)
+// names in the JWT a kid that no JWKS entry carries verbatim, though the
+// fragment IS the JWKS kid; and an issuer can simply publish a key under a
+// different name than it signs with. A kid is a hint for finding the key, not
+// part of the signature, so a JWT that verifies under a key the issuer
+// published is verified — the kid never made it more or less so. Trying the
+// named key first keeps the reported key honest when several are published.
+function candidateKeys(keys, kid) {
+  log.debug("Entering candidateKeys(). kid=" + kid);
+  if (!kid) {
+    log.debug("Leaving candidateKeys(). The JWT names no kid, so every key is a candidate.");
+    return keys;
+  }
+  var exact = keys.filter(function (k) { return k.kid === kid; });
+  if (exact.length) {
+    log.debug("Leaving candidateKeys(). Exact kid match.");
+    return exact;
+  }
+  // A DID URL's fragment is the key's id within the DID document.
+  var fragment = kid.indexOf("#") !== -1 ? kid.slice(kid.indexOf("#") + 1) : "";
+  var byFragment = fragment ? keys.filter(function (k) { return k.kid === fragment; }) : [];
+  if (byFragment.length) {
+    log.debug("Leaving candidateKeys(). Matched the DID URL fragment " + fragment + ".");
+    return byFragment;
+  }
+  log.debug("Leaving candidateKeys(). No kid matched; every published key is a candidate.");
+  return keys;
+}
+
 // Try every candidate key: the one named by kid, or all of them when the JWT
 // does not name one (common for a single-key authorization server). `label`
 // names the token in any error, since the same code verifies signed_metadata,
@@ -196,7 +228,7 @@ async function verifyJwsWithJwks(token, jwks, label) {
 
   var keys = (jwks && jwks.keys) || [];
   if (!keys.length) throw new Error("the JWKS carries no keys.");
-  var candidates = header.kid ? keys.filter(function (k) { return k.kid === header.kid; }) : keys;
+  var candidates = candidateKeys(keys, header.kid);
   if (!candidates.length) throw new Error('no key in the JWKS matches kid "' + header.kid + '".');
 
   var data = new TextEncoder().encode(parts[0] + "." + parts[1]);
@@ -388,6 +420,72 @@ function fetchJson(url) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Where an issuer's metadata lives.
+//
+// An issuer identifier can have a path — walt.id's is
+// https://host/openid4vci — and then the two specs disagree about where the
+// document goes. RFC 8414 section 3.1 (which OID4VCI section 11.2.2 and SD-JWT
+// VC follow) INSERTS the well-known segment between the host and that path:
+//
+//     https://host/.well-known/openid-credential-issuer/openid4vci
+//
+// OpenID Connect Discovery 1.0 APPENDS it instead:
+//
+//     https://host/openid4vci/.well-known/openid-configuration
+//
+// For an issuer with no path both forms are the same string, which is why
+// appending works nearly everywhere and fails exactly where walt.id lives. Both
+// are tried, insertion first, because that is what the specs governing these
+// documents say — and RFC 8414 itself tells clients to try the other form for
+// OpenID Connect compatibility.
+// ---------------------------------------------------------------------------
+function wellKnownCandidates(issuer, wellKnown) {
+  log.debug("Entering wellKnownCandidates(). issuer=" + issuer + ", wellKnown=" + wellKnown);
+  var trimmed = String(issuer || "").replace(/\/+$/, "");
+  if (!trimmed) {
+    log.debug("Leaving wellKnownCandidates(). No issuer.");
+    return [];
+  }
+  var path = "";
+  var origin = trimmed;
+  var slash = trimmed.indexOf("/", trimmed.indexOf("://") + 3);
+  if (trimmed.indexOf("://") !== -1 && slash !== -1) {
+    origin = trimmed.slice(0, slash);
+    path = trimmed.slice(slash);
+  }
+  var inserted = origin + wellKnown + path;
+  var appended = trimmed + wellKnown;
+  var out = inserted === appended ? [inserted] : [inserted, appended];
+  log.debug("Leaving wellKnownCandidates(). " + out.join(" , "));
+  return out;
+}
+
+// Fetch the first candidate that answers with a document. Resolves to
+// { doc, url } so the caller can say which URL the document actually came from
+// — with two candidates in play, a provenance note that guesses would be worse
+// than none.
+function fetchWellKnown(issuer, wellKnown) {
+  log.debug("Entering fetchWellKnown(). issuer=" + issuer);
+  var urls = wellKnownCandidates(issuer, wellKnown);
+  if (!urls.length) {
+    log.debug("Leaving fetchWellKnown(). Nothing to try.");
+    return Promise.reject(new Error("no issuer identifier to resolve metadata from."));
+  }
+  var attempt = function (i, firstError) {
+    if (i >= urls.length) throw firstError;
+    return fetchJson(urls[i])
+      .then(function (doc) {
+        return { doc: doc, url: urls[i] };
+      })
+      .catch(function (e) {
+        return attempt(i + 1, firstError || new Error(urls[0] + ": " + e.message));
+      });
+  };
+  log.debug("Leaving fetchWellKnown(). Trying " + urls.length + " candidate(s).");
+  return Promise.resolve().then(function () { return attempt(0, null); });
+}
+
 module.exports = {
   escapeHtmlText: escapeHtmlText,
   isJsonStructure: isJsonStructure,
@@ -405,5 +503,7 @@ module.exports = {
   validateSignedMetadata: validateSignedMetadata,
   buildInfoTable: buildInfoTable,
   createStore: createStore,
-  fetchJson: fetchJson
+  fetchJson: fetchJson,
+  wellKnownCandidates: wellKnownCandidates,
+  fetchWellKnown: fetchWellKnown
 };

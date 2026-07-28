@@ -26,7 +26,14 @@ var log = bunyan.createLogger({ name: 'sd_jwt_vc_issuance_0',
 // start at the issuer, not at the wallet — that is the whole point of them.
 var STARTS = {
   "wallet-initiated": { url: "/sd-jwt-vc-issuance-1.html", cta: "Start at the wallet" },
-  "offer-same-device": { url: "", cta: "Go to the issuer's web page" }
+  "offer-same-device": { issuerPath: "/issuer", cta: "Go to the issuer's web page" },
+  // Cross-device: the End-User is standing in front of the issuer's screen, and
+  // what it shows is a QR code — so go straight to the screen that displays one
+  // rather than to the issuer's front page.
+  "offer-cross-device": { issuerPath: "/issuer/offer?mode=cross-device",
+                          cta: "Show the issuer's QR code" },
+  "offer-deferred": { issuerPath: "/issuer/offer?mode=deferred",
+                      cta: "Show the issuer's QR code" }
 };
 
 function esc(v) { return metadataClient.escapeHtmlText(v); }
@@ -43,11 +50,12 @@ function status(text, cls) {
 // The issuer's web page, derived from the configured credential issuer. For the
 // mock issuer that is <issuer>/issuer; a real one would be wherever it puts its
 // "request your credential" link.
-function issuerPageUrl() {
-  log.debug("Entering issuerPageUrl().");
+function issuerPageUrl(id) {
+  log.debug("Entering issuerPageUrl(). id=" + id);
   var cfg = sdJwtVc.storedRequestConfig();
   var issuer = cfg.credentialIssuer || appconfig.oid4vciIssuerUrlDefault || "";
-  var url = issuer ? issuer.replace(/\/+$/, "") + "/issuer" : "";
+  var path = (STARTS[id] || {}).issuerPath || "/issuer";
+  var url = issuer ? issuer.replace(/\/+$/, "") + path : "";
   log.debug("Leaving issuerPageUrl(). url=" + url);
   return url;
 }
@@ -104,15 +112,15 @@ function choose(id) {
   // A previous run's offer does not belong to this one.
   sdJwtVc.forgetOffer();
 
-  if (uc.id === "offer-same-device") {
-    var url = issuerPageUrl();
+  if ((STARTS[uc.id] || {}).issuerPath) {
+    var url = issuerPageUrl(uc.id);
     if (!url) {
       status("Set the credential issuer first (step 1 has the field) — the issuer's web page is where an " +
              "offer comes from, and this workflow does not know where it is yet.", "vc-bad");
       window.setTimeout(function () { window.location.href = "/sd-jwt-vc-issuance-1.html"; }, 2500);
       return false;
     }
-    status("Taking you to the issuer's web page at " + url + " …", "vc-pending");
+    status("Taking you to the issuer at " + url + " …", "vc-pending");
     window.location.href = url;
     log.debug("Leaving choose(). Sent to the issuer.");
     return false;

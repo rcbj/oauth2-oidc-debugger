@@ -67,6 +67,8 @@ var clientId = process.env.SD_JWT_VC_CLIENT_ID || "oidc-authorization-code-publi
 
 var EXPECTED_VCT = "urn:idptools:sd-jwt-vc:identity";
 var SD_JWT_VC_TYP = "dc+sd-jwt";
+// OID4VCI's pre-authorized code grant, used by the cross-device use cases.
+var PRE_AUTHORIZED_GRANT = "urn:ietf:params:oauth:grant-type:pre-authorized_code";
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -802,6 +804,9 @@ async function misconfigureTheWallet(driver) {
     "window.localStorage.clear();" +
     "var wrong = {" +
     "  vci_metadata_endpoint: arguments[0] + '/.well-known/openid-credential-issuer'," +
+    "  vci_credential_issuer: arguments[0]," +
+    "  vci_credential_endpoint: arguments[0] + '/credential'," +
+    "  vci_deferred_credential_endpoint: arguments[0] + '/deferred_credential'," +
     "  vci_credential_configuration_id: 'NotTheOfferedCredential'," +
     "  authorization_endpoint: arguments[0] + '/authorize'," +
     "  token_endpoint: arguments[0] + '/token'" +
@@ -817,7 +822,16 @@ async function credentialOfferSameDevice(driver) {
   // ---- step 0: the chooser ------------------------------------------------
   await driver.get(baseUrl + "/sd-jwt-vc-issuance-0.html");
   await driver.wait(until.elementLocated(By.css("button.vc-usecase")), waitTime);
-  await driver.executeScript("window.localStorage.clear();");
+  // Start with no use case chosen and no offer in hand — and then say which
+  // issuer this wallet is configured for, because that is what step 0 needs to
+  // know to send the End-User to the issuer's own page. Leaving it to whatever
+  // an earlier section happened to store (or to the build-time default) is how
+  // this section silently starts testing a different issuer.
+  await driver.executeScript(
+    "window.localStorage.clear();" +
+    "window.localStorage.setItem('vci_credential_issuer', arguments[0]);" +
+    "window.localStorage.setItem('vci_metadata_endpoint', arguments[0] + " +
+    "  '/.well-known/openid-credential-issuer');", issuerBase);
   await driver.navigate().refresh();
   await driver.wait(until.elementLocated(By.css("button.vc-usecase")), waitTime);
   await driver.sleep(300);
@@ -838,10 +852,10 @@ async function credentialOfferSameDevice(driver) {
     assert.ok(c.mechanics.length > 20, c.spec + " should say what it does on the wire.");
   });
   assert.deepStrictEqual(cards.filter(function (c) { return !c.disabled; }).map(function (c) { return c.spec; }),
-    ["H.6", "H.1"], "only the implemented use cases should be choosable.");
-  assert.strictEqual(cards.filter(function (c) { return c.disabled; }).length, 2,
-    "the use cases that are not implemented yet should still be listed.");
-  log.info("[H.1] OK — step 0 describes all four use cases; H.6 and H.1 are choosable.");
+    ["H.6", "H.1", "H.2", "H.3"], "every use case this workflow implements should be choosable.");
+  assert.strictEqual(cards.filter(function (c) { return c.disabled; }).length, 0,
+    "nothing on step 0 should be listed as unavailable now that all four are implemented.");
+  log.info("[H.1] OK — step 0 describes all four use cases, and all four are choosable.");
 
   // ---- the issuer's web page ----------------------------------------------
   await click(driver, By.id("vc_usecase_offer-same-device"));
@@ -1019,6 +1033,330 @@ async function credentialOfferSameDevice(driver) {
 // The issuer's own defences — a mock that accepts anything would make the
 // checks above meaningless.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// H.2 — Credential Offer, cross-device.
+//
+// The issuer shows a QR code on its own screen; the wallet is somewhere else,
+// so nothing navigates it here. The offer carries a pre-authorized code instead
+// of sending anyone to a login page — there is NO authorization request at all
+// — and a Transaction Code that reached the End-User by a different channel is
+// what ties the wallet on the other device to them.
+//
+// The Transaction Code is the part worth being strict about: it is the only
+// thing standing between a photographed QR code and someone else's credential,
+// so this section checks that the wallet refuses to send without it, that the
+// issuer refuses a wrong one, and that the code is single use.
+// ---------------------------------------------------------------------------
+async function crossDeviceOffer(driver) {
+  log.info("=== H.2: Credential Offer - Cross-Device ===");
+
+  // Step 0 needs to know which issuer to send the End-User to; the offer that
+  // comes back is what configures everything else.
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-0.html");
+  await driver.wait(until.elementLocated(By.css("button.vc-usecase")), waitTime);
+  await driver.executeScript(
+    "window.localStorage.clear();" +
+    "window.localStorage.setItem('vci_credential_issuer', arguments[0]);" +
+    "window.localStorage.setItem('vci_metadata_endpoint', arguments[0] + " +
+    "  '/.well-known/openid-credential-issuer');", issuerBase);
+  await driver.navigate().refresh();
+  await driver.wait(until.elementLocated(By.id("vc_usecase_offer-cross-device")), waitTime);
+  await click(driver, By.id("vc_usecase_offer-cross-device"));
+
+  // ---- the issuer's screen -------------------------------------------------
+  await driver.wait(until.elementLocated(By.id("tx_code")), fetchWait,
+    "the cross-device use case should show the issuer's QR screen, not send the browser to the wallet.");
+  var screen = await driver.executeScript(
+    "var qr = document.getElementById('offer_qr');" +
+    "return { url: location.href," +
+    "         txCode: document.getElementById('tx_code').textContent.trim()," +
+    "         offerUri: document.getElementById('offer_uri').textContent.trim()," +
+    "         qr: qr ? qr.src.slice(0, 21) : ''," +
+    "         page: document.body.textContent };");
+  assert.ok(screen.url.indexOf(issuerBase) === 0,
+    "the QR screen belongs to the issuer, not the wallet. Got: " + screen.url);
+  assert.strictEqual(screen.qr, "data:image/png;base64",
+    "a cross-device offer is handed over as a QR code, so there should be one on the issuer's screen.");
+  assert.ok(/^\d{5}$/.test(screen.txCode),
+    "the issuer should display a Transaction Code on its own screen. Got: " + screen.txCode);
+  assert.ok(screen.offerUri.indexOf("openid-credential-offer://") === 0,
+    "the QR code should carry the openid-credential-offer URI OID4VCI registers. Got: " +
+    screen.offerUri.slice(0, 60));
+  assert.ok(screen.page.indexOf(screen.txCode) !== -1 &&
+            screen.offerUri.indexOf(screen.txCode) === -1,
+    "the Transaction Code must be shown on the screen and NOT travel in the offer — that separation is " +
+    "the whole point of it.");
+  log.info("[H.2] OK — the issuer shows a QR code and a Transaction Code that is not in the offer.");
+
+  // ---- the wallet takes the scanned offer ---------------------------------
+  // Poisoned first, so what the pane shows afterwards can only have come from
+  // the offer itself (see misconfigureTheWallet).
+  await misconfigureTheWallet(driver);
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-1.html");
+  await driver.wait(until.elementLocated(By.id("scan_offer_input")), waitTime);
+  await driver.executeScript(
+    "document.getElementById('scan_offer_input').value = arguments[0];", screen.offerUri);
+  await click(driver, By.id("scan_offer_button"));
+  // The expected value, not just any value: the wallet was pointed at a wrong
+  // issuer on purpose, so "not empty" is already true.
+  await driver.wait(async function () {
+    return (await value(driver, "vci_credential_endpoint")) === issuerBase + "/oid4vci/credential";
+  }, fetchWait, "taking the offer should discover the issuer it names.");
+  await driver.sleep(400);
+
+  var taken = await driver.executeScript(
+    "return { offerShown: document.getElementById('pane_offer').style.display !== 'none'," +
+    "         grant: document.getElementById('offer_grant').textContent.trim()," +
+    "         metadataUrl: document.getElementById('vci_metadata_endpoint').value," +
+    "         credentialEndpoint: document.getElementById('vci_credential_endpoint').value," +
+    "         badge: (document.getElementById('vc_use_case_badge') || {}).textContent || '' };");
+  assert.ok(taken.offerShown, "the offer pane should show what was scanned.");
+  assert.ok(taken.grant.indexOf("pre-authorized_code") !== -1,
+    "the offer should be shown as using the pre-authorized code grant. Got: " + taken.grant);
+  assert.ok(/Transaction Code is required/.test(taken.grant),
+    "the pane should say a Transaction Code is required before anything is sent. Got: " + taken.grant);
+  assert.strictEqual(taken.metadataUrl, issuerBase + "/.well-known/openid-credential-issuer",
+    "the scanned offer names only the issuer, so the wallet has to derive its metadata URL.");
+  assert.strictEqual(taken.credentialEndpoint, issuerBase + "/oid4vci/credential",
+    "the wallet should have read the issuer's metadata off the back of the offer.");
+  assert.ok(taken.badge.indexOf("H.2") !== -1,
+    "the workflow should say which use case it is running. Got: " + taken.badge);
+  log.info("[H.2] OK — a pasted offer configured the wallet, with the issuer poisoned beforehand.");
+
+  // ---- no authorization request --------------------------------------------
+  await click(driver, By.id("start_issuance_button"));
+  await driver.wait(until.urlContains("sd-jwt-vc-issuance-2.html"), fetchWait,
+    "a pre-authorized offer must NOT go through the authorization server — the End-User was already " +
+    "identified, so the workflow should go straight to the Token Request.");
+  await driver.wait(async function () {
+    return !!(await text(driver, "vc_pre_authorized_code"));
+  }, fetchWait, "step 2 should show the pre-authorized code it is about to redeem.");
+
+  var pane = await driver.executeScript(
+    "return { shown: document.getElementById('pane_pre_authorized').style.display !== 'none'," +
+    "         code: document.getElementById('vc_pre_authorized_code').textContent.trim()," +
+    "         hint: document.getElementById('vc_tx_code_hint').textContent.trim()," +
+    "         request: document.getElementById('vc_token_request').value," +
+    "         accessToken: document.getElementById('vc_access_token').value };");
+  assert.ok(pane.shown, "the Token Request pane should be shown for a pre-authorized offer.");
+  assert.ok(pane.code && pane.code.length > 10, "the pre-authorized code should be shown. Got: " + pane.code);
+  assert.ok(/5 digits/.test(pane.hint),
+    "the pane should say what Transaction Code the issuer wants. Got: " + pane.hint);
+  assert.ok(pane.request.indexOf("grant_type=" + encodeURIComponent(PRE_AUTHORIZED_GRANT)) !== -1,
+    "the assembled call should use the pre-authorized code grant. Got: " + pane.request.slice(0, 200));
+  assert.ok(pane.request.indexOf("POST " + issuerBase + "/oauth2/token") === 0,
+    "the assembled call should name the token endpoint. Got: " + pane.request.slice(0, 80));
+  assert.strictEqual(pane.accessToken, "",
+    "there should be no access token yet: nothing has been redeemed.");
+  log.info("[H.2] OK — step 2 shows the Token Request before sending it, and there is no access token yet.");
+
+  // ---- the Transaction Code is not optional --------------------------------
+  await click(driver, By.id("vc_token_request_button"));
+  await driver.sleep(500);
+  var refusedLocally = await text(driver, "vc_token_status");
+  assert.ok(/Transaction Code/i.test(refusedLocally) && /type it in/i.test(refusedLocally),
+    "with no Transaction Code typed the wallet should refuse to send at all. Got: " + refusedLocally);
+  assert.strictEqual(await value(driver, "vc_access_token"), "",
+    "nothing should have been issued.");
+
+  await driver.executeScript(
+    "document.getElementById('vc_tx_code').value = '00000'; sdjwtvc2.onTxCodeChange();");
+  await click(driver, By.id("vc_token_request_button"));
+  await driver.wait(async function () {
+    return /refused/i.test((await text(driver, "vc_token_status")) || "");
+  }, fetchWait, "the issuer should refuse a wrong Transaction Code.");
+  var refusedByIssuer = await text(driver, "vc_token_status");
+  assert.ok(/not correct|invalid/i.test(refusedByIssuer),
+    "the refusal should say the Transaction Code is wrong. Got: " + refusedByIssuer);
+  assert.strictEqual(await value(driver, "vc_access_token"), "",
+    "a wrong Transaction Code must not produce an access token.");
+  log.info("[H.2] OK — no Transaction Code is refused by the wallet, a wrong one by the issuer.");
+
+  // ---- the right one -------------------------------------------------------
+  await driver.executeScript(
+    "document.getElementById('vc_tx_code').value = arguments[0]; sdjwtvc2.onTxCodeChange();", screen.txCode);
+  await click(driver, By.id("vc_token_request_button"));
+  await driver.wait(async function () {
+    return !!(await value(driver, "vc_access_token"));
+  }, fetchWait, "the right Transaction Code should redeem the pre-authorized code for an access token.");
+  var accessToken = await value(driver, "vc_access_token");
+  var claims = jsonFromB64u(accessToken.split(".")[1]);
+  assert.ok(String(claims.sub || "").indexOf("urn:sts-mock:user:") === 0,
+    "the access token should describe the End-User the issuer already knew about. Got: " + claims.sub);
+  log.info("[H.2] OK — the pre-authorized code was redeemed for an access token describing " + claims.sub + ".");
+
+  // The code is single use: a second redemption of the same offer must fail.
+  var replay = await httpJson(issuerBase + "/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: "grant_type=" + encodeURIComponent(PRE_AUTHORIZED_GRANT) +
+          "&pre-authorized_code=" + encodeURIComponent(pane.code) +
+          "&tx_code=" + encodeURIComponent(screen.txCode)
+  });
+  assert.strictEqual(replay.status, 400,
+    "a pre-authorized code is single use; replaying it should be refused. Got HTTP " + replay.status);
+  assert.ok(/already-used|Unknown/i.test(replay.raw),
+    "the refusal should say the code has been used. Got: " + replay.raw.slice(0, 160));
+  log.info("[H.2] OK — the pre-authorized code cannot be redeemed twice.");
+
+  // ---- and the credential --------------------------------------------------
+  await click(driver, By.id("vc_approve_button"));
+  await driver.wait(until.urlContains("sd-jwt-vc-issuance-3.html"), fetchWait,
+    "approving should get the credential the offer was for.");
+  await driver.sleep(800);
+  await assertStepThreeIsHappy(driver, "H.2");
+  log.info("[H.2] OK — the offered credential was issued with no authorization request anywhere in the flow.");
+}
+
+// ---------------------------------------------------------------------------
+// H.3 — Credential Offer, cross-device and deferred.
+//
+// Everything H.2 does, and then the issuer cannot produce the credential yet:
+// the Credential Response is 202 with a transaction_id, and the wallet collects
+// the credential from the Deferred Credential Endpoint once it is ready
+// (OID4VCI section 9).
+// ---------------------------------------------------------------------------
+async function deferredIssuance(driver) {
+  log.info("=== H.3: Credential Offer - Cross-Device & Deferred ===");
+
+  var meta = (await httpJson(issuerMetadataUrl)).body;
+  assert.ok(meta.deferred_credential_endpoint,
+    "an issuer that can defer says so with deferred_credential_endpoint; this one should.");
+
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-0.html");
+  await driver.wait(until.elementLocated(By.css("button.vc-usecase")), waitTime);
+  await driver.executeScript(
+    "window.localStorage.clear();" +
+    "window.localStorage.setItem('vci_credential_issuer', arguments[0]);" +
+    "window.localStorage.setItem('vci_metadata_endpoint', arguments[0] + " +
+    "  '/.well-known/openid-credential-issuer');", issuerBase);
+  await driver.navigate().refresh();
+  await driver.wait(until.elementLocated(By.id("vc_usecase_offer-deferred")), waitTime);
+  await click(driver, By.id("vc_usecase_offer-deferred"));
+
+  await driver.wait(until.elementLocated(By.id("tx_code")), fetchWait,
+    "the deferred use case also starts at the issuer's QR screen.");
+  var screen = await driver.executeScript(
+    "return { txCode: document.getElementById('tx_code').textContent.trim()," +
+    "         offerUri: document.getElementById('offer_uri').textContent.trim() };");
+
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-1.html");
+  await driver.wait(until.elementLocated(By.id("scan_offer_input")), waitTime);
+  await driver.executeScript(
+    "document.getElementById('scan_offer_input').value = arguments[0];", screen.offerUri);
+  await click(driver, By.id("scan_offer_button"));
+  await driver.wait(async function () {
+    return !!(await value(driver, "vci_deferred_credential_endpoint"));
+  }, fetchWait, "the wallet should read the deferred endpoint out of the issuer's metadata.");
+  assert.strictEqual(await value(driver, "vci_deferred_credential_endpoint"),
+    issuerBase + "/oid4vci/deferred_credential",
+    "the deferred endpoint should be the one the issuer publishes.");
+
+  await click(driver, By.id("start_issuance_button"));
+  await driver.wait(until.elementLocated(By.id("vc_tx_code")), fetchWait);
+  await driver.executeScript(
+    "document.getElementById('vc_tx_code').value = arguments[0]; sdjwtvc2.onTxCodeChange();", screen.txCode);
+  await click(driver, By.id("vc_token_request_button"));
+  await driver.wait(async function () {
+    return !!(await value(driver, "vc_access_token"));
+  }, fetchWait, "the Transaction Code should redeem the pre-authorized code.");
+
+  // ---- the issuer defers ---------------------------------------------------
+  await click(driver, By.id("vc_approve_button"));
+  await driver.wait(async function () {
+    return await driver.executeScript(
+      "var e = document.getElementById('pane_deferred'); return !!e && e.style.display !== 'none';");
+  }, fetchWait, "a 202 with a transaction_id should put the workflow into the deferred pane.");
+
+  var deferred = await driver.executeScript(
+    "return { transactionId: document.getElementById('vc_transaction_id').textContent.trim()," +
+    "         endpoint: document.getElementById('vc_deferred_endpoint').textContent.trim()," +
+    "         request: document.getElementById('vc_deferred_request').value," +
+    "         response: document.getElementById('vc_response_body').textContent };");
+  assert.ok(deferred.transactionId && deferred.transactionId !== "—",
+    "the deferred pane should show the transaction_id the issuer returned.");
+  assert.strictEqual(deferred.endpoint, issuerBase + "/oid4vci/deferred_credential",
+    "it should name the endpoint it is going to poll.");
+  assert.ok(deferred.request.indexOf("POST " + issuerBase + "/oid4vci/deferred_credential") === 0,
+    "the assembled Deferred Credential Request should be shown. Got: " + deferred.request.slice(0, 80));
+  assert.ok(deferred.request.indexOf('"transaction_id"') !== -1,
+    "the request body is the transaction_id (OID4VCI section 9.1). Got: " + deferred.request);
+  assert.ok(deferred.request.indexOf("Authorization: Bearer ") !== -1,
+    "the deferred request must present the access token too.");
+  assert.ok(deferred.response.indexOf(deferred.transactionId) !== -1,
+    "the Credential Response that deferred the issuance should still be on screen. Got: " +
+    deferred.response.slice(0, 160));
+  log.info("[H.3] OK — the issuer deferred the issuance and the wallet showed the transaction it will poll.");
+
+  // A transaction_id this issuer never made must be refused, or "pending" and
+  // "there is no such thing" would be indistinguishable to a wallet.
+  var bogus = await httpJson(issuerBase + "/oid4vci/deferred_credential", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + (await value(driver, "vc_access_token"))
+    },
+    body: JSON.stringify({ transaction_id: "not-a-transaction-this-issuer-made" })
+  });
+  assert.strictEqual(bogus.status, 400,
+    "an unknown transaction_id should be refused. Got HTTP " + bogus.status);
+  assert.ok(bogus.body && bogus.body.error === "invalid_transaction_id",
+    "OID4VCI section 9.3 names that error invalid_transaction_id. Got: " + bogus.raw.slice(0, 160));
+
+  // ---- the wallet waits, and collects --------------------------------------
+  await driver.wait(until.urlContains("sd-jwt-vc-issuance-3.html"), fetchWait,
+    "the wallet should keep polling until the issuer has the credential ready.");
+  await driver.sleep(800);
+  await assertStepThreeIsHappy(driver, "H.3");
+
+  var record = await driver.executeScript(
+    "return JSON.parse(window.localStorage.getItem('sdjwtvc_credential_meta') || '{}');");
+  assert.strictEqual(record.deferred, true,
+    "the workflow should record that this credential came from a deferred issuance.");
+  assert.ok(record.deferredAttempts >= 1,
+    "it should record how many attempts that took. Got: " + record.deferredAttempts);
+  assert.strictEqual(record.deferredEndpoint, issuerBase + "/oid4vci/deferred_credential",
+    "and where it collected the credential from.");
+  log.info("[H.3] OK — the credential was collected from the deferred endpoint after " +
+           record.deferredAttempts + " attempt(s), and the workflow says so.");
+
+  // Spent: the issuer invalidates the transaction_id once the credential has
+  // been handed over, so the same poll must not yield a second copy.
+  var replay = await httpJson(issuerBase + "/oid4vci/deferred_credential", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer replayed" },
+    body: JSON.stringify({ transaction_id: deferred.transactionId })
+  });
+  assert.strictEqual(replay.status, 400,
+    "a collected transaction_id must stop working (OID4VCI section 9). Got HTTP " + replay.status);
+  assert.ok(replay.body && replay.body.error === "invalid_transaction_id",
+    "and the error should be invalid_transaction_id. Got: " + JSON.stringify(replay.body));
+  log.info("[H.3] OK — the transaction_id stopped working once the credential had been collected.");
+}
+
+// Step 3's verdicts, for a credential that a working issuer has just issued.
+async function assertStepThreeIsHappy(driver, label) {
+  log.debug("Entering assertStepThreeIsHappy(). label=" + label);
+  var checks = await driver.executeScript(
+    "return Array.prototype.slice.call(document.querySelectorAll('#vc_checks tbody tr')).map(function (tr) {" +
+    "  var td = tr.querySelectorAll('td');" +
+    "  return { name: td[0].textContent.trim(), result: td[1].textContent.trim()," +
+    "           detail: td[2].textContent.trim() };" +
+    "});");
+  assert.ok(checks.length >= 7, "step 3 should report its checks, got " + checks.length + ".");
+  var failed = checks.filter(function (c) { return c.result === "FAILED"; });
+  assert.strictEqual(failed.length, 0,
+    label + ": no check should fail — " +
+    failed.map(function (c) { return c.name + " — " + c.detail; }).join("; "));
+  var signature = checks.filter(function (c) { return c.name === "Issuer signature"; })[0];
+  assert.ok(signature && signature.result === "OK",
+    label + ": the issuer signature should verify. Got: " + JSON.stringify(signature));
+  var binding = checks.filter(function (c) { return c.name === "Key binding (cnf)"; })[0];
+  assert.ok(binding && binding.result === "OK",
+    label + ": the credential should be bound to the holder key. Got: " + JSON.stringify(binding));
+  log.debug("Leaving assertStepThreeIsHappy().");
+}
+
 async function issuerNegatives() {
   log.info("=== The credential endpoint's checks ===");
   var meta = (await httpJson(issuerMetadataUrl)).body;
@@ -1156,6 +1494,8 @@ async function test() {
     await inspectLinksReturnHere(driver);
     await stepTwoWithoutTokens(driver);
     await credentialOfferSameDevice(driver);
+    await crossDeviceOffer(driver);
+    await deferredIssuance(driver);
     log.info("Test completed successfully.");
   } finally {
     await driver.quit();

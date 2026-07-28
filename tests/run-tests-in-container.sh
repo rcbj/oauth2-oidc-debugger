@@ -44,6 +44,17 @@ init()
   # Exporting an unset variable passes nothing to children, so run-report.js sees
   # WSTRUST_STS_URL as undefined on non-containerized targets and skips.
   export WSTRUST_STS_URL
+  # walt.id's issuer-api2 — the real OpenID4VCI issuer the interoperability job
+  # runs against. Same reasoning as the STS above: the compose DNS name is only
+  # valid on the containerized stack, and the BROWSER has to reach it, because
+  # every URL walt.id publishes is built from the base URL it was configured
+  # with. Unset elsewhere, so run-report.js skips that job rather than failing.
+  case "${DEBUGGER_BASE_URL}" in
+    http://client:*)
+      WALTID_ISSUER_URL="${WALTID_ISSUER_URL:-http://waltid-issuer:7005}"
+      ;;
+  esac
+  export WALTID_ISSUER_URL
   CONFIG_FILE="${CONFIG_FILE:-./env/local.js}"
   CURRENT_DIR=`echo "$(dirname "$(realpath "$0")")"`
   COMMON_SH=${CURRENT_DIR}/common.sh

@@ -47,6 +47,28 @@ else
   exit 1
 fi
 
+# walt.id's issuer, and the identity provider it authenticates End-Users at.
+# These are the addresses the BROWSER uses: every URL walt.id publishes in its
+# metadata is built from WALTID_BASE_URL, and the authorize redirect goes to
+# the browser too. renderWaltidConfig writes them into the container's
+# configuration, and configureKeycloak registers the callback under the same
+# base.
+WALTID_BASE_URL=http://waltid-issuer:7005
+WALTID_KEYCLOAK_AUTHORIZE_URL=http://keycloak:8080/realms/debugger-testing/protocol/openid-connect/auth
+WALTID_KEYCLOAK_TOKEN_URL=http://keycloak:8080/realms/debugger-testing/protocol/openid-connect/token
+WALTID_KEYCLOAK_CLIENT_ID=waltid-issuer
+WALTID_KEYCLOAK_CLIENT_SECRET=waltid-issuer-test-secret
+export WALTID_BASE_URL WALTID_KEYCLOAK_AUTHORIZE_URL WALTID_KEYCLOAK_TOKEN_URL
+export WALTID_KEYCLOAK_CLIENT_ID WALTID_KEYCLOAK_CLIENT_SECRET
+
+# The walt.id issuer's configuration is rendered before compose brings the stack
+# up: the container mounts the result, and the signing key it contains is
+# generated per run and gitignored. See common/common.sh.
+generateWaltidIssuerKey
+check_return_code $?
+renderWaltidConfig "${CURRENT_DIR}"
+check_return_code $?
+
 # Always tear the stack down, even if the tests fail, so the next run starts clean.
 teardown()
 {

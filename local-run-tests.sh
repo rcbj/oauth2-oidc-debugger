@@ -49,6 +49,10 @@ init()
   # the client bundle's baked wstrustStsUrlDefault (local.js).
   WSTRUST_STS_URL=http://localhost:8081/sts
   export WSTRUST_STS_URL
+  # walt.id's issuer-api2 (local-tests.yml, host networking) — the real
+  # OpenID4VCI issuer the interoperability job runs against.
+  WALTID_ISSUER_URL=http://localhost:7005
+  export WALTID_ISSUER_URL
   CONFIG_FILE=./env/local.js
   CURRENT_DIR=`echo "$(dirname "$(realpath "$0")")"`
   COMMON_SH=${CURRENT_DIR}/common/common.sh
@@ -65,6 +69,25 @@ init()
   # decrypt with it) and for configureKeycloak (which registers the certificate
   # on the SAML client). Nothing is written to the repository.
   generateSpKeyPair
+  check_return_code $?
+  # walt.id's issuer, and the identity provider it authenticates End-Users at.
+  # These are the addresses the BROWSER uses: every URL walt.id publishes in its
+  # metadata is built from WALTID_BASE_URL, and the authorize redirect goes to
+  # the browser too. renderWaltidConfig writes them into the container's
+  # configuration, and configureKeycloak registers the callback under the same
+  # base.
+  WALTID_BASE_URL=http://localhost:7005
+  WALTID_KEYCLOAK_AUTHORIZE_URL=http://localhost:8080/realms/debugger-testing/protocol/openid-connect/auth
+  WALTID_KEYCLOAK_TOKEN_URL=http://localhost:8080/realms/debugger-testing/protocol/openid-connect/token
+  WALTID_KEYCLOAK_CLIENT_ID=waltid-issuer
+  WALTID_KEYCLOAK_CLIENT_SECRET=waltid-issuer-test-secret
+  export WALTID_BASE_URL WALTID_KEYCLOAK_AUTHORIZE_URL WALTID_KEYCLOAK_TOKEN_URL
+  export WALTID_KEYCLOAK_CLIENT_ID WALTID_KEYCLOAK_CLIENT_SECRET
+  # The walt.id issuer's configuration is rendered before compose starts: the
+  # container mounts the result, so the key exists on disk for this run only.
+  generateWaltidIssuerKey
+  check_return_code $?
+  renderWaltidConfig "${CURRENT_DIR}"
   check_return_code $?
   NODEJS_BASE_DIR=tests
 }

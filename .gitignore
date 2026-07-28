@@ -17,3 +17,6 @@ saml-idp-metadata.xml
 tests/fixtures/
 sp-key.pem
 sp-cert.pem
+
+# walt.id's configuration rendered per run: it contains that run's issuer key.
+waltid/generated-config/

@@ -77,6 +77,10 @@ var VCI_CONFIG_METADATA = [
 ];
 
 var metadataClient = require("./metadata_client");
+// The "-->not defined<--" marking is implemented once, for the OpenID Provider
+// half of the same pane; the OID4VCI half gets it from there so the two cannot
+// drift apart. (No cycle: op_metadata does not know about this module.)
+var opMetadata = require("./op_metadata");
 
 var PREFIX = "vci_";
 function idFor(name) { return PREFIX + name; }
@@ -117,7 +121,12 @@ function loadFromLocalStorage() {
 }
 
 function clearFields() {
-  VCI_METADATA.concat(VCI_CONFIG_METADATA).forEach(function (m) { setFieldValue(idFor(m.name), ""); });
+  VCI_METADATA.concat(VCI_CONFIG_METADATA).forEach(function (m) {
+    setFieldValue(idFor(m.name), "");
+    // The note described a particular document; with that gone it would be a
+    // claim about nothing.
+    opMetadata.markNotDefined(idFor(m.name), false);
+  });
 }
 
 function clearStorage() {
@@ -141,6 +150,13 @@ function populateFromMetadata(info, configId) {
   VCI_METADATA.forEach(function (m) {
     var v = toField(info[m.name]);
     setFieldValue(idFor(m.name), v);
+    // A member this issuer does not publish is marked, not left blank: empty and
+    // "not offered" are different things, and a wallet that cannot tell them
+    // apart is exactly what this pane exists to prevent. walt.id publishes no
+    // deferred_credential_endpoint, for instance — it cannot defer an issuance,
+    // and the field being empty is the fact, not an oversight.
+    opMetadata.markNotDefined(idFor(m.name),
+      !Object.prototype.hasOwnProperty.call(info, m.name));
     try {
       localStorage.setItem(idFor(m.name), v);
     } catch (e) {
@@ -162,6 +178,10 @@ function populateFromMetadata(info, configId) {
       v = toField(cfg[m.name]);
     }
     setFieldValue(idFor(m.name), v);
+    if (m.name !== "credential_configuration_id") {
+      opMetadata.markNotDefined(idFor(m.name),
+        !Object.prototype.hasOwnProperty.call(cfg, m.name));
+    }
     try {
       localStorage.setItem(idFor(m.name), v);
     } catch (e) {
