@@ -7,25 +7,32 @@
 .vc-intro, .vc-note { max-width: 1100px; line-height: 1.45; }
 .vc-note { font-size: 0.9em; color: #333; }
 
-/* --- step indicator (partials/sd_jwt_vc_steps.html) --- */
+/* --- step indicator (partials/sd_jwt_vc_steps.html) ---
+   Every page of the workflow carries the same row of links to every step, at the
+   top. It is ONE row: `nowrap` plus items that may shrink (flex-basis 0,
+   min-width 0), so five steps share the width instead of the last one dropping
+   onto a second line — which is what happened when step 4 was added. */
 ol.vc-steps {
   list-style: none;
   display: flex;
-  gap: 10px;
-  margin: 0 0 14px;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 6px;
+  margin: 10px 0 12px;
   padding: 0;
-  flex-wrap: wrap;
 }
 ol.vc-steps li {
-  flex: 1 1 240px;
+  flex: 1 1 0;
+  min-width: 0;
   border: 1px solid #ccc;
   border-left: 4px solid #ccc;
   border-radius: 3px;
-  padding: 6px 10px;
+  padding: 5px 8px;
   background: #fafafa;
+  overflow-wrap: anywhere;
 }
-ol.vc-steps li a { font-weight: bold; text-decoration: none; }
-ol.vc-steps li span { display: block; font-size: 0.8em; color: #666; }
+ol.vc-steps li a { font-weight: bold; text-decoration: none; font-size: 0.9em; }
+ol.vc-steps li span { display: block; font-size: 0.72em; color: #666; line-height: 1.3; }
 ol.vc-steps li.vc-step-current { border-left-color: #12107c; background: #eef; }
 ol.vc-steps li.vc-step-done { border-left-color: #2e7d32; }
 
@@ -124,13 +131,46 @@ tr.vc-group-heading td {
 }
 tr.vc-group-heading td span { font-weight: normal; font-size: 0.85em; color: #666; }
 
-/* --- token / credential text areas --- */
-.vc-token-table { width: 100%; max-width: 1100px; }
-.vc-token-table td { vertical-align: top; padding: 4px 6px; }
+/* --- token / credential text areas ---
+   table-layout: fixed, the same way the disclosure tables below do it. Without
+   it the browser sizes each column to its content's min-content width, and this
+   pane's content is base64url: a c_nonce, a JWK's modulus or a pretty-printed
+   request body has no break opportunity in it, so the column grows to fit the
+   longest line and the whole table pushes out past the edge of the pane. Fixed
+   layout makes the cell the authority on width and the content wrap inside it,
+   which is also what keeps every box in the pane aligned on BOTH edges. */
+.vc-token-table { width: 100%; max-width: 1100px; table-layout: fixed; }
+.vc-token-table td {
+  vertical-align: top;
+  padding: 4px 6px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 .vc-token-table td:first-child { width: 12em; }
+/* A single long unbroken value shown as <code> — a c_nonce, an endpoint, an
+   access token, a key thumbprint. It has to be allowed to break: monospace with
+   no space in it is exactly what pushed the pane (and on the Approve pane, the
+   whole page) out to the right. Every pane on these pages, not only the tables:
+   the same values appear in the Approve pane's list, where there is no cell to
+   constrain them. */
+.dbg-pane code {
+  /* bootstrap.css sets `code { white-space: nowrap }`. THAT is what let a long
+     c_nonce or access token run off to the right of the pane instead of
+     wrapping, so it has to be overridden before the break rules can do
+     anything. */
+  white-space: normal;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+/* The Approve pane's bullet list and prose hold the same values inline. */
+.vc-approval li, .vc-approval p, .dbg-pane p.vc-note {
+  overflow-wrap: anywhere;
+}
 textarea.vc-token {
   width: 100%;
-  max-width: 900px;
+  /* The cell decides how wide, so every box in the pane lines up. */
+  max-width: 100%;
+  box-sizing: border-box;
   font-family: monospace;
   font-size: 0.8em;
   word-break: break-all;
@@ -139,7 +179,16 @@ pre.vc-json {
   background: #f7f7f7;
   border: 1px solid #ddd;
   padding: 8px;
-  max-width: 1100px;
+  /* width AND box-sizing, so a <pre> and a <textarea> in the same pane come out
+     the same size to the pixel — bootstrap's own pre rules would otherwise leave
+     them a few pixels apart, which is visible as a ragged right edge. */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  /* Wrap rather than run off to the right; overflow-x stays as a fallback for
+     content with no break opportunity at all. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   overflow-x: auto;
   font-size: 0.8em;
 }
@@ -198,7 +247,27 @@ td.vc-bad, span.vc-bad { color: #b00020; }
 
 /* --- step 4: the credential history ---
    The row for the generation in hand is marked the way debugger2.html marks the
-   active token set, so the two panes read the same way. */
+   active token set, so the two panes read the same way.
+
+   The list is a FIXED-height scrolling window (debugger2's Token History scrolls
+   too): a log of up to 100 attempts would otherwise push the panes below it off
+   the screen, and the pane's height would jump every time an attempt was made. */
+#vc_history_table {
+  height: 420px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid #ddd;
+  background: #fff;
+}
+/* The header stays put while the rows scroll under it — with 100 rows, a header
+   that scrolls away makes the columns unreadable. */
+#vc_history_table table.vc-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  /* thead cells need their own background once they overlap the rows. */
+  background: #f0f0f0;
+}
 .vc-history-nav {
   display: flex;
   align-items: center;
@@ -216,3 +285,7 @@ td.vc-bad, span.vc-bad { color: #b00020; }
 }
 table.vc-table tr.vc-history-active { background-color: #d4edda; }
 table.vc-table tr.vc-history-active td { font-weight: 600; }
+/* A credential the issuer has just returned: in the list, visibly not part of it
+   until it is kept. */
+table.vc-table tr.vc-history-pending { background-color: #fff8e1; }
+table.vc-table tr.vc-history-pending td { font-style: italic; }

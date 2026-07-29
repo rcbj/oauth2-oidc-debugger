@@ -79,11 +79,12 @@ var KEYS = {
   PREVIOUS_META: "sdjwtvc_previous_credential_meta",
   PREVIOUS_HOLDER_JWK: "sdjwtvc_previous_holder_jwk",
   PREVIOUS_HOLDER_PRIVATE_JWK: "sdjwtvc_previous_holder_private_jwk",
-  // Every credential the wallet has held, oldest first, and which of them is the
-  // one in hand. See the credential history below.
+  // Every attempt — issuance, access-token refresh, Credential Request, deferred
+  // poll — oldest first, with the outcome of each; and the id of the generation
+  // in hand. See the credential history below.
   HISTORY: "sdjwtvc_credential_history",
   HISTORY_INDEX: "sdjwtvc_credential_history_index",
-  // How many generations the list has had to forget, so it can say so.
+  // How many held generations the list has had to forget, so it can say so.
   HISTORY_DROPPED: "sdjwtvc_credential_history_dropped"
 };
 
@@ -305,38 +306,94 @@ function getJson(key) {
 function setJson(key, value) { set(key, JSON.stringify(value)); }
 
 // ---------------------------------------------------------------------------
-// The credential history.
+// The credential history: a log of every ATTEMPT, and the generations it produced.
 //
-// A credential is not one object over its life: the issuance produces one, and
-// every refresh (OID4VCI section 14.5) produces another that may replace it. A
-// wallet that keeps only the newest cannot answer "what did I hold before this,
-// and what changed" — which is the question a debugger exists to answer — so
-// every credential the wallet has HELD is recorded here, oldest first, and step 4
-// navigates them. It is the same idea as the Token History pane on
-// debugger2.html, for credentials instead of token sets.
+// A credential is not one object over its life. The issuance produces one, and
+// every refresh (OID4VCI section 14.5) is an attempt to produce another — which
+// may be refused, may be deferred, may come back and be kept, or may come back
+// and be thrown away. A wallet that records only the successes cannot answer "what
+// did I try, what did the issuer say, and what am I holding now", which is exactly
+// what a debugger is for. So EVERY attempt is recorded here, oldest first:
 //
-// Only credentials the wallet actually held are in it. One the holder looked at
-// and discarded was never held, and recording it would make this a log of what
-// the issuer offered rather than of what the wallet has.
+//   kind      what was attempted — an issuance, an access-token refresh
+//             (RFC 6749 section 6), a Credential Request, or a poll of the
+//             Deferred Credential Endpoint
+//   outcome   what came of it — success / failed / deferred / pending (the issuer
+//             returned a credential and the holder has not decided yet) /
+//             kept / discarded
+//   detail    what the issuer actually said, including the error
 //
-// Each entry carries its own holder key pair, because a credential whose cnf key
+// The subset the wallet HOLDS — outcome "kept", with a credential — are the
+// generations step 4 navigates; everything else is a log row that cannot be
+// activated. Generation numbers are derived from that subset in order, not stored,
+// so they stay consistent when the log is trimmed.
+//
+// A held entry carries its own holder key pair, because a credential whose cnf key
 // the wallet has lost cannot be presented at all: going back to an earlier
 // generation has to bring that key with it.
 // ---------------------------------------------------------------------------
-var HISTORY_LIMIT = 20;
+// The window the pane shows and the store keeps: 100 attempts. Log rows are
+// cheap, and only held and pending entries carry a credential, so this is a few
+// hundred KB at the very worst.
+var HISTORY_LIMIT = 100;
 
+var HISTORY_KIND = {
+  ISSUANCE: "issuance",
+  TOKEN_REFRESH: "token_refresh",
+  CREDENTIAL_REQUEST: "credential_request",
+  DEFERRED_POLL: "deferred_poll"
+};
+
+var HISTORY_OUTCOME = {
+  SUCCESS: "success",
+  FAILED: "failed",
+  DEFERRED: "deferred",
+  PENDING: "pending",
+  KEPT: "kept",
+  DISCARDED: "discarded"
+};
+
+// Read the log, upgrading anything written by an earlier build rather than
+// discarding it: those entries were all credentials the wallet held.
 function credentialHistory() {
   var history = getJson(KEYS.HISTORY);
-  return Object.prototype.toString.call(history) === "[object Array]" ? history : [];
+  if (Object.prototype.toString.call(history) !== "[object Array]") return [];
+  return history.map(function (entry, index) {
+    var upgraded = entry || {};
+    if (!upgraded.id) upgraded.id = index + 1;
+    if (!upgraded.kind) {
+      upgraded.kind = /^issued/.test(upgraded.source || "")
+        ? HISTORY_KIND.ISSUANCE : HISTORY_KIND.CREDENTIAL_REQUEST;
+    }
+    if (!upgraded.outcome) upgraded.outcome = HISTORY_OUTCOME.KEPT;
+    return upgraded;
+  });
 }
 
-// Which generation is the one in hand. Out-of-range (or absent) means the newest,
-// which is what has just been recorded.
-function activeCredentialIndex() {
-  var history = credentialHistory();
-  var raw = parseInt(get(KEYS.HISTORY_INDEX), 10);
-  if (isNaN(raw) || raw < 0 || raw >= history.length) return history.length ? history.length - 1 : -1;
-  return raw;
+// The generations the wallet holds, oldest first: { id, entry, generation }.
+function heldGenerations() {
+  var out = [];
+  credentialHistory().forEach(function (entry) {
+    if (entry.outcome !== HISTORY_OUTCOME.KEPT || !entry.credential) return;
+    out.push({ id: entry.id, entry: entry, generation: out.length + 1 });
+  });
+  return out;
+}
+
+// The generation in hand. HISTORY_INDEX holds the entry's id; an id that is no
+// longer there (trimmed, cleared) means the newest generation, which is what has
+// just been recorded.
+function activeGeneration() {
+  var held = heldGenerations();
+  if (!held.length) return null;
+  var wanted = parseInt(get(KEYS.HISTORY_INDEX), 10);
+  for (var i = 0; i < held.length; i++) {
+    if (held[i].id === wanted) return { index: i, id: held[i].id, entry: held[i].entry,
+                                        generation: held[i].generation, total: held.length };
+  }
+  var last = held.length - 1;
+  return { index: last, id: held[last].id, entry: held[last].entry,
+           generation: held[last].generation, total: held.length };
 }
 
 // How many generations fell off the end of the list. Kept so the pane can say so:
@@ -372,12 +429,97 @@ function summarizeCredential(serialized) {
   return summary;
 }
 
-// Record a credential the wallet has taken into its hand, and make it the active
-// generation. `entry` is { source, credential, credentials, meta, holderJwk,
-// holderPrivateJwk }.
+// ---------------------------------------------------------------------------
+// Recording.
+//
+// `recordHistoryEntry` appends one row per attempt and returns its id, which the
+// caller keeps so the row can be resolved later: a Credential Request is recorded
+// the moment the issuer answers, and becomes "kept" or "discarded" when the holder
+// decides. Trimming drops the oldest LOG rows first and only touches a held
+// generation when there is nothing else left to drop, so an audit trail of
+// attempts never costs the ability to go back to a credential.
+// ---------------------------------------------------------------------------
+function recordHistoryEntry(entry) {
+  log.debug("Entering recordHistoryEntry(). kind=" + (entry && entry.kind) +
+            ", outcome=" + (entry && entry.outcome));
+  var history = credentialHistory();
+  var nextId = 1;
+  history.forEach(function (e) { if (e.id >= nextId) nextId = e.id + 1; });
+  var credential = entry.credential || "";
+  var row = {
+    id: nextId,
+    at: new Date().toISOString(),
+    kind: entry.kind || HISTORY_KIND.CREDENTIAL_REQUEST,
+    outcome: entry.outcome || HISTORY_OUTCOME.SUCCESS,
+    detail: entry.detail || "",
+    source: entry.source || ""
+  };
+  if (credential) {
+    row.credential = credential;
+    row.credentials = entry.credentials && entry.credentials.length ? entry.credentials : [credential];
+    row.meta = entry.meta || {};
+    row.holderJwk = entry.holderJwk || null;
+    row.holderPrivateJwk = entry.holderPrivateJwk || null;
+    row.summary = summarizeCredential(credential);
+  }
+  history.push(row);
+  trimHistory(history);
+  setJson(KEYS.HISTORY, history);
+  // Anything the wallet is now holding is also the generation in hand.
+  if (row.outcome === HISTORY_OUTCOME.KEPT && credential) set(KEYS.HISTORY_INDEX, String(row.id));
+  log.debug("Leaving recordHistoryEntry(). id=" + row.id + ", " + history.length + " row(s).");
+  return row.id;
+}
+
+// Resolve an attempt already recorded: pending -> kept / discarded, deferred ->
+// pending, and so on. Merging rather than appending keeps it one row per attempt.
+function updateHistoryEntry(id, changes) {
+  log.debug("Entering updateHistoryEntry(). id=" + id);
+  var history = credentialHistory();
+  var found = null;
+  history.forEach(function (e) { if (e.id === id) found = e; });
+  if (!found) {
+    log.debug("Leaving updateHistoryEntry(). No entry " + id + " (trimmed or cleared).");
+    return null;
+  }
+  Object.keys(changes || {}).forEach(function (k) {
+    if (changes[k] === undefined) delete found[k];
+    else found[k] = changes[k];
+  });
+  if (found.credential && !found.summary) found.summary = summarizeCredential(found.credential);
+  setJson(KEYS.HISTORY, history);
+  if (found.outcome === HISTORY_OUTCOME.KEPT && found.credential) {
+    set(KEYS.HISTORY_INDEX, String(found.id));
+  }
+  log.debug("Leaving updateHistoryEntry(). outcome=" + found.outcome);
+  return found;
+}
+
+function trimHistory(history) {
+  log.debug("Entering trimHistory(). " + history.length + " row(s).");
+  var droppedHeld = 0;
+  while (history.length > HISTORY_LIMIT) {
+    // The oldest row that is NOT a generation the wallet holds; if every row is
+    // one, the oldest generation goes and is counted, because the pane says so.
+    var victim = -1;
+    for (var i = 0; i < history.length; i++) {
+      if (history[i].outcome !== HISTORY_OUTCOME.KEPT || !history[i].credential) { victim = i; break; }
+    }
+    if (victim === -1) { victim = 0; droppedHeld++; }
+    history.splice(victim, 1);
+  }
+  if (droppedHeld) {
+    set(KEYS.HISTORY_DROPPED, String(droppedGenerations() + droppedHeld));
+    log.debug("trimHistory(): dropped " + droppedHeld + " held generation(s) past the limit of " +
+              HISTORY_LIMIT + ".");
+  }
+  log.debug("Leaving trimHistory().");
+}
+
+// Record a credential the wallet has taken into its hand (step 2's issuance), and
+// make it the active generation.
 function recordCredentialGeneration(entry) {
   log.debug("Entering recordCredentialGeneration(). source=" + (entry && entry.source));
-  var history = credentialHistory();
   var credential = (entry && entry.credential) || "";
   if (!credential) {
     log.debug("Leaving recordCredentialGeneration(). There is no credential to record.");
@@ -386,47 +528,40 @@ function recordCredentialGeneration(entry) {
   // The same bytes twice in a row are one generation, not two: a page that
   // re-stores what it already stored (a reload, a retried click) must not make
   // the history say the wallet was issued two credentials.
-  if (history.length && history[history.length - 1].credential === credential) {
-    set(KEYS.HISTORY_INDEX, String(history.length - 1));
+  var held = heldGenerations();
+  if (held.length && held[held.length - 1].entry.credential === credential) {
+    set(KEYS.HISTORY_INDEX, String(held[held.length - 1].id));
     log.debug("Leaving recordCredentialGeneration(). Already the newest generation.");
-    return history.length - 1;
+    return held[held.length - 1].id;
   }
-  history.push({
-    at: new Date().toISOString(),
+  var id = recordHistoryEntry({
+    kind: entry.kind || HISTORY_KIND.ISSUANCE,
+    outcome: HISTORY_OUTCOME.KEPT,
+    detail: entry.detail || "",
     source: entry.source || "issued",
     credential: credential,
-    credentials: entry.credentials && entry.credentials.length ? entry.credentials : [credential],
-    meta: entry.meta || {},
-    holderJwk: entry.holderJwk || null,
-    holderPrivateJwk: entry.holderPrivateJwk || null,
-    summary: summarizeCredential(credential)
+    credentials: entry.credentials,
+    meta: entry.meta,
+    holderJwk: entry.holderJwk,
+    holderPrivateJwk: entry.holderPrivateJwk
   });
-  var dropped = 0;
-  while (history.length > HISTORY_LIMIT) {
-    history.shift();
-    dropped++;
-  }
-  if (dropped) {
-    set(KEYS.HISTORY_DROPPED, String(droppedGenerations() + dropped));
-    log.debug("recordCredentialGeneration(): dropped " + dropped + " generation(s) past the limit of " +
-              HISTORY_LIMIT + ".");
-  }
-  setJson(KEYS.HISTORY, history);
-  set(KEYS.HISTORY_INDEX, String(history.length - 1));
-  log.debug("Leaving recordCredentialGeneration(). Generation " + history.length + " recorded.");
-  return history.length - 1;
+  log.debug("Leaving recordCredentialGeneration(). id=" + id);
+  return id;
 }
 
 // Make an earlier (or later) generation the credential the wallet holds — with
-// its holder key, or the credential could not be presented.
-function activateCredentialGeneration(index) {
-  log.debug("Entering activateCredentialGeneration(). index=" + index);
-  var history = credentialHistory();
-  if (index < 0 || index >= history.length) {
-    log.debug("Leaving activateCredentialGeneration(). No such generation.");
+// its holder key, or the credential could not be presented. Identified by entry
+// id, so a log row appearing between two generations cannot shift it.
+function activateCredentialGeneration(id) {
+  log.debug("Entering activateCredentialGeneration(). id=" + id);
+  var held = heldGenerations();
+  var target = null;
+  held.forEach(function (h) { if (h.id === id) target = h; });
+  if (!target) {
+    log.debug("Leaving activateCredentialGeneration(). No generation with id " + id + ".");
     return null;
   }
-  var entry = history[index];
+  var entry = target.entry;
   set(KEYS.CREDENTIAL, entry.credential);
   setJson(KEYS.CREDENTIALS, entry.credentials || [entry.credential]);
   setJson(KEYS.CREDENTIAL_META, entry.meta || {});
@@ -434,8 +569,8 @@ function activateCredentialGeneration(index) {
     setJson(KEYS.HOLDER_JWK, entry.holderJwk);
     setJson(KEYS.HOLDER_PRIVATE_JWK, entry.holderPrivateJwk);
   }
-  set(KEYS.HISTORY_INDEX, String(index));
-  log.debug("Leaving activateCredentialGeneration(). Generation " + (index + 1) + " is now in hand.");
+  set(KEYS.HISTORY_INDEX, String(id));
+  log.debug("Leaving activateCredentialGeneration(). Generation " + target.generation + " is now in hand.");
   return entry;
 }
 
@@ -642,11 +777,16 @@ module.exports = {
   returnUrl: returnUrl,
   storedRequestConfig: storedRequestConfig,
   HISTORY_LIMIT: HISTORY_LIMIT,
+  HISTORY_KIND: HISTORY_KIND,
+  HISTORY_OUTCOME: HISTORY_OUTCOME,
   credentialHistory: credentialHistory,
   hasCredentialHistory: hasCredentialHistory,
-  activeCredentialIndex: activeCredentialIndex,
+  heldGenerations: heldGenerations,
+  activeGeneration: activeGeneration,
   droppedGenerations: droppedGenerations,
   summarizeCredential: summarizeCredential,
+  recordHistoryEntry: recordHistoryEntry,
+  updateHistoryEntry: updateHistoryEntry,
   recordCredentialGeneration: recordCredentialGeneration,
   activateCredentialGeneration: activateCredentialGeneration,
   clearCredentialHistory: clearCredentialHistory,

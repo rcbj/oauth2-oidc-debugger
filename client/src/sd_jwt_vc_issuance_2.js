@@ -678,6 +678,12 @@ function keepCredential(credential, responseBody, extra) {
   // credential it cannot present.
   sdJwtVc.recordCredentialGeneration({
     source: meta.deferred ? "issued (deferred)" : "issued",
+    // The history pane says what happened for every row; the issuance is a row
+    // too, so it needs its sentence as much as a refresh does.
+    detail: "issued by " + (request.config.credentialIssuer || "the credential issuer") +
+            (all.length > 1 ? " — " + all.length + " credentials in one response" : "") +
+            (meta.deferred ? ", collected from the Deferred Credential Endpoint" : "") +
+            (request.encryption ? ", in an encrypted Credential Response" : ""),
     credential: credential,
     credentials: all,
     meta: meta,

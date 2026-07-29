@@ -24,11 +24,12 @@
 <script type="text/javascript" src="/js/sd_jwt_vc_issuance_4.js">
 </script>
 
+<!--#include file="/partials/sd_jwt_vc_steps.html"-->
+
 <p class="vc-return"><a id="return_link" href="/sd-jwt-vc-issuance-3.html">&larr; Back to step 3 (the credential)</a></p>
 
 <h3 class="vc-title">SD-JWT VC Issuance &mdash; Step 4 of 4: Refresh the Credential</h3>
 
-<!--#include file="/partials/sd_jwt_vc_steps.html"-->
 
 <p class="vc-intro">A credential does not stay current: its claim values go out of date and its validity window
 runs out. <a href="https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html" target="_blank" rel="noopener noreferrer">OID4VCI</a>
@@ -97,17 +98,26 @@ function vcSetAllPanes(expand) {
 <div class="step0 dbg-pane" id="pane_history">
   <legend class="dbg-legend" id="history_expand_button" onclick="return sdjwtvc4.togglePane('history_fieldset');">Credential History</legend>
   <fieldset name="history_fieldset" id="history_fieldset" style="display: block;">
-    <p class="vc-note">Every credential this wallet has <strong>held</strong> — the one step 2 was issued, and each
-    refresh you chose to keep — newest first, the way the <a href="/debugger2.html">Token History</a> pane on the
-    debugger results page lists token sets. <strong>Activate</strong> makes a generation the credential in hand
-    again, together with the holder key it is bound to (without that key the credential could not be presented at
-    all), so you can move <em>backwards</em> as well as forwards: a refresh that turned out worse than what it
-    replaced is a real outcome, and going back to the credential that was working is what a wallet does about it.
-    A refreshed credential you <em>discarded</em> is not here — it was never held.</p>
-    <p class="vc-note"><strong>Source</strong> says how a generation was obtained: <code>issued</code> is step 2's
-    original issuance, <code>refreshed</code> means a fresh access token was obtained from the Token Endpoint
-    first, and <code>refreshed (&sect;14.3)</code> means the access token already in hand was reused &mdash; the
-    same Credential Request either way, but not the same thing to have done.</p>
+    <p class="vc-note"><strong>Every attempt</strong> made on this page, newest first &mdash; not only the ones
+    that worked. Each access token refresh, each Credential Request, each poll of the Deferred Credential
+    Endpoint, and what you then decided about what came back, is one row with what the issuer actually said. (It is
+    this workflow's counterpart of the <em>Token History</em> pane on
+    <a href="/debugger2.html">debugger2.html</a>, which does the same for token sets &mdash; and it records more,
+    because &ldquo;I tried to refresh and it did not work&rdquo; is the case a debugger is most needed for.)</p>
+    <p class="vc-note">The <code>#</code> column numbers the attempts in the order they were made, so every row
+    has one; <code>Gen</code> is the generation number, which only the rows the wallet <strong>holds</strong>
+    have &mdash; those are the credentials there is something to go back to. The newest <strong>100</strong>
+    attempts are kept, in a scrolling list of fixed height so the panes below it do not move as the log grows.</p>
+    <p class="vc-note"><strong>Attempt</strong> is what was tried; <strong>Outcome</strong> is what came of it:
+    <code>success</code> (an access token came back), <code>FAILED</code> (with the refusal in the next column),
+    <code>deferred</code> (the issuer needs more time), <code>returned &mdash; not kept yet</code> (a credential is
+    in hand awaiting your decision), <code>kept</code>, or <code>discarded</code>. Only the <code>kept</code> rows
+    are <strong>generations</strong> the wallet holds &mdash; they carry a <code>Gen</code> number and can be
+    activated; everything else is there as a record and says <em>log only</em>.</p>
+    <p class="vc-note"><strong>Activate</strong> makes a generation the credential in hand again, together with the
+    holder key it is bound to (without that key the credential could not be presented at all), so you can move
+    <em>backwards</em> as well as forwards: a refresh that turned out worse than what it replaced is a real
+    outcome, and going back to the credential that was working is what a wallet does about it.</p>
     <p class="vc-history-nav">
       <input class="btn2" id="vc_history_oldest_button" type="button" value="&#8676; Oldest" onclick="return sdjwtvc4.historyOldest();" />
       <input class="btn2" id="vc_history_older_button" type="button" value="&#9664; Older" onclick="return sdjwtvc4.historyOlder();" />
@@ -286,7 +296,11 @@ function vcSetAllPanes(expand) {
         <input class="btn2" id="vc_replace_button" type="button" value="Replace the credential I hold" onclick="return sdjwtvc4.replaceCredential();" />
         <input class="btn2" id="vc_discard_button" type="button" value="Discard the refreshed one" onclick="return sdjwtvc4.discardRefreshed();" />
         <input class="btn2" id="vc_compare_copy_button" type="button" value="Copy Credential" onclick="return sdjwtvc4.copyRefreshed();" />
+        <input class="btn2" id="vc_goto_step3_button" type="button" value="Verify in step 3" onclick="return sdjwtvc4.verifyInStepThree();" />
       </p>
+      <p class="vc-note">Keeping it does not navigate anywhere: the
+      <strong>Credential History</strong> pane above gains the new generation and marks it as the one in hand, and
+      <em>Verify in step 3</em> is there when you want the full check of it.</p>
     </div>
   </fieldset>
 </div>

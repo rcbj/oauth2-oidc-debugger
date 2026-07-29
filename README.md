@@ -640,7 +640,9 @@ A credential reaches a wallet in more than one way, and OID4VCI's [Appendix H](h
 | **H.2** | Credential Offer, cross device | the issuer | offer by QR code → pre-authorized code + `tx_code` → Token Request → Credential Request (no authorization request at all) |
 | **H.3** | Credential Offer, cross device & deferred | the issuer | the same, and then a `202` Credential Response carrying a `transaction_id`, collected from the Deferred Credential Endpoint |
 
-Every later page carries a badge saying which use case is running, with a link back here. Changing it discards any Credential Offer in hand but keeps the issuer and client settings already configured.
+Every page of the workflow opens with the same **row of links to all five steps** (with the current one marked and
+the finished ones ticked off), so you can move between them directly rather than retracing the flow, and carries a
+badge saying which use case is running, with a link back here. Changing it discards any Credential Offer in hand but keeps the issuer and client settings already configured.
 
 **H.2 and H.3 in this workflow**: the issuer displays a **QR code** on its own screen (the mock's is at
 `<credential issuer>/issuer/offer?mode=cross-device`, or `?mode=deferred`) together with a **Transaction Code**
@@ -745,10 +747,19 @@ an issuer mints a credential; reporting those as changes would bury the ones tha
 case it was.
 
 **Credential History.** A credential is not one object over its life, so step 4 carries the counterpart of the
-**Token History** pane on `debugger2.html`: every generation the wallet has *held* — the issuance from step 2 and
-each refresh you kept — newest first, grouped by `vct` the way Token History groups token sets by `sid`, with the
-one in hand marked. `◀ Older` / `Newer ▶` (and Oldest / Latest, or **Activate** on any row) move **backwards and
-forwards** through them, and moving is a real change rather than a highlight: the generation you land on becomes
+**Token History** pane on `debugger2.html` — and records more than it does: **every attempt**, not only the ones
+that worked. One row each, newest first, for every access-token refresh, every Credential Request, every poll of
+the Deferred Credential Endpoint and every decision you made about what came back, with the outcome
+(`success`, `FAILED` with the refusal, `deferred`, `returned — not kept yet`, `kept`, `discarded`) and what the
+issuer actually said. Because "I tried to refresh and it did not work" is the case a debugger is most needed for,
+and a pane that shows only successes cannot tell you whether the request was refused, deferred, or never made.
+Retrying a stale proof leaves both rows; discarding a credential leaves the attempt on record and takes the
+credential away. Every row is numbered in `#` by attempt order; the separate `Gen`
+column carries the generation number, which only the **`kept`** rows have, because only those are credentials the
+wallet holds and can go back to. The one in hand is marked; every other row says `log only`. The newest **100**
+attempts are kept, in a fixed-height scrolling list with a sticky header, so a long log does not push the rest of
+the page around. `◀ Older` / `Newer ▶` (and Oldest / Latest, or **Activate** on any generation row) move **backwards and
+forwards** through those generations, skipping the log rows, and moving is a real change rather than a highlight: the generation you land on becomes
 the credential the wallet holds, **together with the holder key pair it is bound to** — without that private key
 the credential could not be presented at all, so each entry keeps its own. That is what makes going *back*
 useful: a refresh that turned out worse than what it replaced is a real outcome, and this is how you return to
@@ -756,6 +767,11 @@ the credential that was working. A refreshed credential you discarded is not in 
 held; the `Source` column distinguishes `issued`, `refreshed` (a fresh access token was obtained first) and
 `refreshed (§14.3)` (the token in hand was reused). *Clear History* forgets the generations and leaves the
 credential in hand alone.
+
+A credential the issuer has just returned appears in the pane **immediately**, marked *not kept yet* and carrying
+its own Keep / Discard buttons: the list reacts to the retrieval, not only to the keeping. Keeping it does not
+navigate anywhere — the new generation simply becomes the one in hand, in the pane you were looking at, and
+*Verify in step 3* is there when you want the full check.
 
 Nothing is replaced until you say so. Section 14.5 again: *"the Wallet might need to check if it already has a
 Credential of the same type and, if necessary, delete the old Credential. Otherwise, the Wallet might end up with

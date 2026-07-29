@@ -60,8 +60,9 @@ var state = {
   accessTokenRefreshed: false,
   // { raw, all, meta, response } once the issuer has answered.
   refreshed: null,
-  // The deferred issuance a refresh can also turn into (section 9).
-  deferred: { transactionId: "", intervalSeconds: 0, attempts: [] }
+  // The deferred issuance a refresh can also turn into (section 9). historyId is
+  // the log row for the poll that is waiting to be resolved.
+  deferred: { transactionId: "", intervalSeconds: 0, attempts: [], historyId: 0 }
 };
 
 function el(id) { return document.getElementById(id); }
@@ -233,92 +234,175 @@ function holderKeyIsHeld(jwk) {
 // ---------------------------------------------------------------------------
 // The credential history pane.
 //
-// The same idea as the Token History pane on debugger2.html, for credentials
-// instead of token sets: every generation the wallet has held, newest first,
-// with the one in hand marked and any of them activatable. A refresh is the only
-// thing that produces a new generation, so this is where the effect of this page
-// accumulates — and being able to go BACK matters, because "the refresh made
-// things worse" is a real outcome and a wallet that cannot return to the
-// credential that was working is not much of a debugger.
+// The same idea as the Token History pane on debugger2.html, but it records more
+// than debugger2 does: **every attempt**, not only the ones that produced
+// something the wallet kept. One row per attempt, newest first —
 //
-// Navigation is by generation order (oldest 1, newest N), not by the grouping the
-// table shows: the table groups by vct, the way debugger2 groups token sets by
-// sid, because holding two credentials of DIFFERENT types is normal while holding
-// two of the same type is the thing section 14.5 warns about.
+//   the issuance from step 2                       outcome: kept
+//   an access-token refresh (RFC 6749 section 6)    success / failed
+//   a Credential Request (section 14.5 / 14.3)      pending / failed / deferred
+//   a poll of the Deferred Credential Endpoint      deferred / pending / failed
+//   what the holder then decided                    kept / discarded
+//
+// — because "I tried to refresh and it did not work" is the case a debugger is
+// most needed for, and a pane that shows only successes cannot tell you whether
+// the request was refused, deferred, or never made.
+//
+// The rows the wallet HOLDS (outcome kept, with a credential) are the generations
+// the navigation moves between; a log row cannot be activated, and says so. Being
+// able to go BACK matters: a refresh that turned out worse than what it replaced
+// is a real outcome, and a wallet that cannot return to the credential that was
+// working is not much of a debugger.
 // ---------------------------------------------------------------------------
+var KIND_LABEL = {
+  issuance: "Issuance (step 2)",
+  token_refresh: "Access token refresh",
+  credential_request: "Credential Request",
+  deferred_poll: "Deferred collection"
+};
+
+var OUTCOME_LABEL = {
+  success: "success",
+  failed: "FAILED",
+  deferred: "deferred",
+  pending: "returned — not kept yet",
+  kept: "kept",
+  discarded: "discarded"
+};
+
+// success and kept read as good; a refusal reads as bad; everything else is a
+// state you are in the middle of.
+var OUTCOME_CLASS = {
+  success: "vc-ok",
+  kept: "vc-ok",
+  failed: "vc-bad",
+  discarded: "",
+  deferred: "",
+  pending: ""
+};
+
+// Two numbers, and every row has the first of them: `#` counts the attempts in
+// the order they were made, so nothing in the log is unnumbered; `Gen` is the
+// generation number, which only the rows the wallet HOLDS have, because only those
+// are credentials it can go back to.
+function historyTableHead() {
+  return '<table class="vc-table"><thead><tr>' +
+         "<th style='width:4%'>#</th><th style='width:5%'>Gen</th>" +
+         "<th style='width:10%'>When</th><th style='width:13%'>Attempt</th>" +
+         "<th style='width:11%'>Outcome</th><th style='width:24%'>What happened</th>" +
+         "<th style='width:18%'>Credential</th><th>Action</th></tr></thead><tbody>";
+}
+
+// What the row says about the credential an attempt produced, if it produced one.
+function credentialCell(entry) {
+  var s = entry.summary || {};
+  if (!entry.credential) return "&mdash;";
+  var lines = [];
+  if (s.vct) lines.push(esc(s.vct));
+  lines.push("expires " + esc(isoOf(s.exp)) + (s.exp ? " (" + esc(relativeTo(s.exp)) + ")" : ""));
+  lines.push("key " + esc(String(s.boundKey || "—").slice(0, 10)) + (s.boundKey ? "…" : ""));
+  lines.push("sig " + esc(String(s.signature || "—").slice(0, 10)) + (s.signature ? "…" : ""));
+  lines.push((s.disclosures || 0) + " disclosure(s)");
+  return '<span style="font-size:90%;">' + lines.join("<br>") + "</span>";
+}
+
+function historyRow(entry, attemptNumber, generation, isActive) {
+  var outcome = entry.outcome || "success";
+  var classes = [];
+  if (isActive) classes.push("vc-history-active");
+  if (outcome === sdJwtVc.HISTORY_OUTCOME.PENDING) classes.push("vc-history-pending");
+  var html = "<tr" + (classes.length ? ' class="' + classes.join(" ") + '"' : "") + ">";
+  html += "<td>" + attemptNumber + "</td>";
+  html += "<td>" + (generation ? generation : "&mdash;") + "</td>";
+  html += '<td style="font-size:80%;">' + esc(String(entry.at || "").substring(0, 10)) + "<br>" +
+          esc(String(entry.at || "").substring(11, 19)) + "</td>";
+  html += "<td>" + esc(KIND_LABEL[entry.kind] || entry.kind || "") + "</td>";
+  html += '<td class="' + (OUTCOME_CLASS[outcome] || "") + '">' +
+          esc(OUTCOME_LABEL[outcome] || outcome) + "</td>";
+  html += '<td style="font-size:90%;">' + esc(entry.detail || "") + "</td>";
+  html += "<td>" + credentialCell(entry) + "</td>";
+  html += "<td>";
+  if (outcome === sdJwtVc.HISTORY_OUTCOME.PENDING) {
+    html += '<input class="btn2" type="button" value="Keep" onclick="return sdjwtvc4.replaceCredential();" /> ' +
+            '<input class="btn2" type="button" value="Discard" onclick="return sdjwtvc4.discardRefreshed();" />';
+  } else if (isActive) {
+    html += "<strong>In hand</strong>";
+  } else if (generation) {
+    html += '<input class="btn2" type="button" value="Activate" ' +
+            'onclick="return sdjwtvc4.activateGeneration(' + entry.id + ');" />';
+  } else {
+    // A log row: nothing to activate, and saying so beats an empty cell.
+    html += '<span class="vc-note">log only</span>';
+  }
+  html += "</td></tr>";
+  return html;
+}
+
 function renderHistory() {
   log.debug("Entering renderHistory().");
   var history = sdJwtVc.credentialHistory();
-  var active = sdJwtVc.activeCredentialIndex();
+  var active = sdJwtVc.activeGeneration();
   var dropped = sdJwtVc.droppedGenerations();
+  var held = sdJwtVc.heldGenerations();
+  var generationOf = {};
+  held.forEach(function (h) { generationOf[h.id] = h.generation; });
 
+  var navButtons = ["vc_history_oldest_button", "vc_history_older_button", "vc_history_newer_button",
+                    "vc_history_latest_button"];
   if (!history.length) {
     setHtml("vc_history_table", "");
-    setText("vc_history_position", "no generations recorded yet");
-    ["vc_history_oldest_button", "vc_history_older_button", "vc_history_newer_button",
-     "vc_history_latest_button", "vc_history_clear_button"].forEach(function (id) { disable(id, true); });
+    setText("vc_history_position", "nothing recorded yet");
+    navButtons.concat(["vc_history_clear_button"]).forEach(function (id) { disable(id, true); });
     status("vc_history_status",
-      "Nothing has been recorded yet. The credential from step 2 and every refresh kept here are added as " +
-      "generations, and this is where you move between them.", "vc-pending");
+      "Nothing has been recorded yet. Every attempt on this page — refreshing the access token, asking the " +
+      "Credential Endpoint, and what you then decided — is added here, and this is where you move between the " +
+      "credentials the wallet has held.", "vc-pending");
     log.debug("Leaving renderHistory(). Empty.");
     return false;
   }
 
+  var pending = history.filter(function (e) {
+    return e.outcome === sdJwtVc.HISTORY_OUTCOME.PENDING;
+  }).length;
+  var failures = history.filter(function (e) {
+    return e.outcome === sdJwtVc.HISTORY_OUTCOME.FAILED;
+  }).length;
   setText("vc_history_position",
-    "generation " + (active + 1) + " of " + history.length +
-    (dropped ? " (" + dropped + " earlier one(s) no longer kept)" : ""));
-  disable("vc_history_oldest_button", active <= 0);
-  disable("vc_history_older_button", active <= 0);
-  disable("vc_history_newer_button", active >= history.length - 1);
-  disable("vc_history_latest_button", active >= history.length - 1);
+    (active ? "generation " + active.generation + " of " + active.total : "no generation in hand") +
+    " — " + history.length + " attempt(s) recorded" +
+    (failures ? ", " + failures + " failed" : "") +
+    (pending ? ", " + pending + " waiting to be kept" : "") +
+    (dropped ? " (" + dropped + " earlier generation(s) no longer kept)" : ""));
+
+  var atOldest = !active || active.index <= 0;
+  var atNewest = !active || active.index >= active.total - 1;
+  disable("vc_history_oldest_button", atOldest);
+  disable("vc_history_older_button", atOldest);
+  disable("vc_history_newer_button", atNewest);
+  disable("vc_history_latest_button", atNewest);
   disable("vc_history_clear_button", false);
 
-  // Grouped by credential type, newest generation first inside each group.
-  var order = [];
-  var groups = {};
-  history.forEach(function (entry, index) {
-    var key = (entry.summary && entry.summary.vct) || "(no vct)";
-    if (!groups[key]) {
-      groups[key] = [];
-      order.push(key);
-    }
-    groups[key].push({ index: index, entry: entry });
+  // One table, newest attempt first. Deliberately NOT grouped by credential type
+  // any more: an access-token refresh has no vct, and a log of attempts only makes
+  // sense in the order they were made.
+  // The newest HISTORY_LIMIT attempts, newest first. The list is capped rather
+  // than allowed to grow without limit, and it says so when it has to cap.
+  var shown = history.slice(-sdJwtVc.HISTORY_LIMIT);
+  var firstShown = history.length - shown.length;
+  var html = historyTableHead();
+  shown.slice().reverse().forEach(function (entry, i) {
+    // Newest first, so the newest row carries the highest attempt number.
+    var attemptNumber = firstShown + shown.length - i;
+    html += historyRow(entry, attemptNumber, generationOf[entry.id], !!(active && active.id === entry.id));
   });
-
-  var html = "";
-  order.slice().reverse().forEach(function (vct) {
-    html += '<p class="vc-note"><strong>' + esc("Credential type (vct): " + vct) + "</strong></p>";
-    html += '<table class="vc-table"><thead><tr>' +
-            "<th style='width:4%'>#</th><th style='width:13%'>Recorded</th><th style='width:12%'>Source</th>" +
-            "<th style='width:15%'>Valid until</th><th style='width:12%'>Bound key</th>" +
-            "<th style='width:7%'>Disclosures</th><th style='width:14%'>Signature</th>" +
-            "<th>Action</th></tr></thead><tbody>";
-    groups[vct].slice().reverse().forEach(function (item) {
-      var e = item.entry;
-      var s = e.summary || {};
-      var isActive = item.index === active;
-      html += "<tr" + (isActive ? ' class="vc-history-active"' : "") + ">";
-      html += "<td>" + (item.index + 1) + "</td>";
-      html += '<td style="font-size:80%;">' + esc(String(e.at || "").substring(0, 10)) + "<br>" +
-              esc(String(e.at || "").substring(11, 19)) + "</td>";
-      html += "<td>" + esc(e.source || "") + "</td>";
-      html += '<td style="font-size:80%;">' + esc(isoOf(s.exp)) +
-              (s.exp ? "<br>" + esc(relativeTo(s.exp)) : "") + "</td>";
-      html += '<td class="vc-mono">' + esc(String(s.boundKey || "").slice(0, 12) + (s.boundKey ? "…" : "—")) +
-              "</td>";
-      html += '<td style="text-align:center;">' + (s.disclosures || 0) + "</td>";
-      html += '<td class="vc-mono">' + esc(String(s.signature || "").slice(0, 12) + (s.signature ? "…" : "")) +
-              "</td>";
-      html += "<td>" + (isActive
-        ? "<strong>In hand</strong>"
-        : '<input class="btn2" type="button" value="Activate" ' +
-          'onclick="return sdjwtvc4.activateGeneration(' + item.index + ');" />') + "</td>";
-      html += "</tr>";
-    });
-    html += "</tbody></table>";
-  });
+  html += "</tbody></table>";
+  if (firstShown > 0) {
+    html += '<p class="vc-note">The newest ' + sdJwtVc.HISTORY_LIMIT + " attempts are shown; " + firstShown +
+            " older one(s) are no longer kept.</p>";
+  }
   setHtml("vc_history_table", html);
-  log.debug("Leaving renderHistory(). " + history.length + " generation(s), active " + active + ".");
+  log.debug("Leaving renderHistory(). " + history.length + " attempt(s), " + shown.length + " shown, " +
+            held.length + " generation(s), active " + (active ? active.generation : "none") + ".");
   return true;
 }
 
@@ -326,7 +410,7 @@ function renderHistory() {
 // a different one changes the credential the proof of possession will be bound to
 // and what a comparison is against, so both are rebuilt rather than left showing
 // the previous generation's state.
-function reloadHeldCredential(message) {
+function reloadHeldCredential(historyMessage, reissueMessage) {
   log.debug("Entering reloadHeldCredential().");
   loadCurrentCredential();
   renderCurrentCredential();
@@ -336,26 +420,32 @@ function reloadHeldCredential(message) {
   prepareReissue().then(function (ready) {
     renderReissue();
     if (ready) {
-      status("vc_reissue_status",
+      // Set here rather than before the rebuild, or the message would claim a
+      // request that has not been built yet.
+      status("vc_reissue_status", reissueMessage ||
         "The request below is built for the generation now in hand, and is what will be sent.", "vc-ok");
     }
   });
-  if (message) status("vc_history_status", message, "vc-ok");
+  if (historyMessage) status("vc_history_status", historyMessage, "vc-ok");
   log.debug("Leaving reloadHeldCredential().");
 }
 
-function activateGeneration(index) {
-  log.debug("Entering activateGeneration(). index=" + index);
-  var entry = sdJwtVc.activateCredentialGeneration(index);
+function activateGeneration(id) {
+  log.debug("Entering activateGeneration(). id=" + id);
+  var entry = sdJwtVc.activateCredentialGeneration(id);
   if (!entry) {
-    status("vc_history_status", "There is no generation " + (index + 1) + " to activate.", "vc-bad");
+    status("vc_history_status",
+      "That generation is no longer in the history — a log row cannot be activated, and a trimmed one is gone.",
+      "vc-bad");
+    log.debug("Leaving activateGeneration(). No such generation.");
     return false;
   }
-  var total = sdJwtVc.credentialHistory().length;
+  var active = sdJwtVc.activeGeneration();
   reloadHeldCredential(
-    "Generation " + (index + 1) + " of " + total + " (" + (entry.source || "issued") + ", recorded " +
-    (entry.at || "?") + ") is now the credential the wallet holds, with the holder key it is bound to. " +
-    (index < total - 1
+    "Generation " + active.generation + " of " + active.total + " (" +
+    (entry.source || entry.kind || "issued") + ", recorded " + (entry.at || "?") +
+    ") is now the credential the wallet holds, with the holder key it is bound to. " +
+    (active.generation < active.total
       ? "It is not the newest one — which is a legitimate place to be, and what a wallet does when a refresh " +
         "turned out worse than what it replaced."
       : "It is the newest generation."));
@@ -363,20 +453,22 @@ function activateGeneration(index) {
   return false;
 }
 
-// Backwards and forwards through the generations, plus the two ends.
+// Backwards and forwards through the generations the wallet HELD — the log rows in
+// between (a refused refresh, a discarded credential) are not places to be.
 function historyStep(delta) {
   log.debug("Entering historyStep(). delta=" + delta);
-  var history = sdJwtVc.credentialHistory();
-  var target = sdJwtVc.activeCredentialIndex() + delta;
-  if (!history.length || target < 0 || target >= history.length) {
+  var held = sdJwtVc.heldGenerations();
+  var active = sdJwtVc.activeGeneration();
+  var target = active ? active.index + delta : -1;
+  if (!held.length || target < 0 || target >= held.length) {
     status("vc_history_status", delta < 0
       ? "This is the oldest generation the history still has."
       : "This is the newest generation — a refresh above is what adds another.", "vc-pending");
     log.debug("Leaving historyStep(). Out of range.");
     return false;
   }
-  log.debug("Leaving historyStep().");
-  return activateGeneration(target);
+  log.debug("Leaving historyStep(). Moving to generation " + (target + 1) + ".");
+  return activateGeneration(held[target].id);
 }
 
 function historyOlder() { return historyStep(-1); }
@@ -384,13 +476,13 @@ function historyNewer() { return historyStep(1); }
 
 function historyJump(toEnd) {
   log.debug("Entering historyJump(). toEnd=" + toEnd);
-  var history = sdJwtVc.credentialHistory();
-  if (!history.length) {
-    log.debug("Leaving historyJump(). Nothing recorded.");
+  var held = sdJwtVc.heldGenerations();
+  if (!held.length) {
+    log.debug("Leaving historyJump(). No generations recorded.");
     return false;
   }
   log.debug("Leaving historyJump().");
-  return activateGeneration(toEnd ? history.length - 1 : 0);
+  return activateGeneration(toEnd ? held[held.length - 1].id : held[0].id);
 }
 
 function historyOldest() { return historyJump(false); }
@@ -522,6 +614,13 @@ function sendRefreshRequest() {
       if (!response.ok || !response.body || !response.body.access_token) {
         var err = (response.body && (response.body.error_description || response.body.error)) ||
                   ("HTTP " + response.statusCode);
+        // A refused refresh is exactly the attempt worth having a record of.
+        sdJwtVc.recordHistoryEntry({
+          kind: sdJwtVc.HISTORY_KIND.TOKEN_REFRESH,
+          outcome: sdJwtVc.HISTORY_OUTCOME.FAILED,
+          detail: "HTTP " + response.statusCode + " from " + endpoint + " — " + err
+        });
+        renderHistory();
         status("vc_refresh_status",
           "The token endpoint refused the refresh: " + err +
           " A refresh token that has expired or been revoked leaves only one route — start the issuance " +
@@ -552,8 +651,20 @@ function sendRefreshRequest() {
               : " The same refresh token came back, so it can be used again.")
           : " No new refresh token came back, so the old one still stands."),
         "vc-ok");
+      var newClaims = jwtClaims(response.body.access_token) || {};
+      sdJwtVc.recordHistoryEntry({
+        kind: sdJwtVc.HISTORY_KIND.TOKEN_REFRESH,
+        outcome: sdJwtVc.HISTORY_OUTCOME.SUCCESS,
+        detail: "a fresh access token" +
+                (newClaims.exp ? " expiring " + isoOf(newClaims.exp) : "") +
+                (response.body.refresh_token
+                  ? (rotated ? "; the refresh token was rotated" : "; the same refresh token came back")
+                  : "; no new refresh token") +
+                (response.body.scope ? "; scope " + response.body.scope : "")
+      });
       renderRefreshRequest();
       renderReissue();
+      renderHistory();
       // The proof was signed against the state before the refresh; nothing about
       // it depends on the access token, so it stays valid. Rebuilding the
       // assembled call is enough to show the new token in the Authorization
@@ -562,6 +673,14 @@ function sendRefreshRequest() {
     })
     .catch(function (e) {
       log.error("the refresh request failed: " + e.message);
+      // The call never completed — CORS, DNS, a server that is not there. Still an
+      // attempt, and the one hardest to diagnose from memory later.
+      sdJwtVc.recordHistoryEntry({
+        kind: sdJwtVc.HISTORY_KIND.TOKEN_REFRESH,
+        outcome: sdJwtVc.HISTORY_OUTCOME.FAILED,
+        detail: "the request to " + endpoint + " never completed: " + e.message
+      });
+      renderHistory();
       status("vc_refresh_status", "The refresh request failed: " + e.message, "vc-bad");
       disable("vc_refresh_button", false);
     });
@@ -780,6 +899,15 @@ function requestRefreshedCredential() {
       // as step 2: rebuild it and send once more.
       if (response.ok || !response.body || response.body.error !== "invalid_proof") return response;
       log.debug("the issuer rejected the proof; rebuilding it with a fresh nonce and retrying once.");
+      // Two requests were made, so two rows: the retry is not a reason to hide the
+      // refusal that caused it.
+      sdJwtVc.recordHistoryEntry({
+        kind: sdJwtVc.HISTORY_KIND.CREDENTIAL_REQUEST,
+        outcome: sdJwtVc.HISTORY_OUTCOME.FAILED,
+        detail: "invalid_proof — the c_nonce had been spent or had expired; rebuilding the proof and " +
+                "retrying once"
+      });
+      renderHistory();
       status("vc_reissue_status",
         "The proof had gone stale (a c_nonce is single use) — rebuilding it and trying again …", "vc-pending");
       return prepareReissue().then(send);
@@ -793,6 +921,14 @@ function requestRefreshedCredential() {
       if (!response.ok && !(response.statusCode === 202 && response.body && response.body.transaction_id)) {
         var err = (response.body && (response.body.error_description || response.body.error)) ||
                   ("HTTP " + response.statusCode);
+        sdJwtVc.recordHistoryEntry({
+          kind: sdJwtVc.HISTORY_KIND.CREDENTIAL_REQUEST,
+          outcome: sdJwtVc.HISTORY_OUTCOME.FAILED,
+          detail: "HTTP " + response.statusCode + " — " + err +
+                  (response.statusCode === 401
+                    ? " (section 14.3: the issuer may stop accepting an access token)" : "")
+        });
+        renderHistory();
         status("vc_reissue_status",
           "The issuer refused the request: " + err +
           (response.statusCode === 401
@@ -809,6 +945,12 @@ function requestRefreshedCredential() {
       }
       var credential = vciWallet.extractCredential(response.body);
       if (!credential) {
+        sdJwtVc.recordHistoryEntry({
+          kind: sdJwtVc.HISTORY_KIND.CREDENTIAL_REQUEST,
+          outcome: sdJwtVc.HISTORY_OUTCOME.FAILED,
+          detail: "HTTP " + response.statusCode + " — the response carries no credential"
+        });
+        renderHistory();
         status("vc_reissue_status", "The issuer answered, but the response carries no credential.", "vc-bad");
         disable("vc_reissue_button", false);
         return;
@@ -816,8 +958,11 @@ function requestRefreshedCredential() {
       keepRefreshed(credential, response.body, {});
       status("vc_reissue_status",
         "The issuer returned a credential. What changed is below — nothing has replaced the credential in " +
-        "hand yet.", "vc-ok");
+        "hand yet, and the Credential History pane lists it as waiting.", "vc-ok");
       renderComparison();
+      // The pane above has to show the new credential the moment it arrives:
+      // a history that only moves when something is KEPT looks broken.
+      renderHistory();
       disable("vc_reissue_button", false);
     })
     .catch(function (e) {
@@ -856,6 +1001,39 @@ function keepRefreshed(credential, responseBody, extra) {
     tokenRefreshed: state.accessTokenRefreshed
   };
   Object.keys(extra || {}).forEach(function (k) { meta[k] = extra[k]; });
+  // One row for the attempt that produced this credential, resolved to kept or
+  // discarded when the holder decides. The id rides in the metadata so a reload
+  // can still resolve it.
+  var historyId = state.deferred.historyId || 0;
+  if (historyId) {
+    sdJwtVc.updateHistoryEntry(historyId, {
+      kind: sdJwtVc.HISTORY_KIND.DEFERRED_POLL,
+      outcome: sdJwtVc.HISTORY_OUTCOME.PENDING,
+      detail: "the deferred credential arrived after " + ((extra || {}).deferredAttempts || 1) + " attempt(s)",
+      credential: credential,
+      credentials: all.length ? all : [credential],
+      meta: meta,
+      holderJwk: meta.holderJwk,
+      holderPrivateJwk: (state.request.holderKeys[0] || {}).privateJwk || null
+    });
+    state.deferred.historyId = 0;
+  } else {
+    historyId = sdJwtVc.recordHistoryEntry({
+      kind: sdJwtVc.HISTORY_KIND.CREDENTIAL_REQUEST,
+      outcome: sdJwtVc.HISTORY_OUTCOME.PENDING,
+      detail: (meta.tokenRefreshed
+                ? "the issuer returned a credential, on a refreshed access token"
+                : "the issuer returned a credential, on the access token already in hand (section 14.3)") +
+              (all.length > 1 ? " — " + all.length + " credentials" : "") +
+              (meta.keyMode === "reuse" ? "; bound to the same holder key" : "; bound to a NEW holder key"),
+      credential: credential,
+      credentials: all.length ? all : [credential],
+      meta: meta,
+      holderJwk: meta.holderJwk,
+      holderPrivateJwk: (state.request.holderKeys[0] || {}).privateJwk || null
+    });
+  }
+  meta.historyId = historyId;
   sdJwtVc.set(sdJwtVc.KEYS.REFRESHED_CREDENTIAL, credential);
   sdJwtVc.setJson(sdJwtVc.KEYS.REFRESHED_CREDENTIALS, all.length ? all : [credential]);
   sdJwtVc.setJson(sdJwtVc.KEYS.REFRESHED_META, meta);
@@ -900,6 +1078,14 @@ function beginDeferred(body, statusCode) {
   state.deferred.transactionId = String(body.transaction_id);
   state.deferred.intervalSeconds = Number(body.interval) || 5;
   state.deferred.attempts = [];
+  state.deferred.historyId = 0;
+  sdJwtVc.recordHistoryEntry({
+    kind: sdJwtVc.HISTORY_KIND.CREDENTIAL_REQUEST,
+    outcome: sdJwtVc.HISTORY_OUTCOME.DEFERRED,
+    detail: "HTTP " + statusCode + " — deferred as transaction " + state.deferred.transactionId +
+            ", interval " + state.deferred.intervalSeconds + "s"
+  });
+  renderHistory();
   show("vc_reissue_deferred_row", true);
   setText("vc_reissue_transaction_id", state.deferred.transactionId +
     " at " + (deferredEndpoint() || "— no deferred_credential_endpoint is published —"));
@@ -947,9 +1133,23 @@ function pollDeferred() {
       });
       renderDeferredAttempts();
       if (!credential) {
+        // A poll that came back "still working on it" is an attempt too.
+        sdJwtVc.recordHistoryEntry({
+          kind: sdJwtVc.HISTORY_KIND.DEFERRED_POLL,
+          outcome: response.ok || response.statusCode === 202
+            ? sdJwtVc.HISTORY_OUTCOME.DEFERRED : sdJwtVc.HISTORY_OUTCOME.FAILED,
+          detail: "attempt " + state.deferred.attempts.length + ": HTTP " + response.statusCode + " — " + summary
+        });
+        renderHistory();
         status("vc_reissue_status", "Attempt " + state.deferred.attempts.length + ": " + summary, "vc-pending");
         return;
       }
+      // The poll that produced the credential is the row keepRefreshed() resolves.
+      state.deferred.historyId = sdJwtVc.recordHistoryEntry({
+        kind: sdJwtVc.HISTORY_KIND.DEFERRED_POLL,
+        outcome: sdJwtVc.HISTORY_OUTCOME.DEFERRED,
+        detail: "attempt " + state.deferred.attempts.length + ": the credential was ready"
+      });
       keepRefreshed(credential, response.body, {
         deferred: true,
         transactionId: state.deferred.transactionId,
@@ -963,9 +1163,16 @@ function pollDeferred() {
         (state.deferred.attempts.length === 1 ? " attempt." : " attempts.") +
         " What changed is below.", "vc-ok");
       renderComparison();
+      renderHistory();
     })
     .catch(function (e) {
       log.error("the deferred refresh request failed: " + e.message);
+      sdJwtVc.recordHistoryEntry({
+        kind: sdJwtVc.HISTORY_KIND.DEFERRED_POLL,
+        outcome: sdJwtVc.HISTORY_OUTCOME.FAILED,
+        detail: "the request to " + endpoint + " never completed: " + e.message
+      });
+      renderHistory();
       status("vc_reissue_status", "The deferred request failed: " + e.message, "vc-bad");
     });
   log.debug("Leaving pollDeferred().");
@@ -1174,22 +1381,57 @@ function replaceCredential() {
     sdJwtVc.setJson(sdJwtVc.KEYS.HOLDER_JWK, newPublic);
     sdJwtVc.setJson(sdJwtVc.KEYS.HOLDER_PRIVATE_JWK, newPrivate);
   }
-  // A new generation of the credential, and the one the history now points at.
-  sdJwtVc.recordCredentialGeneration({
+  // The attempt that produced this credential becomes the generation the wallet
+  // holds — the same row, resolved, not a second one: one row per attempt.
+  var replacedGeneration = sdJwtVc.activeGeneration();
+  var pendingId = (state.refreshed.meta || {}).historyId || 0;
+  var resolved = pendingId ? sdJwtVc.updateHistoryEntry(pendingId, {
+    outcome: sdJwtVc.HISTORY_OUTCOME.KEPT,
+    detail: (state.refreshed.meta.tokenRefreshed
+              ? "kept, on a refreshed access token"
+              : "kept, on the access token already in hand (section 14.3)") +
+            (replacedGeneration ? "; replaced generation " + replacedGeneration.generation : ""),
     source: state.refreshed.meta.tokenRefreshed ? "refreshed" : "refreshed (§14.3)",
-    credential: state.refreshed.raw,
-    credentials: state.refreshed.all,
-    meta: state.refreshed.meta,
     holderJwk: sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_JWK),
     holderPrivateJwk: sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_PRIVATE_JWK)
-  });
+  }) : null;
+  if (!resolved) {
+    // The row was trimmed away (or written by an older build): record the
+    // generation on its own rather than losing it.
+    sdJwtVc.recordCredentialGeneration({
+      kind: sdJwtVc.HISTORY_KIND.CREDENTIAL_REQUEST,
+      source: state.refreshed.meta.tokenRefreshed ? "refreshed" : "refreshed (§14.3)",
+      detail: "kept",
+      credential: state.refreshed.raw,
+      credentials: state.refreshed.all,
+      meta: state.refreshed.meta,
+      holderJwk: sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_JWK),
+      holderPrivateJwk: sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_PRIVATE_JWK)
+    });
+  }
   forgetRefreshed();
-  renderHistory();
-  status("vc_compare_status",
-    "The refreshed credential is now the one the wallet holds; the old one is kept only for comparison. " +
-    "Opening step 3 to verify it …", "vc-ok");
-  window.setTimeout(function () { window.location.href = sdJwtVc.STEP3_URL; }, 900);
+  state.refreshed = null;
+  show("pane_compare", false);
+  // Everything on the page now describes a different credential — including the
+  // history, where this generation has just become the one in hand. Deliberately
+  // WITHOUT navigating anywhere: the pane the holder just acted in is the pane
+  // that has to show what the action did. Step 3 is a button away.
+  var total = sdJwtVc.heldGenerations().length;
+  reloadHeldCredential(
+    "Generation " + total + " is now the credential the wallet holds. The one it replaced is still in the " +
+    "list, so you can go back to it.",
+    "Kept: the wallet now holds the refreshed credential. \u201cVerify in step 3\u201d opens it, and the " +
+    "request below has been rebuilt to refresh it again.");
+  disable("vc_goto_step3_button", false);
   log.debug("Leaving replaceCredential().");
+  return false;
+}
+
+// Step 3 verifies whatever the wallet holds. A button rather than a redirect, so
+// keeping a credential does not move the browser out from under whoever pressed
+// it.
+function verifyInStepThree() {
+  window.location.href = sdJwtVc.STEP3_URL;
   return false;
 }
 
@@ -1205,9 +1447,23 @@ function forgetRefreshed() {
 
 function discardRefreshed() {
   log.debug("Entering discardRefreshed().");
+  // The attempt stays in the log — it happened — but the credential itself goes,
+  // because "discarded" has to mean discarded. What is left is the record that the
+  // issuer returned one and the holder said no.
+  var pendingId = ((state.refreshed || {}).meta || {}).historyId || 0;
+  if (pendingId) {
+    sdJwtVc.updateHistoryEntry(pendingId, {
+      outcome: sdJwtVc.HISTORY_OUTCOME.DISCARDED,
+      detail: "the issuer returned a credential and it was discarded, so the wallet never held it",
+      credential: undefined,
+      credentials: undefined,
+      holderPrivateJwk: undefined
+    });
+  }
   forgetRefreshed();
   state.refreshed = null;
   show("pane_compare", false);
+  renderHistory();
   status("vc_reissue_status",
     "The refreshed credential was discarded. The wallet still holds the credential from step 3 — which is a " +
     "real choice: an issuer cannot make a wallet keep what it returned.", "vc-pending");
@@ -1304,6 +1560,7 @@ if (typeof window !== "undefined") {
 
 module.exports = {
   renderHistory: renderHistory,
+  verifyInStepThree: verifyInStepThree,
   activateGeneration: activateGeneration,
   historyOlder: historyOlder,
   historyNewer: historyNewer,

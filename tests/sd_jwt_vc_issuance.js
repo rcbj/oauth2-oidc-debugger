@@ -851,10 +851,94 @@ async function stepFour(driver, context) {
   });
   log.info("[step4] OK — the refreshed credential verifies independently of the page.");
 
+  // ---- the history pane must react to the RETRIEVAL, not only to keeping ---
+  // A credential the issuer has just returned is in the pane immediately, marked
+  // as not kept: a history that only moves when something is kept looks broken,
+  // which is what a manual run of this page found.
+  var pendingRow = await driver.executeScript(
+    "var tr = document.querySelector('#vc_history_table tbody tr.vc-history-pending');" +
+    "if (!tr) return null;" +
+    "var td = tr.querySelectorAll('td');" +
+    "return { n: td[0].textContent.trim(), gen: td[1].textContent.trim()," +
+    "         attempt: td[3].textContent.trim(), outcome: td[4].textContent.trim()," +
+    "         detail: td[5].textContent.trim()," +
+    "         buttons: Array.prototype.slice.call(td[7].querySelectorAll('input'))" +
+    "                    .map(function (b) { return b.value; }) };");
+  assert.ok(pendingRow, "the credential just returned should appear in the Credential History pane at once.");
+  assert.strictEqual(pendingRow.attempt, "Credential Request",
+    "the row should name what was attempted. Got: " + pendingRow.attempt);
+  assert.ok(/not kept yet/.test(pendingRow.outcome),
+    "and its outcome should say it is not kept. Got: " + pendingRow.outcome);
+  assert.ok(/^[0-9]+$/.test(pendingRow.n),
+    "every row is numbered by attempt, including this one. Got: " + pendingRow.n);
+  assert.strictEqual(pendingRow.gen, "—", "but it has no generation number until it is kept.");
+  assert.deepStrictEqual(pendingRow.buttons, ["Keep", "Discard"],
+    "and it should be actionable from the pane. Got: " + JSON.stringify(pendingRow.buttons));
+  assert.ok(/waiting to be kept/.test(await text(driver, "vc_history_position")),
+    "the position should say something is waiting. Got: " + (await text(driver, "vc_history_position")));
+
+  // The access-token refresh above must be in the log too — every attempt is.
+  var logRows = await driver.executeScript(
+    "return Array.prototype.slice.call(document.querySelectorAll('#vc_history_table tbody tr'))" +
+    "  .map(function (tr) {" +
+    "    var td = tr.querySelectorAll('td');" +
+    "    return { n: td[0].textContent.trim(), gen: td[1].textContent.trim()," +
+    "             attempt: td[3].textContent.trim(), outcome: td[4].textContent.trim()," +
+    "             detail: td[5].textContent.trim() };" +
+    "  });");
+  // Every row carries an attempt number — the first column is never blank.
+  assert.ok(logRows.every(function (r) { return /^[0-9]+$/.test(r.n); }),
+    "every row should be numbered in the first column. Got: " +
+    JSON.stringify(logRows.map(function (r) { return r.n; })));
+  assert.deepStrictEqual(logRows.map(function (r) { return Number(r.n); }),
+    logRows.map(function (r, i) { return logRows.length - i; }),
+    "and numbered by attempt order, newest first.");
+  var tokenRows = logRows.filter(function (r) { return r.attempt === "Access token refresh"; });
+  assert.strictEqual(tokenRows.length, 1,
+    "the access token refresh should be one row in the log. Got: " + JSON.stringify(logRows));
+  assert.strictEqual(tokenRows[0].outcome, "success", "and be recorded as a success.");
+  assert.ok(/access token/.test(tokenRows[0].detail),
+    "with what came back. Got: " + tokenRows[0].detail);
+  assert.strictEqual(tokenRows[0].gen, "—", "a token refresh is not a credential generation.");
+  log.info("[step4] OK — the history records every attempt: " +
+           logRows.map(function (r) { return r.attempt + "/" + r.outcome; }).join(", "));
+
   // ---- keep it ------------------------------------------------------------
+  // Keeping does not navigate: the pane the holder acted in is the pane that has
+  // to show what the action did.
   await click(driver, By.id("vc_replace_button"));
+  await driver.wait(async function () {
+    return /^generation 2 of 2/.test(await text(driver, "vc_history_position"));
+  }, fetchWait, "keeping the credential should add a generation to the history, in place.");
+  assert.ok((await driver.getCurrentUrl()).indexOf("sd-jwt-vc-issuance-4.html") !== -1,
+    "and should stay on step 4 rather than navigating away from the pane it just changed.");
+  var afterKeep = await driver.executeScript(
+    "return { pending: document.querySelectorAll('#vc_history_table tbody tr.vc-history-pending').length," +
+    "         rows: document.querySelectorAll('#vc_history_table tbody tr').length," +
+    "         outcome: (document.querySelector('#vc_history_table tbody tr.vc-history-active td:nth-child(5)')" +
+    "                    || {}).textContent," +
+    "         inHand: (document.querySelector('#vc_history_table tbody tr.vc-history-active td:nth-child(2)')" +
+    "                   || {}).textContent," +
+    "         status: document.getElementById('vc_history_status').textContent.trim() };");
+  assert.strictEqual(afterKeep.pending, 0, "the waiting row should have become a generation.");
+  assert.strictEqual(afterKeep.rows, logRows.length,
+    "keeping resolves that attempt's row rather than adding another — one row per attempt. Got " +
+    afterKeep.rows + " rows, was " + logRows.length);
+  assert.strictEqual(String(afterKeep.outcome).trim(), "kept",
+    "and its outcome should now read kept. Got: " + afterKeep.outcome);
+  assert.strictEqual(String(afterKeep.inHand).trim(), "2",
+    "and generation 2 should be the one in hand. Got: " + afterKeep.inHand);
+  assert.ok(/go back to it/.test(afterKeep.status),
+    "the pane should say the replaced generation is still there. Got: " + afterKeep.status);
+  // The credential in hand changed, so the request this page would send next has
+  // to be rebuilt against it.
+  await waitForStatus(driver, "vc_reissue_status", function (s) { return /^Kept/.test(s); },
+    "the request should be rebuilt for the credential now in hand");
+  log.info("[step4] OK — keeping it updated the history in place: " + afterKeep.status);
+
+  await click(driver, By.id("vc_goto_step3_button"));
   await driver.wait(until.urlContains("sd-jwt-vc-issuance-3.html"), fetchWait,
-    "keeping the refreshed credential should open step 3 to verify it.");
+    "\"Verify in step 3\" should open step 3.");
   await driver.sleep(900);
   var promoted = await driver.executeScript(
     "return { held: localStorage.getItem('sdjwtvc_credential')," +
@@ -877,6 +961,132 @@ async function stepFour(driver, context) {
   // Handed to the history section, which checks that going back to generation 1
   // really restores this credential AND the key it is bound to.
   return { original: before.credential, refreshed: refreshed, holderJwk: before.holderJwk };
+}
+
+// ---------------------------------------------------------------------------
+// Every page of the workflow links to every step, at the top, on ONE row.
+//
+// The row is shared markup (partials/sd_jwt_vc_steps.html), so what can break is
+// the layout: five items in a flex row that is allowed to wrap put the last step
+// on a second line, which is what happened when step 4 was added. "One row" is a
+// geometric claim, so it is checked geometrically — every item on the same top
+// edge — rather than by looking at the CSS.
+// ---------------------------------------------------------------------------
+async function stepLinksOnEveryPage(driver) {
+  log.info("=== The step links, on every page, on one row ===");
+  var pages = ["sd-jwt-vc-issuance-0.html", "sd-jwt-vc-issuance-1.html", "sd-jwt-vc-issuance-2.html",
+               "sd-jwt-vc-issuance-3.html", "sd-jwt-vc-issuance-4.html"];
+  for (var i = 0; i < pages.length; i++) {
+    await driver.get(baseUrl + "/" + pages[i]);
+    await driver.wait(until.elementLocated(By.id("vc_steps")), waitTime);
+    await driver.sleep(400);
+    var row = await driver.executeScript(
+      "var ol = document.getElementById('vc_steps');" +
+      "var items = Array.prototype.slice.call(ol.querySelectorAll('li'));" +
+      "var title = document.querySelector('h3.vc-title');" +
+      "return { count: items.length," +
+      "         hrefs: items.map(function (li) { var a = li.querySelector('a');" +
+      "                                         return a ? a.getAttribute('href') : null; })," +
+      "         labels: items.map(function (li) { var a = li.querySelector('a');" +
+      "                                          return a ? a.textContent.trim() : ''; })," +
+      "         tops: items.map(function (li) { return Math.round(li.getBoundingClientRect().top); })," +
+      "         rowHeight: Math.round(ol.getBoundingClientRect().height)," +
+      "         itemHeight: Math.round(items[0].getBoundingClientRect().height)," +
+      "         current: items.filter(function (li) { return /vc-step-current/.test(li.className); })" +
+      "                    .map(function (li) { return li.id; })," +
+      "         aboveTitle: title ? ol.getBoundingClientRect().top < title.getBoundingClientRect().top : null," +
+      "         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth };");
+    assert.strictEqual(row.count, 5,
+      pages[i] + " should link to all five steps, got " + row.count + ".");
+    for (var step = 0; step < 5; step++) {
+      assert.ok(row.hrefs.indexOf("/sd-jwt-vc-issuance-" + step + ".html") !== -1,
+        pages[i] + " should link to step " + step + ". Got: " + JSON.stringify(row.hrefs));
+    }
+    // One row: every item shares a top edge, and the row is no taller than one item.
+    assert.strictEqual(Math.max.apply(null, row.tops) - Math.min.apply(null, row.tops), 0,
+      pages[i] + ": the step links should all be on one row. Tops: " + JSON.stringify(row.tops));
+    assert.ok(row.rowHeight - row.itemHeight <= 2,
+      pages[i] + ": the row should be one item tall (" + row.rowHeight + " vs " + row.itemHeight + "px).");
+    assert.ok(row.aboveTitle,
+      pages[i] + ": the step links belong at the top, above the page title.");
+    assert.ok(row.overflow <= 0,
+      pages[i] + ": a single row of links must not make the page scroll sideways.");
+    // And the page marks which step it is.
+    assert.deepStrictEqual(row.current, ["vc_step_" + i],
+      pages[i] + " should mark its own step as the current one. Got: " + JSON.stringify(row.current));
+    log.info("[steps] " + pages[i] + ": " + row.labels.join(" | ") + " (one " + row.rowHeight + "px row)");
+  }
+  log.info("[steps] OK — all five links, on one row, at the top of all five pages.");
+}
+
+// ---------------------------------------------------------------------------
+// Nothing may run off the side of a pane.
+//
+// Every value these pages show is base64url — a c_nonce, an access token, a JWK's
+// coordinates, a pretty-printed request body — and base64url has no space in it
+// to break at. bootstrap.css also sets `code { white-space: nowrap }`. Together
+// those two facts pushed the panes (and on one of them the whole page) out to the
+// right, which is what a manual run of the workflow found.
+//
+// So this checks the geometry with values far longer than the real ones: no
+// element wider than the pane that contains it, and no horizontal page scroll.
+// Cheap, and it fails on the exact regression rather than on a screenshot diff.
+// ---------------------------------------------------------------------------
+async function panesContainTheirContent(driver) {
+  log.info("=== Nothing overflows its pane ===");
+  var pages = ["sd-jwt-vc-issuance-1.html", "sd-jwt-vc-issuance-2.html",
+               "sd-jwt-vc-issuance-3.html", "sd-jwt-vc-issuance-4.html"];
+  for (var i = 0; i < pages.length; i++) {
+    await driver.get(baseUrl + "/" + pages[i]);
+    await driver.wait(until.elementLocated(By.css(".dbg-pane")), waitTime);
+    await driver.sleep(700);
+    var result = await driver.executeScript(
+      // A value longer than anything an issuer would really send, in every <code>
+      // the page has: that is the case that overflowed.
+      "var long = new Array(24).join('eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9');" +
+      "Array.prototype.slice.call(document.querySelectorAll('.dbg-pane code')).forEach(function (c) {" +
+      "  if (c.id) c.textContent = long;" +
+      "});" +
+      "var out = [];" +
+      "Array.prototype.slice.call(document.querySelectorAll('.dbg-pane')).forEach(function (pane) {" +
+      "  var pr = pane.getBoundingClientRect();" +
+      "  Array.prototype.slice.call(pane.querySelectorAll('code, pre, textarea, table')).forEach(function (e) {" +
+      "    var r = e.getBoundingClientRect();" +
+      "    if (r.width <= 0) return;" +          // a collapsed pane has no geometry
+      "    var over = Math.round(r.right - (pr.right - 12));" +
+      "    if (over > 0) out.push({ pane: pane.id, tag: e.tagName, id: e.id || '(none)', over: over });" +
+      "  });" +
+      "});" +
+      "return { overflowing: out," +
+      "         doc: document.documentElement.scrollWidth - document.documentElement.clientWidth };");
+    assert.strictEqual(result.overflowing.length, 0,
+      pages[i] + ": these elements extend past the pane that contains them — " +
+      result.overflowing.map(function (o) {
+        return o.id + " (" + o.tag + " in " + o.pane + ", " + o.over + "px)";
+      }).join(", "));
+    assert.ok(result.doc <= 0,
+      pages[i] + " should not scroll horizontally, even with values this long. Got " + result.doc + "px.");
+    log.info("[layout] " + pages[i] + ": every box fits its pane, no horizontal scroll.");
+  }
+
+  // And the boxes in a pane line up on both edges rather than each being its own
+  // width — a <pre> and a <textarea> in the same pane must come out the same.
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-2.html");
+  await driver.wait(until.elementLocated(By.id("vc_request_body")), waitTime);
+  await driver.sleep(700);
+  var boxes = await driver.executeScript(
+    "return ['vc_holder_jwk','vc_request_body','vc_proof_jwt','jwt_header','jwt_payload']" +
+    "  .map(function (id) {" +
+    "    var r = document.getElementById(id).getBoundingClientRect();" +
+    "    return { id: id, left: Math.round(r.left), right: Math.round(r.right) };" +
+    "  });");
+  var lefts = boxes.map(function (b) { return b.left; });
+  var rights = boxes.map(function (b) { return b.right; });
+  assert.ok(Math.max.apply(null, lefts) - Math.min.apply(null, lefts) <= 1,
+    "the boxes in the Credential Request pane should share a left edge. Got: " + JSON.stringify(boxes));
+  assert.ok(Math.max.apply(null, rights) - Math.min.apply(null, rights) <= 2,
+    "and a right edge. Got: " + JSON.stringify(boxes));
+  log.info("[layout] OK — the request pane's boxes align on both edges.");
 }
 
 // ---------------------------------------------------------------------------
@@ -905,12 +1115,18 @@ async function credentialHistoryNavigation(driver, generations) {
       "return Array.prototype.slice.call(document.querySelectorAll('#vc_history_table tbody tr'))" +
       "  .map(function (tr) {" +
       "    var td = tr.querySelectorAll('td');" +
-      "    return { n: td[0].textContent.trim(), source: td[2].textContent.trim()," +
-      "             boundKey: td[4].textContent.trim(), signature: td[6].textContent.trim()," +
+      "    return { n: td[0].textContent.trim(), gen: td[1].textContent.trim()," +
+      "             attempt: td[3].textContent.trim(), outcome: td[4].textContent.trim()," +
+      "             detail: td[5].textContent.trim(), credential: td[6].textContent.trim()," +
       "             inHand: td[7].textContent.trim() === 'In hand'," +
       "             activatable: !!td[7].querySelector('input')," +
+      "             logOnly: /log only/.test(td[7].textContent)," +
       "             active: /vc-history-active/.test(tr.className) };" +
       "  });");
+  }
+  // The generations (kept rows) only, newest first — what the navigation moves over.
+  function generationRows(rows) {
+    return rows.filter(function (r) { return r.outcome === "kept"; });
   }
   function navState() {
     return driver.executeScript(
@@ -929,34 +1145,50 @@ async function credentialHistoryNavigation(driver, generations) {
 
   // ---- what the issuance and the refresh recorded --------------------------
   var rows = await historyRows();
-  assert.strictEqual(rows.length, 2,
-    "the issuance and the kept refresh should both be generations, got " + rows.length + ".");
+  var gens = generationRows(rows);
+  assert.ok(rows.length > gens.length,
+    "the log should carry more than the generations — the access token refresh is in it too. Got: " +
+    JSON.stringify(rows.map(function (r) { return r.attempt + "/" + r.outcome; })));
+  assert.strictEqual(gens.length, 2,
+    "the issuance and the kept refresh should both be generations, got " + gens.length + ".");
   // Newest first, the way debugger2's Token History lists token sets.
-  assert.deepStrictEqual(rows.map(function (r) { return r.n; }), ["2", "1"],
+  assert.deepStrictEqual(gens.map(function (r) { return r.gen; }), ["2", "1"],
     "the newest generation should be listed first.");
-  assert.strictEqual(rows[1].source, "issued", "generation 1 is the issuance. Got: " + rows[1].source);
-  assert.ok(/^refreshed/.test(rows[0].source),
-    "generation 2 is the refresh, and says which kind. Got: " + rows[0].source);
-  assert.ok(rows[0].inHand && rows[0].active,
+  assert.strictEqual(gens[1].attempt, "Issuance (step 2)",
+    "generation 1 is the issuance. Got: " + gens[1].attempt);
+  assert.strictEqual(gens[0].attempt, "Credential Request",
+    "generation 2 came from a Credential Request. Got: " + gens[0].attempt);
+  assert.ok(gens[0].inHand && gens[0].active,
     "the credential in hand should be the marked row.");
-  assert.ok(rows[1].activatable && !rows[1].inHand,
+  assert.ok(gens[1].activatable && !gens[1].inHand,
     "the earlier generation should be activatable rather than marked as in hand.");
-  assert.notStrictEqual(rows[0].signature, rows[1].signature,
-    "the two generations carry different signatures, and the table should show that.");
+  assert.notStrictEqual(gens[0].credential, gens[1].credential,
+    "the two generations differ (signature, validity), and the table should show that.");
+  // A log row is not a place you can navigate to, and says so.
+  var logRows = rows.filter(function (r) { return r.gen === "—"; });
+  assert.ok(logRows.length >= 1 && logRows.every(function (r) { return r.logOnly; }),
+    "a row that is not a generation should be marked 'log only'. Got: " + JSON.stringify(logRows));
+  assert.ok(rows.every(function (r) { return /^[0-9]+$/.test(r.n); }),
+    "and every row — generation or not — carries an attempt number. Got: " +
+    JSON.stringify(rows.map(function (r) { return r.n; })));
   var nav = await navState();
-  assert.strictEqual(nav.position, "generation 2 of 2", "the position should say where you are. Got: " + nav.position);
+  assert.ok(/^generation 2 of 2/.test(nav.position),
+    "the position should say where you are. Got: " + nav.position);
+  assert.ok(/attempt\(s\) recorded/.test(nav.position),
+    "and how many attempts are on record. Got: " + nav.position);
   assert.deepStrictEqual([nav.newer, nav.latest], [true, true],
     "at the newest generation, forwards must be disabled.");
   assert.deepStrictEqual([nav.older, nav.oldest], [false, false],
     "and backwards must be available.");
   assert.strictEqual(await heldCredential(), generations.refreshed,
     "the credential in hand is the refreshed one stepFour kept.");
-  log.info("[history] " + nav.position + ": " + rows.map(function (r) { return r.source; }).join(", "));
+  log.info("[history] " + nav.position + ": " +
+           rows.map(function (r) { return r.attempt + "/" + r.outcome; }).join(", "));
 
   // ---- backwards ----------------------------------------------------------
   await click(driver, By.id("vc_history_older_button"));
   await driver.wait(async function () {
-    return (await navState()).position === "generation 1 of 2";
+    return /^generation 1 of 2/.test((await navState()).position);
   }, fetchWait, "Older should move to the previous generation.");
   assert.strictEqual(await heldCredential(), generations.original,
     "going back a generation should put THAT credential in hand, not merely highlight a row.");
@@ -967,8 +1199,8 @@ async function credentialHistoryNavigation(driver, generations) {
     "at the oldest generation, backwards must be disabled.");
   assert.deepStrictEqual([backNav.newer, backNav.latest], [false, false],
     "and forwards must be available.");
-  var backRows = await historyRows();
-  assert.ok(backRows[1].inHand && !backRows[0].inHand,
+  var backGens = generationRows(await historyRows());
+  assert.ok(backGens[1].inHand && !backGens[0].inHand,
     "the marked row should have moved with it.");
   // The pane that describes the credential in hand, and the request built from
   // it, must both follow: a proof of possession for the wrong key would be
@@ -986,30 +1218,30 @@ async function credentialHistoryNavigation(driver, generations) {
   // ---- forwards, and the two ends ----------------------------------------
   await click(driver, By.id("vc_history_newer_button"));
   await driver.wait(async function () {
-    return (await navState()).position === "generation 2 of 2";
+    return /^generation 2 of 2/.test((await navState()).position);
   }, fetchWait, "Newer should move forward again.");
   assert.strictEqual(await heldCredential(), generations.refreshed,
     "and put the refreshed credential back in hand.");
   await click(driver, By.id("vc_history_oldest_button"));
   await driver.wait(async function () {
-    return (await navState()).position === "generation 1 of 2";
+    return /^generation 1 of 2/.test((await navState()).position);
   }, fetchWait, "Oldest should jump to the first generation.");
   await click(driver, By.id("vc_history_latest_button"));
   await driver.wait(async function () {
-    return (await navState()).position === "generation 2 of 2";
+    return /^generation 2 of 2/.test((await navState()).position);
   }, fetchWait, "Latest should jump to the newest generation.");
   log.info("[history] OK — Older/Newer/Oldest/Latest all move the credential in hand.");
 
   // ---- an activated generation is a real state, not a page-local one ------
   await click(driver, By.id("vc_history_older_button"));
   await driver.wait(async function () {
-    return (await navState()).position === "generation 1 of 2";
+    return /^generation 1 of 2/.test((await navState()).position);
   }, fetchWait, "Older should move back again.");
   await driver.navigate().refresh();
   await driver.wait(until.elementLocated(By.id("vc_history_table")), waitTime);
   await driver.sleep(600);
-  assert.strictEqual((await navState()).position, "generation 1 of 2",
-    "the activated generation should survive a reload.");
+  assert.ok(/^generation 1 of 2/.test((await navState()).position),
+    "the activated generation should survive a reload. Got: " + (await navState()).position);
   // ... and step 3 verifies whatever the history activated, including the cnf
   // binding, which is the check that would fail if the key had not travelled.
   await driver.get(baseUrl + "/sd-jwt-vc-issuance-3.html");
@@ -1019,6 +1251,67 @@ async function credentialHistoryNavigation(driver, generations) {
     "step 3 should show the generation the history activated.");
   await assertStepThreeIsHappy(driver, "the generation activated from the history");
   log.info("[history] OK — the activated generation survives a reload and still verifies in step 3.");
+
+  // ---- a long log: fixed height, scrolling, and capped at 100 -------------
+  // Seeded rather than made by 120 real refreshes: what is under test is the
+  // pane's behaviour with a long log, not the issuer's patience.
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-4.html");
+  await driver.wait(until.elementLocated(By.id("vc_history_table")), waitTime);
+  await driver.executeScript(
+    "var real = JSON.parse(localStorage.getItem('sdjwtvc_credential_history') || '[]');" +
+    "var padded = [];" +
+    "for (var i = 0; i < 120; i++) {" +
+    "  padded.push({ id: 10000 + i, at: new Date(Date.now() - (120 - i) * 60000).toISOString()," +
+    "                kind: 'token_refresh', outcome: (i % 7 === 0) ? 'failed' : 'success'," +
+    "                detail: 'seeded attempt ' + (i + 1) });" +
+    "}" +
+    "localStorage.setItem('sdjwtvc_credential_history', JSON.stringify(padded.concat(real)));");
+  await driver.navigate().refresh();
+  await driver.wait(until.elementLocated(By.id("vc_history_table")), waitTime);
+  await driver.sleep(900);
+  var longLog = await driver.executeScript(
+    "var box = document.getElementById('vc_history_table');" +
+    "var rows = box.querySelectorAll('tbody tr');" +
+    "var head = box.querySelector('thead th');" +
+    "return { rows: rows.length," +
+    "         first: rows.length ? rows[0].querySelectorAll('td')[0].textContent.trim() : ''," +
+    "         last: rows.length ? rows[rows.length - 1].querySelectorAll('td')[0].textContent.trim() : ''," +
+    "         numbered: Array.prototype.slice.call(rows).every(function (tr) {" +
+    "           return /^[0-9]+$/.test(tr.querySelectorAll('td')[0].textContent.trim()); })," +
+    "         clientHeight: box.clientHeight, scrollHeight: box.scrollHeight," +
+    "         overflowY: getComputedStyle(box).overflowY," +
+    "         stickyHead: head ? getComputedStyle(head).position : ''," +
+    "         note: box.textContent.indexOf('older one(s) are no longer kept') !== -1 };");
+  assert.strictEqual(longLog.rows, 100,
+    "the pane should show the newest 100 attempts, got " + longLog.rows + ".");
+  assert.ok(longLog.numbered, "and number every one of them in the first column.");
+  assert.ok(Number(longLog.first) > Number(longLog.last),
+    "newest first, so the first row carries the highest attempt number. Got " +
+    longLog.first + " then " + longLog.last + ".");
+  assert.ok(longLog.note, "and it should say that older attempts are no longer kept.");
+  assert.strictEqual(longLog.overflowY, "auto", "the list should scroll rather than grow.");
+  assert.ok(longLog.scrollHeight > longLog.clientHeight,
+    "with 100 rows there should be something to scroll: " + longLog.scrollHeight + " into " +
+    longLog.clientHeight + "px.");
+  assert.ok(longLog.clientHeight > 200 && longLog.clientHeight < 700,
+    "and the box should keep a fixed, readable height. Got " + longLog.clientHeight + "px.");
+  assert.strictEqual(longLog.stickyHead, "sticky",
+    "the header should stay put while the rows scroll under it.");
+  // The height is FIXED: it must not depend on how many rows there are.
+  await driver.executeScript(
+    "var one = JSON.parse(localStorage.getItem('sdjwtvc_credential_history')).slice(-1);" +
+    "localStorage.setItem('sdjwtvc_credential_history', JSON.stringify(one));");
+  await driver.navigate().refresh();
+  await driver.wait(until.elementLocated(By.id("vc_history_table")), waitTime);
+  await driver.sleep(700);
+  var shortLog = await driver.executeScript(
+    "var box = document.getElementById('vc_history_table');" +
+    "return { rows: box.querySelectorAll('tbody tr').length, clientHeight: box.clientHeight };");
+  assert.strictEqual(shortLog.clientHeight, longLog.clientHeight,
+    "the pane's height is fixed, so one row and a hundred must occupy the same box. Got " +
+    shortLog.clientHeight + " vs " + longLog.clientHeight + "px.");
+  log.info("[history] OK — 100 of 120 attempts shown, all numbered, scrolling in a fixed " +
+           longLog.clientHeight + "px box with a sticky header.");
 
   // ---- clearing forgets the list, not the credential ----------------------
   await driver.get(baseUrl + "/sd-jwt-vc-issuance-4.html");
@@ -1075,8 +1368,27 @@ async function refreshNegatives(driver) {
   var responseShown = await text(driver, "vc_refresh_response");
   assert.ok(/invalid_grant|error/.test(responseShown),
     "the authorization server's answer should be shown verbatim. Got: " + responseShown.slice(0, 120));
-  log.info("[step4] OK — a refused refresh is reported, with the response: " +
-           responseShown.replace(/\s+/g, " ").slice(0, 100));
+  // A failed attempt is still an attempt, and the log is where it has to show up.
+  var failedRow = await driver.executeScript(
+    "var rows = Array.prototype.slice.call(document.querySelectorAll('#vc_history_table tbody tr'));" +
+    "for (var i = 0; i < rows.length; i++) {" +
+    "  var td = rows[i].querySelectorAll('td');" +
+    "  if (td[3].textContent.trim() === 'Access token refresh' && td[4].textContent.trim() === 'FAILED') {" +
+    "    return { n: td[0].textContent.trim(), gen: td[1].textContent.trim()," +
+    "             detail: td[5].textContent.trim()," +
+    "             logOnly: /log only/.test(td[7].textContent) };" +
+    "  }" +
+    "} return null;");
+  assert.ok(failedRow, "the refused refresh should be recorded in the Credential History pane.");
+  assert.ok(/invalid_grant|HTTP 4/.test(failedRow.detail),
+    "with what the server said. Got: " + failedRow.detail);
+  assert.ok(/^[0-9]+$/.test(failedRow.n), "it is numbered like every other attempt. Got: " + failedRow.n);
+  assert.strictEqual(failedRow.gen, "—", "but a failed refresh is not a credential generation.");
+  assert.ok(failedRow.logOnly, "and cannot be activated.");
+  assert.ok(/failed/.test(await text(driver, "vc_history_position")),
+    "the position line should count the failure. Got: " + (await text(driver, "vc_history_position")));
+  log.info("[step4] OK — a refused refresh is reported and recorded: " +
+           failedRow.detail.replace(/\s+/g, " ").slice(0, 90));
 
   // No refresh token at all — the state OID4VCI's pre-authorized code grant
   // normally leaves behind.
@@ -1126,7 +1438,27 @@ async function refreshNegatives(driver) {
   assert.strictEqual(afterDiscard.pendingKey, null, "and so should any key it would have bound.");
   assert.strictEqual(afterDiscard.key, keyBefore,
     "a discarded refresh must not rotate the holder key — the credential in hand still needs it.");
-  log.info("[step4] OK — section 14.3 works without a refresh token, and declining changes nothing.");
+  // Discarding does not erase the fact that the issuer returned one.
+  var discardedRow = await driver.executeScript(
+    "var rows = Array.prototype.slice.call(document.querySelectorAll('#vc_history_table tbody tr'));" +
+    "for (var i = 0; i < rows.length; i++) {" +
+    "  var td = rows[i].querySelectorAll('td');" +
+    "  if (td[4].textContent.trim() === 'discarded') {" +
+    "    return { n: td[0].textContent.trim(), gen: td[1].textContent.trim()," +
+    "             attempt: td[3].textContent.trim()," +
+    "             detail: td[5].textContent.trim(), credential: td[6].textContent.trim() };" +
+    "  }" +
+    "} return null;");
+  assert.ok(discardedRow, "the discarded credential should stay in the log as a discarded attempt.");
+  assert.strictEqual(discardedRow.attempt, "Credential Request",
+    "named as the attempt it was. Got: " + discardedRow.attempt);
+  assert.ok(/^[0-9]+$/.test(discardedRow.n), "numbered like every other attempt. Got: " + discardedRow.n);
+  assert.strictEqual(discardedRow.gen, "—",
+    "and it is not a generation, because it was never held.");
+  assert.strictEqual(discardedRow.credential, "—",
+    "the credential itself should be gone — discarded has to mean discarded. Got: " + discardedRow.credential);
+  log.info("[step4] OK — section 14.3 works without a refresh token, declining changes nothing, and both " +
+           "attempts are on record.");
 }
 
 // ---------------------------------------------------------------------------
@@ -2372,6 +2704,8 @@ async function test() {
     await stepThree(driver, context);
     var generations = await stepFour(driver, context);
     await credentialHistoryNavigation(driver, generations);
+    await panesContainTheirContent(driver);
+    await stepLinksOnEveryPage(driver);
 
     var errors = await severeErrors(driver);
     assert.strictEqual(errors.length, 0,
