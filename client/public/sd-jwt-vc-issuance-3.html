@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>OAuth2 &amp; OpenID Connect Debugger — SD-JWT VC Issuance (3 of 3)</title>
+    <title>OAuth2 &amp; OpenID Connect Debugger — SD-JWT VC Issuance (3 of 4)</title>
     <link href="/css/bootstrap.css" rel="stylesheet">
     <link href="/css/header.css" rel="stylesheet">
     <link href="/css/bottom.css" rel="stylesheet">
@@ -26,7 +26,7 @@
 
 <p class="vc-return"><a id="return_link" href="/sd-jwt-vc-issuance-1.html">&larr; Back to step 1 (discovery &amp; configuration)</a></p>
 
-<h3 class="vc-title">SD-JWT VC Issuance &mdash; Step 3 of 3: The Issued Credential</h3>
+<h3 class="vc-title">SD-JWT VC Issuance &mdash; Step 3 of 4: The Issued Credential</h3>
 
 <!--#include file="/partials/sd_jwt_vc_steps.html"-->
 
@@ -78,13 +78,24 @@ function vcSetAllPanes(expand) {
     <p class="vc-note"><strong>Compact serialization.</strong>
       <span class="vc-part-jwt">issuer-signed JWT</span><span class="vc-tilde">~</span><span class="vc-part-disclosure">Disclosure</span><span class="vc-tilde">~</span>…<span class="vc-tilde">~</span>
       &mdash; the trailing <span class="vc-tilde">~</span> is required when no Key Binding JWT is present.</p>
+    <p class="vc-note" id="vc_batch_row" style="display: none;">
+      <label for="vc_credential_select">This request bound several keys, so the issuer returned several
+      credentials &mdash; one per proof (OID4VCI section 8.3). Inspect: </label>
+      <select id="vc_credential_select" name="vc_credential_select" onchange="return sdjwtvc3.onCredentialChange();"></select>
+      <span id="vc_batch_summary">&nbsp;</span>
+    </p>
     <div class="vc-serialized" id="vc_serialized">&nbsp;</div>
     <p>
       <input class="btn2" id="vc_copy_button" type="button" value="Copy Credential" onclick="return sdjwtvc3.copyCredential();" />
       <input class="btn2" id="vc_verify_button" type="button" value="Verify Again" onclick="return sdjwtvc3.verify();" />
+      <input class="btn2" id="vc_goto_refresh_button" type="button" value="Refresh this Credential" onclick="return sdjwtvc3.gotoRefresh();" />
       <input class="btn2" id="vc_restart_button" type="button" value="Start Over" onclick="return sdjwtvc3.startOver();" />
       <span class="vc-status" id="vc_copy_status">&nbsp;</span>
     </p>
+    <p class="vc-note">A credential's claim values and its validity window both go stale.
+      <a href="/sd-jwt-vc-issuance-4.html">Step 4</a> refreshes it the way OID4VCI section 14.5 describes &mdash;
+      a Refresh Token for a fresh Access Token, then this issuer's Credential Endpoint again &mdash; with no
+      End-User interaction at all.</p>
     <textarea class="vc-token" rows="4" readonly id="vc_credential_raw"></textarea>
   </fieldset>
 </div>
@@ -136,6 +147,59 @@ function vcSetAllPanes(expand) {
     <code>_sd_alg</code>) removed. Presenting fewer Disclosures yields a smaller claim set &mdash; that is the point of
     selective disclosure.</p>
     <pre class="vc-json" id="vc_claims">&nbsp;</pre>
+  </fieldset>
+</div>
+
+<!-- ====== Telling the issuer what happened (section 11) ====== -->
+<div class="step0 dbg-pane" id="pane_notification">
+  <legend class="dbg-legend" id="notification_expand_button" onclick="return sdjwtvc3.togglePane('notification_fieldset');">Notify the Issuer</legend>
+  <fieldset name="notification_fieldset" id="notification_fieldset" style="display: block;">
+    <p class="vc-note">The Credential Response carried a <code>notification_id</code>, which is the issuer asking
+    to be told what became of the credential (OID4VCI section 11). It is <strong>optional for the wallet</strong> —
+    an issuer cannot assume a notification will arrive — but it is how an issuer learns that a credential it minted
+    was actually accepted, or was rejected, or has since been deleted. The access token from the issuance authorizes
+    the call.</p>
+    <table class="vc-token-table">
+      <tbody>
+        <tr>
+          <td><div class="tooltip"><label>notification_id</label><span class="tooltiptext">From the Credential Response. The issuer issues one per response, and it identifies the credential being reported on.</span></div></td>
+          <td><code id="vc_notification_id">&mdash;</code></td>
+        </tr>
+        <tr>
+          <td><div class="tooltip"><label>Endpoint</label><span class="tooltiptext">notification_endpoint from the credential issuer metadata. An issuer that does not want notifications does not publish one.</span></div></td>
+          <td><code id="vc_notification_endpoint">&mdash;</code></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label for="vc_notification_event">Event</label>
+              <span class="tooltiptext">The three events the spec defines: credential_accepted (stored successfully), credential_failure (something went wrong), credential_deleted (the End-User removed it).</span>
+            </div>
+          </td>
+          <td>
+            <select id="vc_notification_event" name="vc_notification_event" onchange="return sdjwtvc3.renderNotification();">
+              <option value="credential_accepted" selected="selected">credential_accepted</option>
+              <option value="credential_failure">credential_failure</option>
+              <option value="credential_deleted">credential_deleted</option>
+            </select>
+            <input type="text" id="vc_notification_description" name="vc_notification_description" size="34"
+                   placeholder="event_description (optional)" oninput="return sdjwtvc3.renderNotification();" />
+          </td>
+        </tr>
+        <tr>
+          <td><div class="tooltip"><label>The call</label><span class="tooltiptext">The Notification Request exactly as it will be sent.</span></div></td>
+          <td><textarea class="vc-token" rows="8" readonly id="vc_notification_request"></textarea></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip">
+              <input class="btn2" id="vc_notification_button" type="button" value="Send the Notification" onclick="return sdjwtvc3.sendNotification();" />
+              <span class="tooltiptext">POST it. A successful notification is answered with 204 and no body.</span>
+            </div>
+          </td>
+          <td><div class="vc-status" id="vc_notification_status">&nbsp;</div></td>
+        </tr>
+      </tbody>
+    </table>
   </fieldset>
 </div>
 

@@ -294,6 +294,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
       localStorage.setItem("token_access_token", data.access_token);
       localStorage.setItem("token_refresh_token", data.refresh_token);
       localStorage.setItem("token_id_token", data.id_token);
+      rememberAuthorizationDetails(data);
       saveTokenSetToHistory(data.access_token, data.refresh_token, data.id_token, 'token');
     } else {
       log.debug("Displaying Access Token. No OIDC ID Token: data.access_token=" + data.access_token);
@@ -334,6 +335,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                     "</div>";
       localStorage.setItem("token_access_token", data.access_token);
       localStorage.setItem("token_refresh_token", data.refresh_token);
+      rememberAuthorizationDetails(data);
       saveTokenSetToHistory(data.access_token, data.refresh_token, null, 'token');
     }
     //$("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
@@ -2097,6 +2099,32 @@ function extractSid(access_token) {
     if (payload && payload.sid) return payload.sid;
   }
   return null;
+}
+
+// RFC 9396 / OID4VCI section 6.2: when the authorization was expressed as
+// authorization_details rather than a scope, the token response says which
+// Credential Datasets were granted. The SD-JWT VC workflow has to send one of
+// those credential_identifiers in its Credential Request — and MUST NOT send a
+// credential_configuration_id then — so what came back is kept for it. Nothing
+// else on this page uses it, and a response without it clears the key rather
+// than leaving a stale grant behind.
+function rememberAuthorizationDetails(data) {
+  log.debug("Entering rememberAuthorizationDetails().");
+  var details = data && data.authorization_details;
+  try {
+    if (details) {
+      localStorage.setItem("token_authorization_details", JSON.stringify(details));
+      log.debug("The token response granted authorization_details.");
+    } else {
+      localStorage.removeItem("token_authorization_details");
+    }
+  } catch (e) {
+    // No storage, or over quota: the workflow falls back to naming the
+    // credential by its configuration id, which is what an authorization
+    // without authorization_details would have needed anyway.
+    log.debug("rememberAuthorizationDetails(): " + e.message);
+  }
+  log.debug("Leaving rememberAuthorizationDetails().");
 }
 
 function saveTokenSetToHistory(access_token, refresh_token, id_token, source) {

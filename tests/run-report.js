@@ -307,6 +307,16 @@ function buildJobs() {
     });
   }
 
+  // The shared in-browser JWE implementation, tested directly: every alg/enc
+  // pair round-trips, and the Concat KDF is checked against an implementation
+  // written from RFC 7518 section 4.6 that shares no code with it. Needs no
+  // services — node's Web Crypto is enough — so it is never skipped.
+  jobs.push({
+    name: "JOSE JWE module (RFC 7516/7518: RSA-OAEP, ECDH-ES, Concat KDF)",
+    script: "jose_jwe.js",
+    env: {},
+  });
+
   // The SD-JWT VC issuance workflow (OID4VCI + RFC 9901): the mock Credential
   // Issuer the STS service hosts, the three sd-jwt-vc-issuance pages, and the
   // ?sdjwtvc=1 hand-off through debugger.html / debugger2.html. Needs both the

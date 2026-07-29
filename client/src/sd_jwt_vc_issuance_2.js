@@ -24,21 +24,33 @@ var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var metadataClient = require("./metadata_client");
 var sdJwtVc = require("./sd_jwt_vc");
+// The wallet-side mechanics of a Credential Request — keys, nonce, proof, body,
+// and reading the response — shared with step 4, which makes the same call to
+// refresh the credential (OID4VCI section 14.5).
+var vciWallet = require("./vci_wallet");
 
 var log = bunyan.createLogger({ name: 'sd_jwt_vc_issuance_2',
                                 level: appconfig.LOG_LEVEL || 'info' });
-
-var PROOF_TYP = "openid4vci-proof+jwt";
-var PROOF_ALG = "ES256";
 
 // The request as it currently stands: what step 1 configured, plus what this
 // page generates.
 var request = {
   config: null,
+  // The first holder key, kept under the same names as before: it is the one the
+  // page displays and the one a single-credential request binds to.
   holderPublicJwk: null,
   holderPrivateJwk: null,
+  // Every key this request binds to, in order — one per proof, one credential
+  // per proof (OID4VCI section 8.3). With a batch size of one this is just the
+  // holder key above.
+  holderKeys: [],
   nonce: "",
   proof: "",
+  proofs: [],
+  // { publicJwk, privateKey, enc } when the wallet asked for an encrypted
+  // response. The private half is a non-extractable Web Crypto key: it stays in
+  // the browser and is used only to unwrap the content key.
+  encryption: null,
   body: null
 };
 
@@ -62,23 +74,13 @@ function status(id, text, cls) {
 function generateHolderKey() {
   log.debug("Entering generateHolderKey().");
   log.debug("Leaving generateHolderKey().");
-  return crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"])
+  return vciWallet.generateHolderKeyPair()
     .then(function (pair) {
-      return Promise.all([
-        crypto.subtle.exportKey("jwk", pair.publicKey),
-        crypto.subtle.exportKey("jwk", pair.privateKey)
-      ]);
-    })
-    .then(function (jwks) {
-      // Only the members that identify the key: a stray key_ops/ext/alg makes a
-      // strict JWK consumer unhappy, and the issuer echoes this object straight
-      // into the credential's cnf claim.
-      var pub = { kty: jwks[0].kty, crv: jwks[0].crv, x: jwks[0].x, y: jwks[0].y };
-      request.holderPublicJwk = pub;
-      request.holderPrivateJwk = jwks[1];
-      sdJwtVc.setJson(sdJwtVc.KEYS.HOLDER_JWK, pub);
-      sdJwtVc.setJson(sdJwtVc.KEYS.HOLDER_PRIVATE_JWK, jwks[1]);
-      return pub;
+      request.holderPublicJwk = pair.publicJwk;
+      request.holderPrivateJwk = pair.privateJwk;
+      sdJwtVc.setJson(sdJwtVc.KEYS.HOLDER_JWK, pair.publicJwk);
+      sdJwtVc.setJson(sdJwtVc.KEYS.HOLDER_PRIVATE_JWK, pair.privateJwk);
+      return pair.publicJwk;
     });
 }
 
@@ -99,6 +101,8 @@ function regenerateHolderKey() {
     setJson("vc_holder_jwk", pub);
     // A new key invalidates the proof built for the old one, so build another.
     request.proof = "";
+    request.proofs = [];
+    request.holderKeys = [];
     setValue("vc_proof_jwt", "");
     renderProofJwt(null);
     setJson("vc_request_body", null);
@@ -116,29 +120,36 @@ function regenerateHolderKey() {
   return false;
 }
 
+// Extra holder keys for a batch request. The first is the stored holder key, so
+// what the page shows stays the key the first credential is bound to; the rest
+// live for this request only, which is the honest lifetime — a wallet asking for
+// several bindings has several keys.
+function holderKeysFor(count) {
+  return vciWallet.holderKeysFor(
+    { publicJwk: request.holderPublicJwk, privateJwk: request.holderPrivateJwk }, count);
+}
+
 // --- the proof of possession ------------------------------------------------
+// One proof per key. Every proof carries the same c_nonce — it is the ISSUER's
+// nonce for this request, not a per-key value — and each names its own key in
+// the header, which is what the issuer binds that credential to.
 function signProof(nonce) {
   log.debug("Entering signProof().");
-  var header = { typ: PROOF_TYP, alg: PROOF_ALG, jwk: request.holderPublicJwk };
-  var payload = {
-    iss: sdJwtVc.get("client_id") || "",
-    aud: request.config.credentialIssuer,
-    iat: Math.floor(Date.now() / 1000)
-  };
-  if (nonce) payload.nonce = nonce;
-  var signingInput = metadataClient.utf8ToB64u(JSON.stringify(header)) + "." +
-                     metadataClient.utf8ToB64u(JSON.stringify(payload));
-  log.debug("Leaving signProof().");
-  return crypto.subtle.importKey("jwk", request.holderPrivateJwk,
-      { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"])
-    .then(function (key) {
-      return crypto.subtle.sign({ name: "ECDSA", hash: { name: "SHA-256" } }, key,
-        new TextEncoder().encode(signingInput));
+  var wanted = Math.min(requestedBatchSize(), issuerBatchSize());
+  log.debug("Leaving signProof(). Signing " + wanted + " proof(s).");
+  return holderKeysFor(wanted)
+    .then(function (keys) {
+      request.holderKeys = keys;
+      return vciWallet.signProofs(keys, {
+        clientId: sdJwtVc.get("client_id") || "",
+        credentialIssuer: request.config.credentialIssuer,
+        nonce: nonce
+      });
     })
-    .then(function (sig) {
-      // Web Crypto returns the raw r||s pair, which is exactly the JWS ES256
-      // signature encoding.
-      request.proof = signingInput + "." + metadataClient.bytesToB64u(sig);
+    .then(function (proofs) {
+      request.proofs = proofs;
+      // The first one is "the" proof the page displays, as it always was.
+      request.proof = proofs[0];
       setValue("vc_proof_jwt", request.proof);
       return request.proof;
     });
@@ -146,22 +157,16 @@ function signProof(nonce) {
 
 function fetchNonce() {
   log.debug("Entering fetchNonce().");
-  var url = request.config.nonceEndpoint;
-  if (!url) {
-    // The Nonce Endpoint is optional. Without one there is no c_nonce to carry.
-    request.nonce = "";
-    setText("vc_nonce", "— (this issuer publishes no nonce_endpoint)");
-    return Promise.resolve("");
-  }
   log.debug("Leaving fetchNonce().");
-  return fetch(url, { method: "POST", headers: { "Content-Length": "0" } })
-    .then(function (r) {
-      if (!r.ok) throw new Error("the nonce endpoint returned HTTP " + r.status + ".");
-      return r.json();
-    })
-    .then(function (body) {
-      request.nonce = body.c_nonce || "";
-      setText("vc_nonce", request.nonce || "— (the nonce endpoint returned no c_nonce)");
+  return vciWallet.fetchNonce(request.config.nonceEndpoint)
+    .then(function (result) {
+      request.nonce = result.nonce;
+      if (!result.published) {
+        // The Nonce Endpoint is optional. Without one there is no c_nonce to carry.
+        setText("vc_nonce", "— (this issuer publishes no nonce_endpoint)");
+      } else {
+        setText("vc_nonce", request.nonce || "— (the nonce endpoint returned no c_nonce)");
+      }
       return request.nonce;
     })
     .catch(function (e) {
@@ -194,7 +199,14 @@ function prepareRequest() {
     return Promise.resolve(false);
   }
   log.debug("Leaving prepareRequest().");
-  return fetchNonce()
+  var wantsEncryption = !!(el("vc_encrypt_response") && el("vc_encrypt_response").checked) ||
+                        !!((issuerEncryption() || {}).encryption_required);
+  var encryptionReady = wantsEncryption
+    ? vciWallet.generateResponseEncryptionKey(chosenEnc())
+        .then(function (material) { request.encryption = material; })
+    : Promise.resolve().then(function () { request.encryption = null; });
+  return encryptionReady
+    .then(fetchNonce)
     .then(function (nonce) { return signProof(nonce); })
     .then(function () {
       buildRequestBody();
@@ -209,15 +221,123 @@ function prepareRequest() {
     });
 }
 
+// Which Credential Dataset identifiers the token response granted, if the
+// authorization used authorization_details (OID4VCI section 6.2). Stored by
+// debugger2.html when it exchanged the code.
+function grantedIdentifiers() {
+  log.debug("Entering grantedIdentifiers().");
+  var details = sdJwtVc.getJson("token_authorization_details");
+  var out = [];
+  if (Object.prototype.toString.call(details) === "[object Array]") {
+    details.forEach(function (d) {
+      (((d || {}).credential_identifiers) || []).forEach(function (id) { out.push(id); });
+    });
+  }
+  log.debug("Leaving grantedIdentifiers(). " + out.length + " granted.");
+  return out;
+}
+
 function buildRequestBody() {
-  var body = { credential_configuration_id: request.config.credentialConfigurationId };
-  // OID4VCI 1.0: proofs is an object keyed by proof type, each an array.
-  body.proofs = { jwt: [request.proof] };
+  log.debug("Entering buildRequestBody().");
+  // Section 8.2: exactly one of credential_identifier / credential_configuration_id
+  // names the credential, and which one is not a choice — a token response that
+  // granted credential_identifiers requires one of them and forbids the
+  // configuration id.
+  var granted = grantedIdentifiers();
+  var body = vciWallet.buildRequestBody({
+    credentialIdentifier: granted.length ? granted[0] : "",
+    credentialConfigurationId: request.config.credentialConfigurationId,
+    proofs: request.proofs,
+    encryption: request.encryption
+  });
   request.body = body;
   setJson("vc_request_body", body);
   renderProofJwt(body);
   renderAssembledCall();
+  renderRequestOptions();
+  log.debug("Leaving buildRequestBody().");
   return body;
+}
+
+// ---------------------------------------------------------------------------
+// The three things the wallet decides about the request, and what each means
+// against THIS issuer's metadata.
+// ---------------------------------------------------------------------------
+function issuerBatchSize() {
+  var advertised = sdJwtVc.getJson("vci_batch_credential_issuance");
+  var size = advertised && Number(advertised.batch_size);
+  return size && size > 0 ? size : 1;
+}
+
+function issuerEncryption() {
+  return sdJwtVc.getJson("vci_credential_response_encryption") || null;
+}
+
+// Which content encryption algorithm to ask for. The strongest of what this
+// issuer offers, rather than whichever it happens to list first.
+function chosenEnc() {
+  var offered = (issuerEncryption() || {}).enc_values_supported || [];
+  if (offered.indexOf("A256GCM") !== -1) return "A256GCM";
+  return offered[0] || "A256GCM";
+}
+
+function requestedBatchSize() {
+  var wanted = parseInt((el("vc_batch_size") && el("vc_batch_size").value) || "1", 10);
+  if (!wanted || wanted < 1) wanted = 1;
+  return wanted;
+}
+
+function renderRequestOptions() {
+  log.debug("Entering renderRequestOptions().");
+  var granted = grantedIdentifiers();
+  setText("vc_identifier_mode", granted.length
+    ? "credential_identifier = " + granted[0] +
+      " (the token response granted it, so credential_configuration_id must not be sent)"
+    : "credential_configuration_id = " + (request.config.credentialConfigurationId || "—") +
+      " (the authorization used a scope, so no credential_identifiers were granted)");
+
+  var batchSize = issuerBatchSize();
+  var input = el("vc_batch_size");
+  if (input) {
+    input.max = String(batchSize);
+    if (Number(input.value) > batchSize) input.value = String(batchSize);
+    input.disabled = batchSize <= 1;
+  }
+  setText("vc_batch_note", batchSize > 1
+    ? "This issuer accepts up to " + batchSize + " proofs in one request, and returns one credential per proof."
+    : "This issuer does not advertise batch_credential_issuance, so one credential per request.");
+
+  var encryption = issuerEncryption();
+  var box = el("vc_encrypt_response");
+  if (box) box.disabled = !encryption;
+  if (!encryption) {
+    if (box) box.checked = false;
+    setText("vc_encrypt_note",
+      "This issuer does not advertise credential_response_encryption, so the response comes back as JSON.");
+  } else {
+    var algs = (encryption.alg_values_supported || []).join(", ");
+    var encs = (encryption.enc_values_supported || []).join(", ");
+    setText("vc_encrypt_note",
+      "This issuer supports alg " + (algs || "—") + " and enc " + (encs || "—") +
+      (encryption.encryption_required ? " and REQUIRES encryption." : ". Encryption is optional.") +
+      " This wallet implements RSA-OAEP-256.");
+  }
+  log.debug("Leaving renderRequestOptions().");
+}
+
+// A change to any of them invalidates the assembled request, so it is rebuilt —
+// new keys, new proofs, new body.
+function onRequestOptionsChange() {
+  log.debug("Entering onRequestOptionsChange().");
+  status("vc_approval_status", "Rebuilding the request …", "vc-pending");
+  prepareRequest().then(function (ready) {
+    if (ready) {
+      status("vc_approval_status",
+        "Ready: the request below is what Approve will send.", "vc-ok");
+    }
+  });
+  log.debug("Leaving onRequestOptionsChange().");
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -260,16 +380,13 @@ function renderAssembledCall() {
     return "";
   }
   var accessToken = sdJwtVc.get("token_access_token") || "";
-  var body = JSON.stringify(request.body, null, 2);
-  var lines = [
-    "POST " + endpoint,
-    "Content-Type: application/json",
-    "Authorization: Bearer " + (accessToken || "(no access token yet — authenticate in step 1)"),
-    "Content-Length: " + body.length,
-    "",
-    body
-  ];
-  var text = lines.join("\n");
+  var text = vciWallet.describeCall({
+    method: "POST",
+    url: endpoint,
+    contentType: "application/json",
+    authorization: "Bearer " + (accessToken || "(no access token yet — authenticate in step 1)"),
+    body: JSON.stringify(request.body, null, 2)
+  });
   setValue("vc_approval_request", text);
   log.debug("Leaving renderAssembledCall().");
   return text;
@@ -311,14 +428,6 @@ function tokenRequestBody() {
   return params;
 }
 
-function encodeForm(params) {
-  var out = [];
-  Object.keys(params).forEach(function (k) {
-    out.push(encodeURIComponent(k) + "=" + encodeURIComponent(params[k]));
-  });
-  return out.join("&");
-}
-
 function renderTokenRequest() {
   log.debug("Entering renderTokenRequest().");
   var params = tokenRequestBody();
@@ -328,14 +437,12 @@ function renderTokenRequest() {
     log.debug("Leaving renderTokenRequest(). Nothing to render.");
     return "";
   }
-  var body = encodeForm(params);
-  var text = [
-    "POST " + (endpoint || "(no token_endpoint is configured — retrieve the metadata in step 1)"),
-    "Content-Type: application/x-www-form-urlencoded",
-    "Content-Length: " + body.length,
-    "",
-    body
-  ].join("\n");
+  var text = vciWallet.describeCall({
+    method: "POST",
+    url: endpoint || "(no token_endpoint is configured — retrieve the metadata in step 1)",
+    contentType: "application/x-www-form-urlencoded",
+    body: vciWallet.encodeForm(params)
+  });
   setValue("vc_token_request", text);
   log.debug("Leaving renderTokenRequest().");
   return text;
@@ -405,7 +512,7 @@ function sendTokenRequest() {
   fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: encodeForm(params)
+    body: vciWallet.encodeForm(params)
   })
     .then(function (r) {
       return r.text().then(function (text) {
@@ -481,13 +588,7 @@ function approveIssuance() {
       body: JSON.stringify(request.body || buildRequestBody())
     }).then(function (r) {
       return r.text().then(function (text) {
-        var parsed = null;
-        try {
-          parsed = JSON.parse(text);
-        } catch (e) {
-          // Not JSON: keep the default.
-        }
-        return { ok: r.ok, statusCode: r.status, body: parsed, raw: text };
+        return readCredentialResponse(r, text);
       });
     });
   };
@@ -548,6 +649,10 @@ function approveIssuance() {
 function keepCredential(credential, responseBody, extra) {
   log.debug("Entering keepCredential().");
   sdJwtVc.set(sdJwtVc.KEYS.CREDENTIAL, credential);
+  // A batch request comes back with one credential per proof. Step 3 shows them
+  // all rather than silently dropping the rest.
+  var all = allCredentials(responseBody);
+  sdJwtVc.setJson(sdJwtVc.KEYS.CREDENTIALS, all);
   var meta = {
     issuer: request.config.credentialIssuer,
     endpoint: request.config.credentialEndpoint,
@@ -557,10 +662,28 @@ function keepCredential(credential, responseBody, extra) {
     requestedAt: new Date().toISOString(),
     notificationId: (responseBody && responseBody.notification_id) || "",
     request: request.body,
-    holderJwk: request.holderPublicJwk
+    holderJwk: request.holderPublicJwk,
+    // One entry per credential, in the order the proofs were sent, so step 3 can
+    // say which key each credential is bound to.
+    holderJwks: (request.holderKeys || []).map(function (k) { return k.publicJwk; }),
+    credentialCount: all.length,
+    encrypted: !!request.encryption,
+    notificationEndpoint: request.config.notificationEndpoint || ""
   };
   Object.keys(extra || {}).forEach(function (k) { meta[k] = extra[k]; });
   sdJwtVc.setJson(sdJwtVc.KEYS.CREDENTIAL_META, meta);
+  // The first generation of this credential. Step 4 records every refresh that
+  // replaces it, so the history it navigates starts here — with the holder key,
+  // because going back to a generation whose key is gone would give the wallet a
+  // credential it cannot present.
+  sdJwtVc.recordCredentialGeneration({
+    source: meta.deferred ? "issued (deferred)" : "issued",
+    credential: credential,
+    credentials: all,
+    meta: meta,
+    holderJwk: request.holderPublicJwk,
+    holderPrivateJwk: request.holderPrivateJwk
+  });
   log.debug("Leaving keepCredential().");
 }
 
@@ -589,16 +712,14 @@ function deferredEndpoint() {
 function renderDeferredRequest() {
   log.debug("Entering renderDeferredRequest().");
   var endpoint = deferredEndpoint();
-  var body = JSON.stringify({ transaction_id: deferred.transactionId }, null, 2);
   var accessToken = sdJwtVc.get("token_access_token") || "";
-  setValue("vc_deferred_request", [
-    "POST " + (endpoint || "(this issuer publishes no deferred_credential_endpoint)"),
-    "Content-Type: application/json",
-    "Authorization: Bearer " + (accessToken || "(no access token)"),
-    "Content-Length: " + body.length,
-    "",
-    body
-  ].join("\n"));
+  setValue("vc_deferred_request", vciWallet.describeCall({
+    method: "POST",
+    url: endpoint || "(this issuer publishes no deferred_credential_endpoint)",
+    contentType: "application/json",
+    authorization: "Bearer " + (accessToken || "(no access token)"),
+    body: JSON.stringify({ transaction_id: deferred.transactionId }, null, 2)
+  }));
   log.debug("Leaving renderDeferredRequest().");
 }
 
@@ -675,13 +796,7 @@ function pollDeferred() {
   })
     .then(function (r) {
       return r.text().then(function (text) {
-        var parsed = null;
-        try {
-          parsed = JSON.parse(text);
-        } catch (e) {
-          // Not JSON: the raw text is recorded instead.
-        }
-        return { ok: r.ok, statusCode: r.status, body: parsed, raw: text };
+        return readCredentialResponse(r, text);
       });
     })
     .then(function (response) {
@@ -746,20 +861,18 @@ function pollDeferred() {
   return false;
 }
 
-// OID4VCI 1.0 returns credentials: [{credential: "..."}]. Earlier drafts
-// returned a bare `credential` string, and some implementations put plain
-// strings in the array — accept all three.
-function extractCredential(body) {
-  if (!body) return "";
-  if (typeof body.credential === "string") return body.credential;
-  var list = body.credentials;
-  if (Object.prototype.toString.call(list) === "[object Array]" && list.length) {
-    var first = list[0];
-    if (typeof first === "string") return first;
-    if (first && typeof first.credential === "string") return first.credential;
-  }
-  return "";
+// ---------------------------------------------------------------------------
+// Reading a Credential Response, encrypted or not (OID4VCI section 10), and
+// finding the credential(s) in it. Both live in vci_wallet.js, because step 4
+// reads exactly the same response when it refreshes the credential.
+// ---------------------------------------------------------------------------
+function readCredentialResponse(r, text) {
+  return vciWallet.readCredentialResponse(r, text, request.encryption);
 }
+
+function allCredentials(body) { return vciWallet.allCredentials(body); }
+
+function extractCredential(body) { return vciWallet.extractCredential(body); }
 
 function denyIssuance() {
   sdJwtVc.endFlow();
@@ -891,5 +1004,8 @@ module.exports = {
   regenerateHolderKey: regenerateHolderKey,
   togglePane: togglePane,
   extractCredential: extractCredential,
+  allCredentials: allCredentials,
+  onRequestOptionsChange: onRequestOptionsChange,
+  renderRequestOptions: renderRequestOptions,
   onload: onload
 };

@@ -77,6 +77,7 @@ var ENDPOINT_FIELDS = [
 
 function el(id) { return document.getElementById(id); }
 function val(id) { var e = el(id); return e ? e.value : ""; }
+function setText(id, t) { var e = el(id); if (e) e.textContent = (t == null ? "" : String(t)); }
 function setVal(id, v) { var e = el(id); if (e) e.value = (v == null ? "" : v); }
 function status(id, text, cls) {
   var e = el(id);
@@ -554,6 +555,72 @@ function updateHandoffSummary() {
       ? cfg.credentialConfigurationId + " (" + (cfg.format || "?") + ", vct " + (cfg.vct || "?") + ")"
       : "—";
   }
+  // The note depends on the credential chosen and on what the authorization
+  // server advertises, so it is refreshed whenever this summary is.
+  describeMechanism();
+}
+
+// ---------------------------------------------------------------------------
+// How the authorization request says which credential is wanted (OID4VCI
+// section 3.3.4). Either a scope, or RFC 9396 authorization_details of type
+// openid_credential — and the choice has consequences all the way to step 2,
+// because a token response that granted credential_identifiers requires the
+// Credential Request to name one of THEM and forbids credential_configuration_id.
+// ---------------------------------------------------------------------------
+var MECHANISM_KEY = "sdjwtvc_request_mechanism";
+
+function requestMechanism() {
+  var chosen = val("handoff_request_mechanism") || sdJwtVc.get(MECHANISM_KEY) || "scope";
+  return chosen === "authorization_details" ? "authorization_details" : "scope";
+}
+
+// What the authorization request will carry, or "" for the scope route.
+function authorizationDetailsForRequest() {
+  log.debug("Entering authorizationDetailsForRequest().");
+  if (requestMechanism() !== "authorization_details") {
+    log.debug("Leaving authorizationDetailsForRequest(). Using a scope.");
+    return "";
+  }
+  var configId = val(vciMetadata.idFor("credential_configuration_id"));
+  if (!configId) {
+    log.debug("Leaving authorizationDetailsForRequest(). No credential configuration is selected.");
+    return "";
+  }
+  var details = [{ type: "openid_credential", credential_configuration_id: configId }];
+  log.debug("Leaving authorizationDetailsForRequest(). " + JSON.stringify(details));
+  return JSON.stringify(details);
+}
+
+function describeMechanism() {
+  log.debug("Entering describeMechanism().");
+  var mechanism = requestMechanism();
+  var supported = (asInfo && asInfo.authorization_details_types_supported) || null;
+  var note;
+  if (mechanism === "authorization_details") {
+    note = "The authorization request will carry " + authorizationDetailsForRequest() + ".";
+    if (supported && supported.indexOf("openid_credential") === -1) {
+      note += " This authorization server advertises authorization_details types " + supported.join(", ") +
+              " — not openid_credential — so it may refuse the request.";
+    } else if (!supported) {
+      note += " This authorization server does not advertise authorization_details_types_supported, so " +
+              "whether it understands them is unknown until the request is made.";
+    }
+  } else {
+    note = "The authorization request will ask with scope=" + (val("scope") || "(empty)") +
+           ", and step 2 will name the credential by its configuration id.";
+    if (supported && supported.indexOf("openid_credential") !== -1) {
+      note += " This server also supports authorization_details of type openid_credential.";
+    }
+  }
+  setText("handoff_mechanism_note", note);
+  log.debug("Leaving describeMechanism().");
+  return note;
+}
+
+function onRequestMechanismChange() {
+  sdJwtVc.set(MECHANISM_KEY, requestMechanism());
+  describeMechanism();
+  return true;
 }
 
 function startIssuance() {
@@ -601,6 +668,11 @@ function startIssuance() {
   // debugger.html runs whichever grant its select says; this workflow needs the
   // OIDC Authorization Code flow.
   sdJwtVc.set("authorization_grant_type", "oidc_authorization_code_flow");
+  // Which of the two ways of naming the credential the authorization request
+  // uses. debugger.html reads this; step 2 reads what the token response then
+  // granted, and neither has to know how the choice was made.
+  sdJwtVc.set(MECHANISM_KEY, requestMechanism());
+  sdJwtVc.set("sdjwtvc_authorization_details", authorizationDetailsForRequest());
   // An authorization_code offer carries an issuer_state, and the authorization
   // request has to send it back — that is what ties the request to the offer.
   var issuerState = sdJwtVc.offerIssuerState();
@@ -903,6 +975,12 @@ function onload() {
   log.debug("Entering onload().");
   buildConfigRows();
   loadConfiguration();
+  // The way of asking for the credential survives a reload like everything else
+  // on this page.
+  var storedMechanism = sdJwtVc.get(MECHANISM_KEY);
+  if (storedMechanism && el("handoff_request_mechanism")) {
+    el("handoff_request_mechanism").value = storedMechanism;
+  }
 
   // The metadata URLs.
   var storedVciUrl = sdJwtVc.get(VCI_URL_KEY);
@@ -962,6 +1040,9 @@ module.exports = {
   populateFromAs: populateFromAs,
   validateAsSignature: validateAsSignature,
   saveConfiguration: saveConfiguration,
+  onRequestMechanismChange: onRequestMechanismChange,
+  describeMechanism: describeMechanism,
+  authorizationDetailsForRequest: authorizationDetailsForRequest,
   clearConfiguration: clearConfiguration,
   restoreDefaults: restoreDefaults,
   startIssuance: startIssuance,

@@ -780,6 +780,15 @@ function recalculateAuthorizationRequestDescription()
            $("#display_authz_request_form_textarea1").val() + "&\n" +
            "issuer_state=" + encodeURIComponent(sdJwtVcIssuerState));
        }
+       // And OID4VCI's other way of saying which credential is wanted: RFC 9396
+       // authorization_details of type openid_credential, instead of relying on
+       // the scope. The workflow decides which; this page only carries it.
+       var sdJwtVcAuthzDetails = sdJwtVc.get("sdjwtvc_authorization_details");
+       if (sdJwtVcAuthzDetails) {
+         $("#display_authz_request_form_textarea1").val(
+           $("#display_authz_request_form_textarea1").val() + "&\n" +
+           "authorization_details=" + encodeURIComponent(sdJwtVcAuthzDetails));
+       }
     } else if (	grant_type == "token" || 
 		grant_type == "id_token token" || 
 		grant_type == "id_token") {
@@ -1080,6 +1089,13 @@ function maybeStartSdJwtVcFlow() {
     log.debug("SD-JWT VC issuance: adding issuer_state to the authorization request.");
     $("#sdjwtvc_banner").append(
       "<p>The Credential Offer's <code>issuer_state</code> is being sent with the authorization request.</p>");
+  }
+  var authzDetails = sdJwtVc.get("sdjwtvc_authorization_details");
+  if (authzDetails) {
+    log.debug("SD-JWT VC issuance: adding authorization_details to the authorization request.");
+    $("#sdjwtvc_banner").append(
+      "<p>The credential is being asked for with <code>authorization_details</code> (RFC 9396) rather than a " +
+      "scope, so the token response should grant a <code>credential_identifiers</code> value to name it with.</p>");
   }
 
   // Let the rest of onload() finish laying the page out before navigating.

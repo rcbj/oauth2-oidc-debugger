@@ -29,9 +29,23 @@
 //     against _sd. The credential is independently re-checked here in the test,
 //     so a page that merely CLAIMS the credential is fine cannot pass.
 //
+//   step 4 (sd-jwt-vc-issuance-4.html)
+//     refreshing it (OID4VCI section 14.5): the refresh token is exchanged for a
+//     fresh access token, the Credential Endpoint is asked again, and the two
+//     credentials are compared — here as well as by the page, because what the
+//     issuer changed (the signature only, or the claims too) is the issuer's
+//     choice and a wallet must read it rather than assume it. Keeping the
+//     refreshed credential is a decision the holder makes, so that is checked
+//     too, along with the routes that remain when the refresh token is dead. Its
+//     Credential History pane — debugger2.html's Token History, for credentials —
+//     is navigated backwards and forwards, and activating a generation has to put
+//     that credential AND its holder key back in hand, not merely highlight a row.
+//
 //   negatives
 //     denying issuance sends nothing; a replayed c_nonce and a request with no
-//     access token are both refused by the issuer.
+//     access token are both refused by the issuer; a refresh token the server
+//     rejects, and no refresh token at all, are both reported rather than
+//     offered as a button that cannot work.
 //
 // Needs the mock credential issuer (the STS service) and Keycloak, as the other
 // STS-backed tests do: WSTRUST_STS_URL locates the issuer,
@@ -65,6 +79,12 @@ var asMetadataUrl = realmBase + "/.well-known/oauth-authorization-server";
 // user has the same name and password.
 var clientId = process.env.SD_JWT_VC_CLIENT_ID || "oidc-authorization-code-public";
 
+// The credential configuration this issuer offers, named in requests and in
+// authorization_details.
+var VCI_CONFIG_ID = process.env.OID4VCI_CONFIG_ID || "IdentityCredential";
+// Whoever signs in at the mock authorization server; no password is checked,
+// and the username becomes the identity in the tokens.
+var MOCK_AS_USER = "authz.details.user";
 var EXPECTED_VCT = "urn:idptools:sd-jwt-vc:identity";
 var SD_JWT_VC_TYP = "dc+sd-jwt";
 // OID4VCI's pre-authorized code grant, used by the cross-device use cases.
@@ -629,6 +649,484 @@ async function stepThree(driver, context) {
       "the resulting claim set should include the disclosed claim " + name + ".");
   });
   log.info("[step3] OK — the resulting claim set matches the disclosures.");
+}
+
+// ---------------------------------------------------------------------------
+// Step 4 — refreshing the credential (OID4VCI section 14.5)
+//
+// Two calls: the Refresh Token for a fresh Access Token (RFC 6749 section 6),
+// then the Credential Endpoint again. Neither involves the End-User, which is
+// the whole point of the mechanism.
+//
+// What is actually being tested is not "a credential came back" — the issuer
+// would return one for any well-formed request — but that the page reports
+// truthfully what the issuer DID: section 14.5 leaves it to the issuer whether
+// the claim values change, the signature changes, or nothing does, and a wallet
+// that guesses instead of comparing is what this catches. The two credentials
+// are therefore compared here as well, independently of the page.
+// ---------------------------------------------------------------------------
+async function stepFour(driver, context) {
+  log.info("=== Step 4: refresh the credential ===");
+
+  // Step 3 has to offer the way in; a page that can be reached only by typing
+  // its URL is not part of the workflow.
+  var before = await driver.executeScript(
+    "return { credential: localStorage.getItem('sdjwtvc_credential')," +
+    "         accessToken: localStorage.getItem('token_access_token')," +
+    "         refreshToken: localStorage.getItem('token_refresh_token')," +
+    "         holderJwk: localStorage.getItem('sdjwtvc_holder_jwk') };");
+  assert.ok(before.refreshToken,
+    "the OIDC leg should have obtained a refresh token; without one there is nothing to refresh with.");
+  await click(driver, By.id("vc_goto_refresh_button"));
+  await driver.wait(until.urlContains("sd-jwt-vc-issuance-4.html"), waitTime,
+    "step 3 should offer a way to step 4.");
+  await driver.wait(until.elementLocated(By.id("vc_refresh_request")), waitTime);
+  await driver.wait(async function () {
+    return !!(await value(driver, "vc_reissue_proof"));
+  }, fetchWait, "step 4 should build the Credential Request on load, the way step 2 does.");
+
+  // ---- the credential in hand ---------------------------------------------
+  var held = await driver.executeScript(
+    "return { validity: document.getElementById('vc_current_validity').textContent.trim()," +
+    "         binding: document.getElementById('vc_current_binding').textContent.trim()," +
+    "         status: document.getElementById('vc_current_status').textContent.trim() };");
+  assert.ok(/exp /.test(held.validity) && /expires|EXPIRED|does not expire/.test(held.validity),
+    "the pane should say when the credential in hand expires. Got: " + held.validity);
+  assert.ok(/the holder key this browser generated/.test(held.binding),
+    "and that its private key is here, since a refresh in place needs it. Got: " + held.binding);
+  log.info("[step4] holding: " + held.validity);
+
+  // ---- the refresh call, before it is sent --------------------------------
+  var refreshCall = await value(driver, "vc_refresh_request");
+  var tokenEndpoint = await driver.executeScript("return localStorage.getItem('token_endpoint');");
+  assert.strictEqual(refreshCall.split("\n")[0], "POST " + tokenEndpoint,
+    "the first line should be the method and the token endpoint. Got: " + refreshCall.split("\n")[0]);
+  assert.ok(/^Content-Type: application\/x-www-form-urlencoded$/m.test(refreshCall),
+    "a Token Request is form-encoded. Got: " + refreshCall);
+  var refreshBody = new URLSearchParams(refreshCall.slice(refreshCall.indexOf("\n\n") + 2));
+  assert.strictEqual(refreshBody.get("grant_type"), "refresh_token",
+    "the grant must be refresh_token. Got: " + refreshBody.get("grant_type"));
+  assert.strictEqual(refreshBody.get("refresh_token"), before.refreshToken,
+    "the refresh token in the call should be the one the OIDC leg obtained.");
+  assert.strictEqual(refreshBody.get("client_id"), clientId,
+    "a public client identifies itself on the refresh. Got: " + refreshBody.get("client_id"));
+  assert.strictEqual(refreshBody.get("client_secret"), null,
+    "no client_secret is configured, so none should be invented.");
+  log.info("[step4] the refresh call is assembled: " + refreshCall.split("\n")[0] +
+           " with " + Array.from(refreshBody.keys()).join(", "));
+
+  // ---- the Credential Request, before it is sent ---------------------------
+  var reissue = await driver.executeScript(
+    "return { nonce: document.getElementById('vc_reissue_nonce').textContent.trim()," +
+    "         proof: document.getElementById('vc_reissue_proof').value," +
+    "         body: document.getElementById('vc_reissue_body').textContent.trim()," +
+    "         call: document.getElementById('vc_reissue_request').value };");
+  var proofHeader = jsonFromB64u(reissue.proof.split(".")[0]);
+  var proofClaims = jsonFromB64u(reissue.proof.split(".")[1]);
+  assert.strictEqual(proofHeader.typ, "openid4vci-proof+jwt", "the proof carries the OID4VCI proof type.");
+  assert.strictEqual(proofHeader.alg, "ES256", "the proof is signed ES256.");
+  assert.deepStrictEqual(proofHeader.jwk, JSON.parse(before.holderJwk),
+    "reusing the bound key means the proof carries the holder key the credential already uses.");
+  assert.strictEqual(proofClaims.nonce, reissue.nonce,
+    "the proof should carry the c_nonce shown above it.");
+  assert.strictEqual(proofClaims.aud, issuerBase, "the proof's audience is the credential issuer.");
+  assert.notStrictEqual(reissue.nonce, "",
+    "a fresh c_nonce is needed: the one step 2 used was spent on the original issuance.");
+  assert.strictEqual(JSON.parse(reissue.body).credential_configuration_id, VCI_CONFIG_ID,
+    "the request names the same credential — a refresh is not a way to ask for a different one.");
+  assert.ok(reissue.call.indexOf("Authorization: Bearer " + before.accessToken) !== -1,
+    "the assembled call should present the access token in hand.");
+  log.info("[step4] the Credential Request is assembled with a fresh c_nonce and a proof for the bound key.");
+
+  // ---- send the refresh ---------------------------------------------------
+  await click(driver, By.id("vc_refresh_button"));
+  var refreshStatus = await waitForStatus(driver, "vc_refresh_status",
+    function (s) { return /fresh access token|refused|failed/.test(s); },
+    "the refresh produced no verdict");
+  assert.ok(/fresh access token/.test(refreshStatus),
+    "the refresh should succeed. Got: " + refreshStatus);
+  var afterRefresh = await driver.executeScript(
+    "return { accessToken: localStorage.getItem('token_access_token')," +
+    "         refreshToken: localStorage.getItem('token_refresh_token') };");
+  assert.notStrictEqual(afterRefresh.accessToken, before.accessToken,
+    "a refresh has to produce a different access token, or nothing was refreshed.");
+  assert.ok(jsonFromB64u(afterRefresh.accessToken.split(".")[1]).iat >=
+            jsonFromB64u(before.accessToken.split(".")[1]).iat,
+    "the new access token should not be older than the one it replaces.");
+  // Whether the refresh token rotates is the server's choice; the page has to
+  // report which happened rather than assume one.
+  var rotated = afterRefresh.refreshToken !== before.refreshToken;
+  assert.ok(rotated ? /rotated/.test(refreshStatus) : /same refresh token/.test(refreshStatus),
+    "the page should say whether the refresh token rotated (it " + (rotated ? "did" : "did not") +
+    "). Got: " + refreshStatus);
+  // And the call being shown must have been updated to the new state.
+  assert.ok((await value(driver, "vc_reissue_request"))
+              .indexOf("Authorization: Bearer " + afterRefresh.accessToken) !== -1,
+    "the Credential Request should now present the refreshed access token.");
+  log.info("[step4] OK — refreshed the access token" + (rotated ? " and the refresh token." : "."));
+
+  // ---- ask the Credential Endpoint again ----------------------------------
+  await click(driver, By.id("vc_reissue_button"));
+  var reissueStatus = await waitForStatus(driver, "vc_reissue_status",
+    function (s) { return /returned a credential|refused|failed|not ready/.test(s); },
+    "the Credential Request produced no verdict");
+  assert.ok(/returned a credential/.test(reissueStatus),
+    "the issuer should return a refreshed credential. Got: " + reissueStatus);
+  // Nothing may have been replaced yet: that decision is the holder's.
+  var stillHeld = await driver.executeScript("return localStorage.getItem('sdjwtvc_credential');");
+  assert.strictEqual(stillHeld, before.credential,
+    "the credential in hand must not be overwritten before the holder chooses (section 14.5).");
+  var refreshed = await value(driver, "vc_compare_refreshed_raw");
+  assert.ok(refreshed && refreshed !== before.credential,
+    "the refreshed credential should be a different credential.");
+
+  // ---- what the page says changed, checked against the credentials ---------
+  var rows = await driver.executeScript(
+    "return Array.prototype.slice.call(document.querySelectorAll('#vc_compare_table tbody tr'))" +
+    "  .map(function (tr) {" +
+    "    var td = tr.querySelectorAll('td');" +
+    "    return { name: td[0].textContent.trim(), before: td[1].textContent.trim()," +
+    "             after: td[2].textContent.trim(), changed: td[3].textContent.trim() };" +
+    "  });");
+  function row(name) { return rows.filter(function (r) { return r.name === name; })[0]; }
+  assert.ok(rows.length >= 8, "the comparison should cover the members that can change, got " + rows.length);
+  assert.strictEqual(row("Issuer signature").changed, "yes",
+    "a reissued credential is signed again, so the signature must be reported as changed.");
+  assert.strictEqual(row("Bound key (cnf.jwk)").changed, "no",
+    "reusing the holder key means the binding must be reported as unchanged.");
+  assert.strictEqual(row("vct").changed, "no", "a refresh returns the same kind of credential.");
+
+  var oldPayload = jsonFromB64u(before.credential.split("~")[0].split(".")[1]);
+  var newPayload = jsonFromB64u(refreshed.split("~")[0].split(".")[1]);
+  assert.notStrictEqual(before.credential.split("~")[0].split(".")[2], refreshed.split("~")[0].split(".")[2],
+    "the two credentials should carry different signatures.");
+  assert.deepStrictEqual(newPayload.cnf, oldPayload.cnf,
+    "the refreshed credential should be bound to the same holder key.");
+  assert.strictEqual(newPayload.vct, oldPayload.vct, "and be the same credential type.");
+  assert.strictEqual(newPayload.sub, oldPayload.sub, "and describe the same subject.");
+
+  // The salts — and therefore every Disclosure — are new whatever else changed,
+  // and the page has to say so rather than reporting them as changed claims.
+  var oldDisclosures = before.credential.split("~").slice(1).filter(Boolean);
+  var newDisclosures = refreshed.split("~").slice(1).filter(Boolean);
+  assert.strictEqual(newDisclosures.length, oldDisclosures.length,
+    "the same claims should be disclosable in the refreshed credential.");
+  newDisclosures.forEach(function (d) {
+    assert.strictEqual(oldDisclosures.indexOf(d), -1,
+      "every Disclosure should be freshly salted, so none should be byte-identical to an old one.");
+  });
+  function claimsOf(parts) {
+    var out = {};
+    parts.forEach(function (enc) {
+      var arr = JSON.parse(b64uDecode(enc).toString("utf8"));
+      if (arr.length === 3) out[arr[1]] = arr[2];
+    });
+    return out;
+  }
+  assert.deepStrictEqual(claimsOf(newDisclosures), claimsOf(oldDisclosures),
+    "this issuer refreshes the signature, not the End-User's data, so the claim VALUES should be identical.");
+  var verdict = await text(driver, "vc_compare_status");
+  assert.ok(/only the signature|claim value\(s\) changed/.test(verdict),
+    "the verdict should say which of section 14.5's two cases this was. Got: " + verdict);
+  assert.ok(/only the signature/.test(verdict),
+    "with identical claim values it is the \"only the signature\" case. Got: " + verdict);
+  var claimDiff = await text(driver, "vc_compare_claims");
+  assert.ok(/Not one disclosed claim VALUE differs/.test(claimDiff),
+    "and the claim comparison should say the values are unchanged rather than listing new salts. Got: " +
+    claimDiff.slice(0, 120));
+  log.info("[step4] verdict: " + verdict);
+
+  // The refreshed credential must verify on its own terms, checked here rather
+  // than taken from the page.
+  var jwtVcIssuer = await httpJson(issuerBase + "/.well-known/jwt-vc-issuer");
+  var jwks = await httpJson(jwtVcIssuer.body.jwks_uri);
+  var key = crypto.createPublicKey({ key: jwks.body.keys[0], format: "jwk" });
+  var signedPart = refreshed.split("~")[0].split(".").slice(0, 2).join(".");
+  assert.ok(crypto.verify("sha256", Buffer.from(signedPart), key,
+                          b64uDecode(refreshed.split("~")[0].split(".")[2])),
+    "the refreshed credential's issuer signature must verify against the issuer's published key.");
+  newDisclosures.forEach(function (enc) {
+    assert.ok(newPayload._sd.indexOf(b64u(crypto.createHash("sha256").update(enc, "ascii").digest())) >= 0,
+      "every Disclosure of the refreshed credential must hash to a digest in its _sd.");
+  });
+  log.info("[step4] OK — the refreshed credential verifies independently of the page.");
+
+  // ---- keep it ------------------------------------------------------------
+  await click(driver, By.id("vc_replace_button"));
+  await driver.wait(until.urlContains("sd-jwt-vc-issuance-3.html"), fetchWait,
+    "keeping the refreshed credential should open step 3 to verify it.");
+  await driver.sleep(900);
+  var promoted = await driver.executeScript(
+    "return { held: localStorage.getItem('sdjwtvc_credential')," +
+    "         previous: localStorage.getItem('sdjwtvc_previous_credential')," +
+    "         pending: localStorage.getItem('sdjwtvc_refreshed_credential')," +
+    "         meta: localStorage.getItem('sdjwtvc_credential_meta') };");
+  assert.strictEqual(promoted.held, refreshed, "the wallet should now hold the refreshed credential.");
+  assert.strictEqual(promoted.previous, before.credential,
+    "the credential it replaced should be kept, or 'what changed' has nothing to compare against.");
+  assert.strictEqual(promoted.pending, null,
+    "and the pending refresh should be consumed rather than left to be promoted twice.");
+  assert.strictEqual(JSON.parse(promoted.meta).refreshGeneration, 1,
+    "the metadata should record that this credential is a refresh.");
+  assert.strictEqual(await value(driver, "vc_credential_raw"), refreshed,
+    "step 3 should now show the refreshed credential.");
+  await assertStepThreeIsHappy(driver, "the refreshed credential");
+  assert.ok(/refreshed 1 time/.test(await text(driver, "vc_meta_request")),
+    "step 3 should say this credential is a refresh rather than reading as the original issuance.");
+  log.info("[step4] OK — the refreshed credential was kept, and step 3 verifies it.");
+  // Handed to the history section, which checks that going back to generation 1
+  // really restores this credential AND the key it is bound to.
+  return { original: before.credential, refreshed: refreshed, holderJwk: before.holderJwk };
+}
+
+// ---------------------------------------------------------------------------
+// Step 4's Credential History pane.
+//
+// The same idea as debugger2.html's Token History, for credentials: every
+// generation the wallet has held, with the one in hand marked and any of them
+// activatable. What has to be true is that activating a generation really puts
+// THAT credential in hand — with the holder key it is bound to, or the wallet
+// would hold something it cannot present — and that moving backwards works, not
+// just forwards, because "the refresh made things worse" is a real outcome.
+//
+// Runs on the history stepFour left behind: generation 1 from the issuance and
+// generation 2 from the refresh that was kept.
+// ---------------------------------------------------------------------------
+async function credentialHistoryNavigation(driver, generations) {
+  log.info("=== Step 4: the Credential History pane ===");
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-4.html");
+  await driver.wait(until.elementLocated(By.id("vc_history_table")), waitTime);
+  await driver.wait(async function () {
+    return !!(await value(driver, "vc_reissue_proof"));
+  }, fetchWait, "step 4 should have built its request before the history is used.");
+
+  function historyRows() {
+    return driver.executeScript(
+      "return Array.prototype.slice.call(document.querySelectorAll('#vc_history_table tbody tr'))" +
+      "  .map(function (tr) {" +
+      "    var td = tr.querySelectorAll('td');" +
+      "    return { n: td[0].textContent.trim(), source: td[2].textContent.trim()," +
+      "             boundKey: td[4].textContent.trim(), signature: td[6].textContent.trim()," +
+      "             inHand: td[7].textContent.trim() === 'In hand'," +
+      "             activatable: !!td[7].querySelector('input')," +
+      "             active: /vc-history-active/.test(tr.className) };" +
+      "  });");
+  }
+  function navState() {
+    return driver.executeScript(
+      "return { position: document.getElementById('vc_history_position').textContent.trim()," +
+      "         oldest: document.getElementById('vc_history_oldest_button').disabled," +
+      "         older: document.getElementById('vc_history_older_button').disabled," +
+      "         newer: document.getElementById('vc_history_newer_button').disabled," +
+      "         latest: document.getElementById('vc_history_latest_button').disabled };");
+  }
+  function heldCredential() {
+    return driver.executeScript("return localStorage.getItem('sdjwtvc_credential');");
+  }
+  function heldKey() {
+    return driver.executeScript("return localStorage.getItem('sdjwtvc_holder_jwk');");
+  }
+
+  // ---- what the issuance and the refresh recorded --------------------------
+  var rows = await historyRows();
+  assert.strictEqual(rows.length, 2,
+    "the issuance and the kept refresh should both be generations, got " + rows.length + ".");
+  // Newest first, the way debugger2's Token History lists token sets.
+  assert.deepStrictEqual(rows.map(function (r) { return r.n; }), ["2", "1"],
+    "the newest generation should be listed first.");
+  assert.strictEqual(rows[1].source, "issued", "generation 1 is the issuance. Got: " + rows[1].source);
+  assert.ok(/^refreshed/.test(rows[0].source),
+    "generation 2 is the refresh, and says which kind. Got: " + rows[0].source);
+  assert.ok(rows[0].inHand && rows[0].active,
+    "the credential in hand should be the marked row.");
+  assert.ok(rows[1].activatable && !rows[1].inHand,
+    "the earlier generation should be activatable rather than marked as in hand.");
+  assert.notStrictEqual(rows[0].signature, rows[1].signature,
+    "the two generations carry different signatures, and the table should show that.");
+  var nav = await navState();
+  assert.strictEqual(nav.position, "generation 2 of 2", "the position should say where you are. Got: " + nav.position);
+  assert.deepStrictEqual([nav.newer, nav.latest], [true, true],
+    "at the newest generation, forwards must be disabled.");
+  assert.deepStrictEqual([nav.older, nav.oldest], [false, false],
+    "and backwards must be available.");
+  assert.strictEqual(await heldCredential(), generations.refreshed,
+    "the credential in hand is the refreshed one stepFour kept.");
+  log.info("[history] " + nav.position + ": " + rows.map(function (r) { return r.source; }).join(", "));
+
+  // ---- backwards ----------------------------------------------------------
+  await click(driver, By.id("vc_history_older_button"));
+  await driver.wait(async function () {
+    return (await navState()).position === "generation 1 of 2";
+  }, fetchWait, "Older should move to the previous generation.");
+  assert.strictEqual(await heldCredential(), generations.original,
+    "going back a generation should put THAT credential in hand, not merely highlight a row.");
+  assert.strictEqual(await heldKey(), generations.holderJwk,
+    "and bring back the holder key it is bound to — without it the credential cannot be presented.");
+  var backNav = await navState();
+  assert.deepStrictEqual([backNav.older, backNav.oldest], [true, true],
+    "at the oldest generation, backwards must be disabled.");
+  assert.deepStrictEqual([backNav.newer, backNav.latest], [false, false],
+    "and forwards must be available.");
+  var backRows = await historyRows();
+  assert.ok(backRows[1].inHand && !backRows[0].inHand,
+    "the marked row should have moved with it.");
+  // The pane that describes the credential in hand, and the request built from
+  // it, must both follow: a proof of possession for the wrong key would be
+  // refused by the issuer.
+  await driver.wait(async function () {
+    var proof = await value(driver, "vc_reissue_proof");
+    if (!proof) return false;
+    return JSON.stringify(jsonFromB64u(proof.split(".")[0]).jwk) === generations.holderJwk;
+  }, fetchWait, "the Credential Request should be rebuilt for the holder key now in hand.");
+  var status = await text(driver, "vc_history_status");
+  assert.ok(/not the newest/.test(status),
+    "and the page should say you are on an older generation. Got: " + status);
+  log.info("[history] OK — Older put generation 1 back in hand, with its key, and rebuilt the request.");
+
+  // ---- forwards, and the two ends ----------------------------------------
+  await click(driver, By.id("vc_history_newer_button"));
+  await driver.wait(async function () {
+    return (await navState()).position === "generation 2 of 2";
+  }, fetchWait, "Newer should move forward again.");
+  assert.strictEqual(await heldCredential(), generations.refreshed,
+    "and put the refreshed credential back in hand.");
+  await click(driver, By.id("vc_history_oldest_button"));
+  await driver.wait(async function () {
+    return (await navState()).position === "generation 1 of 2";
+  }, fetchWait, "Oldest should jump to the first generation.");
+  await click(driver, By.id("vc_history_latest_button"));
+  await driver.wait(async function () {
+    return (await navState()).position === "generation 2 of 2";
+  }, fetchWait, "Latest should jump to the newest generation.");
+  log.info("[history] OK — Older/Newer/Oldest/Latest all move the credential in hand.");
+
+  // ---- an activated generation is a real state, not a page-local one ------
+  await click(driver, By.id("vc_history_older_button"));
+  await driver.wait(async function () {
+    return (await navState()).position === "generation 1 of 2";
+  }, fetchWait, "Older should move back again.");
+  await driver.navigate().refresh();
+  await driver.wait(until.elementLocated(By.id("vc_history_table")), waitTime);
+  await driver.sleep(600);
+  assert.strictEqual((await navState()).position, "generation 1 of 2",
+    "the activated generation should survive a reload.");
+  // ... and step 3 verifies whatever the history activated, including the cnf
+  // binding, which is the check that would fail if the key had not travelled.
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-3.html");
+  await driver.wait(until.elementLocated(By.id("vc_credential_raw")), waitTime);
+  await driver.sleep(900);
+  assert.strictEqual(await value(driver, "vc_credential_raw"), generations.original,
+    "step 3 should show the generation the history activated.");
+  await assertStepThreeIsHappy(driver, "the generation activated from the history");
+  log.info("[history] OK — the activated generation survives a reload and still verifies in step 3.");
+
+  // ---- clearing forgets the list, not the credential ----------------------
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-4.html");
+  await driver.wait(until.elementLocated(By.id("vc_history_clear_button")), waitTime);
+  await driver.sleep(600);
+  await click(driver, By.id("vc_history_clear_button"));
+  await driver.wait(async function () {
+    return (await historyRows()).length === 0;
+  }, fetchWait, "Clear History should empty the list.");
+  assert.strictEqual(await heldCredential(), generations.original,
+    "clearing the history must not touch the credential in hand.");
+  var cleared = await text(driver, "vc_history_status");
+  assert.ok(/untouched/.test(cleared),
+    "and should say the credential is untouched. Got: " + cleared);
+  var clearedNav = await navState();
+  assert.ok(clearedNav.older && clearedNav.newer,
+    "with nothing recorded there is nowhere to navigate. Got: " + JSON.stringify(clearedNav));
+  log.info("[history] OK — Clear History forgets the generations and keeps the credential.");
+}
+
+// ---------------------------------------------------------------------------
+// What step 4 does when the first of section 14.5's mechanisms is not available.
+//
+// A refresh token that has expired or been revoked, and no refresh token at all
+// (which is the normal state after the pre-authorized code grant), both leave the
+// wallet with the other routes: ask the Credential Endpoint again with the access
+// token it still has (section 14.3), or start the issuance over. The page has to
+// say so instead of offering a button that cannot work.
+//
+// Runs AFTER the browser-console check: a refused refresh legitimately earns a
+// 400, which Chrome logs as a page error.
+// ---------------------------------------------------------------------------
+async function refreshNegatives(driver) {
+  log.info("=== Step 4 without a usable refresh token ===");
+
+  // A refresh token the authorization server will not accept. Poisoned rather
+  // than removed: "the server refused it" and "there is none" are different
+  // states and the page has to distinguish them.
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-4.html");
+  await driver.wait(until.elementLocated(By.id("vc_refresh_button")), waitTime);
+  await driver.executeScript(
+    "localStorage.setItem('token_refresh_token', arguments[0]);",
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJub3QtYS1yZWFsLXJlZnJlc2gtdG9rZW4ifQ.bm90LWEtc2lnbmF0dXJl");
+  await driver.navigate().refresh();
+  await driver.wait(until.elementLocated(By.id("vc_refresh_button")), waitTime);
+  await driver.sleep(500);
+  await click(driver, By.id("vc_refresh_button"));
+  var refused = await waitForStatus(driver, "vc_refresh_status",
+    function (s) { return /refused|failed/.test(s); }, "a bad refresh token produced no verdict");
+  assert.ok(/refused the refresh/.test(refused),
+    "the page should report the server's refusal. Got: " + refused);
+  assert.ok(/start the issuance\s+again from step 1/.test(refused),
+    "and should name the route that remains when a refresh token is dead (section 14.5). Got: " + refused);
+  var responseShown = await text(driver, "vc_refresh_response");
+  assert.ok(/invalid_grant|error/.test(responseShown),
+    "the authorization server's answer should be shown verbatim. Got: " + responseShown.slice(0, 120));
+  log.info("[step4] OK — a refused refresh is reported, with the response: " +
+           responseShown.replace(/\s+/g, " ").slice(0, 100));
+
+  // No refresh token at all — the state OID4VCI's pre-authorized code grant
+  // normally leaves behind.
+  await driver.executeScript("localStorage.removeItem('token_refresh_token');");
+  await driver.navigate().refresh();
+  await driver.wait(until.elementLocated(By.id("vc_reissue_button")), waitTime);
+  await driver.wait(async function () {
+    return !!(await value(driver, "vc_reissue_proof"));
+  }, fetchWait, "with no refresh token, step 4 should still build the Credential Request.");
+  var none = await driver.executeScript(
+    "return { status: document.getElementById('vc_refresh_status').textContent.trim()," +
+    "         call: document.getElementById('vc_refresh_request').value," +
+    "         disabled: document.getElementById('vc_refresh_button').disabled };");
+  assert.strictEqual(none.disabled, true,
+    "with nothing to refresh with, the button must not offer a call it cannot make.");
+  assert.strictEqual(none.call, "", "and no call should be shown, because there is none.");
+  assert.ok(/no refresh token/i.test(none.status) && /14\.3/.test(none.status),
+    "the page should say what is missing and which routes remain. Got: " + none.status);
+  log.info("[step4] OK — with no refresh token: " + none.status.replace(/\s+/g, " ").slice(0, 120));
+
+  // Section 14.3: the Credential Endpoint may still be asked with the access
+  // token already in hand, and that is a refresh too.
+  var heldBefore = await driver.executeScript("return localStorage.getItem('sdjwtvc_credential');");
+  await click(driver, By.id("vc_reissue_button"));
+  var status14_3 = await waitForStatus(driver, "vc_reissue_status",
+    function (s) { return /returned a credential|refused|failed/.test(s); },
+    "the section 14.3 request produced no verdict");
+  assert.ok(/returned a credential/.test(status14_3),
+    "with a valid access token the Credential Endpoint may be asked again. Got: " + status14_3);
+  var second = await value(driver, "vc_compare_refreshed_raw");
+  assert.ok(second && second !== heldBefore, "and it should produce another credential.");
+  assert.strictEqual(await driver.executeScript("return localStorage.getItem('sdjwtvc_credential');"),
+    heldBefore, "which again must not replace the one in hand on its own.");
+
+  // Declining it must leave the wallet exactly as it was — including the holder
+  // key, which a discarded refresh must not rotate.
+  var keyBefore = await driver.executeScript("return localStorage.getItem('sdjwtvc_holder_jwk');");
+  await click(driver, By.id("vc_discard_button"));
+  await driver.sleep(400);
+  var afterDiscard = await driver.executeScript(
+    "return { held: localStorage.getItem('sdjwtvc_credential')," +
+    "         pending: localStorage.getItem('sdjwtvc_refreshed_credential')," +
+    "         pendingKey: localStorage.getItem('sdjwtvc_refreshed_holder_private_jwk')," +
+    "         key: localStorage.getItem('sdjwtvc_holder_jwk') };");
+  assert.strictEqual(afterDiscard.held, heldBefore, "discarding must not touch the credential in hand.");
+  assert.strictEqual(afterDiscard.pending, null, "the discarded credential should be gone.");
+  assert.strictEqual(afterDiscard.pendingKey, null, "and so should any key it would have bound.");
+  assert.strictEqual(afterDiscard.key, keyBefore,
+    "a discarded refresh must not rotate the holder key — the credential in hand still needs it.");
+  log.info("[step4] OK — section 14.3 works without a refresh token, and declining changes nothing.");
 }
 
 // ---------------------------------------------------------------------------
@@ -1357,6 +1855,394 @@ async function assertStepThreeIsHappy(driver, label) {
   log.debug("Leaving assertStepThreeIsHappy().");
 }
 
+// ---------------------------------------------------------------------------
+// authorization_details (RFC 9396) — OID4VCI's other way of saying which
+// credential is wanted.
+//
+// A scope says "authorize me for this kind of credential". authorization_details
+// of type openid_credential says the same thing in a structure that can carry
+// more, and it changes what happens afterwards: the token response grants
+// credential_identifiers, and the Credential Request must then name one of THEM
+// and must not send a credential_configuration_id (section 8.2). Getting that
+// backwards is the mistake worth catching, so both wrong ways are checked too.
+// ---------------------------------------------------------------------------
+async function authorizationDetailsFlow(driver) {
+  log.info("=== authorization_details and credential_identifier ===");
+
+  var asMeta = (await httpJson(issuerBase + "/.well-known/oauth-authorization-server")).body;
+  assert.ok((asMeta.authorization_details_types_supported || []).indexOf("openid_credential") !== -1,
+    "the authorization server should advertise authorization_details of type openid_credential. Got: " +
+    JSON.stringify(asMeta.authorization_details_types_supported));
+
+  await stepOneConfigured(driver, "authorization_details");
+  await driver.sleep(300);
+  var note = await text(driver, "handoff_mechanism_note");
+  assert.ok(note.indexOf("openid_credential") !== -1,
+    "step 1 should say what it is about to send. Got: " + note);
+  log.info("[authz details] OK — step 1 offers both ways of asking, and describes the one chosen.");
+
+  await click(driver, By.id("start_issuance_button"));
+  await driver.wait(until.elementLocated(By.id("username")), fetchWait,
+    "the authorization request should still reach the IdP.");
+  var authzUrl = await driver.getCurrentUrl();
+  assert.ok(authzUrl.indexOf("authorization_details=") !== -1,
+    "the authorization request should carry authorization_details. Got: " + authzUrl);
+  var sent = JSON.parse(decodeURIComponent(/authorization_details=([^&]*)/.exec(authzUrl)[1]));
+  assert.strictEqual(sent[0].type, "openid_credential",
+    "of type openid_credential. Got: " + JSON.stringify(sent));
+  assert.strictEqual(sent[0].credential_configuration_id, VCI_CONFIG_ID,
+    "naming the credential configuration chosen in step 1. Got: " + JSON.stringify(sent));
+  log.info("[authz details] OK — the authorization request carried " + JSON.stringify(sent) + ".");
+
+  await driver.findElement(By.id("username")).sendKeys(MOCK_AS_USER);
+  await driver.findElement(By.id("password")).sendKeys("any-password");
+  await click(driver, By.id("kc-login"));
+  await driver.wait(until.urlContains("sd-jwt-vc-issuance-2.html"), fetchWait,
+    "the workflow should come back to step 2 with tokens.");
+  await driver.wait(async function () {
+    return !!(await value(driver, "vc_proof_jwt"));
+  }, fetchWait, "step 2 should assemble the request.");
+
+  var granted = await driver.executeScript(
+    "return JSON.parse(window.localStorage.getItem('token_authorization_details') || 'null');");
+  assert.ok(granted && granted.length && granted[0].credential_identifiers &&
+            granted[0].credential_identifiers.length,
+    "the token response should have granted credential_identifiers. Got: " + JSON.stringify(granted));
+  var identifier = granted[0].credential_identifiers[0];
+
+  var body = JSON.parse(await text(driver, "vc_request_body"));
+  assert.strictEqual(body.credential_identifier, identifier,
+    "the Credential Request must name the granted identifier. Got: " + JSON.stringify(body));
+  assert.ok(!("credential_configuration_id" in body),
+    "and MUST NOT also send credential_configuration_id (OID4VCI section 8.2). Got: " + JSON.stringify(body));
+  var mode = await text(driver, "vc_identifier_mode");
+  assert.ok(mode.indexOf(identifier) !== -1,
+    "step 2 should say which identifier it is using and why. Got: " + mode);
+  log.info("[authz details] OK — the request names credential_identifier " + identifier +
+           " and omits credential_configuration_id.");
+
+  var accessToken = await value(driver, "vc_access_token");
+  var proof = await value(driver, "vc_proof_jwt");
+  var both = await httpJson(issuerBase + "/oid4vci/credential", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + accessToken },
+    body: JSON.stringify({
+      credential_identifier: identifier, credential_configuration_id: VCI_CONFIG_ID,
+      proofs: { jwt: [proof] }
+    })
+  });
+  assert.strictEqual(both.status, 400,
+    "sending both identifiers should be refused. Got HTTP " + both.status);
+  assert.strictEqual(both.body.error, "invalid_credential_request",
+    "with invalid_credential_request. Got: " + JSON.stringify(both.body));
+
+  var wrongOne = await httpJson(issuerBase + "/oid4vci/credential", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + accessToken },
+    body: JSON.stringify({ credential_configuration_id: VCI_CONFIG_ID, proofs: { jwt: [proof] } })
+  });
+  assert.strictEqual(wrongOne.status, 400,
+    "with identifiers granted, credential_configuration_id should be refused. Got HTTP " + wrongOne.status);
+  assert.ok(/MUST NOT be used/.test(wrongOne.raw),
+    "and the refusal should say why. Got: " + wrongOne.raw.slice(0, 160));
+
+  var invented = await httpJson(issuerBase + "/oid4vci/credential", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + accessToken },
+    body: JSON.stringify({ credential_identifier: identifier + "-invented", proofs: { jwt: [proof] } })
+  });
+  assert.strictEqual(invented.status, 400,
+    "an identifier that was not granted should be refused. Got HTTP " + invented.status);
+  assert.ok(/was not granted/.test(invented.raw),
+    "and say so. Got: " + invented.raw.slice(0, 160));
+  log.info("[authz details] OK — both identifiers together, the wrong one, and an invented one are all refused.");
+
+  await click(driver, By.id("vc_approve_button"));
+  await driver.wait(until.urlContains("sd-jwt-vc-issuance-3.html"), fetchWait,
+    "naming the credential by its granted identifier should issue it.");
+  await driver.sleep(800);
+  await assertStepThreeIsHappy(driver, "authorization_details");
+  log.info("[authz details] OK — the credential was issued against a granted credential_identifier.");
+}
+
+// ---------------------------------------------------------------------------
+// The Notification Endpoint (OID4VCI section 11).
+//
+// The issuer returns a notification_id and the wallet may report what became of
+// the credential. "May" is the point: it is optional for the wallet, so this
+// checks that the workflow offers it, sends what the spec defines, and that the
+// issuer both validates it and records it — a 204 for anything at all would make
+// the endpoint indistinguishable from a black hole.
+// ---------------------------------------------------------------------------
+async function notificationFlow(driver) {
+  log.info("=== The Notification Endpoint ===");
+  var record = await driver.executeScript(
+    "return JSON.parse(window.localStorage.getItem('sdjwtvc_credential_meta') || '{}');");
+  assert.ok(record.notificationId,
+    "the Credential Response should have carried a notification_id. Got: " + JSON.stringify(record));
+  assert.strictEqual(record.notificationEndpoint, issuerBase + "/oid4vci/notification",
+    "and step 2 should have recorded where to send it.");
+
+  var shown = await driver.executeScript(
+    "return { id: document.getElementById('vc_notification_id').textContent.trim()," +
+    "         endpoint: document.getElementById('vc_notification_endpoint').textContent.trim()," +
+    "         request: document.getElementById('vc_notification_request').value," +
+    "         events: Array.prototype.slice.call(" +
+    "           document.getElementById('vc_notification_event').options).map(function (o) { return o.value; }) };");
+  assert.strictEqual(shown.id, record.notificationId, "step 3 should show the notification_id.");
+  assert.deepStrictEqual(shown.events,
+    ["credential_accepted", "credential_failure", "credential_deleted"],
+    "the three events OID4VCI section 11.1 defines, and no others. Got: " + JSON.stringify(shown.events));
+  assert.ok(shown.request.indexOf("POST " + record.notificationEndpoint) === 0,
+    "the assembled call should be shown before it is sent. Got: " + shown.request.slice(0, 90));
+  assert.ok(shown.request.indexOf('"notification_id"') !== -1 &&
+            shown.request.indexOf("Authorization: Bearer ") !== -1,
+    "with the notification_id and the access token that authorizes it. Got: " + shown.request);
+  log.info("[notification] OK — step 3 shows the notification it can send, and the three events it may report.");
+
+  var accessToken = await driver.executeScript(
+    "return window.localStorage.getItem('token_access_token');");
+  var invented = await httpJson(issuerBase + "/oid4vci/notification", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + accessToken },
+    body: JSON.stringify({ notification_id: "never-issued-this", event: "credential_accepted" })
+  });
+  assert.strictEqual(invented.status, 400, "an unknown notification_id should be refused.");
+  assert.strictEqual(invented.body.error, "invalid_notification_id",
+    "with the error section 11.3 names. Got: " + JSON.stringify(invented.body));
+
+  var badEvent = await httpJson(issuerBase + "/oid4vci/notification", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + accessToken },
+    body: JSON.stringify({ notification_id: record.notificationId, event: "credential_pondered" })
+  });
+  assert.strictEqual(badEvent.status, 400, "an event outside the three should be refused.");
+  assert.strictEqual(badEvent.body.error, "invalid_notification_request",
+    "with invalid_notification_request. Got: " + JSON.stringify(badEvent.body));
+
+  var noToken = await httpJson(issuerBase + "/oid4vci/notification", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ notification_id: record.notificationId, event: "credential_accepted" })
+  });
+  assert.strictEqual(noToken.status, 401,
+    "and it should require the access token. Got HTTP " + noToken.status);
+  log.info("[notification] OK — an invented id, an undefined event and a missing token are all refused.");
+
+  await driver.executeScript(
+    "document.getElementById('vc_notification_event').value = 'credential_accepted';" +
+    "document.getElementById('vc_notification_description').value = 'stored in the wallet';" +
+    "sdjwtvc3.renderNotification();");
+  await click(driver, By.id("vc_notification_button"));
+  await waitForStatus(driver, "vc_notification_status",
+    function (s) { return /accepted|refused|failed/i.test(s); },
+    "the notification should be answered");
+  var verdict = await text(driver, "vc_notification_status");
+  assert.ok(/accepted the notification/.test(verdict),
+    "the issuer should have accepted it. Got: " + verdict);
+  assert.ok(/204/.test(verdict),
+    "section 11.2: success is 204 with no body. Got: " + verdict);
+
+  var recorded = await httpJson(issuerBase + "/oid4vci/notification/" + record.notificationId);
+  assert.strictEqual(recorded.status, 200, "the issuer should know about the notification it accepted.");
+  assert.strictEqual(recorded.body.event, "credential_accepted",
+    "and have recorded the event. Got: " + JSON.stringify(recorded.body));
+  assert.strictEqual(recorded.body.event_description, "stored in the wallet",
+    "including the description the wallet sent. Got: " + JSON.stringify(recorded.body));
+  log.info("[notification] OK — the issuer recorded credential_accepted for " + record.notificationId + ".");
+}
+
+// ---------------------------------------------------------------------------
+// Batch issuance and response encryption — the two things the issuer's metadata
+// advertises and nothing exercised until now.
+//
+//   batch_credential_issuance.batch_size   several proofs in one request, one
+//                                          credential per proof (section 14.6)
+//   credential_response_encryption         the response as a JWE the wallet
+//                                          decrypts (section 10)
+// ---------------------------------------------------------------------------
+async function batchAndEncryptedIssuance(driver) {
+  log.info("=== Batch issuance and an encrypted Credential Response ===");
+  var meta = (await httpJson(issuerMetadataUrl)).body;
+  var batchSize = (meta.batch_credential_issuance || {}).batch_size;
+  assert.ok(batchSize >= 3, "this issuer should advertise a batch_size worth exercising. Got: " + batchSize);
+  var encryption = meta.credential_response_encryption || {};
+  assert.deepStrictEqual(encryption.alg_values_supported, ["RSA-OAEP-256"],
+    "it should advertise only the algorithm it performs. Got: " + JSON.stringify(encryption));
+
+  await stepOneConfigured(driver, "scope");
+  await click(driver, By.id("start_issuance_button"));
+  await driver.wait(until.elementLocated(By.id("username")), fetchWait);
+  await driver.findElement(By.id("username")).sendKeys(MOCK_AS_USER);
+  await driver.findElement(By.id("password")).sendKeys("any-password");
+  await click(driver, By.id("kc-login"));
+  await driver.wait(until.urlContains("sd-jwt-vc-issuance-2.html"), fetchWait);
+  await driver.wait(async function () {
+    return !!(await value(driver, "vc_proof_jwt"));
+  }, fetchWait, "step 2 should assemble the request.");
+
+  var options = await driver.executeScript(
+    "return { batchNote: document.getElementById('vc_batch_note').textContent.trim()," +
+    "         encNote: document.getElementById('vc_encrypt_note').textContent.trim()," +
+    "         batchMax: document.getElementById('vc_batch_size').max," +
+    "         encDisabled: document.getElementById('vc_encrypt_response').disabled };");
+  assert.strictEqual(options.batchMax, String(batchSize),
+    "the pane should cap the number of keys at the issuer's batch_size. Got: " + options.batchMax);
+  assert.strictEqual(options.encDisabled, false,
+    "and offer encryption, since this issuer advertises it.");
+  assert.ok(/RSA-OAEP-256/.test(options.encNote),
+    "saying which algorithms are on offer. Got: " + options.encNote);
+  log.info("[batch] OK — step 2 reads the issuer's batch_size (" + batchSize + ") and encryption support.");
+
+  await driver.executeScript(
+    "document.getElementById('vc_batch_size').value = '3';" +
+    "document.getElementById('vc_encrypt_response').checked = true;" +
+    "sdjwtvc2.onRequestOptionsChange();");
+  await driver.wait(async function () {
+    var shown = await text(driver, "vc_request_body");
+    try {
+      var parsed = JSON.parse(shown);
+      return parsed.proofs.jwt.length === 3 && !!parsed.credential_response_encryption;
+    } catch (e) {
+      return false;
+    }
+  }, fetchWait, "the request should be rebuilt with three proofs and encryption parameters.");
+
+  var body = JSON.parse(await text(driver, "vc_request_body"));
+  assert.strictEqual(body.proofs.jwt.length, 3, "three keys means three proofs.");
+  var keys = body.proofs.jwt.map(function (p) {
+    return jsonFromB64u(p.split(".")[0]).jwk.x;
+  });
+  assert.strictEqual(new Set(keys).size, 3,
+    "each proof should name a DIFFERENT key — a batch of one key repeated proves nothing. Got: " +
+    JSON.stringify(keys));
+  assert.ok((encryption.enc_values_supported || []).indexOf(body.credential_response_encryption.enc) !== -1,
+    "the wallet should pick an enc the issuer advertises (" +
+    (encryption.enc_values_supported || []).join(", ") + "). Got: " +
+    body.credential_response_encryption.enc);
+  assert.strictEqual(body.credential_response_encryption.enc, "A256GCM",
+    "and the strongest one on offer here, rather than whichever is listed first. Got: " +
+    body.credential_response_encryption.enc);
+  assert.strictEqual(body.credential_response_encryption.jwk.kty, "RSA",
+    "and supply an RSA key for RSA-OAEP-256. Got: " +
+    JSON.stringify(body.credential_response_encryption.jwk));
+  assert.ok(!body.credential_response_encryption.jwk.d,
+    "only the PUBLIC half may be sent; the private key must never leave the browser. Got: " +
+    Object.keys(body.credential_response_encryption.jwk).join(", "));
+  log.info("[batch] OK — the request carries three proofs over three distinct keys, and an encryption key.");
+
+  await click(driver, By.id("vc_approve_button"));
+  await driver.wait(until.urlContains("sd-jwt-vc-issuance-3.html"), fetchWait,
+    "the issuer should accept the batch and the workflow should reach step 3.");
+  await driver.sleep(900);
+
+  var issued = await driver.executeScript(
+    "return { all: JSON.parse(window.localStorage.getItem('sdjwtvc_credentials') || '[]')," +
+    "         meta: JSON.parse(window.localStorage.getItem('sdjwtvc_credential_meta') || '{}')," +
+    "         pickerShown: document.getElementById('vc_batch_row').style.display !== 'none'," +
+    "         options: Array.prototype.slice.call(" +
+    "           document.getElementById('vc_credential_select').options).map(function (o) { return o.textContent; })," +
+    "         provenance: document.getElementById('vc_meta_request').textContent };");
+  assert.strictEqual(issued.all.length, 3,
+    "three proofs should have produced three credentials. Got: " + issued.all.length);
+  assert.strictEqual(issued.meta.encrypted, true,
+    "and the workflow should record that the response was encrypted.");
+  assert.ok(issued.pickerShown, "step 3 should offer all three, not just the first.");
+  assert.strictEqual(issued.options.length, 3, "one entry per credential. Got: " + issued.options.length);
+  assert.ok(/Credential Response was encrypted/.test(issued.provenance),
+    "and the credential's provenance should record that the response arrived encrypted. Got: " +
+    issued.provenance);
+  assert.ok(/3 credentials in one response/.test(issued.provenance),
+    "and that three came back together. Got: " + issued.provenance);
+
+  var bound = issued.all.map(function (c) {
+    return jsonFromB64u(c.split("~")[0].split(".")[1]).cnf.jwk.x;
+  });
+  assert.deepStrictEqual(bound, keys,
+    "each credential should be bound to the key from its own proof, in order. Got: " +
+    JSON.stringify(bound) + " for keys " + JSON.stringify(keys));
+  log.info("[batch] OK — three credentials came back from an ENCRYPTED response, each bound to its own key.");
+
+  await driver.executeScript(
+    "document.getElementById('vc_credential_select').value = '2'; sdjwtvc3.onCredentialChange();");
+  await driver.sleep(700);
+  var third = await value(driver, "vc_credential_raw");
+  assert.strictEqual(third, issued.all[2], "choosing another credential should show that one.");
+  await assertStepThreeIsHappy(driver, "batch credential 3");
+  log.info("[batch] OK — each credential in the batch verifies on its own.");
+
+  var accessToken = await driver.executeScript(
+    "return window.localStorage.getItem('token_access_token');");
+  var refused = await httpJson(issuerBase + "/oid4vci/credential", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + accessToken },
+    // The request that just succeeded, with ONLY the enc changed, so that the
+    // encryption parameters are the single thing wrong with it.
+    body: JSON.stringify(Object.assign({}, body, {
+      proofs: { jwt: [body.proofs.jwt[0]] },
+      credential_response_encryption: { jwk: body.credential_response_encryption.jwk, enc: "A192GCM" }
+    }))
+  });
+  assert.strictEqual(refused.status, 400,
+    "an unsupported enc should be refused, not answered in the clear. Got HTTP " + refused.status);
+  assert.strictEqual(refused.body.error, "invalid_encryption_parameters",
+    "with invalid_encryption_parameters. Got: " + refused.raw.slice(0, 240));
+  log.info("[batch] OK — an encryption algorithm this issuer does not implement is refused.");
+}
+
+// Step 1, configured and ready to hand off. Shared by the sections above, which
+// care about what happens after it rather than about discovery.
+// Sign out of the mock authorization server.
+//
+// It sets a session cookie, so once one section has signed in the next
+// authorization request is answered from that session and no login screen
+// appears — a section that expects one would wait for a form that is not coming.
+// deleteAllCookies() clears only the origin the browser is currently on, which is
+// why this goes to the issuer's origin first.
+async function signOutOfMockAs(driver) {
+  log.debug("Entering signOutOfMockAs().");
+  await driver.get(issuerBase + "/.well-known/oauth-authorization-server");
+  await driver.manage().deleteAllCookies();
+  log.debug("Leaving signOutOfMockAs(). No session remains at " + issuerBase + ".");
+}
+
+async function stepOneConfigured(driver, mechanism) {
+  log.debug("Entering stepOneConfigured(). mechanism=" + (mechanism || "scope"));
+  await signOutOfMockAs(driver);
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-1.html");
+  await driver.wait(until.elementLocated(By.id("vci_metadata_endpoint")), waitTime);
+  await driver.executeScript("window.localStorage.clear();");
+  await driver.navigate().refresh();
+  await driver.wait(until.elementLocated(By.id("vci_metadata_endpoint")), waitTime);
+  // The ISSUER's own authorization server, not Keycloak: authorization_details
+  // of type openid_credential is an OID4VCI mechanism, and the mock issuer is
+  // the thing that implements it. Keycloak neither advertises it nor would grant
+  // credential_identifiers, so pointing these sections at Keycloak would be
+  // testing the wrong server.
+  await driver.executeScript(
+    "document.getElementById('vci_metadata_endpoint').value = arguments[0];" +
+    "document.getElementById('oidc_discovery_endpoint').value = arguments[1];",
+    issuerMetadataUrl, issuerBase + "/.well-known/oauth-authorization-server");
+  await click(driver, By.id("vci_retrieve_button"));
+  await waitForStatus(driver, "vci_signed_metadata_status",
+    function (s) { return /^Retrieved/.test(s); }, "the credential issuer metadata was not retrieved");
+  await click(driver, By.id("as_retrieve_button"));
+  await waitForStatus(driver, "as_signed_metadata_status",
+    function (s) { return /^Retrieved/.test(s); }, "the authorization server metadata was not retrieved");
+  await driver.executeScript(
+    "document.getElementById('client_id').value = arguments[0];" +
+    "document.getElementById('scope').value = 'openid identity_credential';" +
+    // Set explicitly rather than inherited: the choice is remembered across
+    // reloads, so a section that did not say which it wanted would silently run
+    // whatever the previous one chose.
+    "document.getElementById('handoff_request_mechanism').value = arguments[1];" +
+    "sdjwtvc1.onRequestMechanismChange();",
+    clientId, mechanism === "authorization_details" ? "authorization_details" : "scope");
+  await click(driver, By.id("config_save_button"));
+  await driver.sleep(300);
+  log.debug("Leaving stepOneConfigured().");
+}
+
 async function issuerNegatives() {
   log.info("=== The credential endpoint's checks ===");
   var meta = (await httpJson(issuerMetadataUrl)).body;
@@ -1484,18 +2370,26 @@ async function test() {
     await oidcLeg(driver);
     var context = await stepTwo(driver);
     await stepThree(driver, context);
+    var generations = await stepFour(driver, context);
+    await credentialHistoryNavigation(driver, generations);
 
     var errors = await severeErrors(driver);
     assert.strictEqual(errors.length, 0,
       "the workflow logged browser errors:\n" + errors.join("\n"));
     log.info("[browser] OK — no console errors across the workflow.");
 
+    await refreshNegatives(driver);
     await staleProofRecovery(driver);
     await inspectLinksReturnHere(driver);
     await stepTwoWithoutTokens(driver);
     await credentialOfferSameDevice(driver);
     await crossDeviceOffer(driver);
     await deferredIssuance(driver);
+    await authorizationDetailsFlow(driver);
+    // Runs on the step 3 the previous section left behind: the notification is
+    // about that credential.
+    await notificationFlow(driver);
+    await batchAndEncryptedIssuance(driver);
     log.info("Test completed successfully.");
   } finally {
     await driver.quit();

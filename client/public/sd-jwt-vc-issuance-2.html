@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>OAuth2 &amp; OpenID Connect Debugger — SD-JWT VC Issuance (2 of 3)</title>
+    <title>OAuth2 &amp; OpenID Connect Debugger — SD-JWT VC Issuance (2 of 4)</title>
     <link href="/css/bootstrap.css" rel="stylesheet">
     <link href="/css/header.css" rel="stylesheet">
     <link href="/css/bottom.css" rel="stylesheet">
@@ -26,7 +26,7 @@
 
 <p class="vc-return"><a id="return_link" href="/sd-jwt-vc-issuance-1.html">&larr; Back to step 1 (discovery &amp; configuration)</a></p>
 
-<h3 class="vc-title">SD-JWT VC Issuance &mdash; Step 2 of 3: Approve and Request the Credential</h3>
+<h3 class="vc-title">SD-JWT VC Issuance &mdash; Step 2 of 4: Approve and Request the Credential</h3>
 
 <!--#include file="/partials/sd_jwt_vc_steps.html"-->
 
@@ -131,7 +131,7 @@ function vcSetAllPanes(expand) {
         </tr>
         <tr>
           <td>
-            <div class="tooltip"><label>Refresh Token</label><span class="tooltiptext">Issued only if the flow asked for offline access. Not used by issuance.</span></div>
+            <div class="tooltip"><label>Refresh Token</label><span class="tooltiptext">Not used by the issuance itself — but it is what lets step 4 refresh the credential later without troubling the End-User (OID4VCI section 14.5). An authorization server is not obliged to issue one, and the pre-authorized code grant normally does not.</span></div>
           </td>
           <td><textarea class="vc-token" rows="3" readonly id="vc_refresh_token"></textarea></td>
         </tr>
@@ -201,6 +201,50 @@ function vcSetAllPanes(expand) {
 </div>
 
 <!-- ============ Pane 3: approval ============ -->
+<!-- ====== What the Credential Request will ask for ====== -->
+<div class="step0 dbg-pane" id="pane_request_options">
+  <legend class="dbg-legend" id="request_options_expand_button" onclick="return sdjwtvc2.togglePane('request_options_fieldset');">Credential Request Options</legend>
+  <fieldset name="request_options_fieldset" id="request_options_fieldset" style="display: block;">
+    <p class="vc-note">Three things the wallet gets to decide, each of which changes the request below.</p>
+    <table class="vc-token-table">
+      <tbody>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Naming the credential</label>
+              <span class="tooltiptext">OID4VCI section 8.2. If the token response granted credential_identifiers (because the authorization used authorization_details), the request MUST use credential_identifier and MUST NOT use credential_configuration_id. Otherwise it is the other way round. This is not a preference — it follows from what was granted.</span>
+            </div>
+          </td>
+          <td><code id="vc_identifier_mode">&mdash;</code></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label for="vc_batch_size">Keys to bind</label>
+              <span class="tooltiptext">One proof per key, one credential per proof (section 8.3). The issuer's batch_credential_issuance.batch_size is the most it will accept; asking for more than one is how a wallet gets several copies of the same credential bound to different keys.</span>
+            </div>
+          </td>
+          <td>
+            <input type="number" id="vc_batch_size" name="vc_batch_size" min="1" max="16" value="1" size="4"
+                   onchange="return sdjwtvc2.onRequestOptionsChange();" />
+            <span class="vc-note" id="vc_batch_note">&nbsp;</span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label for="vc_encrypt_response">Encrypt the response</label>
+              <span class="tooltiptext">Section 10. The wallet sends a public key and the issuer returns a JWE instead of JSON, which this page then decrypts. Only offered when the issuer advertises credential_response_encryption.</span>
+            </div>
+          </td>
+          <td>
+            <input type="checkbox" id="vc_encrypt_response" name="vc_encrypt_response"
+                   onchange="return sdjwtvc2.onRequestOptionsChange();" />
+            <span class="vc-note" id="vc_encrypt_note">&nbsp;</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </fieldset>
+</div>
+
 <div class="step0 dbg-pane" id="pane_approval">
   <legend class="dbg-legend" id="approval_expand_button" onclick="return sdjwtvc2.togglePane('approval_fieldset');">Approve Issuance</legend>
   <fieldset name="approval_fieldset" id="approval_fieldset" style="display: block;">

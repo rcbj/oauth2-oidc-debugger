@@ -31,6 +31,8 @@ var meta = null;
 
 function el(id) { return document.getElementById(id); }
 function setText(id, text) { var e = el(id); if (e) e.textContent = (text == null ? "" : String(text)); }
+function val(id) { var e = el(id); return e ? e.value : ""; }
+function setValue(id, v) { var e = el(id); if (e) e.value = (v == null ? "" : v); }
 function setJson(id, value) {
   var e = el(id);
   if (e) e.textContent = (value === undefined || value === null) ? "—" : JSON.stringify(value, null, 2);
@@ -320,9 +322,174 @@ function startOver() {
   return false;
 }
 
+// Step 4: refresh this credential (OID4VCI section 14.5). A separate page
+// because it is a separate pair of calls, made later — often much later, when
+// the validity window is running out.
+function gotoRefresh() {
+  window.location.href = sdJwtVc.STEP4_URL;
+  return false;
+}
+
 function togglePane(id) {
   var fs = el(id);
   if (fs) fs.style.display = (fs.style.display === "none") ? "block" : "none";
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// A batch request returns one credential per proof (OID4VCI section 8.3). They
+// are all here; showing only the first would hide the very thing a batch request
+// was made to demonstrate.
+// ---------------------------------------------------------------------------
+var credentials = [];
+var showing = 0;
+
+function renderCredentialPicker() {
+  log.debug("Entering renderCredentialPicker().");
+  var row = el("vc_batch_row");
+  var select = el("vc_credential_select");
+  if (!row || !select) return;
+  if (credentials.length <= 1) {
+    row.style.display = "none";
+    log.debug("Leaving renderCredentialPicker(). Only one credential.");
+    return;
+  }
+  var keys = meta.holderJwks || [];
+  select.innerHTML = credentials.map(function (c, i) {
+    var key = keys[i];
+    return '<option value="' + i + '"' + (i === showing ? ' selected="selected"' : '') + '>' +
+           "credential " + (i + 1) + " of " + credentials.length +
+           (key && key.x ? " — bound to key " + String(key.x).slice(0, 12) + "…" : "") +
+           "</option>";
+  }).join("");
+  row.style.display = "";
+  setText("vc_batch_summary", "All " + credentials.length + " were issued from one Credential Request.");
+  log.debug("Leaving renderCredentialPicker().");
+}
+
+function showCredential(index) {
+  log.debug("Entering showCredential(). index=" + index);
+  var raw = credentials[index] || "";
+  if (!raw) {
+    log.debug("Leaving showCredential(). Nothing at that index.");
+    return false;
+  }
+  showing = index;
+  try {
+    parsed = sdJwtVc.parseSdJwt(raw);
+  } catch (e) {
+    status("vc_credential_status", "That credential could not be parsed: " + e.message, "vc-bad");
+    el("vc_credential_raw").value = raw;
+    return false;
+  }
+  renderSerialized(raw);
+  el("vc_credential_raw").value = raw;
+  setJson("vc_jwt_header", parsed.header);
+  setJson("vc_jwt_payload", parsed.payload);
+  setJson("vc_claims", sdJwtVc.disclosedClaims(parsed));
+  status("vc_credential_status",
+    "Credential parsed: " + parsed.disclosures.length + " Disclosure(s)" +
+    (parsed.kbJwt ? " and a Key Binding JWT" : "") +
+    (credentials.length > 1 ? " (credential " + (showing + 1) + " of " + credentials.length + ")" : "") +
+    (meta.encrypted ? ", from an encrypted Credential Response" : "") + ".", "vc-ok");
+  verify();
+  log.debug("Leaving showCredential().");
+  return true;
+}
+
+function onCredentialChange() {
+  var select = el("vc_credential_select");
+  if (select) showCredential(parseInt(select.value, 10) || 0);
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// The Notification Endpoint (OID4VCI section 11): what the wallet did with the
+// credential. Optional for the wallet, which is why this is a button and not
+// something that happens on load — an issuer cannot assume it will be told.
+// ---------------------------------------------------------------------------
+function notificationBody() {
+  var body = { notification_id: meta.notificationId || "", event: val("vc_notification_event") || "credential_accepted" };
+  var description = (val("vc_notification_description") || "").trim();
+  if (description) body.event_description = description;
+  return body;
+}
+
+function renderNotification() {
+  log.debug("Entering renderNotification().");
+  var pane = el("pane_notification");
+  if (!pane) return false;
+  var endpoint = meta.notificationEndpoint || "";
+  var id = meta.notificationId || "";
+  setText("vc_notification_id", id || "— none returned —");
+  setText("vc_notification_endpoint", endpoint || "— this issuer publishes none —");
+  if (!id || !endpoint) {
+    // Nothing to send, and saying why is more useful than a dead button.
+    setValue("vc_notification_request", "");
+    if (el("vc_notification_button")) el("vc_notification_button").disabled = true;
+    status("vc_notification_status", !endpoint
+      ? "This issuer publishes no notification_endpoint, so there is nowhere to report to."
+      : "The Credential Response carried no notification_id, so the issuer is not asking to be told.",
+      "vc-pending");
+    log.debug("Leaving renderNotification(). Nothing to send.");
+    return false;
+  }
+  var body = JSON.stringify(notificationBody(), null, 2);
+  setValue("vc_notification_request", [
+    "POST " + endpoint,
+    "Content-Type: application/json",
+    "Authorization: Bearer " + (sdJwtVc.get("token_access_token") || "(no access token)"),
+    "Content-Length: " + body.length,
+    "",
+    body
+  ].join("\n"));
+  log.debug("Leaving renderNotification().");
+  return true;
+}
+
+function sendNotification() {
+  log.debug("Entering sendNotification().");
+  var endpoint = meta.notificationEndpoint || "";
+  var body = notificationBody();
+  if (!endpoint || !body.notification_id) {
+    status("vc_notification_status", "There is nothing to notify: no endpoint or no notification_id.", "vc-bad");
+    return false;
+  }
+  el("vc_notification_button").disabled = true;
+  status("vc_notification_status", "Sending the notification …", "vc-pending");
+  fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + (sdJwtVc.get("token_access_token") || "")
+    },
+    body: JSON.stringify(body)
+  })
+    .then(function (r) {
+      return r.text().then(function (text) {
+        // 204 with no body is success (section 11.2); anything else should say why.
+        if (r.status === 204) {
+          status("vc_notification_status",
+            "The issuer accepted the notification: " + body.event + " (204, no body).", "vc-ok");
+          return;
+        }
+        var parsed = null;
+        try {
+          parsed = JSON.parse(text);
+        } catch (e) {
+          // Not JSON: the raw text is what gets shown.
+        }
+        var why = (parsed && (parsed.error_description || parsed.error)) || text || ("HTTP " + r.status);
+        status("vc_notification_status", "The issuer refused the notification: " + why, "vc-bad");
+        el("vc_notification_button").disabled = false;
+      });
+    })
+    .catch(function (e) {
+      log.error("the notification failed: " + e.message);
+      status("vc_notification_status", "The notification failed: " + e.message, "vc-bad");
+      el("vc_notification_button").disabled = false;
+    });
+  log.debug("Leaving sendNotification().");
   return false;
 }
 
@@ -339,31 +506,39 @@ function onload() {
   var raw = sdJwtVc.get(sdJwtVc.KEYS.CREDENTIAL) || "";
   meta = sdJwtVc.getJson(sdJwtVc.KEYS.CREDENTIAL_META) || {};
   setText("vc_meta_issuer", meta.issuer ? meta.issuer + "  (" + (meta.endpoint || "") + ")" : "—");
-  setText("vc_meta_request", meta.configurationId
+  // How this credential was obtained, in one line: what was asked for, when, and
+  // the things about the exchange that are not visible in the credential itself.
+  var provenance = meta.configurationId
     ? meta.configurationId + " / " + (meta.format || "?") + " / vct " + (meta.vct || "?") +
       " — requested " + (meta.requestedAt || "?")
-    : "—");
+    : "—";
+  if (meta.configurationId) {
+    if (meta.credentialCount > 1) provenance += " — " + meta.credentialCount + " credentials in one response";
+    if (meta.encrypted) provenance += " — the Credential Response was encrypted";
+    if (meta.deferred) {
+      provenance += " — deferred, collected after " + (meta.deferredAttempts || "?") + " attempt(s)";
+    }
+    // A refreshed credential is not the one step 2 obtained, and step 3 should
+    // not read as though it were (OID4VCI section 14.5).
+    if (meta.refreshGeneration) {
+      provenance += " — refreshed " + meta.refreshGeneration +
+                    (meta.refreshGeneration === 1 ? " time" : " times") +
+                    (meta.keyMode === "reuse" ? ", still bound to the original holder key"
+                                              : ", bound to a new holder key");
+    }
+  }
+  setText("vc_meta_request", provenance);
 
   if (!raw) {
     status("vc_credential_status",
       "No credential yet. Run step 1 (discovery), authenticate, then approve issuance in step 2.", "vc-bad");
     return;
   }
-  try {
-    parsed = sdJwtVc.parseSdJwt(raw);
-  } catch (e) {
-    status("vc_credential_status", "The stored credential could not be parsed: " + e.message, "vc-bad");
-    el("vc_credential_raw").value = raw;
-    return;
-  }
-  renderSerialized(raw);
-  setJson("vc_jwt_header", parsed.header);
-  setJson("vc_jwt_payload", parsed.payload);
-  setJson("vc_claims", sdJwtVc.disclosedClaims(parsed));
-  status("vc_credential_status",
-    "Credential parsed: " + parsed.disclosures.length + " Disclosure(s)" +
-    (parsed.kbJwt ? " and a Key Binding JWT" : "") + ".", "vc-ok");
-  verify();
+  credentials = sdJwtVc.getJson(sdJwtVc.KEYS.CREDENTIALS) || [raw];
+  if (!credentials.length) credentials = [raw];
+  renderCredentialPicker();
+  showCredential(0);
+  renderNotification();
   log.debug("SD-JWT VC issuance step 3 ready.");
   log.debug("Leaving onload().");
 }
@@ -374,8 +549,12 @@ if (typeof window !== "undefined") {
 
 module.exports = {
   verify: verify,
+  onCredentialChange: onCredentialChange,
+  renderNotification: renderNotification,
+  sendNotification: sendNotification,
   copyCredential: copyCredential,
   startOver: startOver,
+  gotoRefresh: gotoRefresh,
   togglePane: togglePane,
   onload: onload
 };

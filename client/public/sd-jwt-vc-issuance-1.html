@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>OAuth2 &amp; OpenID Connect Debugger — SD-JWT VC Issuance (1 of 3)</title>
+    <title>OAuth2 &amp; OpenID Connect Debugger — SD-JWT VC Issuance (1 of 4)</title>
     <link href="/css/bootstrap.css" rel="stylesheet">
     <link href="/css/header.css" rel="stylesheet">
     <link href="/css/bottom.css" rel="stylesheet">
@@ -26,7 +26,7 @@
 
 <p class="vc-return"><a id="return_link" href="/index.html">&larr; Return to home</a></p>
 
-<h3 class="vc-title">SD-JWT VC Issuance &mdash; Step 1 of 3: Discover the Issuer</h3>
+<h3 class="vc-title">SD-JWT VC Issuance &mdash; Step 1 of 4: Discover the Issuer</h3>
 
 <!--#include file="/partials/sd_jwt_vc_steps.html"-->
 
@@ -300,6 +300,20 @@ function vcSetAllPanes(expand) {
             </div>
           </td>
           <td><code id="handoff_authorization_endpoint">&mdash;</code></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label for="handoff_request_mechanism">Ask for the credential with: </label>
+              <span class="tooltiptext">OID4VCI has two ways to say which credential is wanted (section 3.3.4). A scope is the simple one. authorization_details (RFC 9396) is the expressive one: the token response then grants credential_identifiers, and the Credential Request MUST name one of those instead of a credential_configuration_id.</span>
+            </div>
+          </td>
+          <td>
+            <select id="handoff_request_mechanism" name="handoff_request_mechanism" onchange="return sdjwtvc1.onRequestMechanismChange();">
+              <option value="scope" selected="selected">scope — the credential configuration's scope value</option>
+              <option value="authorization_details">authorization_details — RFC 9396, type openid_credential</option>
+            </select>
+            <div class="vc-note" id="handoff_mechanism_note">&nbsp;</div>
+          </td>
         </tr>
         <tr>
           <td>

@@ -58,13 +58,13 @@ RUN node -v
 RUN npm -v
 
 # Bundle app source
-COPY tests/oauth2_* tests/oidc_* tests/token_introspection.js tests/jwt_tools.js tests/encoding_tools.js tests/digital_signature.js tests/saml_sso.js tests/saml_logout.js tests/saml_encrypted_sso.js tests/saml_tools.js tests/saml_operation_history.js tests/wstrust_operation_history.js tests/wstrust.js tests/xmlsec_interop.js tests/wstrust_schema_validate.js tests/navigation.js tests/sd_jwt_vc_issuance.js tests/sd_jwt_vc_waltid.js tests/module_paths.js ./
+COPY tests/oauth2_* tests/oidc_* tests/token_introspection.js tests/jwt_tools.js tests/encoding_tools.js tests/digital_signature.js tests/saml_sso.js tests/saml_logout.js tests/saml_encrypted_sso.js tests/saml_tools.js tests/saml_operation_history.js tests/wstrust_operation_history.js tests/wstrust.js tests/xmlsec_interop.js tests/wstrust_schema_validate.js tests/navigation.js tests/sd_jwt_vc_issuance.js tests/sd_jwt_vc_waltid.js tests/jose_jwe.js tests/module_paths.js ./
 # The XML Signature/Encryption interop test drives the frontend crypto module
 # directly (no browser); copy it next to the test so it can require('./xmldsig.js')
 # and resolve its deps (node-forge, etc.) from this image's node_modules. The
 # WS-Trust schema test likewise builds messages with the real generator
 # (wstrust_msg.js) and validates them against the derived XSD in ./schemas.
-COPY client/src/xmldsig.js client/src/wstrust_msg.js ./
+COPY client/src/xmldsig.js client/src/wstrust_msg.js client/src/jose_jwe.js ./
 COPY tests/schemas ./schemas
 COPY tests/run-report.js ./
 # Shared test helpers (populateMetadata, ...). The test scripts require it as

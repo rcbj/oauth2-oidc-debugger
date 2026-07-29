@@ -712,6 +712,167 @@ async function deferredNotSupportedHere(driver) {
   log.debug("Leaving deferredNotSupportedHere().");
 }
 
+// ---------------------------------------------------------------------------
+// The optional parts of OID4VCI, against a real issuer that does not offer them.
+//
+// walt.id's issuer-api2 publishes no authorization_details_types_supported, no
+// notification_endpoint, no batch_credential_issuance and no
+// credential_response_encryption. Every one of those is OPTIONAL in the
+// specification, so this is not a defect — but it is exactly the situation a
+// wallet gets wrong: assuming an optional feature is there, or offering the
+// End-User something the issuer cannot do.
+//
+// So what is checked here is capability detection. The mock issuer covers the
+// mechanics of each feature (tests/sd_jwt_vc_issuance.js); this covers the other
+// half, which only a second implementation can show: behaving correctly when the
+// feature is absent.
+//
+// If walt.id gains any of these, the assertions below fail loudly rather than
+// quietly testing nothing — which is the point of asserting the absence rather
+// than skipping.
+// ---------------------------------------------------------------------------
+async function optionalFeaturesAbsentHere(driver) {
+  log.debug("Entering optionalFeaturesAbsentHere().");
+  var meta = (await httpJson(metadataUrl)).body;
+  var asMeta = (await httpJson(waltidBase + "/.well-known/oauth-authorization-server/openid4vci")).body;
+
+  var absent = {
+    authorization_details_types_supported: asMeta.authorization_details_types_supported,
+    notification_endpoint: meta.notification_endpoint,
+    batch_credential_issuance: meta.batch_credential_issuance,
+    credential_response_encryption: meta.credential_response_encryption,
+    deferred_credential_endpoint: meta.deferred_credential_endpoint
+  };
+  Object.keys(absent).forEach(function (member) {
+    assert.ok(!absent[member],
+      "this section is about what walt.id does NOT offer, and it now offers " + member + " (" +
+      JSON.stringify(absent[member]) + "). Start exercising it instead of asserting its absence.");
+  });
+  log.info("[waltid] OK — walt.id offers none of: " + Object.keys(absent).join(", ") + ".");
+
+  // ---- the wallet's configuration pane says so ---------------------------
+  await misconfigureTheWallet(driver);
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-1.html");
+  await driver.wait(until.elementLocated(By.id("vci_metadata_endpoint")), waitTime);
+  await driver.executeScript(
+    "document.getElementById('vci_metadata_endpoint').value = arguments[0];", metadataUrl);
+  await click(driver, By.id("vci_retrieve_button"));
+  await waitForStatus(driver, "vci_signed_metadata_status",
+    function (s) { return /^Retrieved/.test(s); },
+    "step 1 should retrieve walt.id's credential issuer metadata");
+
+  var marks = await driver.executeScript(
+    "var out = {};" +
+    "['vci_notification_endpoint','vci_batch_credential_issuance'," +
+    " 'vci_credential_response_encryption','vci_deferred_credential_endpoint'," +
+    " 'vci_credential_endpoint'].forEach(function (id) {" +
+    "  var e = document.getElementById(id);" +
+    "  out[id] = e ? { value: e.value, note: e.placeholder || '' } : null;" +
+    "}); return out;");
+  ["vci_notification_endpoint", "vci_batch_credential_issuance",
+   "vci_credential_response_encryption", "vci_deferred_credential_endpoint"].forEach(function (id) {
+    assert.ok(marks[id], "the pane should carry " + id + ".");
+    assert.strictEqual(marks[id].value, "",
+      id + " should be empty for an issuer that does not publish it. Got: " + marks[id].value);
+    assert.strictEqual(marks[id].note, "-->not defined<--",
+      id + " should be marked as not defined rather than left ambiguously blank. Got: " +
+      JSON.stringify(marks[id]));
+  });
+  assert.strictEqual(marks.vci_credential_endpoint.note, "",
+    "while a member walt.id DOES publish carries no such note. Got: " +
+    JSON.stringify(marks.vci_credential_endpoint));
+  log.info("[waltid] OK — every optional member walt.id omits is marked not defined, and the ones it " +
+           "publishes are not.");
+
+  // ---- step 1 does not promise authorization_details ---------------------
+  await click(driver, By.id("as_retrieve_button"));
+  await waitForStatus(driver, "as_signed_metadata_status",
+    function (s) { return /^Retrieved/.test(s); },
+    "step 1 should retrieve walt.id's authorization server metadata");
+  await driver.executeScript(
+    "document.getElementById('handoff_request_mechanism').value = 'authorization_details';" +
+    "sdjwtvc1.onRequestMechanismChange();");
+  await driver.sleep(300);
+  var note = await text(driver, "handoff_mechanism_note");
+  assert.ok(/does not advertise authorization_details_types_supported|may refuse/.test(note),
+    "choosing authorization_details against a server that does not advertise support for it should say " +
+    "so, rather than implying it will work. Got: " + note);
+  log.info("[waltid] OK — the workflow warns that this server does not advertise authorization_details.");
+
+  // Back to the scope path, which is what this issuer supports, and then all the
+  // way to a credential — so the section proves the wallet still WORKS here, not
+  // just that it complains.
+  await driver.executeScript(
+    "document.getElementById('handoff_request_mechanism').value = 'scope';" +
+    "sdjwtvc1.onRequestMechanismChange();" +
+    "document.getElementById('scope').value = arguments[0];" +
+    "document.getElementById('client_id').value = arguments[1];",
+    CONFIGURATION_ID, clientId);
+  var save = await driver.findElements(By.id("config_save_button"));
+  if (save.length) {
+    await click(driver, By.id("config_save_button"));
+  }
+
+  await signOutOfKeycloak(driver);
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-1.html");
+  await driver.wait(until.elementLocated(By.id("start_issuance_button")), waitTime);
+  await authorizeAtWaltid(driver);
+
+  // Step 2 must offer neither batching nor encryption against this issuer.
+  var options = await driver.executeScript(
+    "return { batchDisabled: document.getElementById('vc_batch_size').disabled," +
+    "         batchMax: document.getElementById('vc_batch_size').max," +
+    "         batchNote: document.getElementById('vc_batch_note').textContent.trim()," +
+    "         encDisabled: document.getElementById('vc_encrypt_response').disabled," +
+    "         encChecked: document.getElementById('vc_encrypt_response').checked," +
+    "         encNote: document.getElementById('vc_encrypt_note').textContent.trim()," +
+    "         identifierMode: document.getElementById('vc_identifier_mode').textContent.trim() };");
+  assert.strictEqual(options.batchDisabled, true,
+    "with no batch_credential_issuance advertised, asking for several keys should not be offered. Got: " +
+    JSON.stringify(options));
+  assert.ok(/does not advertise batch_credential_issuance/.test(options.batchNote),
+    "and the pane should say why. Got: " + options.batchNote);
+  assert.strictEqual(options.encDisabled, true,
+    "with no credential_response_encryption advertised, encryption should not be offered.");
+  assert.strictEqual(options.encChecked, false, "and certainly not requested.");
+  assert.ok(/does not advertise credential_response_encryption/.test(options.encNote),
+    "with the reason. Got: " + options.encNote);
+  assert.ok(/credential_configuration_id/.test(options.identifierMode),
+    "and the credential should be named by its configuration id, since no identifiers were granted. Got: " +
+    options.identifierMode);
+  log.info("[waltid] OK — step 2 offers neither batching nor encryption here, and names the credential by " +
+           "configuration id.");
+
+  var body = JSON.parse(await text(driver, "vc_request_body"));
+  assert.strictEqual(body.proofs.jwt.length, 1, "so the request carries exactly one proof.");
+  assert.ok(!body.credential_response_encryption,
+    "and no encryption parameters. Got: " + JSON.stringify(body.credential_response_encryption));
+  assert.ok(!("credential_identifier" in body),
+    "and no credential_identifier, which was never granted. Got: " + JSON.stringify(body));
+
+  await approveAndCollect(driver);
+  await checkCredential(driver, "with every optional feature absent");
+
+  // ---- step 3 offers no notification it cannot send ---------------------
+  var notification = await driver.executeScript(
+    "return { id: document.getElementById('vc_notification_id').textContent.trim()," +
+    "         endpoint: document.getElementById('vc_notification_endpoint').textContent.trim()," +
+    "         request: document.getElementById('vc_notification_request').value," +
+    "         disabled: document.getElementById('vc_notification_button').disabled," +
+    "         status: document.getElementById('vc_notification_status').textContent.trim()," +
+    "         pickerShown: document.getElementById('vc_batch_row').style.display !== 'none' };");
+  assert.strictEqual(notification.disabled, true,
+    "there is nowhere to notify, so the button should be disabled rather than failing when pressed.");
+  assert.strictEqual(notification.request, "",
+    "and no call should be assembled. Got: " + notification.request.slice(0, 120));
+  assert.ok(/publishes no notification_endpoint|no notification_id/.test(notification.status),
+    "step 3 should say why it cannot notify. Got: " + notification.status);
+  assert.strictEqual(notification.pickerShown, false,
+    "and with one credential there is nothing to pick between.");
+  log.info("[waltid] OK — step 3 does not offer a notification this issuer never asked for.");
+  log.debug("Leaving optionalFeaturesAbsentHere().");
+}
+
 async function test() {
   log.info("Starting Test run. waltid=" + issuerId + ", keycloak=" + keycloakBase);
   await whatWaltidPublishes();
@@ -735,6 +896,7 @@ async function test() {
     await issuerInitiated(driver);
     await crossDeviceOffer(driver);
     await deferredNotSupportedHere(driver);
+    await optionalFeaturesAbsentHere(driver);
     log.info("Test completed successfully.");
   } finally {
     await driver.quit();

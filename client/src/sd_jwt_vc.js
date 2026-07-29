@@ -1,16 +1,19 @@
 // File: sd_jwt_vc.js
 //
 // ---------------------------------------------------------------------------
-// State and parsing shared by the three SD-JWT VC issuance pages.
+// State and parsing shared by the SD-JWT VC issuance pages.
 //
 //   sd-jwt-vc-issuance-1.html  discovery + configuration, then hands off to the
 //                              OIDC Authorization Code flow on debugger.html
 //   sd-jwt-vc-issuance-2.html  the tokens that came back, the user's approval,
 //                              and the OID4VCI Credential Request
 //   sd-jwt-vc-issuance-3.html  the issued SD-JWT VC
+//   sd-jwt-vc-issuance-4.html  refreshing it: a Refresh Token for a fresh
+//                              Access Token, then the Credential Endpoint again
+//                              (OID4VCI section 14.5)
 //
-// The workflow crosses four page loads and an identity provider round trip, so
-// everything that has to survive that lives in localStorage under one set of
+// The workflow crosses several page loads and an identity provider round trip,
+// so everything that has to survive that lives in localStorage under one set of
 // keys, defined here once.
 // ---------------------------------------------------------------------------
 
@@ -38,8 +41,11 @@ var KEYS = {
   FLOW: "sdjwtvc_flow",
   // Where debugger2.html should send the browser once it has the tokens.
   RETURN: "sdjwtvc_return",
-  // The compact SD-JWT VC returned by the credential endpoint.
+  // The compact SD-JWT VC returned by the credential endpoint. When a batch was
+  // requested this is the first of them; CREDENTIALS has them all, in the order
+  // the proofs were sent.
   CREDENTIAL: "sdjwtvc_credential",
+  CREDENTIALS: "sdjwtvc_credentials",
   // How it was obtained: { issuer, endpoint, configurationId, vct, requestedAt,
   //                        notificationId, request }
   CREDENTIAL_META: "sdjwtvc_credential_meta",
@@ -50,7 +56,35 @@ var KEYS = {
   // Which OID4VCI Appendix H use case the workflow is running.
   USE_CASE: "sdjwtvc_use_case",
   // The Credential Offer, when the use case has one: { offer, source, receivedAt }.
-  OFFER: "sdjwtvc_credential_offer"
+  OFFER: "sdjwtvc_credential_offer",
+  // ---- refreshing (step 4, OID4VCI section 14.5) --------------------------
+  // What the issuer returned to the refresh request, held SEPARATELY from the
+  // credential in hand: section 14.5 leaves it to the wallet to decide whether
+  // to keep the old one, and a wallet that overwrites before the holder has
+  // looked has made that decision for them.
+  REFRESHED_CREDENTIAL: "sdjwtvc_refreshed_credential",
+  REFRESHED_CREDENTIALS: "sdjwtvc_refreshed_credentials",
+  REFRESHED_META: "sdjwtvc_refreshed_credential_meta",
+  // The key a refresh bound the new credential to, when it was asked to bind a
+  // NEW one. It becomes the wallet's holder key only if that credential is kept:
+  // overwriting HOLDER_PRIVATE_JWK before then would throw away the private half
+  // of the key the credential still in hand is bound to, leaving it impossible to
+  // present.
+  REFRESHED_HOLDER_JWK: "sdjwtvc_refreshed_holder_jwk",
+  REFRESHED_HOLDER_PRIVATE_JWK: "sdjwtvc_refreshed_holder_private_jwk",
+  // The credential that WAS in hand when a refresh replaced it, so what changed
+  // is still there to look at afterwards — with the key it is bound to, because a
+  // credential without its holder key cannot be presented at all.
+  PREVIOUS_CREDENTIAL: "sdjwtvc_previous_credential",
+  PREVIOUS_META: "sdjwtvc_previous_credential_meta",
+  PREVIOUS_HOLDER_JWK: "sdjwtvc_previous_holder_jwk",
+  PREVIOUS_HOLDER_PRIVATE_JWK: "sdjwtvc_previous_holder_private_jwk",
+  // Every credential the wallet has held, oldest first, and which of them is the
+  // one in hand. See the credential history below.
+  HISTORY: "sdjwtvc_credential_history",
+  HISTORY_INDEX: "sdjwtvc_credential_history_index",
+  // How many generations the list has had to forget, so it can say so.
+  HISTORY_DROPPED: "sdjwtvc_credential_history_dropped"
 };
 
 // ---------------------------------------------------------------------------
@@ -222,6 +256,7 @@ function offerIssuerState() {
 var FLOW_ACTIVE = "active";
 var STEP2_URL = "/sd-jwt-vc-issuance-2.html";
 var STEP3_URL = "/sd-jwt-vc-issuance-3.html";
+var STEP4_URL = "/sd-jwt-vc-issuance-4.html";
 
 function ls() {
   try {
@@ -268,6 +303,159 @@ function getJson(key) {
   }
 }
 function setJson(key, value) { set(key, JSON.stringify(value)); }
+
+// ---------------------------------------------------------------------------
+// The credential history.
+//
+// A credential is not one object over its life: the issuance produces one, and
+// every refresh (OID4VCI section 14.5) produces another that may replace it. A
+// wallet that keeps only the newest cannot answer "what did I hold before this,
+// and what changed" — which is the question a debugger exists to answer — so
+// every credential the wallet has HELD is recorded here, oldest first, and step 4
+// navigates them. It is the same idea as the Token History pane on
+// debugger2.html, for credentials instead of token sets.
+//
+// Only credentials the wallet actually held are in it. One the holder looked at
+// and discarded was never held, and recording it would make this a log of what
+// the issuer offered rather than of what the wallet has.
+//
+// Each entry carries its own holder key pair, because a credential whose cnf key
+// the wallet has lost cannot be presented at all: going back to an earlier
+// generation has to bring that key with it.
+// ---------------------------------------------------------------------------
+var HISTORY_LIMIT = 20;
+
+function credentialHistory() {
+  var history = getJson(KEYS.HISTORY);
+  return Object.prototype.toString.call(history) === "[object Array]" ? history : [];
+}
+
+// Which generation is the one in hand. Out-of-range (or absent) means the newest,
+// which is what has just been recorded.
+function activeCredentialIndex() {
+  var history = credentialHistory();
+  var raw = parseInt(get(KEYS.HISTORY_INDEX), 10);
+  if (isNaN(raw) || raw < 0 || raw >= history.length) return history.length ? history.length - 1 : -1;
+  return raw;
+}
+
+// How many generations fell off the end of the list. Kept so the pane can say so:
+// a history that silently forgets reads as a complete one.
+function droppedGenerations() {
+  var n = parseInt(get(KEYS.HISTORY_DROPPED) || "0", 10);
+  return isNaN(n) ? 0 : n;
+}
+
+// The few things the history table shows about a credential, read off it once
+// when it is recorded rather than on every render.
+function summarizeCredential(serialized) {
+  log.debug("Entering summarizeCredential().");
+  var summary = { vct: "", iat: 0, nbf: 0, exp: 0, disclosures: 0, boundKey: "", signature: "" };
+  var parsed;
+  try {
+    parsed = parseSdJwt(serialized);
+  } catch (e) {
+    // A credential this build cannot parse is still one the wallet held; it goes
+    // in the history with an empty summary rather than being dropped.
+    log.debug("Leaving summarizeCredential(). Unparseable: " + e.message);
+    return summary;
+  }
+  var payload = parsed.payload || {};
+  summary.vct = payload.vct || "";
+  summary.iat = payload.iat || 0;
+  summary.nbf = payload.nbf || 0;
+  summary.exp = payload.exp || 0;
+  summary.disclosures = (parsed.disclosures || []).length;
+  summary.boundKey = (payload.cnf && payload.cnf.jwk && payload.cnf.jwk.x) || "";
+  summary.signature = parsed.signature || "";
+  log.debug("Leaving summarizeCredential(). vct=" + summary.vct);
+  return summary;
+}
+
+// Record a credential the wallet has taken into its hand, and make it the active
+// generation. `entry` is { source, credential, credentials, meta, holderJwk,
+// holderPrivateJwk }.
+function recordCredentialGeneration(entry) {
+  log.debug("Entering recordCredentialGeneration(). source=" + (entry && entry.source));
+  var history = credentialHistory();
+  var credential = (entry && entry.credential) || "";
+  if (!credential) {
+    log.debug("Leaving recordCredentialGeneration(). There is no credential to record.");
+    return -1;
+  }
+  // The same bytes twice in a row are one generation, not two: a page that
+  // re-stores what it already stored (a reload, a retried click) must not make
+  // the history say the wallet was issued two credentials.
+  if (history.length && history[history.length - 1].credential === credential) {
+    set(KEYS.HISTORY_INDEX, String(history.length - 1));
+    log.debug("Leaving recordCredentialGeneration(). Already the newest generation.");
+    return history.length - 1;
+  }
+  history.push({
+    at: new Date().toISOString(),
+    source: entry.source || "issued",
+    credential: credential,
+    credentials: entry.credentials && entry.credentials.length ? entry.credentials : [credential],
+    meta: entry.meta || {},
+    holderJwk: entry.holderJwk || null,
+    holderPrivateJwk: entry.holderPrivateJwk || null,
+    summary: summarizeCredential(credential)
+  });
+  var dropped = 0;
+  while (history.length > HISTORY_LIMIT) {
+    history.shift();
+    dropped++;
+  }
+  if (dropped) {
+    set(KEYS.HISTORY_DROPPED, String(droppedGenerations() + dropped));
+    log.debug("recordCredentialGeneration(): dropped " + dropped + " generation(s) past the limit of " +
+              HISTORY_LIMIT + ".");
+  }
+  setJson(KEYS.HISTORY, history);
+  set(KEYS.HISTORY_INDEX, String(history.length - 1));
+  log.debug("Leaving recordCredentialGeneration(). Generation " + history.length + " recorded.");
+  return history.length - 1;
+}
+
+// Make an earlier (or later) generation the credential the wallet holds — with
+// its holder key, or the credential could not be presented.
+function activateCredentialGeneration(index) {
+  log.debug("Entering activateCredentialGeneration(). index=" + index);
+  var history = credentialHistory();
+  if (index < 0 || index >= history.length) {
+    log.debug("Leaving activateCredentialGeneration(). No such generation.");
+    return null;
+  }
+  var entry = history[index];
+  set(KEYS.CREDENTIAL, entry.credential);
+  setJson(KEYS.CREDENTIALS, entry.credentials || [entry.credential]);
+  setJson(KEYS.CREDENTIAL_META, entry.meta || {});
+  if (entry.holderJwk && entry.holderPrivateJwk) {
+    setJson(KEYS.HOLDER_JWK, entry.holderJwk);
+    setJson(KEYS.HOLDER_PRIVATE_JWK, entry.holderPrivateJwk);
+  }
+  set(KEYS.HISTORY_INDEX, String(index));
+  log.debug("Leaving activateCredentialGeneration(). Generation " + (index + 1) + " is now in hand.");
+  return entry;
+}
+
+// Forget the list, not the credential: whatever is in hand stays in hand.
+//
+// An EMPTY list is written rather than the key removed, because "cleared on
+// purpose" and "nothing was ever recorded" are different: only the second should
+// make a page backfill the credential in hand as generation 1. hasCredentialHistory()
+// is that distinction.
+function clearCredentialHistory() {
+  log.debug("Entering clearCredentialHistory().");
+  setJson(KEYS.HISTORY, []);
+  remove(KEYS.HISTORY_INDEX);
+  remove(KEYS.HISTORY_DROPPED);
+  log.debug("Leaving clearCredentialHistory().");
+}
+
+// Whether this browser has ever recorded a generation — as opposed to holding an
+// empty list because someone cleared it.
+function hasCredentialHistory() { return get(KEYS.HISTORY) !== null; }
 
 // --- the hand-off to the OIDC pages ----------------------------------------
 function startFlow() {
@@ -442,6 +630,7 @@ module.exports = {
   offerPreAuthorizedCode: offerPreAuthorizedCode,
   STEP2_URL: STEP2_URL,
   STEP3_URL: STEP3_URL,
+  STEP4_URL: STEP4_URL,
   get: get,
   set: set,
   remove: remove,
@@ -452,6 +641,15 @@ module.exports = {
   endFlow: endFlow,
   returnUrl: returnUrl,
   storedRequestConfig: storedRequestConfig,
+  HISTORY_LIMIT: HISTORY_LIMIT,
+  credentialHistory: credentialHistory,
+  hasCredentialHistory: hasCredentialHistory,
+  activeCredentialIndex: activeCredentialIndex,
+  droppedGenerations: droppedGenerations,
+  summarizeCredential: summarizeCredential,
+  recordCredentialGeneration: recordCredentialGeneration,
+  activateCredentialGeneration: activateCredentialGeneration,
+  clearCredentialHistory: clearCredentialHistory,
   parseSdJwt: parseSdJwt,
   digestForDisclosure: digestForDisclosure,
   collectSdDigests: collectSdDigests,

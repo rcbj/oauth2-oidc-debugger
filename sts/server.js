@@ -614,6 +614,9 @@ function asMetadata(req) {
                             // OID4VCI's pre-authorized code grant, which the
                             // cross-device Credential Offers use.
                             'urn:ietf:params:oauth:grant-type:pre-authorized_code'],
+    // RFC 9396. OID4VCI's other way of saying which credential is wanted:
+    // authorization_details of type openid_credential, instead of a scope.
+    authorization_details_types_supported: ['openid_credential'],
     token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post',
                                             'client_secret_jwt', 'private_key_jwt', 'none'],
     token_endpoint_auth_signing_alg_values_supported: ['RS256', 'RS384', 'RS512', 'ES256', 'PS256', 'HS256'],
@@ -722,6 +725,9 @@ const qrcode = require('qrcode');
 
 const VCI_AS = process.env.OID4VCI_AUTHORIZATION_SERVER || '';
 const VCI_CONFIG_ID = 'IdentityCredential';
+// The most proofs this issuer will take in one Credential Request, and so the
+// most credentials it will return (OID4VCI section 14.6).
+const VCI_BATCH_SIZE = Number(process.env.OID4VCI_BATCH_SIZE || 4);
 const VCI_VCT = 'urn:idptools:sd-jwt-vc:identity';
 const VCI_SCOPE = 'identity_credential';
 // c_nonce values this issuer has handed out and not yet seen used. A nonce is
@@ -758,10 +764,13 @@ function vciMetadata(req) {
     // omits it entirely (walt.id's does). Ours can, so it says so.
     deferred_credential_endpoint: base + '/oid4vci/deferred_credential',
     notification_endpoint: base + '/oid4vci/notification',
-    batch_credential_issuance: { batch_size: 4 },
+    batch_credential_issuance: { batch_size: VCI_BATCH_SIZE },
+    // Only what this issuer actually performs. It used to advertise ECDH-ES as
+    // well, which nothing implemented — metadata that overstates is worse than
+    // metadata that says little.
     credential_response_encryption: {
-      alg_values_supported: ['RSA-OAEP-256', 'ECDH-ES'],
-      enc_values_supported: ['A128GCM', 'A256GCM'],
+      alg_values_supported: [VCI_ENC_ALG],
+      enc_values_supported: VCI_ENC_VALUES,
       encryption_required: false
     },
     display: [{
@@ -1143,8 +1152,15 @@ function verifyProofJwt(proofJwt, credentialIssuer) {
   }
   const expires = vciNonces.get(claims.nonce);
   if (!expires) throw new Error('the proof nonce is not one this issuer handed out (or was already used).');
-  vciNonces.delete(claims.nonce);
-  if (expires < Date.now()) throw new Error('the proof nonce has expired.');
+  // The c_nonce belongs to the REQUEST, not to a single proof: a batch request
+  // carries several proofs and they all quote the same one (section 8.2). So it
+  // is not spent here — the caller spends it once, after every proof in the
+  // request has been verified. Consuming it per proof made the second proof of
+  // any batch fail, which is exactly the bug batch issuance uncovered.
+  if (expires < Date.now()) {
+    vciNonces.delete(claims.nonce);
+    throw new Error('the proof nonce has expired.');
+  }
 
   let key;
   try {
@@ -1261,6 +1277,161 @@ function vciError(res, status, error, description) {
   log.debug("Leaving vciError().");
 }
 
+// ---------------------------------------------------------------------------
+// Which Credential Dataset identifiers an access token was granted.
+//
+// They were put into the token when it was issued, and the token is signed by
+// this service, so reading them back is a verification — a wallet cannot award
+// itself an identifier by editing anything.
+// ---------------------------------------------------------------------------
+// The nonces a set of proofs quoted, spent together: one Credential Request, one
+// c_nonce, however many proofs.
+function spendProofNonces(proofJwts) {
+  log.debug("Entering spendProofNonces(). " + proofJwts.length + " proof(s).");
+  const spent = [];
+  proofJwts.forEach(function (proof) {
+    let nonce;
+    try {
+      nonce = (jsonFromB64u(String(proof).split('.')[1]) || {}).nonce;
+    } catch (e) {
+      // Unreadable proofs never got this far; ignore it rather than throwing
+      // after the credential has already been decided on.
+      log.debug("spendProofNonces(): a proof payload could not be read: " + e.message);
+      return;
+    }
+    if (nonce && vciNonces.delete(nonce) && spent.indexOf(nonce) === -1) spent.push(nonce);
+  });
+  log.debug("Leaving spendProofNonces(). Spent " + spent.length + " distinct nonce(s).");
+}
+
+function grantedIdentifiers(accessToken) {
+  log.debug("Entering grantedIdentifiers().");
+  let claims;
+  try {
+    claims = jwt.verify(accessToken, STS.certPem, { algorithms: ['RS256'] });
+  } catch (e) {
+    // Not our token (or not valid): nothing was granted by us. The caller still
+    // checks the token elsewhere; this only answers "what did we grant".
+    log.debug("Leaving grantedIdentifiers(). The token is not one of ours: " + e.message);
+    return [];
+  }
+  const details = claims.authorization_details || [];
+  const out = [];
+  details.forEach(function (d) {
+    (d.credential_identifiers || []).forEach(function (id) { out.push(id); });
+  });
+  log.debug("Leaving grantedIdentifiers(). " + out.length + " identifier(s).");
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Notification ids (OID4VCI section 11).
+//
+// The issuer returns one per Credential Response so the wallet can report what
+// it did with the credential. Remembering them is what lets the notification
+// endpoint tell a real id from an invented one — and section 11.3 defines
+// invalid_notification_id precisely so that distinction is made.
+// ---------------------------------------------------------------------------
+const notificationIds = new Map();   // id -> { accessToken, expires, event }
+
+function newNotificationId(accessToken) {
+  log.debug("Entering newNotificationId().");
+  const id = b64u(crypto.randomBytes(12));
+  notificationIds.set(id, { accessToken: accessToken, expires: Date.now() + OFFER_TTL_MS, event: null });
+  const now = Date.now();
+  notificationIds.forEach(function (v, k) { if (v.expires < now) notificationIds.delete(k); });
+  log.debug("Leaving newNotificationId(). " + id);
+  return id;
+}
+
+// ---------------------------------------------------------------------------
+// Credential Response encryption (OID4VCI section 10).
+//
+// The wallet supplies the key and the content encryption algorithm, and gets a
+// JWE back instead of JSON. Only what the metadata advertises is accepted —
+// advertising an algorithm this then refuses would make the metadata a lie.
+// ---------------------------------------------------------------------------
+const VCI_ENC_ALG = 'RSA-OAEP-256';
+const VCI_ENC_VALUES = ['A128GCM', 'A256GCM'];
+
+function encryptionProblem(encryption) {
+  log.debug("Entering encryptionProblem().");
+  const jwk = encryption.jwk;
+  if (!jwk || jwk.kty !== 'RSA' || !jwk.n || !jwk.e) {
+    log.debug("Leaving encryptionProblem(). The key is unusable.");
+    return 'credential_response_encryption.jwk must be an RSA public key; this issuer encrypts with ' +
+           VCI_ENC_ALG + '.';
+  }
+  const alg = jwk.alg || encryption.alg || VCI_ENC_ALG;
+  if (alg !== VCI_ENC_ALG) {
+    log.debug("Leaving encryptionProblem(). Unsupported alg " + alg);
+    return 'This issuer supports alg ' + VCI_ENC_ALG + ' only; "' + alg + '" was requested.';
+  }
+  if (!encryption.enc) {
+    log.debug("Leaving encryptionProblem(). No enc.");
+    return 'credential_response_encryption.enc is required (' + VCI_ENC_VALUES.join(' or ') + ').';
+  }
+  if (VCI_ENC_VALUES.indexOf(encryption.enc) === -1) {
+    log.debug("Leaving encryptionProblem(). Unsupported enc " + encryption.enc);
+    return 'This issuer supports enc ' + VCI_ENC_VALUES.join(' or ') + '; "' + encryption.enc +
+           '" was requested.';
+  }
+  if (encryption.zip) {
+    log.debug("Leaving encryptionProblem(). zip requested.");
+    return 'This issuer does not compress responses, so zip cannot be used.';
+  }
+  log.debug("Leaving encryptionProblem(). The parameters are usable.");
+  return "";
+}
+
+// A JWE in compact serialization: RSA-OAEP-256 for the content key, AES-GCM for
+// the content. Written out by hand rather than with a JOSE library, because
+// having the steps visible is the point of a mock.
+function encryptToJwe(plaintext, encryption) {
+  log.debug("Entering encryptToJwe(). enc=" + encryption.enc);
+  const bits = encryption.enc === 'A128GCM' ? 128 : 256;
+  const cek = crypto.randomBytes(bits / 8);
+  const iv = crypto.randomBytes(12);
+  const header = { alg: VCI_ENC_ALG, enc: encryption.enc, typ: 'JWT' };
+  if (encryption.jwk.kid) header.kid = encryption.jwk.kid;
+  const headerB64 = b64u(Buffer.from(JSON.stringify(header), 'utf8'));
+
+  const publicKey = crypto.createPublicKey({ key: encryption.jwk, format: 'jwk' });
+  const encryptedKey = crypto.publicEncrypt({
+    key: publicKey,
+    padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+    oaepHash: 'sha256'
+  }, cek);
+
+  const cipher = crypto.createCipheriv('aes-' + bits + '-gcm', cek, iv);
+  // The protected header is the additional authenticated data, per RFC 7516.
+  cipher.setAAD(Buffer.from(headerB64, 'ascii'));
+  const ciphertext = Buffer.concat([cipher.update(Buffer.from(plaintext, 'utf8')), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  const compact = [headerB64, b64u(encryptedKey), b64u(iv), b64u(ciphertext), b64u(tag)].join('.');
+  log.debug("Leaving encryptToJwe(). " + compact.length + " characters.");
+  return compact;
+}
+
+// Every Credential Response goes out through here, so the encrypted and plain
+// paths cannot drift apart.
+function sendCredentialResponse(res, status, payload, encryption) {
+  log.debug("Entering sendCredentialResponse(). status=" + status + ", encrypted=" + !!encryption);
+  res.set('Cache-Control', 'no-store');
+  if (!encryption) {
+    res.status(status).type('application/json').send(JSON.stringify(payload));
+    log.debug("Leaving sendCredentialResponse(). Sent as JSON.");
+    return;
+  }
+  logArtifact('OID4VCI Credential Response', 'before encryption', payload);
+  const jwe = encryptToJwe(JSON.stringify(payload), encryption);
+  logArtifact('OID4VCI Credential Response', 'after encryption (JWE compact serialization)', jwe);
+  // Section 10: an encrypted response is a JWT, and says so.
+  res.status(status).type('application/jwt').send(jwe);
+  log.debug("Leaving sendCredentialResponse(). Sent as a JWE.");
+}
+
 app.post('/oid4vci/credential', function (req, res) {
   log.debug("Entering the OID4VCI credential endpoint.");
   const auth = req.headers['authorization'] || '';
@@ -1278,28 +1449,85 @@ app.post('/oid4vci/credential', function (req, res) {
     return vciError(res, 400, 'invalid_request', 'The request body is not JSON: ' + e.message);
   }
 
-  const configId = body.credential_configuration_id || body.credential_identifier;
-  if (configId && configId !== VCI_CONFIG_ID) {
-    return vciError(res, 400, 'unsupported_credential_type',
-      'This issuer only offers credential_configuration_id "' + VCI_CONFIG_ID + '".');
+  // Which credential (OID4VCI section 8.2). Exactly one of the two identifies
+  // it, and which one is not the wallet's choice: it depends on whether the
+  // token response granted credential_identifiers.
+  const granted = grantedIdentifiers(accessToken);
+  const identifier = body.credential_identifier;
+  const configId = body.credential_configuration_id;
+  if (identifier && configId) {
+    return vciError(res, 400, 'invalid_credential_request',
+      'credential_identifier and credential_configuration_id are mutually exclusive; send one.');
+  }
+  if (identifier) {
+    if (!granted.length) {
+      return vciError(res, 400, 'invalid_credential_request',
+        'credential_identifier may only be used when the token response granted credential_identifiers ' +
+        '(this authorization used a scope, so send credential_configuration_id instead).');
+    }
+    if (granted.indexOf(identifier) === -1) {
+      return vciError(res, 400, 'invalid_credential_request',
+        'credential_identifier "' + identifier + '" was not granted by the token response. Granted: ' +
+        granted.join(', '));
+    }
+  } else if (configId) {
+    if (granted.length) {
+      return vciError(res, 400, 'invalid_credential_request',
+        'the token response granted credential_identifiers, so credential_configuration_id MUST NOT be used ' +
+        '(OID4VCI section 8.2).');
+    }
+    if (configId !== VCI_CONFIG_ID) {
+      return vciError(res, 400, 'unsupported_credential_type',
+        'This issuer only offers credential_configuration_id "' + VCI_CONFIG_ID + '".');
+    }
+  } else {
+    return vciError(res, 400, 'invalid_credential_request',
+      'Name the credential: credential_identifier (when one was granted) or credential_configuration_id.');
   }
 
-  // OID4VCI 1.0 sends proofs.jwt[]; the earlier single-proof form is accepted
-  // too, since wallets in the wild still send it.
-  let proofJwt = null;
-  if (body.proofs && Array.isArray(body.proofs.jwt) && body.proofs.jwt.length) proofJwt = body.proofs.jwt[0];
-  else if (body.proof && body.proof.jwt) proofJwt = body.proof.jwt;
-  if (!proofJwt) {
+  // Encryption of the response is the wallet's call (section 8.2). Checked before
+  // any signature work: a request this issuer is going to refuse should not cost
+  // the wallet its single-use c_nonce, and "your enc is unsupported" is a more
+  // useful answer than "your proof is stale".
+  const encryption = body.credential_response_encryption;
+  if (encryption) {
+    const problem = encryptionProblem(encryption);
+    if (problem) {
+      log.debug("Leaving the OID4VCI credential endpoint. The encryption parameters were refused.");
+      return vciError(res, 400, 'invalid_encryption_parameters', problem);
+    }
+  }
+
+  // OID4VCI 1.0 sends proofs.jwt[], one entry per key the credential should be
+  // bound to; the earlier single-proof form is accepted too, since wallets in
+  // the wild still send it. One credential comes back per proof (section 8.3).
+  let proofJwts = [];
+  if (body.proofs && Array.isArray(body.proofs.jwt) && body.proofs.jwt.length) proofJwts = body.proofs.jwt;
+  else if (body.proof && body.proof.jwt) proofJwts = [body.proof.jwt];
+  if (!proofJwts.length) {
     return vciError(res, 400, 'invalid_proof', 'A JWT proof of possession is required (proofs.jwt).');
   }
+  if (proofJwts.length > VCI_BATCH_SIZE) {
+    return vciError(res, 400, 'invalid_credential_request',
+      'This issuer accepts at most ' + VCI_BATCH_SIZE + ' proofs in one request ' +
+      '(batch_credential_issuance.batch_size); ' + proofJwts.length + ' were sent.');
+  }
 
-  let holderJwk;
+  let holderJwks = [];
   try {
-    holderJwk = verifyProofJwt(proofJwt, vciMetadata(req).credential_issuer);
+    holderJwks = proofJwts.map(function (jwt) {
+      return verifyProofJwt(jwt, vciMetadata(req).credential_issuer);
+    });
   } catch (e) {
     log.error('the proof of possession was refused: ' + e.message);
     return vciError(res, 400, 'invalid_proof', e.message);
   }
+  // Every proof in this request quoted the same c_nonce, and it is single use:
+  // spend it now that they have all been accepted, so replaying the request is
+  // refused while a batch inside one request is not.
+  spendProofNonces(proofJwts);
+  const holderJwk = holderJwks[0];
+
 
   // A deferred issuance (OID4VCI section 8.3 / Appendix H.3): the issuer cannot
   // produce the credential yet, so it answers 202 with a transaction_id and the
@@ -1311,6 +1539,12 @@ app.post('/oid4vci/credential', function (req, res) {
     deferredTransactions.set(transactionId, {
       claims: subjectClaimsFrom(accessToken),
       holderJwk: holderJwk,
+      holderJwks: holderJwks,
+      // A deferred response is encrypted with the parameters given in the
+      // DEFERRED request, not these — but keeping them means an issuer that
+      // decides otherwise still has them. Section 9.2 is explicit that the newly
+      // provided ones win.
+      encryption: encryption,
       accessToken: accessToken,
       readyAt: Date.now() + DEFERRED_READY_MS,
       expires: Date.now() + OFFER_TTL_MS
@@ -1324,16 +1558,21 @@ app.post('/oid4vci/credential', function (req, res) {
     return;
   }
 
-  const built = buildSdJwtVc(subjectClaimsFrom(accessToken), holderJwk, vciMetadata(req).credential_issuer);
+  // One credential per key the wallet proved possession of.
+  const claims = subjectClaimsFrom(accessToken);
+  const issuerId = vciMetadata(req).credential_issuer;
+  const issued = holderJwks.map(function (jwk) {
+    return buildSdJwtVc(claims, jwk, issuerId);
+  });
   const response = {
-    credentials: [{ credential: built.credential }],
-    notification_id: b64u(crypto.randomBytes(12))
+    credentials: issued.map(function (b) { return { credential: b.credential }; }),
+    notification_id: newNotificationId(accessToken)
   };
   logArtifact('OID4VCI Credential Response', 'as returned', response);
-  res.set('Cache-Control', 'no-store');
-  res.status(200).type('application/json').send(JSON.stringify(response));
-  log.debug("Leaving the OID4VCI credential endpoint. Issued a " + built.disclosures.length +
-            "-disclosure SD-JWT VC.");
+  sendCredentialResponse(res, 200, response, encryption);
+  log.debug("Leaving the OID4VCI credential endpoint. Issued " + issued.length +
+            " SD-JWT VC(s), " + issued[0].disclosures.length + " disclosures each" +
+            (encryption ? ", encrypted to the wallet's key" : "") + ".");
 });
 
 // The Deferred Credential Endpoint (OID4VCI section 9). 202 with the same
@@ -1380,24 +1619,93 @@ app.post('/oid4vci/deferred_credential', function (req, res) {
   // Ready. The transaction_id MUST be invalidated once the credential has been
   // obtained, so a second poll with it is an error rather than a second copy.
   deferredTransactions.delete(transactionId);
-  const built = buildSdJwtVc(record.claims, record.holderJwk, vciMetadata(req).credential_issuer);
+  const holderKeys = record.holderJwks || [record.holderJwk];
+  const issuerId = vciMetadata(req).credential_issuer;
+  const issued = holderKeys.map(function (jwk) {
+    return buildSdJwtVc(record.claims, jwk, issuerId);
+  });
   const response = {
-    credentials: [{ credential: built.credential }],
-    notification_id: b64u(crypto.randomBytes(12))
+    credentials: issued.map(function (b) { return { credential: b.credential }; }),
+    notification_id: newNotificationId(record.accessToken)
   };
   logArtifact('OID4VCI Deferred Credential Response', 'as returned', response);
-  res.set('Cache-Control', 'no-store');
-  res.status(200).type('application/json').send(JSON.stringify(response));
-  log.debug("Leaving the OID4VCI deferred credential endpoint. Issued a " +
-            built.disclosures.length + "-disclosure SD-JWT VC.");
+  sendCredentialResponse(res, 200, response, record.encryption);
+  log.debug("Leaving the OID4VCI deferred credential endpoint. Issued " + issued.length +
+            " SD-JWT VC(s).");
 });
 
-// Accepts the wallet's notification of what it did with the credential
-// (OID4VCI section 10). Nothing to record in a mock — 204 and done.
+// The Notification Endpoint (OID4VCI section 11): the wallet reports what it did
+// with a credential this issuer issued.
+//
+// It used to answer 204 to anything at all, which made it useless — a wallet
+// could not tell a notification that was understood from one that was ignored,
+// and the suite could not tell whether it had sent a valid one. Now the id has
+// to be one this issuer handed out and the event one of the three the spec
+// defines.
+const NOTIFICATION_EVENTS = ['credential_accepted', 'credential_failure', 'credential_deleted'];
+
 app.post('/oid4vci/notification', function (req, res) {
   log.debug("Entering the OID4VCI notification endpoint.");
+  const auth = req.headers['authorization'] || '';
+  if (!/^Bearer\s+\S+/i.test(auth)) {
+    res.set('WWW-Authenticate', 'Bearer');
+    log.debug("Leaving the OID4VCI notification endpoint. No access token.");
+    return vciError(res, 401, 'invalid_token', 'A Bearer access token is required.');
+  }
+
+  let body = {};
+  try {
+    body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+  } catch (e) {
+    log.error('the notification body is not JSON: ' + e.message);
+    log.debug("Leaving the OID4VCI notification endpoint. Unreadable body.");
+    return vciError(res, 400, 'invalid_notification_request',
+      'The request body is not JSON: ' + e.message);
+  }
+
+  const id = String(body.notification_id || '');
+  const event = String(body.event || '');
+  const record = notificationIds.get(id);
+  if (!record || record.expires < Date.now()) {
+    notificationIds.delete(id);
+    log.debug("Leaving the OID4VCI notification endpoint. No such notification_id.");
+    return vciError(res, 400, 'invalid_notification_id',
+      'That notification_id was not issued by this Credential Issuer, or it has expired.');
+  }
+  if (NOTIFICATION_EVENTS.indexOf(event) === -1) {
+    log.debug("Leaving the OID4VCI notification endpoint. Unknown event: " + event);
+    return vciError(res, 400, 'invalid_notification_request',
+      'event must be one of ' + NOTIFICATION_EVENTS.join(', ') + '; got "' + event + '".');
+  }
+
+  record.event = event;
+  record.description = body.event_description || '';
+  record.notifiedAt = new Date().toISOString();
+  logArtifact('OID4VCI Notification', 'as received', {
+    notification_id: id, event: event, event_description: record.description
+  });
+  // Section 11.2: 204, no body.
   res.status(204).end();
-  log.debug("Leaving the OID4VCI notification endpoint.");
+  log.debug("Leaving the OID4VCI notification endpoint. Recorded " + event + " for " + id + ".");
+});
+
+// What this issuer was told about a credential. Not part of OID4VCI — it exists
+// so a test can check that a notification actually arrived and was understood,
+// rather than trusting a 204.
+app.get('/oid4vci/notification/:id', function (req, res) {
+  log.debug("Entering the notification inspection endpoint. id=" + req.params.id);
+  const record = notificationIds.get(String(req.params.id));
+  if (!record) {
+    log.debug("Leaving the notification inspection endpoint. Unknown id.");
+    return vciError(res, 404, 'invalid_notification_id', 'No such notification_id.');
+  }
+  res.status(200).type('application/json').send(JSON.stringify({
+    notification_id: req.params.id,
+    event: record.event,
+    event_description: record.description || '',
+    notified_at: record.notifiedAt || null
+  }));
+  log.debug("Leaving the notification inspection endpoint.");
 });
 
 // ===========================================================================
@@ -1536,6 +1844,12 @@ function accessToken(base, opts) {
     username: user.username
   };
   if (opts.act) payload.act = opts.act;
+  // OID4VCI section 6.2: when the authorization was expressed as
+  // authorization_details, the token response grants credential_identifiers and
+  // the Credential Request must use one of them. They ride in the access token
+  // so the credential endpoint can verify one without consulting any state — the
+  // token is signed, so the wallet cannot award itself an identifier.
+  if (opts.authorization_details) payload.authorization_details = opts.authorization_details;
   const token = signJwt(payload);
   log.debug("Leaving accessToken().");
   return token;
@@ -1598,6 +1912,7 @@ function tokenSet(base, opts) {
     expires_in: ACCESS_TOKEN_TTL,
     scope: opts.scope || ''
   };
+  if (opts.authorization_details) body.authorization_details = opts.authorization_details;
   if (opts.withRefresh !== false) body.refresh_token = refreshToken(base, opts);
   if (hasScope(opts.scope, 'openid')) {
     body.id_token = idToken(base, Object.assign({}, opts, { access_token: access }));
@@ -1715,6 +2030,45 @@ function loginPage(base, login, error) {
 
 // Build the authorization response for a signed-in user and redirect back to
 // the client. Everything after authentication — which is "as normal".
+// authorization_details (RFC 9396) as OID4VCI uses it: an array of objects of
+// type openid_credential, each naming a credential_configuration_id. Unreadable
+// JSON is not silently dropped — a wallet that sent nonsense should be told.
+function parseAuthorizationDetails(raw) {
+  log.debug("Entering parseAuthorizationDetails().");
+  if (!raw) {
+    log.debug("Leaving parseAuthorizationDetails(). None were sent.");
+    return { details: null };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(String(raw));
+  } catch (e) {
+    log.debug("Leaving parseAuthorizationDetails(). Not JSON: " + e.message);
+    return { error: 'authorization_details is not readable JSON: ' + e.message };
+  }
+  if (!Array.isArray(parsed)) {
+    log.debug("Leaving parseAuthorizationDetails(). Not an array.");
+    return { error: 'authorization_details must be a JSON array.' };
+  }
+  const wanted = [];
+  for (let i = 0; i < parsed.length; i++) {
+    const d = parsed[i] || {};
+    if (d.type !== 'openid_credential') {
+      log.debug("Leaving parseAuthorizationDetails(). Unsupported type: " + d.type);
+      return { error: 'authorization_details type "' + d.type + '" is not supported; ' +
+                      'this issuer understands openid_credential.' };
+    }
+    const configId = d.credential_configuration_id;
+    if (configId && configId !== VCI_CONFIG_ID) {
+      log.debug("Leaving parseAuthorizationDetails(). Unknown configuration: " + configId);
+      return { error: 'credential_configuration_id "' + configId + '" is not one this issuer offers.' };
+    }
+    wanted.push({ type: 'openid_credential', credential_configuration_id: configId || VCI_CONFIG_ID });
+  }
+  log.debug("Leaving parseAuthorizationDetails(). " + wanted.length + " detail(s).");
+  return { details: wanted.length ? wanted : null };
+}
+
 function issueAuthorizationResponse(req, res, query, user, authTime) {
   log.debug("Entering issueAuthorizationResponse(). response_type=" + (query.response_type || '(none)') +
             ", user=" + user.username);
@@ -1723,6 +2077,17 @@ function issueAuthorizationResponse(req, res, query, user, authTime) {
   const types = String(query.response_type || '').split(/\s+/).filter(Boolean);
   const scope = String(query.scope || 'openid');
   const out = {};
+  const parsedDetails = parseAuthorizationDetails(query.authorization_details);
+  if (parsedDetails.error) {
+    log.debug("Leaving issueAuthorizationResponse(). " + parsedDetails.error);
+    return redirectBack(res, base, redirectUri, query.state,
+      { error: 'invalid_authorization_details', error_description: parsedDetails.error },
+      types.length > 1 || types.indexOf('code') < 0);
+  }
+  const authorizationDetails = parsedDetails.details;
+  if (authorizationDetails) {
+    logArtifact('authorization_details', 'as requested', authorizationDetails);
+  }
 
   if (types.indexOf('code') >= 0) {
     const code = randomId(24);
@@ -1730,6 +2095,10 @@ function issueAuthorizationResponse(req, res, query, user, authTime) {
       client_id: String(query.client_id), redirect_uri: redirectUri, scope: scope,
       nonce: query.nonce, user: user, auth_time: authTime,
       code_challenge: query.code_challenge, code_challenge_method: query.code_challenge_method || 'plain',
+      // What the wallet asked to be authorized for, if it used
+      // authorization_details rather than a scope. The token response has to
+      // echo it back with the credential_identifiers it grants.
+      authorization_details: authorizationDetails,
       expires: Date.now() + AUTH_CODE_TTL_MS
     });
     out.code = code;
@@ -1905,6 +2274,25 @@ app.post('/oauth2/token', function (req, res) {
     log.debug("Leaving the token endpoint. Issued: " + Object.keys(payload).join(', '));
   };
 
+  // Turn what was authorized into what may be requested: OID4VCI calls these
+  // Credential Dataset identifiers, and they are the issuer's own names for
+  // "this credential, for this End-User".
+  const grantIdentifiers = function (details, user) {
+    if (!details) return null;
+    return details.map(function (d) {
+      return {
+        type: 'openid_credential',
+        credential_configuration_id: d.credential_configuration_id,
+        credential_identifiers: [
+          d.credential_configuration_id + ':' +
+          b64u(crypto.createHash('sha256')
+            .update(String((user && user.sub) || 'anonymous') + ':' + d.credential_configuration_id)
+            .digest()).slice(0, 16)
+        ]
+      };
+    });
+  };
+
   if (grant === 'authorization_code') {
     const record = authzCodes.get(String(body.code || ''));
     if (!record) return oauthError(res, 400, 'invalid_grant', 'Unknown or already-used authorization code.');
@@ -1927,7 +2315,8 @@ app.post('/oauth2/token', function (req, res) {
     }
     return respond(tokenSet(base, {
       user: record.user, client_id: record.client_id, scope: record.scope,
-      nonce: record.nonce, auth_time: record.auth_time
+      nonce: record.nonce, auth_time: record.auth_time,
+      authorization_details: grantIdentifiers(record.authorization_details, record.user)
     }));
   }
 

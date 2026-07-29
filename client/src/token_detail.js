@@ -596,12 +596,14 @@ var RETURN_TARGETS = {
   'debugger2.html': '/debugger2.html?redirectFromTokenDetail=true',
   'sd-jwt-vc-issuance-1.html': '/sd-jwt-vc-issuance-1.html',
   'sd-jwt-vc-issuance-2.html': '/sd-jwt-vc-issuance-2.html',
-  'sd-jwt-vc-issuance-3.html': '/sd-jwt-vc-issuance-3.html'
+  'sd-jwt-vc-issuance-3.html': '/sd-jwt-vc-issuance-3.html',
+  'sd-jwt-vc-issuance-4.html': '/sd-jwt-vc-issuance-4.html'
 };
 var RETURN_LABELS = {
   'sd-jwt-vc-issuance-1.html': 'Return to SD-JWT VC issuance (step 1)',
   'sd-jwt-vc-issuance-2.html': 'Return to SD-JWT VC issuance (step 2)',
-  'sd-jwt-vc-issuance-3.html': 'Return to SD-JWT VC issuance (step 3)'
+  'sd-jwt-vc-issuance-3.html': 'Return to SD-JWT VC issuance (step 3)',
+  'sd-jwt-vc-issuance-4.html': 'Return to SD-JWT VC issuance (step 4)'
 };
 
 function setReturnLinks() {
