@@ -159,5 +159,41 @@ services:
       waltid-issuer-api:
         condition: service_started
 
+  # walt.id's VERIFIER (verifier-api2) — the interoperability counterpart for the
+  # PRESENTATION workflow, beside our own mock. Host networking like everything
+  # else here, so the host-run browser reaches the proxy at localhost:7003. Its
+  # request-signing key comes from the environment (generateWaltidVerifierKey in
+  # common/common.sh) — no private key is committed.
+  waltid-verifier-api:
+    image: waltid/verifier-api2:0.23.0
+    # No hostname: under host networking it resolves to nothing, and the
+    # service's logger prints an UnknownHostException stack trace over it.
+    network_mode: "host"
+    volumes:
+      # Rendered by renderWaltidConfig() (common/common.sh). A SEPARATE directory
+      # from the issuer's: walt.id reads whatever conf files are in the directory
+      # it is given, and the two services must not be handed each other's.
+      - ./waltid/generated-verifier-config:/waltid-verifier-api2/config:ro
+
+  # CORS in front of the verifier, for the same reason the issuer has one, and it
+  # IS the address the verifier's urlPrefix names.
+  waltid-verifier:
+    image: node:24-alpine
+    command: ["node", "/waltid/cors-proxy.js"]
+    network_mode: "host"
+    environment:
+      - WALTID_UPSTREAM=localhost:7004
+      - WALTID_PROXY_PORT=7003
+    volumes:
+      - ./waltid/cors-proxy.js:/waltid/cors-proxy.js:ro
+    healthcheck:
+      # /livez is what walt.id's service-commons registers for every service. The
+      # probe is on the proxy because the verifier image has no shell for
+      # CMD-SHELL to run; this covers the whole chain.
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:7003/livez',function(r){process.exit(r.statusCode<500?0:1)}).on('error',function(){process.exit(1)})\""]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
 volumes:
   postgres_data:

@@ -1,7 +1,11 @@
 // File: cors-proxy.js
 //
 // ---------------------------------------------------------------------------
-// CORS in front of walt.id's issuer-api2.
+// CORS in front of a walt.id service — issuer-api2 or verifier-api2.
+//
+// One copy runs per service (see the compose files): the issuer's proxy serves
+// 7005 in front of 7006, the verifier's serves 7003 in front of 7004. Nothing here
+// is specific to either; it forwards every method, path and body untouched.
 //
 // walt.id's services send no CORS headers — they install no CORS plugin at all,
 // and walt.id's own compose stack puts a reverse proxy in front of every one of
@@ -10,15 +14,16 @@
 // hand the response to the page, so the debugger could not read the issuer's
 // metadata, let alone POST a Credential Request.
 //
-// So the wallet talks to this, and the issuer's own `baseUrl` names it: every URL
-// walt.id publishes in its metadata is built from that base, and they have to be
-// URLs a browser can actually use. Nothing is rewritten here — the issuer already
-// believes it lives at this address.
+// So the wallet talks to this, and the service's own address setting names it —
+// the issuer's `baseUrl`, the verifier's `urlPrefix`: every URL walt.id publishes
+// or hands a wallet is built from that base, and they have to be URLs a browser
+// can actually use. Nothing is rewritten here — the service already believes it
+// lives at this address.
 //
 // Permissive on purpose: this fronts a throwaway test issuer on a private
 // network. A real deployment would name its wallet origins.
 //
-//   WALTID_UPSTREAM     host:port of the issuer (default localhost:7006)
+//   WALTID_UPSTREAM     host:port of the walt.id service (default localhost:7006)
 //   WALTID_PROXY_PORT   the port to serve (default 7005)
 //
 // No dependencies, so it runs on a stock node image with nothing installed.

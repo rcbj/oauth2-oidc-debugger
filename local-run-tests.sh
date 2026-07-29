@@ -53,6 +53,11 @@ init()
   # OpenID4VCI issuer the interoperability job runs against.
   WALTID_ISSUER_URL=http://localhost:7005
   export WALTID_ISSUER_URL
+  # walt.id's verifier, behind its own CORS proxy on 7003. Locating it here is what
+  # switches the presentation interoperability job on; unset it and that job is
+  # skipped rather than failed, the same way the issuer's is.
+  WALTID_VERIFIER_URL=http://localhost:7003
+  export WALTID_VERIFIER_URL
   CONFIG_FILE=./env/local.js
   CURRENT_DIR=`echo "$(dirname "$(realpath "$0")")"`
   COMMON_SH=${CURRENT_DIR}/common/common.sh
@@ -77,15 +82,22 @@ init()
   # configuration, and configureKeycloak registers the callback under the same
   # base.
   WALTID_BASE_URL=http://localhost:7005
+  # The verifier's public address, which its urlPrefix names: under host
+  # networking that is plain localhost.
+  WALTID_VERIFIER_BASE_URL=http://localhost:7003
+  WALTID_VERIFIER_CLIENT_ID=verifier2
   WALTID_KEYCLOAK_AUTHORIZE_URL=http://localhost:8080/realms/debugger-testing/protocol/openid-connect/auth
   WALTID_KEYCLOAK_TOKEN_URL=http://localhost:8080/realms/debugger-testing/protocol/openid-connect/token
   WALTID_KEYCLOAK_CLIENT_ID=waltid-issuer
   WALTID_KEYCLOAK_CLIENT_SECRET=waltid-issuer-test-secret
   export WALTID_BASE_URL WALTID_KEYCLOAK_AUTHORIZE_URL WALTID_KEYCLOAK_TOKEN_URL
   export WALTID_KEYCLOAK_CLIENT_ID WALTID_KEYCLOAK_CLIENT_SECRET
+  export WALTID_VERIFIER_BASE_URL WALTID_VERIFIER_CLIENT_ID
   # The walt.id issuer's configuration is rendered before compose starts: the
   # container mounts the result, so the key exists on disk for this run only.
   generateWaltidIssuerKey
+  check_return_code $?
+  generateWaltidVerifierKey
   check_return_code $?
   renderWaltidConfig "${CURRENT_DIR}"
   check_return_code $?
@@ -130,6 +142,10 @@ startDocker
 check_return_code $?
 sleep 60
 check_return_code $?
+# The walt.id services are JVM services and start slower than the sleep above
+# allows for; wait for them rather than letting their jobs fail on a connection
+# error that says nothing about the cause.
+waitForWaltid
 configureKeycloak
 check_return_code $?
 

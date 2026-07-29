@@ -919,6 +919,37 @@ The suite is `tests/sd_jwt_vc_presentation.js`, and it is deliberately both halv
   case is presented correctly in the same run, so the refusals cannot be an artefact of a verifier that says no to
   everything.
 
+### Interoperability: presentation against walt.id
+
+The mock Verifier above and our wallet were written together, so a run where they agree proves only that they
+agree. The same argument that put **walt.id's `issuer-api2`** in the issuance suite puts
+**[walt.id's `verifier-api2`](https://github.com/walt-id/waltid-identity)** here — an independently written
+OpenID4VP 1.0 verifier with DCQL and its own policy engine — and `tests/sd_jwt_vc_presentation_waltid.js` drives
+*the same four pages and the same buttons* against it.
+
+The credential it presents is **issued by walt.id in the same run**, through our own issuance workflow. Neither end
+of the exchange is ours, and the credential is walt.id's in every way that matters to a presentation: signed
+**ES256** (our mock uses RS256), `iss` is a **`did:jwk`** rather than a URL, and the salts, disclosure layout and
+`vct` are all its choices. The test asserts those properties before presenting anything, because a run that quietly
+presented *our* credential would look identical and prove nothing.
+
+| Step | What happens |
+|---|---|
+| 1 | walt.id issues a credential through `sd-jwt-vc-issuance-*` (End-User authenticated at Keycloak, since walt.id authenticates nobody itself) |
+| 2 | walt.id's management API creates a verification session: `POST /verification-session/create` with `flow_type`, a `dcql_query` (`meta.vct_values` read off the credential it just issued, not guessed) and its own `vc_policies` |
+| 3 | Its Authorization Request — both shapes: the full one by value and the short `request_uri` one — is handed to our step 1, and the workflow runs: choose disclosures, sign the KB-JWT, `direct_post` the `vp_token` |
+| 4 | walt.id's session record (`GET /verification-session/{id}/info`) is read back: its status, its `policy_results`, and the claims it ended up with — `given_name` and `birthdate` present, `email` and `phone_number` absent |
+
+The **negative** is the same flow with a claim walt.id asked for withheld. The presentation is perfectly
+well-formed — issuer signature, digests and Key Binding JWT all valid, and our wallet's own checks pass — so what
+must refuse it is walt.id's own DCQL fulfilment check, not ours.
+
+Wiring: the verifier container listens on 7004 with its own CORS proxy on **7003** (walt.id sends no CORS headers,
+and its `urlPrefix` must name an address the browser can use), configured from `waltid/verifier-config/*.conf`
+rendered per run by `renderWaltidConfig()` with a freshly generated request-signing key. It is in both compose
+files — `docker-compose-run-tests.yml` and `local-tests.yml` — and the job is skipped, not failed, when
+`WALTID_VERIFIER_URL` is unset.
+
 ## Versioning
 Releases are numbered **M.N.O**:
 

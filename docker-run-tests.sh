@@ -54,17 +54,25 @@ fi
 # configuration, and configureKeycloak registers the callback under the same
 # base.
 WALTID_BASE_URL=http://waltid-issuer:7005
+# walt.id's verifier, behind its own CORS proxy. Same rule as the issuer: this is
+# the address the BROWSER uses, and every URL the verifier hands the wallet — the
+# request_uri it fetches, the response_uri it POSTs to — is built from it.
+WALTID_VERIFIER_BASE_URL=http://waltid-verifier:7003
+WALTID_VERIFIER_CLIENT_ID=verifier2
 WALTID_KEYCLOAK_AUTHORIZE_URL=http://keycloak:8080/realms/debugger-testing/protocol/openid-connect/auth
 WALTID_KEYCLOAK_TOKEN_URL=http://keycloak:8080/realms/debugger-testing/protocol/openid-connect/token
 WALTID_KEYCLOAK_CLIENT_ID=waltid-issuer
 WALTID_KEYCLOAK_CLIENT_SECRET=waltid-issuer-test-secret
 export WALTID_BASE_URL WALTID_KEYCLOAK_AUTHORIZE_URL WALTID_KEYCLOAK_TOKEN_URL
 export WALTID_KEYCLOAK_CLIENT_ID WALTID_KEYCLOAK_CLIENT_SECRET
+export WALTID_VERIFIER_BASE_URL WALTID_VERIFIER_CLIENT_ID
 
 # The walt.id issuer's configuration is rendered before compose brings the stack
 # up: the container mounts the result, and the signing key it contains is
 # generated per run and gitignored. See common/common.sh.
 generateWaltidIssuerKey
+check_return_code $?
+generateWaltidVerifierKey
 check_return_code $?
 renderWaltidConfig "${CURRENT_DIR}"
 check_return_code $?

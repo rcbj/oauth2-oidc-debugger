@@ -52,9 +52,13 @@ init()
   case "${DEBUGGER_BASE_URL}" in
     http://client:*)
       WALTID_ISSUER_URL="${WALTID_ISSUER_URL:-http://waltid-issuer:7005}"
+      # walt.id's verifier-api2, behind its own CORS proxy, for the PRESENTATION
+      # interoperability job. Same rule again: the browser reaches it by this
+      # name, and every URL the verifier hands the wallet is built from it.
+      WALTID_VERIFIER_URL="${WALTID_VERIFIER_URL:-http://waltid-verifier:7003}"
       ;;
   esac
-  export WALTID_ISSUER_URL
+  export WALTID_ISSUER_URL WALTID_VERIFIER_URL
   CONFIG_FILE="${CONFIG_FILE:-./env/local.js}"
   CURRENT_DIR=`echo "$(dirname "$(realpath "$0")")"`
   COMMON_SH=${CURRENT_DIR}/common.sh

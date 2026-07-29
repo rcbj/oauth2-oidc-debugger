@@ -249,6 +249,62 @@ generateWaltidIssuerKey()
 }
 
 # ---------------------------------------------------------------------------
+# The walt.id VERIFIER's request-signing key.
+#
+# verifier-api2 signs Request Objects with this when a session asks for
+# signed_request. It is separate from the issuer's key on purpose: they are
+# different parties, and a test that shared one key between them would prove
+# less than it appears to.
+#
+# Exports WALTID_VERIFIER_KEY — the {"type":"jwk","jwk":{…}} string walt.id's
+# configuration expects — and never echoes it, the same rule
+# generateWaltidIssuerKey() and generateSpKeyPair() follow.
+# ---------------------------------------------------------------------------
+generateWaltidVerifierKey()
+{
+  echo "Entering generateWaltidVerifierKey()."
+  local xtrace_was_on=""
+  case "$-" in
+    *x*) xtrace_was_on="yes"; set +x ;;
+  esac
+
+  if [ -n "${WALTID_VERIFIER_KEY:-}" ];
+  then
+    export WALTID_VERIFIER_KEY
+    [ -n "${xtrace_was_on}" ] && set -x
+    echo "A walt.id verifier key was supplied by the caller; using it as-is."
+    echo "Leaving generateWaltidVerifierKey()."
+    return 0
+  fi
+
+  if ! command -v node >/dev/null 2>&1;
+  then
+    [ -n "${xtrace_was_on}" ] && set -x
+    echo "ERROR: node is required to generate the walt.id verifier key." >&2
+    exit 1
+  fi
+
+  WALTID_VERIFIER_KEY=$(node -e '
+    var crypto = require("crypto");
+    var kp = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+    var jwk = kp.privateKey.export({ format: "jwk" });
+    console.log(JSON.stringify({ type: "jwk",
+      jwk: { kty: jwk.kty, d: jwk.d, crv: jwk.crv, x: jwk.x, y: jwk.y } }));
+  ')
+  if [ -z "${WALTID_VERIFIER_KEY}" ];
+  then
+    [ -n "${xtrace_was_on}" ] && set -x
+    echo "ERROR: could not generate the walt.id verifier key." >&2
+    exit 1
+  fi
+  export WALTID_VERIFIER_KEY
+
+  [ -n "${xtrace_was_on}" ] && set -x
+  echo "Generated a fresh walt.id verifier request-signing key for this run (P-256)."
+  echo "Leaving generateWaltidVerifierKey()."
+}
+
+# ---------------------------------------------------------------------------
 # Render the walt.id configuration with this run's values written in.
 #
 # waltid/config/*.conf are templates that name their inputs as ${WALTID_...}.
@@ -272,8 +328,14 @@ renderWaltidConfig()
   esac
 
   local repo_root="${1:-.}"
+  # Two services, two configuration trees, rendered into two directories: the
+  # issuer must not be handed the verifier's files (walt.id's config loader reads
+  # whatever is in the directory it is given) and the verifier must not be handed
+  # the issuer's.
   local template_dir="${repo_root}/waltid/config"
   local out_dir="${repo_root}/waltid/generated-config"
+  local verifier_template_dir="${repo_root}/waltid/verifier-config"
+  local verifier_out_dir="${repo_root}/waltid/generated-verifier-config"
 
   if [ ! -d "${template_dir}" ];
   then
@@ -301,7 +363,10 @@ renderWaltidConfig()
     var names = ["WALTID_BASE_URL", "WALTID_CI_TOKEN_KEY", "WALTID_ISSUER_DID",
                  "WALTID_KEY_D", "WALTID_KEY_X", "WALTID_KEY_Y",
                  "WALTID_KEYCLOAK_AUTHORIZE_URL", "WALTID_KEYCLOAK_TOKEN_URL",
-                 "WALTID_KEYCLOAK_CLIENT_ID", "WALTID_KEYCLOAK_CLIENT_SECRET"];
+                 "WALTID_KEYCLOAK_CLIENT_ID", "WALTID_KEYCLOAK_CLIENT_SECRET",
+                 // and the verifier ones
+                 "WALTID_VERIFIER_BASE_URL", "WALTID_VERIFIER_CLIENT_ID",
+                 "WALTID_VERIFIER_KEY"];
     var from = process.env.WALTID_TEMPLATE_DIR;
     var to = process.env.WALTID_OUT_DIR;
     var missing = [];
@@ -331,6 +396,57 @@ renderWaltidConfig()
   [ -n "${xtrace_was_on}" ] && set -x
   check_return_code ${rc}
 
+  # The verifier's tree, when this deployment has one. Skipped rather than fatal:
+  # a checkout that predates the verifier, or a run that only wants the issuer,
+  # should still work.
+  if [ -d "${verifier_template_dir}" ] && [ -n "${WALTID_VERIFIER_BASE_URL:-}" ];
+  then
+    rm -rf "${verifier_out_dir}"
+    mkdir -p "${verifier_out_dir}"
+    check_return_code $?
+    WALTID_TEMPLATE_DIR="${verifier_template_dir}" WALTID_OUT_DIR="${verifier_out_dir}" \
+      WALTID_VERIFIER_CLIENT_ID="${WALTID_VERIFIER_CLIENT_ID:-verifier2}" node -e '
+      var fs = require("fs");
+      var path = require("path");
+      var names = ["WALTID_VERIFIER_BASE_URL", "WALTID_VERIFIER_CLIENT_ID", "WALTID_VERIFIER_KEY"];
+      var from = process.env.WALTID_TEMPLATE_DIR;
+      var to = process.env.WALTID_OUT_DIR;
+      var missing = [];
+      var rendered = [];
+      fs.readdirSync(from).filter(function (f) { return /\.conf$/.test(f); }).forEach(function (f) {
+        var text = fs.readFileSync(path.join(from, f), "utf8");
+        names.forEach(function (name) {
+          if (text.indexOf("${" + name + "}") === -1) return;
+          var value = process.env[name];
+          if (value === undefined || value === "") {
+            if (missing.indexOf(name) === -1) missing.push(name);
+            return;
+          }
+          text = text.split("${" + name + "}").join(value);
+        });
+        fs.writeFileSync(path.join(to, f), text);
+        rendered.push(f);
+      });
+      if (missing.length) {
+        console.error("ERROR: the walt.id verifier configuration references " + missing.join(", ") +
+                      ", which are not set.");
+        process.exit(1);
+      }
+      console.log("Rendered " + rendered.length + " walt.id verifier configuration file(s): " +
+                  rendered.join(", "));
+    '
+    local vrc=$?
+    check_return_code ${vrc}
+    if grep -l '\${WALTID_' "${verifier_out_dir}"/*.conf >/dev/null 2>&1;
+    then
+      echo "ERROR: the rendered walt.id VERIFIER configuration still contains \${WALTID_...} references:" >&2
+      grep -n '\${WALTID_' "${verifier_out_dir}"/*.conf >&2
+      exit 1
+    fi
+  else
+    echo "No walt.id verifier configuration to render (WALTID_VERIFIER_BASE_URL unset or ${verifier_template_dir} missing)."
+  fi
+
   # Anything left unexpanded would be read literally by the service, so say so
   # here rather than letting it fail as a connection refused later.
   if grep -l '\${WALTID_' "${out_dir}"/*.conf >/dev/null 2>&1;
@@ -340,6 +456,57 @@ renderWaltidConfig()
     exit 1
   fi
   echo "Leaving renderWaltidConfig()."
+}
+
+# ---------------------------------------------------------------------------
+# Wait for the walt.id services to answer.
+#
+# Both are JVM services that take tens of seconds to start listening. The
+# containerized stack waits on compose healthchecks; the local one has only a
+# fixed sleep, which is not always enough — and a walt.id job that starts too
+# early fails with a connection error that looks nothing like the real cause.
+#
+# Bounded, and deliberately NOT fatal: a run may legitimately not have these
+# containers, and the jobs that need them are skipped or fail on their own with a
+# clearer message than this could give.
+# ---------------------------------------------------------------------------
+waitForWaltid()
+{
+  echo "Entering waitForWaltid()."
+  local issuer_probe="${WALTID_ISSUER_URL:-}"
+  local verifier_probe="${WALTID_VERIFIER_URL:-}"
+  local deadline=$(( $(date +%s) + ${WALTID_WAIT_SECONDS:-180} ))
+
+  if [ -n "${issuer_probe}" ];
+  then
+    echo "Waiting for walt.id's issuer at ${issuer_probe} ..."
+    until curl -fsS -o /dev/null --max-time 5 \
+            "${issuer_probe}/.well-known/openid-credential-issuer/openid4vci" 2>/dev/null;
+    do
+      if [ "$(date +%s)" -ge "${deadline}" ];
+      then
+        echo "WARNING: walt.id's issuer did not answer at ${issuer_probe} within the wait. The issuance interoperability job will report why." >&2
+        break
+      fi
+      sleep 5
+    done
+  fi
+
+  if [ -n "${verifier_probe}" ];
+  then
+    echo "Waiting for walt.id's verifier at ${verifier_probe} ..."
+    # /livez is what walt.id's service-commons registers for every service.
+    until curl -fsS -o /dev/null --max-time 5 "${verifier_probe}/livez" 2>/dev/null;
+    do
+      if [ "$(date +%s)" -ge "${deadline}" ];
+      then
+        echo "WARNING: walt.id's verifier did not answer at ${verifier_probe} within the wait. The presentation interoperability job will report why." >&2
+        break
+      fi
+      sleep 5
+    done
+  fi
+  echo "Leaving waitForWaltid()."
 }
 
 configureKeycloak()

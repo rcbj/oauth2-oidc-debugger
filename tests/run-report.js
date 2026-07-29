@@ -368,6 +368,24 @@ function buildJobs() {
     });
   }
 
+  // The SD-JWT VC PRESENTATION workflow driven against walt.id's verifier-api2 —
+  // an independently written OpenID4VP 1.0 verifier with DCQL — instead of our own
+  // mock. The credential it presents is ISSUED BY walt.id in the same run through
+  // our issuance pages, so neither end of the exchange is ours. Gated on that
+  // container being up, like the issuer's interoperability job; it also needs the
+  // walt.id issuer and Keycloak, because that is where the credential comes from.
+  if (env.WALTID_VERIFIER_URL) {
+    jobs.push({
+      name: "SD-JWT VC Presentation against walt.id (OID4VP interoperability, positive and negative)",
+      script: "sd_jwt_vc_presentation_waltid.js",
+      env: {
+        WALTID_VERIFIER_URL: env.WALTID_VERIFIER_URL,
+        WALTID_ISSUER_URL: env.WALTID_ISSUER_URL || "",
+        KEYCLOAK_BASE_URL: env.KEYCLOAK_BASE_URL || "",
+      },
+    });
+  }
+
   // Operations History pane on the WS-Trust pages: records every attempted STS
   // call (timestamp, WS-Trust version, operation, user, result), dispatched as
   // "Sent" and resolved from the RSTR — or the SOAP Fault — on the response
