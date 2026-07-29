@@ -127,6 +127,8 @@ function setReturnLink() {
     'saml_response.html': '/saml_response.html',
     'wstrust_tools.html': '/wstrust_tools.html',
     'wstrust_response.html': '/wstrust_response.html',
+    'wsfed_tools.html': '/wsfed_tools.html',
+    'wsfed_response.html': '/wsfed_response.html',
     'digital_signature.html': '/digital_signature.html',
     'jwt_tools.html': '/jwt_tools.html'
   };

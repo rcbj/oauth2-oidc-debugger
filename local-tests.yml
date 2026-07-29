@@ -111,6 +111,28 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+  # WS-Federation IdP side-car (Keycloak 8.0.1 + cloudtrust keycloak-wsfed). Host
+  # networking, so it uses a WildFly port-offset of 2 (HTTP -> 8082) to avoid
+  # colliding with the 26.x Keycloak (8080) and the STS (8081). configureKeycloakWsfed
+  # provisions it; the WS-Fed test reaches it at http://localhost:8082/auth.
+  keycloak-wsfed:
+    container_name: keycloak-wsfed
+    hostname: keycloak-wsfed
+    image: rcbj/keycloak-wsfed
+    network_mode: "host"
+    build:
+      context: .
+      dockerfile: keycloak-wsfed/Dockerfile
+    command: ["-b", "0.0.0.0", "-Djboss.socket.binding.port-offset=2"]
+    environment:
+      KEYCLOAK_USER: keycloak
+      KEYCLOAK_PASSWORD: keycloak
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8082/auth/realms/master || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 150s
 
 volumes:
   postgres_data:

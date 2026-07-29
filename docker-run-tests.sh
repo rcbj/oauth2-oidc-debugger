@@ -54,6 +54,14 @@ teardown()
 }
 trap teardown EXIT
 
+# Start from a clean slate: remove leftover containers AND the Keycloak DB volume
+# from a previous run before bringing the stack up. The test data is disposable
+# and recreated by configureKeycloak each run; a persisted volume leaves a stale
+# 'debugger-testing' realm, so re-provisioning 409s ("Failed to create SAML
+# user"). -v also guarantees a fresh DB. This likewise sidesteps a docker-compose
+# v1 recreate bug ("KeyError: 'ContainerConfig'") pre-existing containers trigger.
+docker_compose -f "${COMPOSE_FILE}" down -v --remove-orphans 2>/dev/null || true
+
 # Build fresh images (so code changes are picked up), bring the stack up, and let
 # the tests container drive the run. --abort-on-container-exit stops the stack as
 # soon as the tests finish; --exit-code-from tests makes compose (and therefore

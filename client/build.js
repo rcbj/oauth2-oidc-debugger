@@ -58,6 +58,8 @@ const BUNDLES = [
   ['saml_response', 'saml_response'],
   ['wstrust_tools', 'wstrust_tools'],
   ['wstrust_response', 'wstrust_response'],
+  ['wsfed_tools', 'wsfed_tools'],
+  ['wsfed_response', 'wsfed_response'],
 ];
 
 const CALLBACK_HTML = `<!DOCTYPE html>

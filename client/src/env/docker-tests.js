@@ -10,6 +10,11 @@ var config = {
   spEntityId: "http://client:3000/saml/sp",
   acsUrl: "http://api:4000/samlacs",
   sloUrl: "http://api:4000/samlslo",
+  // WS-Federation: RP realm default + the API landing endpoint (wreply target),
+  // reachable by its compose DNS name inside the test network.
+  wsfedRealm: "urn:wsfed:test:rp",
+  wsfedAcsUrl: "http://api:4000/wsfed",
+  wsfedMetadataUrlDefault: "http://keycloak-wsfed:8080/auth/realms/wsfed-testing/protocol/wsfed/descriptor",
   samlMetadataUrlDefault: "http://keycloak:8080/realms/debugger-testing/protocol/saml/descriptor",
   // Default WS-Trust STS endpoint (the mock STS service, reachable by its
   // compose DNS name inside the test network).

@@ -32,3 +32,17 @@ services:
       dockerfile: ./sts/Dockerfile
     ports:
       - "8081:8081"
+  # Keycloak 8.0.1 + cloudtrust keycloak-wsfed module (WS-Federation IdP side-car
+  # for the WS-Fed test). Included here so the Docker Image CI (dockerimage.yml,
+  # which runs `docker-compose -f docker-compose.yml build`) builds it too.
+  keycloak-wsfed:
+    container_name: keycloak-wsfed
+    image: rcbj/keycloak-wsfed
+    build:
+      context: .
+      dockerfile: ./keycloak-wsfed/Dockerfile
+    environment:
+      KEYCLOAK_USER: keycloak
+      KEYCLOAK_PASSWORD: keycloak
+    ports:
+      - "8082:8080"

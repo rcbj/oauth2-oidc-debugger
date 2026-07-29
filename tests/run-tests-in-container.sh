@@ -28,6 +28,13 @@ init()
   # Must match the client bundle's baked wstrustStsUrlDefault (docker-tests.js).
   WSTRUST_STS_URL="${WSTRUST_STS_URL:-http://sts:8081/sts}"
   export WSTRUST_STS_URL
+  # WS-Federation IdP side-car (Keycloak 8.0.1 + wsfed). Only the fully-containerized
+  # run-tests stack provides it — it sets these on the tests service to its compose
+  # DNS name (keycloak-wsfed:8080). Default EMPTY so deployed-site runs (live-tests,
+  # no side-car) skip WS-Fed immediately instead of polling a missing host.
+  KEYCLOAK_WSFED_BASE_URL="${KEYCLOAK_WSFED_BASE_URL:-}"
+  KEYCLOAK_WSFED_LOCALHOST_BASE_URL="${KEYCLOAK_WSFED_LOCALHOST_BASE_URL:-}"
+  export KEYCLOAK_WSFED_BASE_URL KEYCLOAK_WSFED_LOCALHOST_BASE_URL
   CONFIG_FILE="${CONFIG_FILE:-./env/local.js}"
   CURRENT_DIR=`echo "$(dirname "$(realpath "$0")")"`
   # SP signing cert (base64 DER) registered on the Keycloak SAML client so it can
@@ -91,7 +98,17 @@ init
 check_return_code $?
 waitForKeycloak
 check_return_code $?
+# Delete any pre-existing debugger-testing realm so provisioning is idempotent.
+# docker-run-tests.sh's startup `down -v` is meant to give us a fresh DB, but it
+# is best-effort (swallowed under docker-compose v1); if a stale realm survives,
+# configureKeycloak would 409 ("Failed to create SAML user"). See common.sh.
+resetKeycloakRealm
+check_return_code $?
 configureKeycloak
+check_return_code $?
+# Provision the WS-Federation side-car (no-op unless KEYCLOAK_WSFED_LOCALHOST_BASE_URL
+# is set by the run-tests compose; skips gracefully if it isn't reachable).
+configureKeycloakWsfed
 check_return_code $?
 runReport
 check_return_code $?
