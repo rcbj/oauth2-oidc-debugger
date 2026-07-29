@@ -64,6 +64,10 @@ const BUNDLES = [
   ['sd_jwt_vc_issuance_2', 'sdjwtvc2'],
   ['sd_jwt_vc_issuance_3', 'sdjwtvc3'],
   ['sd_jwt_vc_issuance_4', 'sdjwtvc4'],
+  ['sd_jwt_vc_presentation_0', 'sdjwtvp0'],
+  ['sd_jwt_vc_presentation_1', 'sdjwtvp1'],
+  ['sd_jwt_vc_presentation_2', 'sdjwtvp2'],
+  ['sd_jwt_vc_presentation_3', 'sdjwtvp3'],
 ];
 
 const CALLBACK_HTML = `<!DOCTYPE html>

@@ -1709,6 +1709,635 @@ app.get('/oid4vci/notification/:id', function (req, res) {
 });
 
 // ===========================================================================
+// OpenID for Verifiable Presentations (OID4VP 1.0) — mock Verifier
+//
+// The other half of the SD-JWT VC story: the issuance flow above puts a
+// credential in a wallet, and this is the Verifier that asks for part of it.
+//
+//   GET  /oid4vp/verifier          the Verifier's web page (where a
+//                                  presentation starts, same device)
+//   GET  /oid4vp/start             builds an Authorization Request and either
+//                                  sends the browser to the wallet with it or
+//                                  displays it as a QR code (cross device)
+//   GET  /oid4vp/request/:id       the signed Request Object, fetched by
+//                                  reference (RFC 9101 / OID4VP request_uri)
+//   POST /oid4vp/response          the Response URI: response_mode direct_post,
+//                                  where the vp_token arrives and is VERIFIED
+//   GET  /oid4vp/result/:state     non-spec: the verdict, so the wallet page and
+//                                  the tests can read what the Verifier decided
+//   GET  /oid4vp/done              the Verifier's "thank you" page
+//
+// What it checks is the whole point, so it checks properly (RFC 9901 section 7.3
+// plus OID4VP's rules for the Key Binding JWT):
+//
+//   * the presentation is an SD-JWT+KB: <Issuer-signed JWT>~<Disclosure>*~<KB-JWT>
+//   * the Issuer-signed JWT verifies against the issuer's key, and its typ is an
+//     SD-JWT VC media type
+//   * every Disclosure presented hashes to a digest in _sd — a Disclosure the
+//     issuer never signed is the forgery this catches
+//   * the KB-JWT has typ kb+jwt, an alg that is not none, and verifies against
+//     the cnf key IN THE CREDENTIAL — key binding means nothing if the presenter
+//     may nominate the key
+//   * its sd_hash equals the hash of exactly the bytes presented, so disclosures
+//     cannot be added or removed after it was signed
+//   * its nonce is the nonce from THIS request (replay) and its aud is this
+//     Verifier's Client Identifier (an honest presentation to someone else is
+//     not a presentation to us)
+//   * the credential is inside its validity window, and every claim the DCQL
+//     query asked for is actually there
+// ===========================================================================
+const VP_CLIENT_ID = process.env.OID4VP_CLIENT_ID || 'sts-mock-verifier';
+const VP_WALLET_URL = process.env.OID4VP_WALLET_URL || WALLET_BASE_URL;
+const VP_TTL_MS = 10 * 60 * 1000;
+// How old a Key Binding JWT may be. It is signed for one presentation, so this is
+// short on purpose.
+const VP_KB_MAX_AGE_S = Number(process.env.OID4VP_KB_MAX_AGE_S || 600);
+// The claims this Verifier asks for: enough to show selective disclosure doing
+// its job — it wants two of the six claims the credential can carry.
+const VP_REQUESTED_CLAIMS = (process.env.OID4VP_CLAIMS || 'given_name,family_name').split(',');
+const VP_DCQL_ID = 'identity_credential';
+
+// state -> { id, nonce, state, responseMode, clientId, requestObject, dcql,
+//            expires, verdict }
+const vpTransactions = new Map();
+// id -> state, so a Request Object fetched by reference can find its transaction.
+const vpRequests = new Map();
+
+function sweepVpTransactions() {
+  const now = Date.now();
+  vpTransactions.forEach(function (v, k) {
+    if (v.expires < now) {
+      vpRequests.delete(v.id);
+      vpTransactions.delete(k);
+    }
+  });
+}
+
+// The DCQL query (OID4VP section 6): which credential, of which format, with
+// which claims. `claims` is what makes this a selective-disclosure request — the
+// Verifier names the paths it needs and has no way to ask for "everything".
+function vpDcqlQuery() {
+  log.debug("Entering vpDcqlQuery().");
+  const query = {
+    credentials: [{
+      id: VP_DCQL_ID,
+      format: 'dc+sd-jwt',
+      meta: { vct_values: [VCI_VCT] },
+      claims: VP_REQUESTED_CLAIMS.map(function (name) { return { path: [name] }; })
+    }]
+  };
+  logArtifact('OID4VP DCQL query', 'as built', query);
+  log.debug("Leaving vpDcqlQuery(). " + VP_REQUESTED_CLAIMS.length + " claim(s) requested.");
+  return query;
+}
+
+// One Authorization Request, in the two shapes this mock offers:
+//
+//   by value      client_id uses the redirect_uri prefix, so the request needs no
+//                 signature — and cannot have one, because the Wallet has no way
+//                 to obtain a key for a client identified only by a URL
+//                 (OID4VP section 5.10).
+//   by reference  a pre-registered client_id and a SIGNED Request Object at
+//                 request_uri, verifiable against this service's published JWKS.
+function buildVpRequest(req, opts) {
+  log.debug("Entering buildVpRequest(). byReference=" + !!opts.byReference);
+  const base = baseUrlOf(req);
+  const responseUri = base + '/oid4vp/response';
+  const id = randomId(16);
+  const nonce = randomId(18);
+  const state = randomId(18);
+  const clientId = opts.byReference ? VP_CLIENT_ID : ('redirect_uri:' + responseUri);
+  const request = {
+    client_id: clientId,
+    response_type: 'vp_token',
+    response_mode: 'direct_post',
+    response_uri: responseUri,
+    nonce: nonce,
+    state: state,
+    dcql_query: vpDcqlQuery(),
+    client_metadata: {
+      client_name: 'Mock Verifier (bar door)',
+      vp_formats_supported: { 'dc+sd-jwt': { 'sd-jwt_alg_values': ['RS256', 'ES256'],
+                                             'kb-jwt_alg_values': ['ES256'] } }
+    }
+  };
+  const record = {
+    id: id, nonce: nonce, state: state, clientId: clientId,
+    responseMode: 'direct_post', request: request, byReference: !!opts.byReference,
+    expires: Date.now() + VP_TTL_MS, verdict: null
+  };
+  logArtifact('OID4VP Authorization Request', 'as built', request);
+  if (opts.byReference) {
+    // RFC 9101: the Request Object is a signed JWT. iss/aud are the client and
+    // the wallet; the wallet checks the signature against the client's key,
+    // which for a pre-registered client it has out of band — here, this
+    // service's JWKS.
+    const payload = Object.assign({
+      iss: clientId,
+      aud: 'https://self-issued.me/v2',
+      iat: nowSec(),
+      exp: nowSec() + Math.floor(VP_TTL_MS / 1000)
+    }, request);
+    record.requestObject = signJwt(Object.assign({ typ: 'oauth-authz-req+jwt' }, payload));
+    logArtifact('OID4VP Request Object', 'after signing', record.requestObject);
+    vpRequests.set(id, state);
+  }
+  vpTransactions.set(state, record);
+  sweepVpTransactions();
+  log.debug("Leaving buildVpRequest(). state=" + state + ", nonce=" + nonce);
+  return record;
+}
+
+// The query the wallet is handed: by value it carries the whole request, by
+// reference only client_id and request_uri (OID4VP section 5.2).
+function vpRequestQuery(req, record) {
+  log.debug("Entering vpRequestQuery().");
+  const base = baseUrlOf(req);
+  const params = record.byReference
+    ? { client_id: record.clientId, request_uri: base + '/oid4vp/request/' + record.id,
+        request_uri_method: 'get' }
+    : {
+        client_id: record.clientId,
+        response_type: record.request.response_type,
+        response_mode: record.request.response_mode,
+        response_uri: record.request.response_uri,
+        nonce: record.nonce,
+        state: record.state,
+        dcql_query: JSON.stringify(record.request.dcql_query),
+        client_metadata: JSON.stringify(record.request.client_metadata)
+      };
+  const query = Object.keys(params)
+    .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); })
+    .join('&');
+  log.debug("Leaving vpRequestQuery(). " + Object.keys(params).length + " parameter(s).");
+  return query;
+}
+
+// The Verifier's own web page — where a same-device presentation starts.
+app.get('/oid4vp/verifier', function (req, res) {
+  log.debug("Entering the verifier web page.");
+  const base = baseUrlOf(req);
+  const page = '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">' +
+    '<title>The Bar Door — are you over 21?</title><style>' +
+    'body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;background:#f4f4f7;margin:0;' +
+    'display:flex;align-items:center;justify-content:center;min-height:100vh;color:#222}' +
+    '.card{background:#fff;border:1px solid #d5d5dd;border-radius:10px;padding:30px 34px;width:560px;' +
+    'box-shadow:0 6px 24px rgba(0,0,0,.08)}h1{font-size:1.3em;margin:0 0 6px}' +
+    'p{line-height:1.5;color:#333}a.cta{display:inline-block;margin-top:14px;margin-right:10px;padding:10px 16px;' +
+    'border-radius:6px;background:#12107c;color:#fff;text-decoration:none;font-weight:600}' +
+    'a.cta.secondary{background:#fff;color:#12107c;border:1px solid #12107c}' +
+    'p.alt{margin-top:20px;font-size:.92em;color:#555}' +
+    '.meta{margin-top:22px;padding-top:14px;border-top:1px solid #eee;font-size:.78em;color:#777}' +
+    'code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}</style></head><body><div class="card">' +
+    '<h1>The Bar Door</h1>' +
+    '<p>We need to see that you are who you say you are — but only that. Present the ' +
+    '<code>' + xmlEscape(VP_REQUESTED_CLAIMS.join(', ')) + '</code> claim(s) from a credential of type ' +
+    '<code>' + xmlEscape(VCI_VCT) + '</code>, and nothing else.</p>' +
+    '<p><a class="cta" id="present_by_value" href="/oid4vp/start">Present your credential</a>' +
+    '<a class="cta secondary" id="present_by_reference" href="/oid4vp/start?by=reference">' +
+    'Present it (signed request by reference)</a></p>' +
+    '<p class="alt">Wallet on another device?<br>' +
+    '<a class="cta secondary" id="present_cross_device" href="/oid4vp/start?mode=cross-device">' +
+    'Show a QR code (cross-device)</a></p>' +
+    '<div class="meta">This is the Verifier in OID4VP. It builds an Authorization Request with ' +
+    '<code>response_type=vp_token</code>, a <code>dcql_query</code> naming the claims above, a fresh ' +
+    '<code>nonce</code>, and <code>response_mode=direct_post</code> — so your wallet POSTs the presentation ' +
+    'to <code>' + xmlEscape(base) + '/oid4vp/response</code> rather than putting it in a URL. The wallet is at ' +
+    '<code>' + xmlEscape(VP_WALLET_URL) + '</code>.</div>' +
+    '</div></body></html>\n';
+  res.status(200).type('text/html').send(page);
+  log.debug("Leaving the verifier web page.");
+});
+
+// The link on that page: build the request and hand it to the wallet.
+app.get('/oid4vp/start', function (req, res) {
+  log.debug("Entering the presentation start endpoint. mode=" + (req.query.mode || 'same-device'));
+  const byReference = String(req.query.by || '') === 'reference';
+  const mode = String(req.query.mode || 'same-device');
+  const record = buildVpRequest(req, { byReference: byReference });
+  const query = vpRequestQuery(req, record);
+  const wallet = String(req.query.wallet || VP_WALLET_URL).replace(/\/+$/, '') +
+                 '/sd-jwt-vc-presentation-1.html';
+
+  if (mode !== 'cross-device') {
+    // Same device: the browser IS the wallet's user agent, so send it there.
+    res.redirect(302, wallet + '?' + query);
+    log.debug("Leaving the presentation start endpoint. Redirected to the wallet.");
+    return;
+  }
+  // Cross device: display the request for the wallet on the other device to
+  // scan, as the openid4vp URI a wallet registers for.
+  renderVpQrPage(res, {
+    base: baseUrlOf(req),
+    requestUri: 'openid4vp://?' + query,
+    walletUrl: wallet + '?' + query,
+    record: record
+  });
+  log.debug("Leaving the presentation start endpoint. Displayed a QR code.");
+});
+
+// The Verifier's screen in a cross-device presentation.
+function renderVpQrPage(res, opts) {
+  log.debug("Entering renderVpQrPage().");
+  qrcode.toDataURL(opts.requestUri, { errorCorrectionLevel: 'M', margin: 2, width: 320 })
+    .then(function (dataUrl) {
+      const page = '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">' +
+        '<title>The Bar Door — scan to present</title><style>' +
+        'body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;background:#f4f4f7;margin:0;' +
+        'display:flex;align-items:center;justify-content:center;min-height:100vh;color:#222}' +
+        '.card{background:#fff;border:1px solid #d5d5dd;border-radius:10px;padding:30px 34px;width:560px;' +
+        'box-shadow:0 6px 24px rgba(0,0,0,.08);text-align:center}h1{font-size:1.25em;margin:0 0 6px}' +
+        'p{line-height:1.5;color:#333}img.qr{margin:14px auto;display:block;border:1px solid #eee;border-radius:8px}' +
+        '.uri{word-break:break-all;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.72em;' +
+        'color:#555;background:#fafafa;border:1px solid #eee;border-radius:6px;padding:8px;text-align:left}' +
+        '.meta{margin-top:20px;padding-top:14px;border-top:1px solid #eee;font-size:.78em;color:#777;text-align:left}' +
+        'code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}' +
+        '</style></head><body><div class="card">' +
+        '<h1>Scan this with your wallet</h1>' +
+        '<p>Your wallet will show you exactly which claims we are asking for before anything is sent.</p>' +
+        '<img class="qr" id="request_qr" alt="OID4VP Authorization Request QR code" src="' + dataUrl + '">' +
+        '<div class="uri" id="request_uri">' + xmlEscape(opts.requestUri) + '</div>' +
+        '<div class="meta">OID4VP cross-device flow. The wallet is on your other device, so it cannot be ' +
+        'redirected — it reads the request from this code and POSTs the presentation straight back to us ' +
+        '(<code>response_mode=direct_post</code>). The <code>nonce</code> in the request is what stops a ' +
+        'presentation from being replayed. If your wallet is on this device, ' +
+        '<a id="open_in_wallet" href="' + xmlEscape(opts.walletUrl) + '">open it here</a>.' +
+        '</div></div></body></html>\n';
+      res.status(200).type('text/html').send(page);
+      log.debug("Leaving renderVpQrPage().");
+    })
+    .catch(function (e) {
+      log.error("could not render the presentation QR code: " + e.message);
+      res.status(500).type('text/plain').send('Could not render the Authorization Request QR code: ' + e.message);
+    });
+}
+
+// The Request Object, fetched by reference (request_uri). Signed, and served with
+// the media type RFC 9101 defines for it.
+app.get('/oid4vp/request/:id', function (req, res) {
+  log.debug("Entering the request object endpoint. id=" + req.params.id);
+  const state = vpRequests.get(String(req.params.id));
+  const record = state ? vpTransactions.get(state) : null;
+  if (!record || !record.requestObject) {
+    log.debug("Leaving the request object endpoint. No such request.");
+    return oauthError(res, 404, 'invalid_request', 'No such Request Object.');
+  }
+  res.status(200).type('application/oauth-authz-req+jwt').send(record.requestObject);
+  log.debug("Leaving the request object endpoint. Served a signed Request Object.");
+});
+// ---------------------------------------------------------------------------
+// Verifying a presentation (RFC 9901 section 7.3, plus OID4VP's rules for the
+// Key Binding JWT).
+//
+// Every check is recorded with its own verdict rather than collapsed into one
+// boolean: "the presentation was refused" is not a useful answer to a wallet
+// developer, and a debugger's job is to say WHICH rule was broken.
+// ---------------------------------------------------------------------------
+function vpCheck(checks, name, ok, detail) {
+  checks.push({ name: name, ok: !!ok, detail: detail });
+  log.debug("vpCheck(): " + name + " -> " + (ok ? "OK" : "FAILED") + " (" + detail + ")");
+  return !!ok;
+}
+
+// base64url(hash) of the US-ASCII of everything before the KB-JWT, which is what
+// sd_hash has to be (RFC 9901 section 4.3.1).
+function sdHashOf(presentedWithoutKb, sdAlg) {
+  const alg = String(sdAlg || 'sha-256').toLowerCase();
+  const nodeAlg = { 'sha-256': 'sha256', 'sha-384': 'sha384', 'sha-512': 'sha512' }[alg];
+  if (!nodeAlg) return null;
+  return b64u(crypto.createHash(nodeAlg).update(presentedWithoutKb, 'ascii').digest());
+}
+
+function verifyPresentation(presentation, record) {
+  log.debug("Entering verifyPresentation().");
+  logArtifact('OID4VP Verifiable Presentation', 'as received', presentation);
+  const checks = [];
+  const result = { ok: false, checks: checks, claims: {}, disclosed: [], vct: '', sub: '' };
+  const parts = String(presentation || '').split('~');
+  if (parts.length < 2) {
+    vpCheck(checks, 'Format', false,
+      'a presentation is <Issuer-signed JWT>~<Disclosure>*~<KB-JWT>; this has ' + parts.length + ' part(s).');
+    log.debug("Leaving verifyPresentation(). Not a Combined Serialization.");
+    return result;
+  }
+  const issuerJwt = parts[0];
+  const kbJwt = parts[parts.length - 1];
+  const disclosures = parts.slice(1, parts.length - 1).filter(function (d) { return d !== ''; });
+  vpCheck(checks, 'Format', true,
+    'SD-JWT+KB with ' + disclosures.length + ' Disclosure(s) and a Key Binding JWT.');
+
+  // --- the issuer-signed JWT ------------------------------------------------
+  let header = {};
+  let payload = {};
+  try {
+    header = jsonFromB64u(issuerJwt.split('.')[0]);
+    payload = jsonFromB64u(issuerJwt.split('.')[1]);
+  } catch (e) {
+    vpCheck(checks, 'Issuer-signed JWT', false, 'cannot be decoded: ' + e.message);
+    log.debug("Leaving verifyPresentation(). Undecodable credential.");
+    return result;
+  }
+  result.vct = payload.vct || '';
+  result.sub = payload.sub || '';
+  vpCheck(checks, 'Media type (typ)', ['dc+sd-jwt', 'vc+sd-jwt'].indexOf(String(header.typ)) >= 0,
+    'typ is "' + header.typ + '".');
+  let issuerSignatureOk = false;
+  try {
+    jwt.verify(issuerJwt, STS.certPem, { algorithms: ['RS256'] });
+    issuerSignatureOk = true;
+  } catch (e) {
+    // Not signed by us — or expired, which jsonwebtoken reports here too. Both
+    // are reasons to refuse, and the message says which.
+    vpCheck(checks, 'Issuer signature', false, 'does not verify: ' + e.message);
+  }
+  if (issuerSignatureOk) {
+    vpCheck(checks, 'Issuer signature', true, 'verifies against the issuer\'s key (alg RS256).');
+  }
+  const now = nowSec();
+  vpCheck(checks, 'Validity window',
+    (!payload.exp || payload.exp > now) && (!payload.nbf || payload.nbf <= now),
+    'nbf ' + (payload.nbf || '—') + ', exp ' + (payload.exp || '—') + ', now ' + now + '.');
+  vpCheck(checks, 'Credential type (vct)', payload.vct === VCI_VCT,
+    'vct is "' + payload.vct + '"; this Verifier asked for "' + VCI_VCT + '".');
+
+  // --- the Disclosures presented -------------------------------------------
+  // Every one must hash to a digest the issuer signed. This is the check that
+  // catches a Disclosure invented by whoever is presenting.
+  const sdAlg = payload._sd_alg || 'sha-256';
+  const nodeAlg = { 'sha-256': 'sha256', 'sha-384': 'sha384', 'sha-512': 'sha512' }[String(sdAlg).toLowerCase()];
+  const signedDigests = [];
+  (function collect(node) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      node.forEach(function (item) {
+        if (item && typeof item === 'object' && typeof item['...'] === 'string') signedDigests.push(item['...']);
+        else collect(item);
+      });
+      return;
+    }
+    Object.keys(node).forEach(function (k) {
+      if (k === '_sd' && Array.isArray(node[k])) node[k].forEach(function (d) { signedDigests.push(d); });
+      else if (typeof node[k] === 'object') collect(node[k]);
+    });
+  })(payload);
+
+  let unmatched = 0;
+  disclosures.forEach(function (encoded) {
+    let arr = null;
+    try {
+      arr = JSON.parse(b64uDecode(encoded).toString('utf8'));
+    } catch (e) {
+      unmatched++;
+      log.error('a presented Disclosure is not base64url JSON: ' + e.message);
+      return;
+    }
+    const digest = nodeAlg ? b64u(crypto.createHash(nodeAlg).update(encoded, 'ascii').digest()) : '';
+    if (signedDigests.indexOf(digest) === -1) {
+      unmatched++;
+      log.error('a presented Disclosure hashes to a digest the issuer never signed: ' + digest);
+      return;
+    }
+    if (Array.isArray(arr) && arr.length === 3) {
+      result.claims[arr[1]] = arr[2];
+      result.disclosed.push(arr[1]);
+    }
+  });
+  vpCheck(checks, 'Disclosure digests', unmatched === 0,
+    unmatched === 0
+      ? 'all ' + disclosures.length + ' presented Disclosure(s) hash to a digest in _sd.'
+      : unmatched + ' presented Disclosure(s) were not signed by the issuer.');
+
+  // The always-visible claims are part of what was presented too.
+  Object.keys(payload).forEach(function (k) {
+    if (['_sd', '_sd_alg', 'cnf'].indexOf(k) >= 0) return;
+    if (!(k in result.claims)) result.claims[k] = payload[k];
+  });
+
+  // --- the Key Binding JWT --------------------------------------------------
+  let kbHeader = {};
+  let kbPayload = {};
+  let kbReadable = false;
+  try {
+    kbHeader = jsonFromB64u(kbJwt.split('.')[0]);
+    kbPayload = jsonFromB64u(kbJwt.split('.')[1]);
+    kbReadable = kbJwt.split('.').length === 3;
+  } catch (e) {
+    kbReadable = false;
+  }
+  if (!kbReadable) {
+    vpCheck(checks, 'Key Binding JWT', false,
+      'the last element is not a readable three-part JWS, so the presentation has no holder proof at all.');
+    result.ok = checks.every(function (c) { return c.ok; });
+    log.debug("Leaving verifyPresentation(). No usable KB-JWT.");
+    return result;
+  }
+  logArtifact('OID4VP Key Binding JWT', 'as received', { header: kbHeader, payload: kbPayload });
+  vpCheck(checks, 'KB-JWT media type', String(kbHeader.typ) === 'kb+jwt',
+    'typ is "' + kbHeader.typ + '"; RFC 9901 section 4.3 requires kb+jwt.');
+  vpCheck(checks, 'KB-JWT algorithm', !!kbHeader.alg && kbHeader.alg !== 'none',
+    'alg is ' + kbHeader.alg + '.');
+  vpCheck(checks, 'KB-JWT nonce', kbPayload.nonce === record.nonce,
+    kbPayload.nonce === record.nonce
+      ? 'matches the nonce in this Authorization Request.'
+      : 'is "' + kbPayload.nonce + '", but this request\'s nonce is "' + record.nonce +
+        '" — a presentation made for another request, or replayed.');
+  vpCheck(checks, 'KB-JWT audience', kbPayload.aud === record.clientId,
+    kbPayload.aud === record.clientId
+      ? 'is this Verifier\'s Client Identifier.'
+      : 'is "' + kbPayload.aud + '", not "' + record.clientId + '" — this presentation was made for someone else.');
+  vpCheck(checks, 'KB-JWT freshness',
+    !!kbPayload.iat && Math.abs(now - Number(kbPayload.iat)) <= VP_KB_MAX_AGE_S,
+    'iat is ' + kbPayload.iat + ' (' + (kbPayload.iat ? (now - Number(kbPayload.iat)) + 's ago' : 'absent') +
+    '); at most ' + VP_KB_MAX_AGE_S + 's is accepted.');
+
+  // sd_hash ties the KB-JWT to exactly these bytes: the issuer-signed JWT and the
+  // Disclosures presented, each followed by a tilde.
+  const withoutKb = parts.slice(0, parts.length - 1).join('~') + '~';
+  const expectedSdHash = sdHashOf(withoutKb, sdAlg);
+  vpCheck(checks, 'KB-JWT sd_hash', !!expectedSdHash && kbPayload.sd_hash === expectedSdHash,
+    kbPayload.sd_hash === expectedSdHash
+      ? 'is the hash of exactly the bytes presented, so no Disclosure was added or removed after it was signed.'
+      : 'is "' + kbPayload.sd_hash + '" but these bytes hash to "' + expectedSdHash +
+        '" — the presentation was altered after the holder signed it.');
+
+  // The signature must verify against the key the CREDENTIAL names, not one the
+  // presenter chose: that is what key binding means.
+  const cnfJwk = (payload.cnf && payload.cnf.jwk) || null;
+  if (!cnfJwk) {
+    vpCheck(checks, 'KB-JWT signature', false,
+      'the credential carries no cnf.jwk, so there is no key this presentation could be bound to.');
+  } else {
+    try {
+      const holderKey = crypto.createPublicKey({ key: cnfJwk, format: 'jwk' });
+      jwt.verify(kbJwt, holderKey, { algorithms: ['ES256', 'ES384', 'RS256', 'PS256'] });
+      vpCheck(checks, 'KB-JWT signature', true,
+        'verifies against the cnf key in the credential (' + cnfJwk.kty + ' ' + (cnfJwk.crv || '') + ').');
+    } catch (e) {
+      vpCheck(checks, 'KB-JWT signature', false,
+        'does NOT verify against the cnf key in the credential: ' + e.message);
+    }
+  }
+
+  // --- did we get what we asked for? ---------------------------------------
+  const missing = VP_REQUESTED_CLAIMS.filter(function (name) { return !(name in result.claims); });
+  vpCheck(checks, 'Requested claims', missing.length === 0,
+    missing.length === 0
+      ? 'every claim the DCQL query asked for is present (' + VP_REQUESTED_CLAIMS.join(', ') + ').'
+      : 'missing: ' + missing.join(', ') + '.');
+  // Not a failure — the holder may disclose more than was asked — but worth
+  // saying, because over-disclosure is the thing SD-JWT VC exists to prevent.
+  const extra = result.disclosed.filter(function (name) { return VP_REQUESTED_CLAIMS.indexOf(name) === -1; });
+  result.extraDisclosed = extra;
+
+  result.ok = checks.every(function (c) { return c.ok; });
+  log.debug("Leaving verifyPresentation(). ok=" + result.ok + ", " + checks.length + " check(s), " +
+            result.disclosed.length + " disclosed claim(s), " + extra.length + " more than asked for.");
+  return result;
+}
+
+// The Response URI (OID4VP section 8.2): response_mode direct_post, so the
+// Authorization Response arrives as a form POST rather than in a URL.
+app.post('/oid4vp/response', function (req, res) {
+  log.debug("Entering the OID4VP response endpoint.");
+  const body = parseBody(req);
+  const state = String(body.state || '');
+  const record = vpTransactions.get(state);
+  if (!record) {
+    log.debug("Leaving the OID4VP response endpoint. Unknown state.");
+    return oauthError(res, 400, 'invalid_request',
+      'Unknown or expired state: this Verifier has no such Authorization Request outstanding.');
+  }
+  if (body.error) {
+    // The wallet refused, which is a legitimate answer (section 8.4).
+    record.verdict = { ok: false, refused: true, error: String(body.error),
+                       errorDescription: String(body.error_description || ''), checks: [], at: new Date().toISOString() };
+    res.status(200).type('application/json').send(JSON.stringify({
+      redirect_uri: baseUrlOf(req) + '/oid4vp/done?state=' + encodeURIComponent(state)
+    }));
+    log.debug("Leaving the OID4VP response endpoint. The wallet refused: " + body.error);
+    return;
+  }
+
+  // vp_token is a JSON object keyed by the DCQL credential query id, each value
+  // an array of presentations (section 8.1).
+  let presentations = [];
+  let tokenShapeOk = true;
+  try {
+    const parsed = typeof body.vp_token === 'string' ? JSON.parse(body.vp_token) : body.vp_token;
+    const forQuery = parsed && parsed[VP_DCQL_ID];
+    if (Array.isArray(forQuery)) presentations = forQuery;
+    else if (typeof forQuery === 'string') presentations = [forQuery];
+    else tokenShapeOk = false;
+  } catch (e) {
+    log.error('the vp_token is not the JSON object OID4VP defines: ' + e.message);
+    tokenShapeOk = false;
+  }
+  if (!tokenShapeOk || !presentations.length) {
+    record.verdict = {
+      ok: false, at: new Date().toISOString(),
+      checks: [{ name: 'vp_token', ok: false,
+                 detail: 'vp_token must be a JSON object keyed by the DCQL credential query id ("' +
+                         VP_DCQL_ID + '"), each value an array of presentations.' }]
+    };
+    res.status(400).type('application/json').send(JSON.stringify({
+      error: 'invalid_request',
+      error_description: 'vp_token is not the JSON object OID4VP section 8.1 defines.'
+    }));
+    log.debug("Leaving the OID4VP response endpoint. Malformed vp_token.");
+    return;
+  }
+
+  const verified = verifyPresentation(presentations[0], record);
+  record.verdict = {
+    ok: verified.ok,
+    at: new Date().toISOString(),
+    checks: verified.checks,
+    claims: verified.claims,
+    disclosed: verified.disclosed,
+    extraDisclosed: verified.extraDisclosed || [],
+    requested: VP_REQUESTED_CLAIMS,
+    vct: verified.vct,
+    sub: verified.sub,
+    presentation: presentations[0]
+  };
+  logArtifact('OID4VP verification result', verified.ok ? 'accepted' : 'REFUSED', record.verdict);
+
+  if (!verified.ok) {
+    // Section 8.4: an invalid presentation is invalid_request. The failing checks
+    // go in the description, because a wallet developer cannot fix "no".
+    const failed = verified.checks.filter(function (c) { return !c.ok; });
+    res.status(400).type('application/json').send(JSON.stringify({
+      error: 'invalid_request',
+      error_description: 'The presentation was refused: ' +
+        failed.map(function (c) { return c.name + ' — ' + c.detail; }).join(' | ')
+    }));
+    log.debug("Leaving the OID4VP response endpoint. Refused " + failed.length + " check(s).");
+    return;
+  }
+  res.status(200).type('application/json').send(JSON.stringify({
+    redirect_uri: baseUrlOf(req) + '/oid4vp/done?state=' + encodeURIComponent(state)
+  }));
+  log.debug("Leaving the OID4VP response endpoint. Accepted.");
+});
+
+// Not in the spec: the verdict, so the wallet's own page (and the test suite) can
+// show what this Verifier decided and why. A real Verifier tells the End-User in
+// its own UI; this makes the same information machine-readable.
+app.get('/oid4vp/result/:state', function (req, res) {
+  log.debug("Entering the presentation result endpoint. state=" + req.params.state);
+  const record = vpTransactions.get(String(req.params.state));
+  if (!record) {
+    log.debug("Leaving the presentation result endpoint. Unknown state.");
+    return oauthError(res, 404, 'invalid_request', 'No such presentation.');
+  }
+  res.set('Access-Control-Allow-Origin', '*');
+  res.status(200).type('application/json').send(JSON.stringify({
+    state: record.state,
+    nonce: record.nonce,
+    client_id: record.clientId,
+    requested: VP_REQUESTED_CLAIMS,
+    dcql_query: record.request.dcql_query,
+    received: !!record.verdict,
+    verdict: record.verdict
+  }));
+  log.debug("Leaving the presentation result endpoint. received=" + !!record.verdict);
+});
+
+// Where the wallet sends the End-User once the Verifier has answered.
+app.get('/oid4vp/done', function (req, res) {
+  log.debug("Entering the verifier done page.");
+  const record = vpTransactions.get(String(req.query.state || ''));
+  const verdict = record && record.verdict;
+  const ok = !!(verdict && verdict.ok);
+  const page = '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">' +
+    '<title>The Bar Door — ' + (ok ? 'come on in' : 'not today') + '</title><style>' +
+    'body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;background:#f4f4f7;margin:0;' +
+    'display:flex;align-items:center;justify-content:center;min-height:100vh;color:#222}' +
+    '.card{background:#fff;border:1px solid #d5d5dd;border-radius:10px;padding:30px 34px;width:560px;' +
+    'box-shadow:0 6px 24px rgba(0,0,0,.08)}h1{font-size:1.3em;margin:0 0 6px}' +
+    'p{line-height:1.5;color:#333}ul{line-height:1.5}.ok{color:#2e7d32;font-weight:700}' +
+    '.bad{color:#b00020;font-weight:700}' +
+    'code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}</style></head><body><div class="card">' +
+    '<h1>The Bar Door</h1>' +
+    (verdict
+      ? '<p class="' + (ok ? 'ok' : 'bad') + '" id="verdict">' +
+        (ok ? 'Presentation accepted.' : 'Presentation refused.') + '</p>' +
+        '<ul id="claims">' + Object.keys(verdict.claims || {}).map(function (k) {
+          return '<li><code>' + xmlEscape(k) + '</code>: <code>' +
+                 xmlEscape(typeof verdict.claims[k] === 'object'
+                   ? JSON.stringify(verdict.claims[k]) : String(verdict.claims[k])) + '</code></li>';
+        }).join('') + '</ul>' +
+        '<p style="font-size:.85em;color:#666">We asked for <code>' +
+        xmlEscape((verdict.requested || []).join(', ')) + '</code> and that is all we know about you.</p>'
+      : '<p id="verdict">Nothing has been presented for this request yet.</p>') +
+    '</div></body></html>\n';
+  res.status(200).type('text/html').send(page);
+  log.debug("Leaving the verifier done page. ok=" + ok);
+});
+
+
+
+// ===========================================================================
 // The endpoints the RFC 8414 metadata advertises.
 //
 // A dummy authorization server: every endpoint in the metadata document answers,

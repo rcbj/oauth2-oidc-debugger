@@ -244,6 +244,10 @@ td.vc-bad, span.vc-bad { color: #b00020; }
 .vc-serialized .vc-part-jwt { color: #12107c; }
 .vc-serialized .vc-part-disclosure { color: #2e7d32; }
 .vc-serialized .vc-tilde { color: #b00020; font-weight: bold; }
+/* The Key Binding JWT: the last element of a PRESENTATION, and the part the
+   holder signs rather than the issuer — so it gets its own colour. */
+.vc-serialized .vc-part-kb, .vc-part-kb { color: #8a4b00; }
+span.vc-part-jwt, span.vc-part-disclosure, span.vc-part-kb { font-weight: 600; }
 
 /* --- step 4: the credential history ---
    The row for the generation in hand is marked the way debugger2.html marks the

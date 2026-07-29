@@ -77,6 +77,22 @@
       <span class="landing-card-title">SD-JWT VC Issuance</span>
       <span class="landing-card-desc">Issue a Selective Disclosure JWT Verifiable Credential (SD-JWT, RFC 9901) over OID4VCI. Choose how the issuance starts &mdash; wallet-initiated, or an issuer's Credential Offer &mdash; then read the issuer and authorization server metadata, authorize with the OIDC Authorization Code flow, prove possession of a holder key, inspect the credential and its disclosures, and refresh it when it goes stale.</span>
     </a>
+
+    <a class="landing-card" href="/sd-jwt-vc-presentation-0.html">
+      <span class="landing-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="2" y="5" width="14" height="10" rx="2"/>
+          <path d="M5 8.5h5"/>
+          <path d="M5 11.5h3"/>
+          <path d="M16 10h6"/>
+          <path d="M19.5 7l2.5 3-2.5 3"/>
+          <circle cx="18.5" cy="17.5" r="3.2"/>
+          <path d="M17.1 17.6l1 1 1.8-2"/>
+        </svg>
+      </span>
+      <span class="landing-card-title">SD-JWT VC Presentation</span>
+      <span class="landing-card-desc">Present a Selective Disclosure JWT VC to a verifier over OID4VP. Read the verifier&rsquo;s Authorization Request and its DCQL query, see exactly which claims are being asked for, choose which Disclosures to send, sign the Key Binding JWT over the request&rsquo;s nonce, and read the verifier&rsquo;s verdict check by check.</span>
+    </a>
   </div>
 </div>
 

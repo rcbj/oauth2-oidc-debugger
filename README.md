@@ -839,6 +839,86 @@ when `WALTID_ISSUER_URL` is unset, so a run without that container still passes.
 ### Mock Credential Issuer for testing
 The `sts/` service also hosts a **bare-minimum OID4VCI Credential Issuer**: `/.well-known/openid-credential-issuer` (with `signed_metadata` and one `dc+sd-jwt` credential configuration), `/.well-known/jwt-vc-issuer` for key resolution, `POST /oid4vci/nonce`, and `POST /oid4vci/credential`. It requires a Bearer token, and properly verifies the wallet's proof of possession (typ, algorithm, audience, single-use nonce, and the signature against the key in the proof's own header) before minting an SD-JWT VC per RFC 9901 — disclosures with 128-bit salts, `_sd` digests plus a decoy, `_sd_alg`, `cnf.jwk`, and the required trailing `~`. It cannot validate an access token issued by a separate authorization server, and does not pretend to. It also implements **`authorization_details`** of type `openid_credential` (advertised as `authorization_details_types_supported`, granting `credential_identifiers` in the token response and enforcing the mutual exclusion at the credential endpoint), **batch issuance** (several proofs, one credential per proof, `batch_size` enforced — and one `c_nonce` per *request*, not per proof), **response encryption** (RSA-OAEP-256 to the wallet's key, refusing any algorithm it does not perform), a **Notification Endpoint** that validates the `notification_id` and the event and remembers what it was told, the **pre-authorized code grant** (`tx_code` required, checked, and single use), and a **Deferred Credential Endpoint** — `202` with a `transaction_id` for a few seconds, then the credential, then `invalid_transaction_id` for anyone who asks again. For H.1 it also hosts the **issuer's side of a Credential Offer**: a web page at `/issuer` with the offer links, `GET /issuer/offer` which builds the offer and sends the End-User to the wallet (`OID4VCI_WALLET_URL`) with it — by value or, with `?by=reference`, as a `credential_offer_uri` pointing at `GET /oid4vci/credential-offer/:id` — and it remembers each `issuer_state` so the authorization endpoint can recognise a request as belonging to an offer it made. For the cross-device use cases it shows a real **QR code** and the Transaction Code on its own page (`/issuer/offer?mode=cross-device|deferred`). By default the metadata advertises the mock **itself** as its authorization server, which is what lets an issuer-initiated offer be walked end to end with no identity provider at all; `OID4VCI_AUTHORIZATION_SERVER` points it at a real one instead. The end-to-end test is `tests/sd_jwt_vc_issuance.js`.
 
+## SD-JWT VC Presentation (OID4VP)
+
+Issuance puts a credential in a wallet; **presentation** is what it is for. This workflow plays the wallet's part
+when a **verifier** asks for part of a credential over
+[OpenID for Verifiable Presentations](https://openid.net/specs/openid-4-verifiable-presentations-1_0.html)
+(OID4VP 1.0), answering with the presentation format
+[RFC 9901](https://www.rfc-editor.org/rfc/rfc9901.html) defines: an **SD-JWT+KB**. It has its own card on the
+landing page, and it presents whatever credential the issuance workflow left in this browser — the two workflows
+meet at those `localStorage` keys and nowhere else.
+
+### Step 0 — Choose a flow (`sd-jwt-vc-presentation-0.html`)
+The three shapes an OID4VP request can take. All of them **start at the verifier**, because a presentation is
+something a verifier asks for:
+
+| Flow | How the request travels | What the wallet can prove about the asker |
+|---|---|---|
+| Same device, by value | The whole request in the query string | Nothing cryptographic: `client_id` uses the `redirect_uri` prefix, so the request *cannot* be signed. What binds it to the verifier is that the presentation goes to that same URL |
+| Same device, signed by reference | `client_id` + `request_uri`; the wallet fetches a signed Request Object ([RFC 9101](https://www.rfc-editor.org/rfc/rfc9101.html)) | That the request really came from a pre-registered client with a known key, and that the claims asked for are the ones it signed |
+| Cross device | A QR code (`openid4vp://…`) on the verifier's screen | The same as by value — and nothing can be redirected, which is why `direct_post` exists |
+
+The page also says whether this wallet is holding a credential *and* the private half of the key it is bound to,
+because without both there is nothing to present.
+
+### Step 1 — The verifier's request (`sd-jwt-vc-presentation-1.html`)
+Nothing is disclosed here. The page answers three questions: **who** is asking (the Client Identifier and what its
+prefix lets the wallet conclude — with the signature verified when there is one), **what** they are asking for (the
+**DCQL** query decoded into claim paths, shown in green when the credential can disclose them and red when it
+cannot, with the `vct` checked against the credential in hand), and **how** the answer travels
+(`response_type=vp_token`, `response_mode`, `response_uri`). A request that cannot be answered — no `nonce`, no
+`dcql_query`, no credential, no holder key — says so instead of letting step 2 discover it. A pane takes a request
+pasted from a QR code for the cross-device flow.
+
+### Step 2 — Choose what to disclose (`sd-jwt-vc-presentation-2.html`)
+The page selective disclosure exists for. One checkbox per Disclosure, marked with whether *this* verifier asked
+for it; the default selection is exactly what was asked for and nothing more. Two buttons make the trade-off
+concrete: **Only what was asked for**, and **Everything (over-disclose)** — which is what a credential format
+without selective disclosure would force on you. From that choice the wallet assembles, in front of you:
+
+* the **presentation** — `<Issuer-signed JWT>~<selected Disclosures>~<KB-JWT>`;
+* the **Key Binding JWT**, decoded: `typ: kb+jwt`, the request's `nonce`, the verifier's Client Identifier as
+  `aud`, `iat`, and `sd_hash` — the digest of the issuer-signed JWT and the presented Disclosures, each followed by
+  a tilde, so it commits to the exact bytes and nothing can be added or removed afterwards;
+* the **`vp_token`**: a JSON object keyed by the DCQL credential query id, each value an array of presentations;
+* the claim set **the verifier will end up with**, computed from those bytes rather than from what the page meant
+  to send;
+* the fully assembled `direct_post` call.
+
+**Refuse** is a first-class answer: OID4VP defines `access_denied` for it, and the verifier is told the request was
+seen and declined — which is not the same as never having arrived.
+
+### Step 3 — The verdict (`sd-jwt-vc-presentation-3.html`)
+Two accounts of the same event. **What the wallet sent**, with the presentation's parts coloured (issuer-signed
+JWT · Disclosure · KB-JWT) and re-checked here over the bytes themselves — `sd_hash` recomputed, every
+Disclosure's digest looked up in `_sd`, the KB-JWT's `nonce` and `aud` compared with the request. And **what the
+verifier did**: its verdict check by check, what it asked for, what it received, and any **over-disclosure** —
+because a verifier accepts extra claims without complaint, so the wallet is the only party that can care.
+
+### Mock Verifier for testing
+The `sts/` service also hosts a **mock OID4VP Verifier**: a web page at `/oid4vp/verifier`, `/oid4vp/start` which
+builds the Authorization Request (by value, signed by reference, or as a QR code), `/oid4vp/request/:id` serving
+the signed Request Object, and `POST /oid4vp/response` as the Response URI. It verifies properly — the issuer's
+signature, every presented Disclosure's digest against `_sd`, the KB-JWT's `typ`, `alg`, `nonce`, `aud`, `iat` and
+`sd_hash`, its signature against the credential's own `cnf.jwk`, the validity window, the `vct`, and whether the
+claims it asked for actually arrived — and records a **per-check verdict** so a failure says *which* rule was
+broken. `GET /oid4vp/result/:state` (not part of OID4VP; a real verifier shows the End-User its own page) makes
+that verdict readable, which is what step 3 and the test suite use.
+
+The suite is `tests/sd_jwt_vc_presentation.js`, and it is deliberately both halves:
+
+* **positive** — the whole workflow through the pages, twice (by value and signed by reference), with the
+  presentation verified independently in the test: `sd_hash` recomputed, the KB-JWT signature checked against the
+  `cnf` key, and the verifier's claim set compared with what it asked for (it must know `given_name` and
+  `family_name`, and must **not** know `email`, `birthdate`, `nationality` or `address`);
+* **negative** — five presentations that must be refused, each failing exactly one check: one replayed against a
+  different request (`KB-JWT nonce`), one signed by a key the credential is not bound to (`KB-JWT signature`), one
+  with a Disclosure the issuer never signed (`Disclosure digests`), one edited after signing (`KB-JWT sd_hash`),
+  and one withholding a claim the verifier asked for (`Requested claims`, driven through the pages). A control
+  case is presented correctly in the same run, so the refusals cannot be an artefact of a verifier that says no to
+  everything.
+
 ## Versioning
 Releases are numbered **M.N.O**:
 

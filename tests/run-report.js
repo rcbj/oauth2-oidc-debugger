@@ -334,6 +334,24 @@ function buildJobs() {
     });
   }
 
+  // The SD-JWT VC PRESENTATION workflow (OID4VP 1.0 + RFC 9901 section 4.3): the
+  // mock Verifier the STS service hosts, the four sd-jwt-vc-presentation pages,
+  // and the presentation itself — an SD-JWT+KB whose Key Binding JWT is signed
+  // over the request's nonce. Needs only the STS (issuer AND verifier), so no
+  // identity provider is involved. Carries its own negatives: a replayed
+  // presentation, a KB-JWT signed by the wrong key, an invented Disclosure, one
+  // removed after signing, and a claim the verifier asked for withheld.
+  if (env.WSTRUST_STS_URL) {
+    jobs.push({
+      name: "SD-JWT VC Presentation (OID4VP: selective disclosure end to end, positive and negative)",
+      script: "sd_jwt_vc_presentation.js",
+      env: {
+        WSTRUST_STS_URL: env.WSTRUST_STS_URL,
+        OID4VCI_ISSUER_URL: env.OID4VCI_ISSUER_URL || "",
+      },
+    });
+  }
+
   // The same SD-JWT VC issuance workflow, driven against walt.id's issuer-api2
   // instead of our mock: a real, independently written OpenID4VCI 1.0
   // Credential Issuer. This is the interoperability check — same pages, same

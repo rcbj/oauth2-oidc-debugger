@@ -21,6 +21,7 @@
     var href = '/debugger.html';
     if (p.indexOf('/saml_') === 0) href = '/saml_request.html';
     else if (p.indexOf('/wstrust_') === 0) href = '/wstrust_tools.html';
+    else if (p.indexOf('/sd-jwt-vc-presentation-') === 0) href = '/sd-jwt-vc-presentation-1.html';
     else if (p.indexOf('/sd-jwt-vc-') === 0) href = '/sd-jwt-vc-issuance-1.html';
     logo.setAttribute('href', href);
   })();
