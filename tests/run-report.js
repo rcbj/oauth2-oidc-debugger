@@ -477,6 +477,27 @@ function buildJobs() {
     },
   });
 
+  // WS-Federation Passive Requestor Profile SSO against the dedicated Keycloak
+  // 8.0.1 + cloudtrust keycloak-wsfed side-car (the 26.x Keycloak has no WS-Fed
+  // support). Gated on WSFED_METADATA_URL, which common.sh's configureKeycloakWsfed
+  // exports only when the side-car is provisioned — so this SKIPS (not fails) on
+  // runs without it (remote/live, or a static deployment).
+  {
+    const wsfedJob = {
+      name: "WS-Federation Passive SSO (Call IdP → Keycloak login → wsfed_response)",
+      script: "wsfed_sso.js",
+      env: {
+        WSFED_METADATA_URL: env.WSFED_METADATA_URL,
+        WSFED_REALM: env.WSFED_REALM,
+        WSFED_USER: env.WSFED_USER,
+      },
+    };
+    if (!env.WSFED_METADATA_URL) {
+      wsfedJob.skip = "WS-Federation side-car (Keycloak 8.0.1 + wsfed) not provisioned (WSFED_METADATA_URL unset).";
+    }
+    jobs.push(wsfedJob);
+  }
+
   // WS-Trust 1.4 against the STS (the mock STS service, or a real Apache CXF STS
   // if WSTRUST_STS_URL points at one). Exercises all four operations — Issue,
   // Renew, Validate, Cancel — plus a signed Issue (WS-Security XML-DSIG). Each

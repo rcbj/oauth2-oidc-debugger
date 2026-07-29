@@ -58,6 +58,13 @@ init()
   # skipped rather than failed, the same way the issuer's is.
   WALTID_VERIFIER_URL=http://localhost:7003
   export WALTID_VERIFIER_URL
+  # WS-Federation IdP side-car (Keycloak 8.0.1 + wsfed, local-tests.yml, host net,
+  # WildFly port-offset 2 -> 8082). Browser-facing and admin-facing URLs are the
+  # same on host networking. configureKeycloakWsfed provisions it and exports the
+  # WSFED_* vars the WS-Fed test consumes.
+  KEYCLOAK_WSFED_BASE_URL=http://localhost:8082
+  KEYCLOAK_WSFED_LOCALHOST_BASE_URL=http://localhost:8082
+  export KEYCLOAK_WSFED_BASE_URL KEYCLOAK_WSFED_LOCALHOST_BASE_URL
   CONFIG_FILE=./env/local.js
   CURRENT_DIR=`echo "$(dirname "$(realpath "$0")")"`
   COMMON_SH=${CURRENT_DIR}/common/common.sh
@@ -147,6 +154,9 @@ check_return_code $?
 # error that says nothing about the cause.
 waitForWaltid
 configureKeycloak
+check_return_code $?
+# Provision the WS-Federation side-car (no-op / skip if it isn't up).
+configureKeycloakWsfed
 check_return_code $?
 
 if [ "${SKIP_TESTS}" = "1" ]; then

@@ -229,9 +229,39 @@ services:
       - keycloak
     ports:
       - 7003:7003
+  # WS-Federation IdP side-car: Keycloak 8.0.1 + cloudtrust keycloak-wsfed module.
+  # The main 26.x Keycloak has no WS-Fed support and the extension only targets
+  # 8.0.1, so WS-Fed gets its own image. Reached by the browser (in the tests
+  # container) and the api /samlmetadata proxy at keycloak-wsfed:8080/auth.
+  keycloak-wsfed:
+    container_name: keycloak-wsfed
+    image: rcbj/keycloak-wsfed
+    build:
+      context: .
+      dockerfile: keycloak-wsfed/Dockerfile
+    hostname: keycloak-wsfed
+    environment:
+      KEYCLOAK_USER: keycloak
+      KEYCLOAK_PASSWORD: keycloak
+    # WildFly Keycloak 8.0.1 has no /health endpoint; probe the master realm.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/auth/realms/master || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 150s
+    networks:
+      - keycloak
+    ports:
+      - "8082:8080"
   tests:
     container_name: tests
     image: rcbj/test
+    # Point the WS-Federation provisioning + test at the side-car by its compose
+    # DNS name (the entrypoint defaults these empty so live-site runs skip WS-Fed).
+    environment:
+      KEYCLOAK_WSFED_BASE_URL: http://keycloak-wsfed:8080
+      KEYCLOAK_WSFED_LOCALHOST_BASE_URL: http://keycloak-wsfed:8080
     # Chrome crashes tabs on heavy pages when limited to Docker's default 64MB
     # /dev/shm. The tests also pass --disable-dev-shm-usage; this raises the cap
     # as a belt-and-suspenders mitigation.
@@ -254,6 +284,8 @@ services:
       waltid-issuer:
         condition: service_healthy
       waltid-verifier:
+        condition: service_healthy
+      keycloak-wsfed:
         condition: service_healthy
     networks:
      - keycloak

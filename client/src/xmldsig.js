@@ -509,8 +509,9 @@ function findById(root, id) {
     for (var j = 0; j < e.attributes.length; j++) {
       var a = e.attributes[j];
       var ln = a.localName || a.name;
-      // SAML 1.1 declares AssertionID (not "ID") as the assertion's xs:ID, so a
-      // Reference URI="#..." on a 1.1 assertion resolves through it.
+      // Id/ID/id cover SAML 2.0 (ID), WS-Security (wsu:Id) and generic ids;
+      // AssertionID is the SAML 1.1 assertion id attribute (WS-Fed tokens are
+      // frequently SAML 1.1), whose enveloped signature references #<AssertionID>.
       if ((ln === 'Id' || ln === 'ID' || ln === 'id' || ln === 'AssertionID') && a.value === id) return e;
     }
   }

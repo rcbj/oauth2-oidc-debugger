@@ -20,6 +20,11 @@ var config = {
   spEntityId: "https://test.idptools.com/saml/sp",
   acsUrl: "https://test.idptools.com/samlacs",
   sloUrl: "https://test.idptools.com/samlslo",
+  // WS-Federation: static build has no backend, so wsfedAcsUrl is unused
+  // (backendAvailable:false forces the static response page as wreply).
+  wsfedRealm: "",
+  wsfedAcsUrl: "https://test.idptools.com/wsfed",
+  wsfedMetadataUrlDefault: "",
   samlMetadataUrlDefault: "",
   // WS-Trust STS: no STS is bundled with the static deployment, so this is blank
   // (the user supplies an STS URL). The backend routing option is disabled here.

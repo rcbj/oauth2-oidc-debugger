@@ -177,33 +177,12 @@ waitForKeycloak()
   exit 1
 }
 
-# Delete the debugger-testing realm if it exists, so configureKeycloak re-creates
-# every client with redirectUris / webOrigins matching the CURRENT
-# DEBUGGER_BASE_URL. Without this, switching targets (local -> test -> prod)
-# would leave stale redirect URIs from the previous run and the flows would fail.
-resetKeycloakRealm()
-{
-  echo "Entering resetKeycloakRealm()."
-  local token
-  token=$(curl -s \
-    -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/realms/master/protocol/openid-connect/token" \
-    -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "client_id=admin-cli" \
-    -d "username=keycloak" \
-    -d "password=keycloak" \
-    -d "grant_type=password" | jq -r '.access_token')
-  if [ -z "${token}" ] || [ "${token}" = "null" ];
-  then
-    echo "ERROR: could not authenticate to Keycloak at ${KEYCLOAK_LOCALHOST_BASE_URL}." >&2
-    echo "       Is Keycloak running there with admin keycloak/keycloak?" >&2
-    exit 1
-  fi
-  # 404 if the realm doesn't exist yet — harmless.
-  curl -s -o /dev/null -X DELETE \
-    "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing" \
-    -H "Authorization: Bearer ${token}"
-  echo "Leaving resetKeycloakRealm()."
-}
+# resetKeycloakRealm() is defined in common/common.sh (sourced by init above) so
+# both this deployed-target runner and the containerized run share one copy — it
+# deletes the debugger-testing realm so configureKeycloak re-creates every client
+# with redirectUris / webOrigins matching the CURRENT DEBUGGER_BASE_URL. Without
+# it, switching targets (local -> test -> prod) would leave stale redirect URIs
+# from the previous run and the flows would fail.
 
 # SAML IdP metadata is downloaded to a file inside configureKeycloak (gated by
 # SAML_METADATA_UPLOAD, set in init) — see common.sh download_saml_metadata().

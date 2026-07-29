@@ -507,6 +507,37 @@ waitForWaltid()
     done
   fi
   echo "Leaving waitForWaltid()."
+# Delete the debugger-testing realm if it exists, so configureKeycloak re-creates
+# every client with redirectUris / webOrigins matching the CURRENT
+# DEBUGGER_BASE_URL, and re-provisions users from scratch. Two things depend on
+# this: (1) switching targets (local -> test -> prod) must not leave stale
+# redirect URIs from a previous run; (2) the containerized run relies on a fresh
+# Keycloak DB, but its only guarantee of one is docker-run-tests.sh's startup
+# `down -v`, which is best-effort (swallowed under docker-compose v1). If that
+# leaves a stale realm behind, re-provisioning 409s ("Failed to create SAML
+# user"); deleting the realm here makes provisioning idempotent regardless.
+resetKeycloakRealm()
+{
+  echo "Entering resetKeycloakRealm()."
+  local token
+  token=$(curl -s \
+    -X POST "${KEYCLOAK_LOCALHOST_BASE_URL}/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "client_id=admin-cli" \
+    -d "username=keycloak" \
+    -d "password=keycloak" \
+    -d "grant_type=password" | jq -r '.access_token')
+  if [ -z "${token}" ] || [ "${token}" = "null" ];
+  then
+    echo "ERROR: could not authenticate to Keycloak at ${KEYCLOAK_LOCALHOST_BASE_URL}." >&2
+    echo "       Is Keycloak running there with admin keycloak/keycloak?" >&2
+    exit 1
+  fi
+  # 404 if the realm doesn't exist yet — harmless.
+  curl -s -o /dev/null -X DELETE \
+    "${KEYCLOAK_LOCALHOST_BASE_URL}/admin/realms/debugger-testing" \
+    -H "Authorization: Bearer ${token}"
+  echo "Leaving resetKeycloakRealm()."
 }
 
 configureKeycloak()
@@ -930,8 +961,8 @@ configureKeycloak()
        [ -z "${CLIENT_CLIENTID}" ] || \
        [ -z "${CLIENT_SECRET}" ] || \
        [ -z "${SCOPE_ID}" ] || \
-       [ -z "${SCOPE_NAME} ] || \
-       [ -z "${USER_ID} ];
+       [ -z "${SCOPE_NAME}" ] || \
+       [ -z "${USER_ID}" ];
     then
       echo "Required variable is blank."
       exit 1
@@ -1194,4 +1225,113 @@ configureKeycloak()
   echo "Registered the walt.id issuer's Keycloak client ${WALTID_KEYCLOAK_CLIENT_ID} (callback under ${WALTID_ISSUER_BASE_URL})."
 
   echo "Leaving configureKeycloak()."
+}
+
+# ---------------------------------------------------------------------------
+# WS-Federation side-car provisioning (Keycloak 8.0.1 + cloudtrust keycloak-wsfed).
+#
+# A SEPARATE Keycloak used only by the WS-Federation debugger test — the main
+# 26.x Keycloak has no WS-Fed support and the extension only targets 8.0.1. This
+# provisions a 'wsfed'-protocol client (the relying party; clientId == wtrealm) +
+# a test user on a dedicated realm, and exports the WSFED_* vars that
+# tests/run-report.js passes to tests/wsfed_sso.js.
+#
+# It is a NO-OP unless KEYCLOAK_WSFED_LOCALHOST_BASE_URL is set (so every
+# non-WS-Fed run is unaffected), and it degrades to a SKIP — warns and returns
+# WITHOUT exporting WSFED_METADATA_URL, so the job is skipped rather than the
+# suite aborting — on any provisioning failure.
+#
+# Keycloak 8.0.1 is WildFly-based: the admin REST API is under the /auth base
+# path and the admin user comes from the side-car's KEYCLOAK_USER/PASSWORD.
+# ---------------------------------------------------------------------------
+configureKeycloakWsfed()
+{
+  if [ -z "${KEYCLOAK_WSFED_LOCALHOST_BASE_URL}" ];
+  then
+    echo "KEYCLOAK_WSFED_LOCALHOST_BASE_URL not set — skipping WS-Federation side-car provisioning."
+    return 0
+  fi
+  echo "Entering configureKeycloakWsfed()."
+
+  KC_WSFED="${KEYCLOAK_WSFED_LOCALHOST_BASE_URL}/auth"
+  KC_WSFED_ADMIN_USER="${KEYCLOAK_WSFED_ADMIN_USER:-keycloak}"
+  KC_WSFED_ADMIN_PASS="${KEYCLOAK_WSFED_ADMIN_PASSWORD:-keycloak}"
+  WSFED_REALM_NAME="wsfed-testing"
+  WSFED_WTREALM="${WSFED_REALM:-urn:wsfed:test:rp}"
+  WSFED_API_BASE="${API_BASE_URL:-http://localhost:4000}"
+  WSFED_UI_BASE="${DEBUGGER_BASE_URL:-http://localhost:3000}"
+
+  # The 8.0.1 side-car boots slowly; poll its token endpoint before provisioning.
+  KC_WSFED_TOKEN=""
+  WSFED_TRY=0
+  while [ ${WSFED_TRY} -lt 40 ];
+  do
+    KC_WSFED_TOKEN=$(curl -s -X POST "${KC_WSFED}/realms/master/protocol/openid-connect/token" \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "client_id=admin-cli" -d "username=${KC_WSFED_ADMIN_USER}" \
+      -d "password=${KC_WSFED_ADMIN_PASS}" -d "grant_type=password" \
+      | jq -r '.access_token')
+    if [ -n "${KC_WSFED_TOKEN}" ] && [ "${KC_WSFED_TOKEN}" != "null" ]; then break; fi
+    WSFED_TRY=$((WSFED_TRY + 1))
+    sleep 3
+  done
+  if [ -z "${KC_WSFED_TOKEN}" ] || [ "${KC_WSFED_TOKEN}" = "null" ];
+  then
+    echo "WARNING: no WS-Fed side-car admin token — WS-Federation test will be skipped."
+    return 0
+  fi
+
+  # Realm (a 409 if it already exists is harmless).
+  curl -s -X POST "${KC_WSFED}/admin/realms" \
+    -H "Authorization: Bearer ${KC_WSFED_TOKEN}" -H "Content-Type: application/json" \
+    -d '{ "realm": "'"${WSFED_REALM_NAME}"'", "enabled": true }' >/dev/null
+
+  KC_WSFED_TOKEN=$(curl -s -X POST "${KC_WSFED}/realms/master/protocol/openid-connect/token" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "client_id=admin-cli" -d "username=${KC_WSFED_ADMIN_USER}" \
+    -d "password=${KC_WSFED_ADMIN_PASS}" -d "grant_type=password" \
+    | jq -r '.access_token')
+
+  # WS-Federation relying-party client. protocol "wsfed"; clientId == wtrealm;
+  # redirect URIs cover the debugger's /wsfed landing (the wreply target) and its
+  # response page. The token format defaults to SAML 2.0.
+  curl -s -X POST "${KC_WSFED}/admin/realms/${WSFED_REALM_NAME}/clients" \
+    -H "Authorization: Bearer ${KC_WSFED_TOKEN}" -H "Content-Type: application/json" \
+    -d '{
+          "clientId": "'"${WSFED_WTREALM}"'",
+          "name": "wsfed-rp",
+          "protocol": "wsfed",
+          "enabled": true,
+          "frontchannelLogout": true,
+          "redirectUris": [ "'"${WSFED_API_BASE}"'/wsfed", "'"${WSFED_API_BASE}"'/*", "'"${WSFED_UI_BASE}"'/*" ],
+          "attributes": {
+            "wsfed.saml.assertion.token.format": "SAML2.0",
+            "saml.assertion.token.format": "SAML2.0"
+          }
+       }' >/dev/null
+
+  # Test user (username == password, mirroring the SAML test user).
+  WSFED_USER_ID=$(curl -s \
+    -X POST "${KC_WSFED}/admin/realms/${WSFED_REALM_NAME}/users" \
+    -H "Authorization: Bearer ${KC_WSFED_TOKEN}" -H "Content-Type: application/json" \
+    -d '{ "username": "wsfed", "firstName": "wsfed", "lastName": "wsfed",
+          "email": "wsfed@iyasec.io", "enabled": true, "emailVerified": true }' \
+    -i | grep -i '^Location:' | rev | cut -d '/' -f 1 | rev | tr -d ' \n\r')
+  if [ -z "${WSFED_USER_ID}" ];
+  then
+    echo "WARNING: could not create the WS-Fed test user — WS-Federation test will be skipped."
+    return 0
+  fi
+  curl -s -X PUT \
+    "${KC_WSFED}/admin/realms/${WSFED_REALM_NAME}/users/${WSFED_USER_ID}/reset-password" \
+    -H "Authorization: Bearer ${KC_WSFED_TOKEN}" -H "Content-Type: application/json" \
+    -d '{ "type": "password", "value": "wsfed", "temporary": false }' >/dev/null
+
+  # Export the suite vars. The descriptor URL uses the BROWSER/proxy-facing base
+  # (KEYCLOAK_WSFED_BASE_URL) so the endpoint the browser navigates to matches.
+  declare -gx WSFED_METADATA_URL="${KEYCLOAK_WSFED_BASE_URL:-${KEYCLOAK_WSFED_LOCALHOST_BASE_URL}}/auth/realms/${WSFED_REALM_NAME}/protocol/wsfed/descriptor"
+  declare -gx WSFED_REALM="${WSFED_WTREALM}"
+  declare -gx WSFED_USER="wsfed"
+  echo "Leaving configureKeycloakWsfed(). WSFED_METADATA_URL=${WSFED_METADATA_URL}"
+  return 0
 }

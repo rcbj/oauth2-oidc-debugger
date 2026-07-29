@@ -68,6 +68,8 @@ const BUNDLES = [
   ['sd_jwt_vc_presentation_1', 'sdjwtvp1'],
   ['sd_jwt_vc_presentation_2', 'sdjwtvp2'],
   ['sd_jwt_vc_presentation_3', 'sdjwtvp3'],
+  ['wsfed_tools', 'wsfed_tools'],
+  ['wsfed_response', 'wsfed_response'],
 ];
 
 const CALLBACK_HTML = `<!DOCTYPE html>

@@ -10,6 +10,9 @@ var config = {
   spEntityId: "https://tools.test.idptools.io/saml/sp",
   acsUrl: "https://api.tools.test.idptools.io/samlacs",
   sloUrl: "https://api.tools.test.idptools.io/samlslo",
+  wsfedRealm: "",
+  wsfedAcsUrl: "https://api.tools.test.idptools.io/wsfed",
+  wsfedMetadataUrlDefault: "",
   samlMetadataUrlDefault: "",
   wstrustStsUrlDefault: "",
   // No mock credential issuer on a hosted deployment either: the user supplies
