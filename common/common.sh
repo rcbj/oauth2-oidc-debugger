@@ -471,34 +471,109 @@ renderWaltidConfig()
 # clearer message than this could give.
 #
 # Takes the compose file as an optional argument, used only to fetch a container's
-# log when the wait times out. See reportWaltidContainer().
+# log when the wait times out. See reportContainerLog().
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Print the tail of a walt.id container's own log.
 #
 # Called only after a wait has timed out, and it exists because of how these
-# services fail: walt.id loads its configuration with Hoplite, and a value of the
+# side-cars fail. walt.id loads its configuration with Hoplite, and a value of the
 # wrong SHAPE (a JSON object written as a quoted string, say) makes it exit during
-# startup, before it ever listens. All that is left then is a 502 from the CORS
-# proxy in front of it — which is what the interoperability test reports, and it
-# names the proxy rather than the reason. The reason is in the container's log, so
-# print it here instead of leaving it for someone to go find.
+# startup, before it ever listens; all that is left then is a 502 from the CORS
+# proxy in front of it, which names the proxy rather than the reason. The WS-Fed
+# Keycloak can likewise start and exit — `docker compose up -d` reports success
+# either way, because it only asks that the container be *created* — and the only
+# symptom is that provisioning finds nothing to talk to and the job is skipped.
+#
+# In both cases the reason is in the container's own log, so print it here rather
+# than leaving it for someone to go find.
 # ---------------------------------------------------------------------------
-reportWaltidContainer()
+reportContainerLog()
 {
   local compose_file="$1"
   local service="$2"
   if [ -z "${compose_file}" ] || [ ! -f "${compose_file}" ];
   then
-    echo "  No compose file was passed to waitForWaltid(), so ${service}'s log cannot be shown here. Try: docker logs <container>" >&2
+    echo "  No compose file was passed, so ${service}'s log cannot be shown here. Try: docker logs ${service}" >&2
     return 0
   fi
-  echo "  The last lines of ${service}'s own log follow. A walt.id service that exits during startup says why here:" >&2
-  # Not gated on the exit status: compose prints its own error into this stream if
-  # the service is unknown or docker is unreachable, which is as much as this
-  # diagnostic needs to convey.
+  echo "  Whether ${service} is running at all, and the last lines of its own log:" >&2
+  # None of this is gated on exit status: compose prints its own error into this
+  # stream if the service is unknown or docker is unreachable, which is as much as
+  # this diagnostic needs to convey. `ps -a` is what distinguishes "never created"
+  # from "created and exited" — a distinction `up -d` does not report.
+  docker_compose -f "${compose_file}" ps -a "${service}" 2>&1 | sed 's/^/    /' >&2
   docker_compose -f "${compose_file}" logs --tail=40 "${service}" 2>&1 | sed 's/^/    /' >&2
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# Report any service in a compose file that is not running after `up`.
+#
+# `docker compose up -d` asks only that each container be CREATED and started; it
+# returns 0 for a container that started and exited a second later. So a side-car
+# can be dead for an entire run with nothing saying so — the WS-Federation Keycloak
+# was, and the only visible consequence was its test quietly reporting SKIPPED
+# because provisioning had nothing to talk to.
+#
+# Deliberately a warning rather than fatal: which services a run needs depends on
+# the run (the interoperability jobs skip when theirs are absent), so this says
+# plainly what is down and shows why, and lets the gating decide the rest.
+# ---------------------------------------------------------------------------
+verifyComposeServicesRunning()
+{
+  echo "Entering verifyComposeServicesRunning()."
+  local compose_file="$1"
+  if [ -z "${compose_file}" ] || [ ! -f "${compose_file}" ];
+  then
+    echo "verifyComposeServicesRunning(): no compose file given; nothing to check."
+    return 0
+  fi
+
+  # This file runs under `set -x`, and the loop below compares two multi-line
+  # lists — traced, that prints the whole service list on every iteration and
+  # buries the one line that matters. Trace off for the duration, restored on the
+  # way out, the same as generateSpKeyPair().
+  local xtrace_was_on=""
+  case "$-" in
+    *x*) xtrace_was_on="yes"; set +x ;;
+  esac
+
+  local expected running down_list service
+  # docker_compose() echoes Entering/Leaving into stdout, so drop those lines.
+  expected=$(docker_compose -f "${compose_file}" config --services 2>/dev/null | grep -v '^Entering\|^Leaving')
+  running=$(docker_compose -f "${compose_file}" ps --format '{{.Service}} {{.State}}' 2>/dev/null \
+            | awk '$2 == "running" { print $1 }')
+  if [ -z "${expected}" ];
+  then
+    echo "verifyComposeServicesRunning(): could not read the service list from ${compose_file}; skipping the check." >&2
+    [ -n "${xtrace_was_on}" ] && set -x
+    return 0
+  fi
+
+  down_list=""
+  for service in ${expected};
+  do
+    if ! echo "${running}" | grep -qx "${service}";
+    then
+      down_list="${down_list} ${service}"
+    fi
+  done
+
+  if [ -n "${down_list}" ];
+  then
+    echo "WARNING: these compose services are NOT running after 'up -d':${down_list}" >&2
+    echo "         Tests that need them will fail or be skipped. Each one's status and log follows." >&2
+    for service in ${down_list};
+    do
+      reportContainerLog "${compose_file}" "${service}"
+    done
+  else
+    echo "All services in ${compose_file} are running."
+  fi
+  [ -n "${xtrace_was_on}" ] && set -x
+  echo "Leaving verifyComposeServicesRunning()."
   return 0
 }
 
@@ -519,7 +594,7 @@ waitForWaltid()
       if [ "$(date +%s)" -ge "${deadline}" ];
       then
         echo "WARNING: walt.id's issuer did not answer at ${issuer_probe} within the wait." >&2
-        reportWaltidContainer "${compose_file}" "waltid-issuer-api"
+        reportContainerLog "${compose_file}" "waltid-issuer-api"
         break
       fi
       sleep 5
@@ -535,7 +610,7 @@ waitForWaltid()
       if [ "$(date +%s)" -ge "${deadline}" ];
       then
         echo "WARNING: walt.id's verifier did not answer at ${verifier_probe} within the wait." >&2
-        reportWaltidContainer "${compose_file}" "waltid-verifier-api"
+        reportContainerLog "${compose_file}" "waltid-verifier-api"
         break
       fi
       sleep 5
@@ -1290,6 +1365,8 @@ configureKeycloakWsfed()
     return 0
   fi
   echo "Entering configureKeycloakWsfed()."
+  # Only used to fetch the container's log if the side-car never answers.
+  WSFED_COMPOSE_FILE="${1:-${WSFED_COMPOSE_FILE:-}}"
 
   KC_WSFED="${KEYCLOAK_WSFED_LOCALHOST_BASE_URL}/auth"
   KC_WSFED_ADMIN_USER="${KEYCLOAK_WSFED_ADMIN_USER:-keycloak}"
@@ -1302,7 +1379,10 @@ configureKeycloakWsfed()
   # The 8.0.1 side-car boots slowly; poll its token endpoint before provisioning.
   KC_WSFED_TOKEN=""
   WSFED_TRY=0
-  while [ ${WSFED_TRY} -lt 40 ];
+  # 40 x 3s by default. Configurable so this function can be exercised without
+  # waiting two minutes for a side-car that is known to be absent.
+  WSFED_WAIT_TRIES="${WSFED_WAIT_TRIES:-40}"
+  while [ ${WSFED_TRY} -lt ${WSFED_WAIT_TRIES} ];
   do
     KC_WSFED_TOKEN=$(curl -s -X POST "${KC_WSFED}/realms/master/protocol/openid-connect/token" \
       -H "Content-Type: application/x-www-form-urlencoded" \
@@ -1315,7 +1395,10 @@ configureKeycloakWsfed()
   done
   if [ -z "${KC_WSFED_TOKEN}" ] || [ "${KC_WSFED_TOKEN}" = "null" ];
   then
-    echo "WARNING: no WS-Fed side-car admin token — WS-Federation test will be skipped."
+    echo "WARNING: the WS-Federation side-car never answered at ${KC_WSFED} (waited $((WSFED_TRY * 3))s), so it" >&2
+    echo "         cannot be provisioned and the WS-Federation test will be SKIPPED. This is what a side-car" >&2
+    echo "         that was created and then exited looks like: 'docker compose up -d' succeeds either way." >&2
+    reportContainerLog "${WSFED_COMPOSE_FILE}" "keycloak-wsfed"
     return 0
   fi
 
@@ -1364,6 +1447,44 @@ configureKeycloakWsfed()
     "${KC_WSFED}/admin/realms/${WSFED_REALM_NAME}/users/${WSFED_USER_ID}/reset-password" \
     -H "Authorization: Bearer ${KC_WSFED_TOKEN}" -H "Content-Type: application/json" \
     -d '{ "type": "password", "value": "wsfed", "temporary": false }' >/dev/null
+
+  # Verify what was just provisioned, rather than trusting a POST whose status was
+  # discarded. Two things can go wrong quietly here and both would leave the test
+  # failing for reasons that look nothing like the cause:
+  #
+  #   * the client is rejected because the server does not know the "wsfed"
+  #     protocol — i.e. the cloudtrust module is not registered in the image, which
+  #     is a build problem, not a configuration one;
+  #   * the realm exists but the client does not, so the wtrealm the test sends is
+  #     unknown to the IdP.
+  WSFED_CLIENT_COUNT=$(curl -s \
+    -G --data-urlencode "clientId=${WSFED_WTREALM}" \
+    "${KC_WSFED}/admin/realms/${WSFED_REALM_NAME}/clients" \
+    -H "Authorization: Bearer ${KC_WSFED_TOKEN}" | jq -r 'length' 2>/dev/null)
+  if [ "${WSFED_CLIENT_COUNT}" != "1" ];
+  then
+    echo "WARNING: the WS-Federation relying-party client '${WSFED_WTREALM}' was not created on realm" >&2
+    echo "         ${WSFED_REALM_NAME} (found: ${WSFED_CLIENT_COUNT:-none}). If the server rejected protocol" >&2
+    echo "         \"wsfed\", the cloudtrust module is missing from the rcbj/keycloak-wsfed image — rebuild it" >&2
+    echo "         with: docker compose -f <compose file> build --no-cache keycloak-wsfed" >&2
+    echo "         The WS-Federation test will be SKIPPED." >&2
+    return 0
+  fi
+
+  # And the endpoint the test actually drives: the descriptor the module serves.
+  # Only the module publishes /protocol/wsfed, so a 404 here is the clearest signal
+  # that the extension is not active, even when everything else provisioned fine.
+  WSFED_DESCRIPTOR_LOCAL="${KC_WSFED}/realms/${WSFED_REALM_NAME}/protocol/wsfed/descriptor"
+  WSFED_DESCRIPTOR_CODE=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "${WSFED_DESCRIPTOR_LOCAL}")
+  if [ "${WSFED_DESCRIPTOR_CODE}" != "200" ];
+  then
+    echo "WARNING: the WS-Federation descriptor at ${WSFED_DESCRIPTOR_LOCAL} answered HTTP" >&2
+    echo "         ${WSFED_DESCRIPTOR_CODE}, so the cloudtrust wsfed protocol is not being served even though" >&2
+    echo "         the realm and client provisioned. The WS-Federation test will be SKIPPED." >&2
+    reportContainerLog "${WSFED_COMPOSE_FILE}" "keycloak-wsfed"
+    return 0
+  fi
+  echo "The WS-Federation side-car is provisioned: realm ${WSFED_REALM_NAME}, relying party ${WSFED_WTREALM}, user wsfed, descriptor HTTP 200."
 
   # Export the suite vars. The descriptor URL uses the BROWSER/proxy-facing base
   # (KEYCLOAK_WSFED_BASE_URL) so the endpoint the browser navigates to matches.

@@ -8,15 +8,20 @@ set -x
 #                provision Keycloak with SAML AuthnRequest signature validation
 #                DISABLED, then leave the stack running WITHOUT running the tests
 #                (for manual SAML testing with a browser-generated SP key).
+#   --wsfed-only Bring up ONLY what the WS-Federation test needs (api, client and
+#                the Keycloak 8.0.1 + wsfed side-car), provision it, and run that
+#                one test. A ~2-minute loop instead of the whole suite, and it
+#                prints why the side-car is unusable when it is.
 #   -h|--help    Show usage.
 #
 SKIP_TESTS=0
+WSFED_ONLY=0
 SAML_SIG_VALIDATION=true
 
 usage()
 {
   cat <<USAGE
-Usage: $(basename "$0") [--saml-dev] [-h|--help]
+Usage: $(basename "$0") [--saml-dev] [--wsfed-only] [-h|--help]
 
   (default)    Build + start the stack, provision Keycloak (SAML AuthnRequest
                signature validation ENABLED), and run the full test suite.
@@ -24,12 +29,18 @@ Usage: $(basename "$0") [--saml-dev] [-h|--help]
   --saml-dev   Build + start Keycloak and the debugger (api + client), provision
                Keycloak with SAML AuthnRequest signature validation DISABLED, and
                leave the stack running WITHOUT running the tests.
+
+  --wsfed-only Build + start only api, client and the WS-Federation Keycloak
+               side-car, provision the wsfed realm/client/user, and run just
+               tests/wsfed_sso.js. Use this to work on the WS-Federation test
+               without waiting for the full suite.
 USAGE
 }
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --saml-dev) SKIP_TESTS=1; SAML_SIG_VALIDATION=false ;;
+    --wsfed-only) WSFED_ONLY=1 ;;
     -h|--help)  usage; exit 0 ;;
     *) echo "Unknown option: $1"; usage; exit 1 ;;
   esac
@@ -141,14 +152,66 @@ runReport()
   node "${NODEJS_BASE_DIR}/run-report.js"
 }
 
+# ---------------------------------------------------------------------------
+# --wsfed-only: the WS-Federation test on its own.
+#
+# The full run takes about ten minutes, which is a poor loop for one test — and
+# this test is the one most often skipped, because it depends on a side-car that
+# `docker compose up -d` will happily report as started whether or not it stayed
+# up. So bring up only what it needs, say plainly whether the side-car is usable,
+# and run it.
+# ---------------------------------------------------------------------------
+runWsfedOnly()
+{
+  echo "Entering runWsfedOnly()."
+  # compose starts each service's dependencies too, so this pulls in postgres and
+  # the main Keycloak only if api/client actually declare them.
+  CONFIG_FILE=./env/local.js docker_compose -f local-tests.yml build api client keycloak-wsfed
+  check_return_code $?
+  CONFIG_FILE=./env/local.js docker_compose -f local-tests.yml up -d api client keycloak-wsfed
+  check_return_code $?
+  echo "Waiting for the WS-Federation side-car (Keycloak 8.0.1 on WildFly boots slowly) ..."
+  sleep 20
+  CONFIG_FILE=./env/local.js verifyComposeServicesRunning local-tests.yml
+  configureKeycloakWsfed local-tests.yml
+  check_return_code $?
+  if [ -z "${WSFED_METADATA_URL:-}" ];
+  then
+    echo "The WS-Federation side-car could not be provisioned — see the reason above. Not running the test." >&2
+    exit 1
+  fi
+  echo "WSFED_METADATA_URL=${WSFED_METADATA_URL}"
+  echo "WSFED_REALM=${WSFED_REALM}  WSFED_USER=${WSFED_USER}"
+  # Invoked exactly as tests/run-report.js does it: from the repository root, with
+  # CONFIG_FILE relative to the test file (require() resolves against the module's
+  # own directory, not the working directory).
+  export DEBUGGER_BASE_URL CONFIG_FILE KEYCLOAK_BASE_URL
+  node "${NODEJS_BASE_DIR}/wsfed_sso.js" --url "${DEBUGGER_BASE_URL}"
+  local rc=$?
+  echo "Leaving runWsfedOnly(). rc=${rc}"
+  return ${rc}
+}
+
 init
 check_return_code $?
 prepTestEnv
 check_return_code $?
+if [ "${WSFED_ONLY}" = "1" ];
+then
+  runWsfedOnly
+  check_return_code $?
+  echo "WS-Federation test passed."
+  exit 0
+fi
 startDocker
 check_return_code $?
 sleep 60
 check_return_code $?
+# `up -d` succeeds for a container that started and then exited, so ask separately
+# what is actually running now that everything has had a minute to settle, and
+# print the status and log of anything that is not. A side-car that is down this
+# way is otherwise invisible until its test reports SKIPPED.
+CONFIG_FILE=./env/local.js verifyComposeServicesRunning local-tests.yml
 # The walt.id services are JVM services and start slower than the sleep above
 # allows for; wait for them rather than letting their jobs fail on a connection
 # error that says nothing about the cause. The compose file is passed so that a
@@ -156,8 +219,10 @@ check_return_code $?
 waitForWaltid local-tests.yml
 configureKeycloak
 check_return_code $?
-# Provision the WS-Federation side-car (no-op / skip if it isn't up).
-configureKeycloakWsfed
+# Provision the WS-Federation side-car (no-op / skip if it isn't up). The compose
+# file is passed so that a side-car which is not running has its own log printed
+# here — `docker compose up -d` succeeds whether or not the container stayed up.
+configureKeycloakWsfed local-tests.yml
 check_return_code $?
 
 if [ "${SKIP_TESTS}" = "1" ]; then

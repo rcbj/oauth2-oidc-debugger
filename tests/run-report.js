@@ -484,7 +484,7 @@ function buildJobs() {
   // runs without it (remote/live, or a static deployment).
   {
     const wsfedJob = {
-      name: "WS-Federation Passive SSO (Call IdP → Keycloak login → wsfed_response)",
+      name: "WS-Federation Passive SSO + Sign-out (Call IdP → Keycloak login → wsfed_response → wsignout1.0)",
       script: "wsfed_sso.js",
       env: {
         WSFED_METADATA_URL: env.WSFED_METADATA_URL,
