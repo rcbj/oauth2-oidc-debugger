@@ -92,10 +92,42 @@ trap teardown EXIT
 # v1 recreate bug ("KeyError: 'ContainerConfig'") pre-existing containers trigger.
 docker_compose -f "${COMPOSE_FILE}" down -v --remove-orphans 2>/dev/null || true
 
+# And tear down the LOCAL stack's containers as well, because several services —
+# keycloak-wsfed among them — carry the same hard-coded `container_name` in both
+# compose files while the two files configure them completely differently: the
+# local one runs keycloak-wsfed on host networking with a WildFly port-offset of 2
+# (so it binds 8082/8445), the containerized one on a bridge network with no offset
+# (8080/8443, published as 8082:8080). A container left over from a local run is
+# therefore the wrong container for this run, and the giveaway is a log that shows
+# WildFly binding 8082 when this stack expects 8080. Best-effort and quiet: the
+# file may not exist in a trimmed checkout, and nothing here should fail a run.
+if [ -f "local-tests.yml" ];
+then
+  docker_compose -f local-tests.yml down --remove-orphans 2>/dev/null || true
+fi
+
+# Start the WS-Federation side-car FIRST, on its own, and stop here if it does not
+# stay up.
+#
+# It is separated from the run below for two reasons. It is the slowest and most
+# fragile service in the stack — Keycloak 8.0.1 on WildFly, which aborts its whole
+# boot on a single subsystem failure — and `up` reports success for a container
+# that was created and then exited, so nothing downstream would say why. And the
+# run below uses --abort-on-container-exit: were this side-car to die there, it
+# would tear the entire stack down mid-suite and the exit status would be
+# attributed to the tests container. Failing here instead names the cause and
+# prints the container's own log.
+docker_compose -f "${COMPOSE_FILE}" up --build -d keycloak-wsfed
+check_return_code $?
+requireComposeServiceRunning "${COMPOSE_FILE}" keycloak-wsfed
+check_return_code $?
+
 # Build fresh images (so code changes are picked up), bring the stack up, and let
 # the tests container drive the run. --abort-on-container-exit stops the stack as
 # soon as the tests finish; --exit-code-from tests makes compose (and therefore
-# this script) exit with the tests container's status.
+# this script) exit with the tests container's status. The side-car started above
+# is left alone: compose does not recreate a service whose configuration is
+# unchanged.
 docker_compose -f "${COMPOSE_FILE}" up --build --abort-on-container-exit --exit-code-from tests
 check_return_code $?
 

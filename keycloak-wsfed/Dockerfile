@@ -38,6 +38,32 @@ RUN mkdir -p /opt/jboss \
     && mv /opt/jboss/keycloak-8.0.1 "${JBOSS_HOME}" \
     && rm /tmp/keycloak.tar.gz
 
+# Take AUTO_SERVER off the H2 datasource URL.
+#
+# Keycloak 8 ships `jdbc:h2:${jboss.server.data.dir}/keycloak;AUTO_SERVER=TRUE`.
+# AUTO_SERVER puts H2 in automatic mixed mode: it opens a server socket so other
+# processes can share the database, and to advertise that socket it resolves its
+# OWN HOSTNAME. Nothing shares this database — it is one throwaway container — and
+# under host networking the container's hostname need not resolve at all, in which
+# case H2 throws UnknownHostException, the KeycloakDS datasource never binds, and
+# the entire boot is rolled back:
+#
+#   Caused by: org.h2.jdbc.JdbcSQLException: IO Exception:
+#     "java.net.UnknownHostException: keycloak-wsfed: No address associated with hostname"
+#   Caused by: java.lang.RuntimeException: Failed to connect to database
+#
+# What is visible at the END of that log is a NullPointerException in the
+# microprofile-metrics subsystem, which is only the rollback tripping over
+# services that were already removed — not the cause.
+#
+# Guarded on both sides: the build fails if the pattern is not there to change
+# (a newer Keycloak would need this revisited) and fails if any AUTO_SERVER
+# survives the edit.
+RUN CFG="${JBOSS_HOME}/standalone/configuration/standalone.xml" \
+    && grep -q 'AUTO_SERVER=TRUE' "${CFG}" \
+    && sed -i 's|jdbc:h2:${jboss.server.data.dir}/keycloak;AUTO_SERVER=TRUE|jdbc:h2:${jboss.server.data.dir}/keycloak|' "${CFG}" \
+    && ! grep -q 'AUTO_SERVER' "${CFG}"
+
 # Create the master-realm admin offline (WildFly imports keycloak-add-user.json
 # on first boot). No running server needed.
 RUN "${JBOSS_HOME}/bin/add-user-keycloak.sh" -r master -u "${KEYCLOAK_USER}" -p "${KEYCLOAK_PASSWORD}"

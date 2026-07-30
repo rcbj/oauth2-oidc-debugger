@@ -287,13 +287,17 @@ function validateSignedMetadata(doc, options) {
   }
 
   progress("Fetching " + jwksUri + " …");
-  log.debug("Leaving validateSignedMetadata().");
+  log.debug("Leaving validateSignedMetadata(). jwksUri=" + jwksUri);
+  var jwks = null;
   return fetch(jwksUri)
     .then(function (r) {
       if (!r.ok) { throw new Error("jwks_uri returned HTTP " + r.status); }
       return r.json();
     })
-    .then(function (jwks) { return verifyJwsWithJwks(doc.signed_metadata, jwks, "signed_metadata"); })
+    .then(function (fetched) {
+      jwks = fetched;
+      return verifyJwsWithJwks(doc.signed_metadata, jwks, "signed_metadata");
+    })
     .then(function (res) {
       var claims;
       try {
@@ -302,10 +306,19 @@ function validateSignedMetadata(doc, options) {
         claims = {};
       }
       var lines = [];
+      // Name the URL the keys came from. Without it a failure cannot be told apart
+      // from the same failure against somebody else's JWKS — which is exactly the
+      // ambiguity that made an OID4VCI verdict unreadable: the keys are resolved
+      // indirectly there (through /.well-known/jwt-vc-issuer), so "no key from
+      // jwks_uri verified it" begs the question of which jwks_uri was used.
       lines.push(res.valid
-        ? "VALID — signature verified (alg " + res.header.alg + ", kid " + res.kid + ")."
-        : "INVALID — the signature does not verify with any key from jwks_uri (alg " +
-          res.header.alg + ", kid " + res.kid + ").");
+        ? "VALID — signature verified (alg " + res.header.alg + ", kid " + res.kid +
+          ") against the keys at " + jwksUri + "."
+        : "INVALID — the signature does not verify with any key from " + jwksUri +
+          " (alg " + res.header.alg + ", kid " + res.kid + ", " +
+          ((jwks && jwks.keys && jwks.keys.length) || 0) + " key(s) published, kid(s): " +
+          (((jwks && jwks.keys) || []).map(function (k) { return k.kid || "(none)"; }).join(", ") || "—") +
+          ").");
       if (claims.iss !== doc[issuerMember]) {
         lines.push('MISMATCH: the iss claim ("' + claims.iss + '") is not the issuer ("' +
                    doc[issuerMember] + '").');

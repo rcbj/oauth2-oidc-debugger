@@ -55,6 +55,7 @@ const { Builder, By, until } = require("selenium-webdriver");
 const chrome = require("selenium-webdriver/chrome");
 const logging = require("selenium-webdriver/lib/logging");
 const assert = require("assert");
+const secureOrigin = require("./browser_secure_origin.js");
 const crypto = require("crypto");
 const { Command, Option } = require('commander');
 var appconfig = require(process.env.CONFIG_FILE);
@@ -210,8 +211,18 @@ async function stepOne(driver) {
   var verdict = await waitForStatus(driver, "vci_signed_metadata_status",
     function (s) { return /^(VALID|INVALID|Could not)/.test(s); },
     "the credential issuer signed_metadata produced no verdict");
+  // On failure, say which documents the page actually fetched. The keys for an
+  // OID4VCI document are resolved indirectly — the credential issuer metadata
+  // defines no jwks_uri, so it goes through /.well-known/jwt-vc-issuer — and a
+  // verdict of "no key verified it" is unreadable without knowing which JWKS was
+  // reached. This is the difference between "the mock is inconsistent" and "the
+  // page asked the wrong issuer for keys".
+  var fetchedDocs = await driver.executeScript(
+    "return performance.getEntriesByType('resource').map(function (r) { return r.name; })" +
+    "  .filter(function (n) { return /well-known|jwks|certs/.test(n); });");
   assert.ok(verdict.indexOf("VALID") === 0,
-    "the credential issuer's signed_metadata should verify. Got: " + verdict);
+    "the credential issuer's signed_metadata should verify. Got: " + verdict +
+    " — documents the page fetched: " + JSON.stringify(fetchedDocs));
   assert.ok(verdict.indexOf("iss matches the issuer") !== -1,
     "the verdict should confirm iss is the credential issuer. Got: " + verdict);
   log.info("[step1] signed_metadata: " + verdict);
@@ -2695,6 +2706,12 @@ async function test() {
   if (headless) {
     options.addArguments("--headless=new", "--no-sandbox", "--disable-dev-shm-usage");
   }
+  // This whole workflow is Web Crypto: holder key pairs, proofs of possession, Key
+  // Binding JWTs, signature verification. crypto.subtle exists only in a secure
+  // context, and the containerized stack serves the pages from http://client:3000,
+  // which is not one — so without this the pages have no crypto at all and the
+  // failures look like everything except what they are.
+  secureOrigin.addSecureOriginFlags(options, baseUrl);
   var driver = await new Builder().forBrowser("chrome").setChromeOptions(options).build();
   try {
     await handoffParameterCheck(driver);

@@ -166,15 +166,12 @@ init
 check_return_code $?
 waitForKeycloak
 check_return_code $?
-<<<<<<< HEAD
 waitForSts
-=======
 # Delete any pre-existing debugger-testing realm so provisioning is idempotent.
 # docker-run-tests.sh's startup `down -v` is meant to give us a fresh DB, but it
 # is best-effort (swallowed under docker-compose v1); if a stale realm survives,
 # configureKeycloak would 409 ("Failed to create SAML user"). See common.sh.
 resetKeycloakRealm
->>>>>>> feature/203
 check_return_code $?
 configureKeycloak
 check_return_code $?

@@ -129,10 +129,32 @@ prepTestEnv()
 
 startDocker()
 {
+  # Clear the CONTAINERIZED stack's containers first. The two compose files give
+  # several services the same hard-coded `container_name` — keycloak-wsfed, sts,
+  # keycloak — while configuring them incompatibly (this file uses host networking
+  # and a WildFly port-offset; docker-compose-run-tests.yml uses a bridge network
+  # and published ports). A container left behind by ./docker-run-tests.sh is
+  # therefore the wrong container for this run, and compose cannot create the right
+  # one while that name is taken: `up` fails, or the side-car simply never appears
+  # and the WS-Federation check below stops the run. docker-run-tests.sh does the
+  # same in reverse. Best-effort and quiet — the file may be absent, and nothing
+  # here should fail a run.
+  if [ -f "docker-compose-run-tests.yml" ];
+  then
+    CONFIG_FILE=./env/docker-tests.js docker_compose -f docker-compose-run-tests.yml down --remove-orphans 2>/dev/null || true
+  fi
+
   # Start Docker containers
   CONFIG_FILE=./env/local.js docker_compose -f local-tests.yml build
   check_return_code $?
   CONFIG_FILE=./env/local.js docker_compose -f local-tests.yml up -d
+  check_return_code $?
+  # The WS-Federation side-car must actually be running, not merely created: the
+  # `up -d` above exits 0 for a container that started and then aborted its boot,
+  # which is exactly how this side-car has failed. check_return_code stops the run
+  # here, with the container's own log printed, rather than letting every WS-Fed
+  # step downstream fail or skip for reasons that do not name the cause.
+  CONFIG_FILE=./env/local.js requireComposeServiceRunning local-tests.yml keycloak-wsfed
   check_return_code $?
 }
 
@@ -173,6 +195,10 @@ runWsfedOnly()
   echo "Waiting for the WS-Federation side-car (Keycloak 8.0.1 on WildFly boots slowly) ..."
   sleep 20
   CONFIG_FILE=./env/local.js verifyComposeServicesRunning local-tests.yml
+  # Fatal here for the same reason as in startDocker(): there is no point
+  # provisioning, or running the test, against a container that is not there.
+  CONFIG_FILE=./env/local.js requireComposeServiceRunning local-tests.yml keycloak-wsfed
+  check_return_code $?
   configureKeycloakWsfed local-tests.yml
   check_return_code $?
   if [ -z "${WSFED_METADATA_URL:-}" ];

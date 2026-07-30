@@ -498,13 +498,39 @@ reportContainerLog()
     echo "  No compose file was passed, so ${service}'s log cannot be shown here. Try: docker logs ${service}" >&2
     return 0
   fi
-  echo "  Whether ${service} is running at all, and the last lines of its own log:" >&2
+
+  # Trace off: this function captures a whole container log into a variable, and
+  # under `set -x` that assignment echoes the entire log inline before any of it is
+  # printed deliberately. Restored on the way out, as in generateSpKeyPair().
+  local xtrace_was_on=""
+  case "$-" in
+    *x*) xtrace_was_on="yes"; set +x ;;
+  esac
+
+  echo "  Whether ${service} is running at all:" >&2
   # None of this is gated on exit status: compose prints its own error into this
   # stream if the service is unknown or docker is unreachable, which is as much as
   # this diagnostic needs to convey. `ps -a` is what distinguishes "never created"
   # from "created and exited" — a distinction `up -d` does not report.
   docker_compose -f "${compose_file}" ps -a "${service}" 2>&1 | sed 's/^/    /' >&2
-  docker_compose -f "${compose_file}" logs --tail=40 "${service}" 2>&1 | sed 's/^/    /' >&2
+
+  # The FIRST errors, before the tail. A server that aborts its boot rolls back on
+  # the way down, and the rollback is far more verbose than the failure: the last
+  # 40 lines of a failed WildFly boot are all "stopping"/"unbound" noise plus one
+  # secondary NullPointerException, while the error that actually killed it has
+  # long scrolled past. Ask for the cause first, then the tail for context.
+  local full
+  full=$(docker_compose -f "${compose_file}" logs --no-color "${service}" 2>&1)
+  local first_errors
+  first_errors=$(printf '%s\n' "${full}" | grep -n -i -E "ERROR|FATAL|SEVERE|Caused by|WFLYCTL0013|WFLYSRV0055" | head -12)
+  if [ -n "${first_errors}" ];
+  then
+    echo "  The first error lines in ${service}'s log (the cause is normally here, not at the end):" >&2
+    printf '%s\n' "${first_errors}" | sed 's/^/    /' >&2
+  fi
+  echo "  The last lines of ${service}'s log (context, and the rollback if it failed to boot):" >&2
+  printf '%s\n' "${full}" | tail -40 | sed 's/^/    /' >&2
+  [ -n "${xtrace_was_on}" ] && set -x
   return 0
 }
 
@@ -519,8 +545,124 @@ reportContainerLog()
 #
 # Deliberately a warning rather than fatal: which services a run needs depends on
 # the run (the interoperability jobs skip when theirs are absent), so this says
-# plainly what is down and shows why, and lets the gating decide the rest.
+# plainly what is down and shows why, and lets the gating decide the rest. Use
+# requireComposeServiceRunning() for a service the run cannot do without.
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Is one compose service running? Echoes a human state and returns 0/1.
+#
+# This exists because `docker compose ps` output is NOT portable, and getting it
+# wrong made an earlier version of this check declare a perfectly healthy
+# container "absent" and stop the run. Two things differ by version:
+#
+#   * `--format` template FIELD NAMES. The Go template in a v2-era compose has
+#     `.Service`; the v1-style table this project's compose prints has
+#     `.Name/.Command/.State/.Ports` and no `.Service` at all, so
+#     '{{.Service}} {{.State}}' renders as " Up (healthy)" — the service name is
+#     empty and the first field is the state.
+#   * the STATE WORDING itself: "running" in v2, "Up", "Up (healthy)" or
+#     "Up 2 minutes" in v1.
+#
+# So the primary probe is `ps --services --filter status=running`, which prints
+# nothing but service names and is understood by both, and the fallback reads the
+# human table for this one service and looks for an Up/running token. Never parse
+# a Go template here.
+# ---------------------------------------------------------------------------
+composeServiceState()
+{
+  local compose_file="$1"
+  local service="$2"
+  local running table
+
+  running=$(docker_compose -f "${compose_file}" ps --services --filter status=running 2>/dev/null \
+            | grep -v '^Entering\|^Leaving')
+  if printf '%s\n' "${running}" | grep -qx -- "${service}";
+  then
+    echo "running"
+    return 0
+  fi
+
+  # Either the service is not running, or this compose does not support the filter.
+  # Ask about just this service and read the state column.
+  table=$(docker_compose -f "${compose_file}" ps -a "${service}" 2>/dev/null \
+          | grep -v '^Entering\|^Leaving')
+  if printf '%s\n' "${table}" | grep -qE '(Up|running)';
+  then
+    echo "running"
+    return 0
+  fi
+  if printf '%s\n' "${table}" | grep -qiE 'exit|dead|created|restarting|paused';
+  then
+    printf '%s\n' "${table}" | grep -iE 'exit|dead|created|restarting|paused' | head -1 \
+      | sed 's/  */ /g' | cut -c1-90
+    return 1
+  fi
+  echo "absent"
+  return 1
+}
+
+# ---------------------------------------------------------------------------
+# Require that one compose service is running, and FAIL if it is not.
+#
+# The other half of verifyComposeServicesRunning(): that one reports and carries
+# on, this one returns non-zero so the caller's check_return_code stops the run at
+# the point of failure, with the container's own log already printed.
+#
+# It waits, because "started" and "running a second later" are different questions
+# and `up -d` only answers the first: a container that aborts its boot does so
+# seconds after being created, so a check made immediately after `up` would see it
+# running and pass. COMPOSE_SERVICE_WAIT_SECONDS (default 60) bounds the wait.
+#
+# "running" is the state asked for, not "healthy": readiness is a separate question
+# that each service's own wait answers (waitForWaltid, configureKeycloakWsfed's
+# token poll). What this catches is the container not being there at all.
+# ---------------------------------------------------------------------------
+requireComposeServiceRunning()
+{
+  echo "Entering requireComposeServiceRunning(). service=${2}"
+  local compose_file="$1"
+  local service="$2"
+  if [ -z "${compose_file}" ] || [ ! -f "${compose_file}" ] || [ -z "${service}" ];
+  then
+    echo "ERROR: requireComposeServiceRunning() needs a compose file and a service name (got '${compose_file}' '${service}')." >&2
+    return 1
+  fi
+
+  # Trace off: the poll below would otherwise print the whole ps output on every
+  # iteration. Restored on every exit path.
+  local xtrace_was_on=""
+  case "$-" in
+    *x*) xtrace_was_on="yes"; set +x ;;
+  esac
+
+  local deadline state waited
+  deadline=$(( $(date +%s) + ${COMPOSE_SERVICE_WAIT_SECONDS:-60} ))
+  while :;
+  do
+    state=$(composeServiceState "${compose_file}" "${service}")
+    if [ "${state}" = "running" ];
+    then
+      break
+    fi
+    waited=$(( $(date +%s) ))
+    if [ "${waited}" -ge "${deadline}" ];
+    then
+      echo "ERROR: the compose service '${service}' is not running (state: ${state:-absent}), so this run cannot" >&2
+      echo "       continue. 'docker compose up' reports success for a container that was created and then" >&2
+      echo "       exited, which is why this is checked separately." >&2
+      reportContainerLog "${compose_file}" "${service}"
+      [ -n "${xtrace_was_on}" ] && set -x
+      return 1
+    fi
+    sleep 3
+  done
+
+  [ -n "${xtrace_was_on}" ] && set -x
+  echo "Leaving requireComposeServiceRunning(). ${service} is running."
+  return 0
+}
+
 verifyComposeServicesRunning()
 {
   echo "Entering verifyComposeServicesRunning()."
@@ -543,8 +685,9 @@ verifyComposeServicesRunning()
   local expected running down_list service
   # docker_compose() echoes Entering/Leaving into stdout, so drop those lines.
   expected=$(docker_compose -f "${compose_file}" config --services 2>/dev/null | grep -v '^Entering\|^Leaving')
-  running=$(docker_compose -f "${compose_file}" ps --format '{{.Service}} {{.State}}' 2>/dev/null \
-            | awk '$2 == "running" { print $1 }')
+  # Service names only, never a Go template — see composeServiceState().
+  running=$(docker_compose -f "${compose_file}" ps --services --filter status=running 2>/dev/null \
+            | grep -v '^Entering\|^Leaving')
   if [ -z "${expected}" ];
   then
     echo "verifyComposeServicesRunning(): could not read the service list from ${compose_file}; skipping the check." >&2
@@ -555,7 +698,14 @@ verifyComposeServicesRunning()
   down_list=""
   for service in ${expected};
   do
-    if ! echo "${running}" | grep -qx "${service}";
+    if echo "${running}" | grep -qx "${service}";
+    then
+      continue
+    fi
+    # Not in the filtered list. Confirm per-service before calling it down: if this
+    # compose did not understand --filter, that list is empty and EVERY service
+    # would look dead.
+    if [ "$(composeServiceState "${compose_file}" "${service}")" != "running" ];
     then
       down_list="${down_list} ${service}"
     fi

@@ -110,15 +110,32 @@ function makeStsKeys() {
   cert.setSubject(attrs);
   cert.setIssuer(attrs);
   cert.sign(kp.privateKey, forge.md.sha256.create());
+  const certB64 = forge.pki.certificateToPem(cert)
+    .replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
   return {
     privateKeyPem: forge.pki.privateKeyToPem(kp.privateKey),
     certPem: forge.pki.certificateToPem(cert),
-    certB64: forge.pki.certificateToPem(cert)
-      .replace(/-----[^-]+-----/g, '').replace(/\s+/g, '')
+    certB64: certB64,
+    // A `kid` names a KEY, so it is derived from the key material rather than
+    // hard-coded. This key is regenerated on every start, and the kid was
+    // previously a constant — so two instances of this mock (a stale container
+    // beside a fresh one, or two ports during development) published the SAME kid
+    // over DIFFERENT keys. A verifier matches the kid exactly, tries that one key,
+    // fails, and reports "the signature does not verify", which reads like a
+    // corrupt document instead of what it is: keys fetched from the wrong
+    // instance. A per-key kid cannot collide, so the mismatch names itself.
+    kid: 'sts-mock-' + forge.md.sha256.create().update(certB64).digest().toHex().slice(0, 12)
   };
 }
 
 const STS = makeStsKeys();
+
+// Every document that carries or describes this key is served `Cache-Control:
+// no-store` (the RFC 8414 metadata, the OID4VCI credential issuer metadata, the
+// jwt-vc-issuer document and the JWKS). The key is regenerated on every start, so
+// a cached copy of any of them outlives the key it describes — and the resulting
+// failure is a signature that does not verify, which looks like a broken document
+// rather than a stale one. Nothing about a mock is worth caching.
 
 // --- helpers ---------------------------------------------------------------
 function xmlEscape(s) {
@@ -647,7 +664,7 @@ function signedMetadata(meta) {
   logArtifact('RFC 8414 signed_metadata', 'before signing', claims);
   try {
     const signed = jwt.sign(claims, STS.privateKeyPem,
-      { algorithm: 'RS256', issuer: meta.issuer, expiresIn: 3600, keyid: 'sts-mock-1' });
+      { algorithm: 'RS256', issuer: meta.issuer, expiresIn: 3600, keyid: STS.kid });
     logArtifact('RFC 8414 signed_metadata', 'after signing', signed);
     log.debug("Leaving signedMetadata().");
     return signed;
@@ -663,7 +680,7 @@ function sendAsMetadata(req, res) {
   const meta = asMetadata(req);
   const signed = signedMetadata(meta);
   if (signed) meta.signed_metadata = signed;
-  res.status(200).type('application/json').send(JSON.stringify(meta, null, 2));
+  res.status(200).type('application/json').set('Cache-Control', 'no-store').send(JSON.stringify(meta, null, 2));
   log.debug("Leaving sendAsMetadata().");
 }
 
@@ -681,9 +698,9 @@ app.get('/oauth2/jwks', function (req, res) {
       return Buffer.from(hex.length % 2 ? '0' + hex : hex, 'hex').toString('base64')
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     };
-    res.status(200).type('application/json').send(JSON.stringify({
+    res.status(200).type('application/json').set('Cache-Control', 'no-store').send(JSON.stringify({
       keys: [{
-        kty: 'RSA', use: 'sig', alg: 'RS256', kid: 'sts-mock-1',
+        kty: 'RSA', use: 'sig', alg: 'RS256', kid: STS.kid,
         n: b64u(pub.n.toString(16)), e: b64u(pub.e.toString(16)),
         x5c: [STS.certB64]
       }]
@@ -816,12 +833,12 @@ function sendVciMetadata(req, res) {
   logArtifact('OID4VCI signed_metadata', 'before signing', claims);
   try {
     meta.signed_metadata = jwt.sign(claims, STS.privateKeyPem,
-      { algorithm: 'RS256', issuer: meta.credential_issuer, expiresIn: 3600, keyid: 'sts-mock-1' });
+      { algorithm: 'RS256', issuer: meta.credential_issuer, expiresIn: 3600, keyid: STS.kid });
     logArtifact('OID4VCI signed_metadata', 'after signing', meta.signed_metadata);
   } catch (e) {
     log.error('OID4VCI signed_metadata: ' + e.message);
   }
-  res.status(200).type('application/json').send(JSON.stringify(meta, null, 2));
+  res.status(200).type('application/json').set('Cache-Control', 'no-store').send(JSON.stringify(meta, null, 2));
   log.debug("Leaving sendVciMetadata().");
 }
 
@@ -832,7 +849,7 @@ app.get('/.well-known/openid-credential-issuer/*', sendVciMetadata);
 function sendJwtVcIssuerMetadata(req, res) {
   log.debug("Entering sendJwtVcIssuerMetadata().");
   const base = baseUrlOf(req);
-  res.status(200).type('application/json').send(JSON.stringify({
+  res.status(200).type('application/json').set('Cache-Control', 'no-store').send(JSON.stringify({
     issuer: base,
     jwks_uri: base + '/oauth2/jwks'
   }, null, 2));
@@ -1220,7 +1237,7 @@ function buildSdJwtVc(subjectClaims, holderJwk, credentialIssuer) {
     _sd: digests
   };
   logArtifact('SD-JWT VC', 'before signing',
-              { header: { alg: 'RS256', typ: 'dc+sd-jwt', kid: 'sts-mock-1' },
+              { header: { alg: 'RS256', typ: 'dc+sd-jwt', kid: STS.kid },
                 payload: payload,
                 disclosures: disclosures.map(function (d) {
                   return { name: d.name, value: d.value, salt: d.salt, digest: d.digest, encoded: d.encoded };
@@ -1231,7 +1248,7 @@ function buildSdJwtVc(subjectClaims, holderJwk, credentialIssuer) {
   // told not to timestamp, so it is left to do it).
   const issuerJwt = jwt.sign(payload, STS.privateKeyPem, {
     algorithm: 'RS256',
-    header: { alg: 'RS256', typ: 'dc+sd-jwt', kid: 'sts-mock-1' }
+    header: { alg: 'RS256', typ: 'dc+sd-jwt', kid: STS.kid }
   });
   logArtifact('SD-JWT VC issuer-signed JWT', 'after signing', issuerJwt);
 
@@ -2455,8 +2472,8 @@ function oauthError(res, status, error, description) {
 function signJwt(payload) {
   log.debug("Entering signJwt(). typ=" + (payload.typ || '(none)'));
   logArtifact('OAuth token (' + (payload.typ || 'unknown') + ')', 'before signing',
-              { header: { alg: 'RS256', kid: 'sts-mock-1' }, payload: payload });
-  const signed = jwt.sign(payload, STS.privateKeyPem, { algorithm: 'RS256', keyid: 'sts-mock-1' });
+              { header: { alg: 'RS256', kid: STS.kid }, payload: payload });
+  const signed = jwt.sign(payload, STS.privateKeyPem, { algorithm: 'RS256', keyid: STS.kid });
   logArtifact('OAuth token (' + (payload.typ || 'unknown') + ')', 'after signing', signed);
   log.debug("Leaving signJwt().");
   return signed;

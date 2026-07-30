@@ -12,13 +12,27 @@ var baseUrl = "http://localhost:3000";
 var headless = true;
 var waitTime = appconfig.waitTime;
 
-// Landing page: the two protocol-choice cards.
-var OAUTH2_CARD = By.css('a.landing-card[href="/debugger.html"]');
+// Landing page: the protocol-choice cards.
+//
+// THREE protocols live on the OAuth2 / OIDC pages — the flows themselves, Dynamic
+// Client Registration and Token Exchange — so href alone no longer identifies a
+// card: two of them point at /debugger.html. Those two are located by their title
+// instead, which is what a person reads and what the test is really about.
+var cardByTitle = function (title) {
+  return By.xpath("//a[contains(@class,'landing-card')]" +
+                  "[.//span[contains(@class,'landing-card-title')][normalize-space()=\"" + title + "\"]]");
+};
+var OAUTH2_CARD = cardByTitle("OAuth2 / OIDC Protocol");
+var TOKEN_EXCHANGE_CARD = cardByTitle("OAuth2 Token Exchange");
 var SAML_CARD = By.css('a.landing-card[href="/saml_request.html"]');
 var WSTRUST_CARD = By.css('a.landing-card[href="/wstrust_tools.html"]');
 var SDJWTVC_CARD = By.css('a.landing-card[href="/sd-jwt-vc-issuance-0.html"]');
 var SDJWTVP_CARD = By.css('a.landing-card[href="/sd-jwt-vc-presentation-0.html"]');
 var WSFED_CARD = By.css('a.landing-card[href="/wsfed_tools.html"]');
+// Dynamic Client Registration lives on debugger.html, so its card is told apart
+// from the OAuth2 card by the fragment naming the DCR pane. The OAuth2 locator
+// above is an EXACT href match, so it still resolves to one element.
+var DCR_CARD = By.css('a.landing-card[href="/debugger.html#dcr_fieldset"]');
 var CHOICES = By.css('.landing-choices');
 // The header "Home" nav link (returns to the landing page).
 var HOME_LINK = By.css('.header_debugger a[href="/index.html"]');
@@ -121,10 +135,10 @@ async function click(driver, locator) {
 // ---------------------------------------------------------------------------
 // Every protocol card visible without scrolling, on a 1366x768 screen — the
 // smallest one anybody is likely to use, and the size at which this last went
-// wrong: six cards in the two-wide grid the page had when there were four of them
-// made three rows, and the third was below the fold. A choice you have to scroll
-// to find is one you do not know you have, so it is checked geometrically rather
-// than by eye.
+// wrong, twice: six cards in the two-wide grid the page had when there were four
+// of them made three rows, and a seventh in the three-wide grid that replaced it
+// would have done the same. A choice you have to scroll to find is one you do not
+// know you have, so it is checked geometrically rather than by eye.
 //
 // Also checked here, because both were real and neither is visible in a
 // screenshot: a card nested INSIDE another (an unclosed <a> in the markup, which
@@ -136,8 +150,9 @@ var DEFAULT_TEXT_COLOUR = "rgb(51, 51, 51)";
 // How much of a 768px-tall screen the cards may occupy. The viewport check below
 // is not enough on its own: headless Chrome has no tab strip, toolbar or bookmark
 // bar, so window.innerHeight there is the whole 768 while a real browser leaves
-// roughly 620-640. Measured 2026-07-29 at 588px with six cards, so this budget is
-// the slack that remains — a seventh protocol has to fit inside it.
+// roughly 620-640. Measured 2026-07-30 at 571px with seven cards in a 4 + 3 grid,
+// so this budget is the slack that remains — an eighth protocol has to fit inside
+// it, which most likely means another column or shorter descriptions.
 var CARD_HEIGHT_BUDGET = 640;
 
 async function landingFitsOnOneScreen(driver) {
@@ -173,7 +188,7 @@ async function landingFitsOnOneScreen(driver) {
     "};");
 
   try {
-    assert.ok(m.count >= 6, "the landing page should offer every protocol; found " + m.count + " card(s).");
+    assert.ok(m.count >= 8, "the landing page should offer every protocol; found " + m.count + " card(s).");
     assert.strictEqual(m.nested, 0,
       "no protocol card may be nested inside another — that means an unclosed <a> in index.html. Found " +
       m.nested + ".");
@@ -189,8 +204,8 @@ async function landingFitsOnOneScreen(driver) {
     // More than one row, and none of them a lone leftover: the grid should be
     // filled left to right, which is what "arranged in rows" means here.
     assert.ok(m.rows.length >= 2, "the cards should be laid out in rows, not one long column.");
-    assert.ok(m.rows[0] >= 3,
-      "the first row should hold at least three cards at this width; got " + m.rows[0] + ".");
+    assert.ok(m.rows[0] >= 4,
+      "the first row should hold at least four cards at this width; got " + m.rows[0] + ".");
     m.iconColours.forEach(function (colour, i) {
       assert.notStrictEqual(colour, DEFAULT_TEXT_COLOUR,
         "the '" + m.titles[i] + "' card's icon has no accent colour of its own — landing.css needs a " +
@@ -288,7 +303,42 @@ async function navigationActivities(driver) {
   await click(driver, HOME_LINK);
   await waitVisible(driver, CHOICES);
 
-  // 12. Choose the WS-Federation debugger -> wsfed_tools.html. Its own suite
+  // 12. Choose OIDC Dynamic Client Registration -> debugger.html, at the DCR pane.
+  // Same page as the OAuth2 card, reached by a different card and a fragment, so
+  // what is checked is that the pane it names is really there.
+  log.info("Click the OIDC Dynamic Client Registration card.");
+  await click(driver, DCR_CARD);
+  await driver.wait(until.urlContains("debugger.html"), waitTime);
+  await driver.wait(until.elementLocated(By.id("dcr_fieldset")), waitTime);
+  var dcrUrl = await driver.getCurrentUrl();
+  assert.ok(dcrUrl.indexOf("#dcr_fieldset") >= 0,
+    "the card should open debugger.html at the Dynamic Client Registration pane. Got: " + dcrUrl);
+  await driver.wait(until.elementLocated(By.id("dcr_registration_endpoint")), waitTime);
+  log.info("Landed on debugger.html at the Dynamic Client Registration pane.");
+  await checkFooterVersion(driver, "debugger.html#dcr_fieldset");
+
+  // 13. Return to Home -> landing page.
+  log.info("Click Home -> landing page.");
+  await click(driver, HOME_LINK);
+  await waitVisible(driver, CHOICES);
+
+  // 14. Choose OAuth2 Token Exchange -> debugger.html. Its pane is on
+  // debugger2.html (an exchange needs a token to exchange), so what this checks is
+  // that the card is there, is distinct from the OAuth2 card, and lands on the
+  // page where a subject token is obtained.
+  log.info("Click the OAuth2 Token Exchange card.");
+  await click(driver, TOKEN_EXCHANGE_CARD);
+  await driver.wait(until.urlContains("debugger.html"), waitTime);
+  await driver.wait(until.elementLocated(By.id("authorization_grant_type")), waitTime);
+  log.info("Landed on debugger.html from the Token Exchange card.");
+  await checkFooterVersion(driver, "debugger.html (Token Exchange card)");
+
+  // 15. Return to Home -> landing page.
+  log.info("Click Home -> landing page.");
+  await click(driver, HOME_LINK);
+  await waitVisible(driver, CHOICES);
+
+  // 16. Choose the WS-Federation debugger -> wsfed_tools.html. Its own suite
   // needs the WS-Federation Keycloak side-car and is skipped without it, so this
   // is the only place the page is loaded on every run — which is how it came to
   // be served unstyled for a while without anything failing.
@@ -300,7 +350,7 @@ async function navigationActivities(driver) {
   await checkFooterVersion(driver, "wsfed_tools.html");
   await checkStylesheetsLoaded(driver, "wsfed_tools.html");
 
-  // 13. Return to Home -> landing page.
+  // 17. Return to Home -> landing page.
   log.info("Click Home -> landing page.");
   await click(driver, HOME_LINK);
   await waitVisible(driver, CHOICES);

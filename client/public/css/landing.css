@@ -12,18 +12,24 @@
 
 .landing {
   text-align: center;
-  padding: 22px 12px 28px;
+  padding: 16px 12px 24px;
 }
-.landing-title { font-size: 1.6em; margin: 4px 0 4px; color: #333; }
-.landing-sub { font-size: .95em; color: #666; margin: 0 0 20px; }
+.landing-title { font-size: 1.45em; margin: 2px 0 4px; color: #333; }
+.landing-sub { font-size: .9em; color: #666; margin: 0 0 16px; }
 
-/* Three across on a full-width container (940px at most desktop widths, 1170px
-   above 1200px), two when the container narrows to Bootstrap's 724px, one on a
-   phone — auto-fit does all three without a media query per breakpoint. */
+/* Four across on a full-width container, three when it narrows to Bootstrap's
+   724px, one on a phone — auto-fit does all of it without a media query per
+   breakpoint. The 940px cap is deliberate even though the container is 1170px
+   above 1200px viewport width: it fixes the column count at four everywhere, so
+   the layout does not reshuffle between desktop sizes.
+
+   Four rather than three because there are seven protocols: three columns would
+   be three rows, and the third would be below the fold on a 768px screen — the
+   exact problem two columns had at six cards. 4 x 205px + 3 x 16px = 868px. */
 .landing-choices {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+  gap: 16px;
   align-items: stretch;
   max-width: 940px;
   margin: 0 auto;
@@ -34,7 +40,7 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 18px 16px 20px;
+  padding: 16px 12px 18px;
   border: 1px solid #ccc;
   border-radius: 12px;
   background: #fafafa;
@@ -55,19 +61,21 @@
    There is one rule per card, so every protocol added here needs one — miss it and
    that card's icon silently falls back to the text colour, which is what happened
    to the two newest ones. */
-.landing-icon { margin-bottom: 10px; line-height: 0; }
-.landing-icon svg { width: 56px; height: 56px; }
+.landing-icon { margin-bottom: 8px; line-height: 0; }
+.landing-icon svg { width: 48px; height: 48px; }
 .landing-card:nth-child(1) .landing-icon { color: #2680eb; }
 .landing-card:nth-child(2) .landing-icon { color: #5a2a8f; }
 .landing-card:nth-child(3) .landing-icon { color: #0a7d63; }
 .landing-card:nth-child(4) .landing-icon { color: #b05423; }
 .landing-card:nth-child(5) .landing-icon { color: #a3226b; }
 .landing-card:nth-child(6) .landing-icon { color: #1f5f9e; }
+.landing-card:nth-child(7) .landing-icon { color: #7a5c00; }
+.landing-card:nth-child(8) .landing-icon { color: #167a8a; }
 .landing-card:hover .landing-icon,
 .landing-card:focus .landing-icon { color: inherit; }
 
-.landing-card-title { font-size: 1.05em; font-weight: 700; margin-bottom: 7px; }
-.landing-card-desc { font-size: .78em; color: #666; line-height: 1.4; }
+.landing-card-title { font-size: .98em; font-weight: 700; margin-bottom: 6px; }
+.landing-card-desc { font-size: .74em; color: #666; line-height: 1.38; }
 .landing-card:hover .landing-card-desc,
 .landing-card:focus .landing-card-desc { color: inherit; }
 
