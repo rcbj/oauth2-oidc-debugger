@@ -95,15 +95,19 @@ var server = http.createServer(function (req, res) {
   });
 
   upstream.on("error", function (e) {
-    // The issuer is not there, or not there yet. 502 with a readable reason
+    // The upstream is not there, or not there yet. 502 with a readable reason
     // beats a socket hangup the browser reports as a network error.
+    //
+    // "service" rather than "issuer": one copy of this proxy fronts the issuer
+    // and another fronts the verifier, and a 502 naming the wrong one sends
+    // whoever reads it looking at the wrong container.
     log("502 " + req.method + " " + req.url + " — upstream " + UPSTREAM + ": " + e.message);
     if (!res.headersSent) {
       res.writeHead(502, { "Content-Type": "application/json" });
     }
     res.end(JSON.stringify({
       error: "upstream_unavailable",
-      error_description: "The walt.id issuer at " + UPSTREAM + " did not answer: " + e.message
+      error_description: "The walt.id service at " + UPSTREAM + " did not answer: " + e.message
     }));
   });
 

@@ -699,7 +699,20 @@ async function withholdARequestedClaim(driver, held) {
   var own = await text(driver, "vp_recheck_status");
   assert.ok(/all pass/.test(own),
     "the presentation itself was well-formed — the wallet's own checks should still pass. Got: " + own);
-  log.info("[negative] OK — refused for " + failed[0].name + ": " + failed[0].detail.slice(0, 90));
+
+  // And the wallet says so on its OWN side of the page, without being told by the
+  // verifier. This mock does refuse an unanswered request; a real verifier need
+  // not — walt.id's accepts it silently — so the wallet's statement is the only
+  // one always available, and it is checked here rather than only in the
+  // interoperability suite, which is skipped when walt.id is not running.
+  var answered = await text(driver, "vp_answered");
+  assert.ok(/NOT fully answered/.test(answered),
+    "step 3 should say on the wallet's own account that the request was not fully answered. Got: " +
+    answered);
+  assert.ok(new RegExp(target).test(answered),
+    "and name the withheld claim. Got: " + answered);
+  log.info("[negative] OK — refused for " + failed[0].name + ": " + failed[0].detail.slice(0, 90) +
+           "; the wallet's own account: " + answered.slice(0, 90));
 }
 
 // ---------------------------------------------------------------------------

@@ -469,10 +469,43 @@ renderWaltidConfig()
 # Bounded, and deliberately NOT fatal: a run may legitimately not have these
 # containers, and the jobs that need them are skipped or fail on their own with a
 # clearer message than this could give.
+#
+# Takes the compose file as an optional argument, used only to fetch a container's
+# log when the wait times out. See reportWaltidContainer().
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Print the tail of a walt.id container's own log.
+#
+# Called only after a wait has timed out, and it exists because of how these
+# services fail: walt.id loads its configuration with Hoplite, and a value of the
+# wrong SHAPE (a JSON object written as a quoted string, say) makes it exit during
+# startup, before it ever listens. All that is left then is a 502 from the CORS
+# proxy in front of it — which is what the interoperability test reports, and it
+# names the proxy rather than the reason. The reason is in the container's log, so
+# print it here instead of leaving it for someone to go find.
+# ---------------------------------------------------------------------------
+reportWaltidContainer()
+{
+  local compose_file="$1"
+  local service="$2"
+  if [ -z "${compose_file}" ] || [ ! -f "${compose_file}" ];
+  then
+    echo "  No compose file was passed to waitForWaltid(), so ${service}'s log cannot be shown here. Try: docker logs <container>" >&2
+    return 0
+  fi
+  echo "  The last lines of ${service}'s own log follow. A walt.id service that exits during startup says why here:" >&2
+  # Not gated on the exit status: compose prints its own error into this stream if
+  # the service is unknown or docker is unreachable, which is as much as this
+  # diagnostic needs to convey.
+  docker_compose -f "${compose_file}" logs --tail=40 "${service}" 2>&1 | sed 's/^/    /' >&2
+  return 0
+}
+
 waitForWaltid()
 {
   echo "Entering waitForWaltid()."
+  local compose_file="${1:-${WALTID_COMPOSE_FILE:-}}"
   local issuer_probe="${WALTID_ISSUER_URL:-}"
   local verifier_probe="${WALTID_VERIFIER_URL:-}"
   local deadline=$(( $(date +%s) + ${WALTID_WAIT_SECONDS:-180} ))
@@ -485,7 +518,8 @@ waitForWaltid()
     do
       if [ "$(date +%s)" -ge "${deadline}" ];
       then
-        echo "WARNING: walt.id's issuer did not answer at ${issuer_probe} within the wait. The issuance interoperability job will report why." >&2
+        echo "WARNING: walt.id's issuer did not answer at ${issuer_probe} within the wait." >&2
+        reportWaltidContainer "${compose_file}" "waltid-issuer-api"
         break
       fi
       sleep 5
@@ -500,13 +534,17 @@ waitForWaltid()
     do
       if [ "$(date +%s)" -ge "${deadline}" ];
       then
-        echo "WARNING: walt.id's verifier did not answer at ${verifier_probe} within the wait. The presentation interoperability job will report why." >&2
+        echo "WARNING: walt.id's verifier did not answer at ${verifier_probe} within the wait." >&2
+        reportWaltidContainer "${compose_file}" "waltid-verifier-api"
         break
       fi
       sleep 5
     done
   fi
   echo "Leaving waitForWaltid()."
+}
+
+# ---------------------------------------------------------------------------
 # Delete the debugger-testing realm if it exists, so configureKeycloak re-creates
 # every client with redirectUris / webOrigins matching the CURRENT
 # DEBUGGER_BASE_URL, and re-provisions users from scratch. Two things depend on

@@ -2,13 +2,8 @@
    (loaded after it, so the pane / field / button look and feel is shared with
    the rest of the SAML pages and only the extras below are new). */
 
-/* Explanatory note inside a pane — smaller and quieter than a .saml-notice. */
-.saml-pane .saml-note {
-  font-size: 0.76em;
-  line-height: 1.4;
-  color: #555;
-  margin: 0 0 8px;
-}
+/* .saml-pane .saml-note moved to saml_common.css: the WS-Federation pages use it
+   too, and a class more than one page family needs is not page-specific. */
 
 /* The pane's headline outputs (the generated assertion and the compliance
    report) get the full pane width, with their label on the row above — the

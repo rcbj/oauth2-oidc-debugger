@@ -151,8 +151,9 @@ sleep 60
 check_return_code $?
 # The walt.id services are JVM services and start slower than the sleep above
 # allows for; wait for them rather than letting their jobs fail on a connection
-# error that says nothing about the cause.
-waitForWaltid
+# error that says nothing about the cause. The compose file is passed so that a
+# service which never comes up has its own log printed here.
+waitForWaltid local-tests.yml
 configureKeycloak
 check_return_code $?
 # Provision the WS-Federation side-car (no-op / skip if it isn't up).

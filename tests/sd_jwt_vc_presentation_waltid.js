@@ -166,35 +166,63 @@ async function issueFromWaltid(driver) {
   await driver.sleep(500);
 
   // walt.id's metadata, at the path-inserted well-known location.
+  //
+  // Every wait below insists on "Retrieved". Accepting "Could not" as well —
+  // which this function used to do — makes the whole configuration step vacuous:
+  // the retrieval failed, the endpoint fields stayed empty, and the first thing
+  // that actually noticed was a 30-second timeout waiting for a Keycloak login
+  // screen that nothing had navigated to.
   await driver.executeScript(
     "document.getElementById('vci_metadata_endpoint').value = arguments[0];", metadataUrl);
   await click(driver, By.id("vci_retrieve_button"));
   await waitForStatus(driver, "vci_signed_metadata_status",
-    function (s) { return /^Retrieved|^Could not/.test(s); },
+    function (s) { return /^Retrieved/.test(s); },
     "walt.id's credential issuer metadata was not retrieved");
   assert.strictEqual(await value(driver, "vci_credential_issuer"), issuerId,
     "the metadata should name walt.id's Credential Issuer Identifier (with its path).");
 
-  // walt.id publishes no authorization_servers, so it is its own — the wallet has
-  // to fall back to the issuer identifier.
+  // Choose the credential the way a user does, through the configurations the
+  // metadata advertised: that populates the scope and the format alongside the
+  // identifier, which setting the identifier alone does not.
   await driver.executeScript(
-    "document.getElementById('oidc_discovery_endpoint').value = arguments[0];",
-    issuerId + "/.well-known/oauth-authorization-server");
+    "var s = document.getElementById('vci_credential_configuration_select');" +
+    "s.value = arguments[0];" +
+    "sdjwtvc1.onCredentialConfigurationChange();", CONFIGURATION_ID);
+  await driver.sleep(400);
+  assert.strictEqual(await value(driver, "vci_credential_configuration_id"), CONFIGURATION_ID,
+    "choosing the credential configuration should select it.");
+
+  // walt.id publishes no authorization_servers, so it is its own — and its
+  // identifier HAS a path, so the metadata is at the RFC 8414 path-INSERTED URL.
+  // The page derives that itself; do not overwrite it here. Appending instead
+  // (…/openid4vci/.well-known/oauth-authorization-server) is a 404, which is the
+  // very bug the issuance suite exists to keep fixed.
+  var asUrl = await value(driver, "oidc_discovery_endpoint");
+  assert.strictEqual(asUrl, issuerBase + "/.well-known/oauth-authorization-server/openid4vci",
+    "the wallet should fall back to the credential issuer at the path-inserted well-known URL. Got: " +
+    asUrl);
   await click(driver, By.id("as_retrieve_button"));
   await waitForStatus(driver, "as_signed_metadata_status",
-    function (s) { return /^Retrieved|^Could not/.test(s); },
+    function (s) { return /^Retrieved/.test(s); },
     "walt.id's authorization server metadata was not retrieved");
 
   await driver.executeScript(
     "document.getElementById('client_id').value = arguments[0];" +
-    "document.getElementById('scope').value = arguments[1];" +
-    "document.getElementById('vci_credential_configuration_id').value = arguments[1];",
+    "document.getElementById('scope').value = arguments[1];",
     clientId, CONFIGURATION_ID);
   var save = await driver.findElements(By.id("config_save_button"));
   if (save.length) {
     await click(driver, By.id("config_save_button"));
     await driver.sleep(400);
   }
+
+  // The hand-off cannot work without these, and an empty authorization endpoint
+  // is why the old version of this function timed out at the login screen rather
+  // than reporting what was actually wrong.
+  assert.strictEqual(await value(driver, "authorization_endpoint"), issuerId + "/authorize",
+    "the authorization endpoint should have come from walt.id's RFC 8414 document.");
+  assert.strictEqual(await value(driver, "token_endpoint"), issuerId + "/token",
+    "the token endpoint should have come from walt.id's RFC 8414 document.");
 
   // Hand off to the OIDC leg. walt.id's authorization endpoint redirects to
   // Keycloak, which is where the End-User actually signs in.
@@ -475,32 +503,104 @@ async function positiveFlow(driver, held, byReference) {
 }
 
 // ---------------------------------------------------------------------------
-// NEGATIVE — a claim walt.id asked for is withheld.
+// NEGATIVE 1 — a claim walt.id asked for is withheld.
 //
-// The presentation itself is perfectly well-formed: the issuer's signature, the
-// digests and the Key Binding JWT are all valid, and our wallet's own checks pass.
-// What is wrong is that it does not answer the question, and it is walt.id's DCQL
-// machinery — not ours — that has to notice.
+// The presentation is otherwise perfect: the issuer's signature, the digests and
+// the Key Binding JWT are all valid, and our wallet's own checks pass. What is
+// wrong is that it does not answer the question.
+//
+// And walt.id accepts it. That is not a bug in this test and not one in our
+// wallet: verifier-api2 runs a fixed set of policies over a dc+sd-jwt
+// presentation — audience, nonce, sd_hash, the KB-JWT signature, exp/nbf — and
+// none of them asks whether the DCQL query was actually satisfied (there is no
+// such policy in waltid-verification-policies2-vp at 0.23.0). So the claim it
+// asked for is simply absent from what it recorded, and its status is SUCCESSFUL
+// anyway.
+//
+// Which makes this the OID4VP counterpart of over-disclosure, from the other
+// side: a verifier that does not check cannot complain, so the only party in a
+// position to notice is the wallet. That is what is asserted here — walt.id did
+// not receive the claim, and OUR step 3 says the request went unanswered.
 // ---------------------------------------------------------------------------
 async function negativeWithheldClaim(driver, held) {
-  log.info("=== NEGATIVE: withholding a claim walt.id asked for ===");
+  log.info("=== NEGATIVE 1: withholding a claim walt.id asked for ===");
   var session = await createVerificationSession({ vct: held.payload.vct });
   await presentToWaltid(driver, session, { withhold: REQUESTED[0] });
   var verdict = await waltidVerdict(session.sessionId, "negative (withheld " + REQUESTED[0] + ")");
 
+  // Whatever it decided, the withheld claim must not have reached it: that is the
+  // guarantee selective disclosure actually makes, and it is ours to keep.
+  var raw = JSON.stringify(verdict.presented_credentials || verdict.presented_raw_data ||
+                           verdict.presented_presentations || {});
+  assert.ok(raw.indexOf(REQUESTED[0]) === -1,
+    "the withheld claim (" + REQUESTED[0] + ") must not appear in what walt.id received. Its record: " +
+    raw.slice(0, 400));
+  assert.ok(raw.indexOf(REQUESTED[1]) !== -1,
+    "while the claim that WAS disclosed (" + REQUESTED[1] + ") should. Its record: " + raw.slice(0, 400));
+
+  // The wallet is the one that has to notice, and it is on step 3 already.
+  var shortfall = await driver.executeScript(
+    "return { answered: document.getElementById('vp_answered').textContent.trim()," +
+    "         sent: document.getElementById('vp_sent_status').textContent.trim() };");
+  assert.ok(/NOT fully answered/.test(shortfall.answered),
+    "step 3 should say the request was not fully answered — no verifier is going to say it for us. Got: " +
+    shortfall.answered);
+  assert.ok(shortfall.answered.indexOf(REQUESTED[0]) !== -1,
+    "and should name the claim that was withheld. Got: " + shortfall.answered);
+  assert.ok(/withheld/.test(shortfall.sent),
+    "and the pane's own summary should not read as though nothing was missing. Got: " + shortfall.sent);
+
+  log.info("[negative 1] OK — " + REQUESTED[0] + " never reached walt.id, our step 3 reports the " +
+           "shortfall, and walt.id itself said status=" + JSON.stringify(verdict.status) +
+           " (it runs no DCQL-fulfilment policy — recorded here as an interop finding).");
+}
+
+// ---------------------------------------------------------------------------
+// NEGATIVE 2 — a replayed presentation, which walt.id DOES refuse.
+//
+// Without this the suite proves nothing by walt.id's SUCCESSFUL: a verifier that
+// accepted everything would pass every other assertion here. So take the exact
+// bytes it just accepted and post them to a SECOND session. The Key Binding JWT
+// carries the first session's nonce, which is what makes it a replay, and
+// nonce-check is a policy walt.id really does run.
+//
+// Posted directly rather than through the pages: our wallet will not build a
+// presentation carrying someone else's nonce, and that is the point of it.
+// ---------------------------------------------------------------------------
+async function negativeReplay(held, accepted) {
+  log.info("=== NEGATIVE 2: replaying an accepted presentation into a fresh session ===");
+  var session = await createVerificationSession({ vct: held.payload.vct });
+  var params = new URLSearchParams(requestQuery(session, false));
+  var responseUri = params.get("response_uri");
+  var state = params.get("state");
+  var freshNonce = params.get("nonce");
+  assert.ok(responseUri, "the second session's request should carry a response_uri.");
+  assert.ok(freshNonce, "and a nonce of its own, which is what the replayed bytes will not match.");
+
+  var vpToken = {};
+  vpToken[DCQL_ID] = [accepted.presentation];
+  var form = "vp_token=" + encodeURIComponent(JSON.stringify(vpToken)) +
+             (state ? "&state=" + encodeURIComponent(state) : "");
+  var posted = await httpJson(responseUri, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form
+  });
+  log.info("[negative 2] walt.id answered the replay with HTTP " + posted.status + ": " +
+           String(posted.raw).replace(/\s+/g, " ").slice(0, 200));
+
+  var verdict = await waltidVerdict(session.sessionId, "negative (replayed presentation)");
   var status = String(verdict.status || "");
-  var failed = /FAIL|ERROR|REJECT/i.test(status) || !!verdict.failure;
-  var raw = JSON.stringify(verdict.presented_credentials || verdict.presented_raw_data || {});
-  var gotTheClaim = raw.indexOf(REQUESTED[0]) !== -1;
-  assert.ok(failed || !gotTheClaim,
-    "walt.id must not treat a presentation missing " + REQUESTED[0] + " as a satisfied request. " +
-    "status=" + status + ", failure=" + JSON.stringify(verdict.failure || null).slice(0, 300) +
-    ", record=" + raw.slice(0, 300));
-  assert.ok(failed,
-    "and it should say so — DCQL fulfilment is walt.id's own check. status=" + status +
-    ", failure=" + JSON.stringify(verdict.failure || null).slice(0, 400));
-  log.info("[negative] OK — walt.id refused the incomplete presentation: status=" + status +
-           ", failure=" + JSON.stringify(verdict.failure || null).slice(0, 200));
+  var refused = posted.status >= 400 || /FAIL|ERROR|REJECT/i.test(status) || !!verdict.failure;
+  assert.ok(refused,
+    "walt.id must refuse a presentation bound to another session's nonce — if it accepts this, its " +
+    "SUCCESSFUL on the positive cases means nothing. HTTP " + posted.status + ", status=" + status +
+    ", failure=" + JSON.stringify(verdict.failure || null).slice(0, 300));
+  assert.notStrictEqual(status.toUpperCase(), "SUCCESSFUL",
+    "and must not record the replayed session as successful. failure=" +
+    JSON.stringify(verdict.failure || null).slice(0, 300));
+  log.info("[negative 2] OK — walt.id refused the replay (HTTP " + posted.status + ", status=" + status +
+           "), so its acceptance of the honest presentations is a real verdict.");
 }
 
 // ---------------------------------------------------------------------------
@@ -528,7 +628,7 @@ async function test() {
   var driver = await new Builder().forBrowser("chrome").setChromeOptions(options).build();
   try {
     var held = await issueFromWaltid(driver);
-    await positiveFlow(driver, held, false);
+    var accepted = await positiveFlow(driver, held, false);
     await positiveFlow(driver, held, true);
 
     var errors = await severeErrors(driver);
@@ -539,6 +639,7 @@ async function test() {
     // After the console check: a refused presentation legitimately earns a 4xx,
     // which Chrome logs as a page error.
     await negativeWithheldClaim(driver, held);
+    await negativeReplay(held, accepted.presented);
     log.info("Test completed successfully.");
   } finally {
     await driver.quit();

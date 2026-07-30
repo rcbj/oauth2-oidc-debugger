@@ -81,15 +81,54 @@ function renderWhatWasSent() {
     setText("vp_sent_claims", "The presentation could not be parsed back: " + e.message);
   }
   var disclosed = presented ? (presented.parsed.disclosures || []).length : 0;
-  var extra = (sent.selected || []).length - (sent.requested || []).length;
+
+  // Asked-for against actually-sent, compared by NAME rather than by count.
+  // Counting was wrong in both directions: withholding one requested claim while
+  // disclosing one that was not asked for nets to zero, and simply withholding a
+  // claim gave a negative difference that read as "nothing more than was asked
+  // for" — the reassuring message, for a presentation that did not answer the
+  // request at all.
+  //
+  // A requested DCQL path names a claim at some depth; the Disclosure that has to
+  // be sent for it is the one at the head of that path.
+  var disclosedNames = presented
+    ? (presented.parsed.disclosures || []).map(function (d) { return d.name; }).filter(Boolean)
+    : [];
+  var requested = sent.requested || [];
+  var requestedHeads = requested.map(function (p) { return String(p).split(".")[0]; });
+  var missing = requested.filter(function (p) {
+    return disclosedNames.indexOf(String(p).split(".")[0]) === -1;
+  });
+  var extraNames = disclosedNames.filter(function (n) { return requestedHeads.indexOf(n) === -1; });
+
+  // Neither shortfall nor excess is something a verifier is obliged to report. An
+  // OID4VP verifier may accept a presentation that answers only part of its DCQL
+  // query — walt.id's verifier-api2 does, since none of its policies looks at
+  // query fulfilment — and every verifier silently keeps claims it never asked
+  // for. So both are said here, by the one party that can know.
+  status("vp_answered", missing.length
+    ? "NOT fully answered — withheld: " + missing.join(", ") +
+      ". The verifier asked for " + requested.length + " claim(s) and " +
+      (requested.length - missing.length) + " went. It may well accept this anyway and say nothing."
+    : extraNames.length
+      ? "Answered — and " + extraNames.length + " claim(s) went that were never asked for: " +
+        extraNames.join(", ") + "."
+      : "Answered exactly: every claim asked for was disclosed, and nothing else.",
+    missing.length ? "vc-bad" : extraNames.length ? "vc-pending" : "vc-ok");
+
   status("vp_sent_status",
     "Presented " + disclosed + " Disclosure(s) to " + (sent.clientId || "the verifier") + ", answering a " +
-    "request for " + ((sent.requested || []).length) + " claim(s)." +
-    (extra > 0
-      ? " That is " + extra + " more than was asked for — over-disclosure the verifier will never complain about."
-      : " Nothing more than was asked for."),
-    extra > 0 ? "vc-pending" : "vc-ok");
-  log.debug("Leaving renderWhatWasSent(). disclosed=" + disclosed);
+    "request for " + requested.length + " claim(s)." +
+    (missing.length
+      ? " " + missing.length + " of them were withheld (" + missing.join(", ") +
+        "), so the request was not fully answered."
+      : extraNames.length
+        ? " That is " + extraNames.length + " more than was asked for (" + extraNames.join(", ") +
+          ") — over-disclosure the verifier will never complain about."
+        : " Nothing more than was asked for."),
+    missing.length ? "vc-bad" : extraNames.length ? "vc-pending" : "vc-ok");
+  log.debug("Leaving renderWhatWasSent(). disclosed=" + disclosed + ", missing=" + missing.length +
+            ", extra=" + extraNames.length);
   return true;
 }
 
@@ -184,8 +223,19 @@ function recheckOwnPresentation() {
 // Its result endpoint is not part of OID4VP: a real verifier shows the End-User
 // its own page. This is the same information, machine-readable, so the workflow
 // can show which of the verifier's checks passed rather than only "refused".
+//
+// Which is why only THIS debugger's own mock verifier is asked. The endpoint is
+// its invention, at /oid4vp/result/<state> beside its Response URI; any other
+// verifier records the outcome in its own back office, which a wallet has no
+// route to and no business reading. walt.id's, for one, keeps it at a management
+// API — so deriving the URL from whatever Response URI arrived and asking anyway
+// just 404s, and reads on the page as a failure when the presentation in fact
+// succeeded.
+var MOCK_RESPONSE_URI = /\/oid4vp\/response$/;
+
 function resultUrl() {
   if (!sent || !sent.responseUri || !sent.state) return "";
+  if (!MOCK_RESPONSE_URI.test(String(sent.responseUri))) return "";
   return String(sent.responseUri).replace(/\/response$/, "/result/") + encodeURIComponent(sent.state);
 }
 
@@ -226,11 +276,22 @@ function fetchVerdict() {
   log.debug("Entering fetchVerdict().");
   var url = resultUrl();
   if (!url) {
-    status("vp_verifier_status",
-      "This presentation carries no state, so its verdict cannot be looked up. What the verifier answered at " +
-      "the time is below.", "vc-pending");
+    // Two different reasons, and they are worth telling apart: a presentation
+    // with no state cannot be looked up anywhere, while a presentation to someone
+    // else's verifier has a verdict that simply is not the wallet's to read.
+    var noState = !sent || !sent.state;
+    status("vp_verifier_status", noState
+      ? "This presentation carries no state, so its verdict cannot be looked up. What the verifier answered at " +
+        "the time is below."
+      : "This verifier publishes no per-check verdict a wallet can read — that endpoint is this debugger's own " +
+        "mock verifier's invention, not part of OID4VP. What this one answered when the presentation was sent " +
+        "is below, and the wallet's own re-check of exactly those bytes is beside it.", "vc-pending");
+    setHtml("vp_verifier_table", "<tbody><tr><td>" + (noState
+      ? "No state, so there is nothing to look up."
+      : "Not published to the wallet by this verifier. Its answer to the direct_post is below.") +
+      "</td></tr></tbody>");
     setJson("vp_verifier_raw", sent && sent.response);
-    log.debug("Leaving fetchVerdict(). No state.");
+    log.debug("Leaving fetchVerdict(). No result endpoint to ask. noState=" + noState);
     return Promise.resolve(false);
   }
   status("vp_verifier_status", "Asking the verifier what it decided …", "vc-pending");

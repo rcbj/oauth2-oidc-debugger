@@ -940,9 +940,22 @@ presented *our* credential would look identical and prove nothing.
 | 3 | Its Authorization Request — both shapes: the full one by value and the short `request_uri` one — is handed to our step 1, and the workflow runs: choose disclosures, sign the KB-JWT, `direct_post` the `vp_token` |
 | 4 | walt.id's session record (`GET /verification-session/{id}/info`) is read back: its status, its `policy_results`, and the claims it ended up with — `given_name` and `birthdate` present, `email` and `phone_number` absent |
 
-The **negative** is the same flow with a claim walt.id asked for withheld. The presentation is perfectly
-well-formed — issuer signature, digests and Key Binding JWT all valid, and our wallet's own checks pass — so what
-must refuse it is walt.id's own DCQL fulfilment check, not ours.
+There are **two negatives**, and what they found is worth stating plainly.
+
+The first withholds a claim walt.id asked for. The presentation is otherwise perfect — issuer signature, digests
+and Key Binding JWT all valid, and our wallet's own checks pass — so the only thing wrong is that it does not
+answer the question. **walt.id accepts it, and reports `SUCCESSFUL`.** That is not a defect in this suite or in our
+wallet: `verifier-api2` runs a fixed set of policies over a `dc+sd-jwt` presentation — audience, nonce, `sd_hash`,
+the KB-JWT signature, `exp`/`nbf` — and at 0.23.0 none of them asks whether the DCQL query was satisfied. So this
+is the mirror of over-disclosure: a verifier that does not check cannot complain, and the wallet is the only party
+in a position to say anything. The test asserts what is actually guaranteed — the withheld claim never reached
+walt.id — and that **our step 3 reports the shortfall** in its *Answered the request?* line.
+
+The second is a **replay**: the exact bytes walt.id just accepted, posted to a second session. Without it a
+`SUCCESSFUL` verdict would prove nothing, since a verifier that accepted everything would satisfy every other
+assertion here. walt.id refuses it — HTTP 400, `nonce-check` failed, session `FAILED` with `NONCE_MISMATCH` —
+because the Key Binding JWT is bound to the first session's nonce. It is posted directly rather than through the
+pages, since our wallet will not build a presentation carrying someone else's nonce, which is the point of it.
 
 Wiring: the verifier container listens on 7004 with its own CORS proxy on **7003** (walt.id sends no CORS headers,
 and its `urlPrefix` must name an address the browser can use), configured from `waltid/verifier-config/*.conf`

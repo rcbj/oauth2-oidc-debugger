@@ -26,6 +26,16 @@
   border-radius: 4px;
 }
 .saml-notice.saml-hidden { display: none; }
+
+/* Explanatory note inside a pane — smaller and quieter than a .saml-notice.
+   Shared: the SAML Assertion Tool and both WS-Federation pages use it. */
+.saml-pane .saml-note {
+  font-size: 0.76em;
+  line-height: 1.4;
+  color: #555;
+  margin: 0 0 8px;
+}
+
 /* Generic hide used by show() for collapsible sections (signing / encryption). */
 .saml-hidden { display: none !important; }
 

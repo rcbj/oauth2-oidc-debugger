@@ -35,7 +35,7 @@
         </svg>
       </span>
       <span class="landing-card-title">OAuth2 / OIDC Protocol</span>
-      <span class="landing-card-desc">Authorization Code, Implicit, Client Credentials, Resource Owner, Device, and Token Exchange grants plus all OIDC flows &mdash; with JWT, JWKS, introspection, and userinfo tools.</span>
+      <span class="landing-card-desc">Authorization Code, Implicit, Client Credentials, Resource Owner, Device and Token Exchange grants, all three OIDC flows, plus JWT, JWKS, introspection and userinfo tools.</span>
     </a>
 
     <a class="landing-card" href="/saml_request.html">
@@ -46,7 +46,7 @@
         </svg>
       </span>
       <span class="landing-card-title">SAML Protocol</span>
-      <span class="landing-card-desc">SAML 2.0 SP-initiated SSO: load IdP metadata, build and sign an AuthnRequest, capture the SAMLResponse at the ACS, and inspect the assertion and its attributes.</span>
+      <span class="landing-card-desc">SAML 2.0 SP-initiated SSO: load IdP metadata, build and sign an AuthnRequest, capture the SAMLResponse at the ACS, and inspect the assertion.</span>
     </a>
 
     <a class="landing-card" href="/wstrust_tools.html">
@@ -60,7 +60,7 @@
         </svg>
       </span>
       <span class="landing-card-title">WS-Trust Protocol</span>
-      <span class="landing-card-desc">WS-Trust (all protocol versions)  against an STS: build a SOAP RequestSecurityToken for Issue, Renew, Validate, or Cancel with WS-Security and WS-Addressing, sign/encrypt it, and inspect the issued token in the response.</span>
+      <span class="landing-card-desc">WS-Trust 1.0&ndash;1.4 against an STS: build a RequestSecurityToken for Issue, Renew, Validate or Cancel, sign or encrypt it, and inspect the issued token.</span>
     </a>
 
     <a class="landing-card" href="/sd-jwt-vc-issuance-0.html">
@@ -75,7 +75,7 @@
         </svg>
       </span>
       <span class="landing-card-title">SD-JWT VC Issuance</span>
-      <span class="landing-card-desc">Issue a Selective Disclosure JWT Verifiable Credential (SD-JWT, RFC 9901) over OID4VCI. Choose how the issuance starts &mdash; wallet-initiated, or an issuer's Credential Offer &mdash; then read the issuer and authorization server metadata, authorize with the OIDC Authorization Code flow, prove possession of a holder key, inspect the credential and its disclosures, and refresh it when it goes stale.</span>
+      <span class="landing-card-desc">Issue an SD-JWT VC (RFC 9901) over OID4VCI: wallet-initiated or from an issuer&rsquo;s Credential Offer, prove possession of a holder key, inspect the disclosures, and refresh it.</span>
     </a>
 
     <a class="landing-card" href="/sd-jwt-vc-presentation-0.html">
@@ -91,7 +91,9 @@
         </svg>
       </span>
       <span class="landing-card-title">SD-JWT VC Presentation</span>
-      <span class="landing-card-desc">Present a Selective Disclosure JWT VC to a verifier over OID4VP. Read the verifier&rsquo;s Authorization Request and its DCQL query, see exactly which claims are being asked for, choose which Disclosures to send, sign the Key Binding JWT over the request&rsquo;s nonce, and read the verifier&rsquo;s verdict check by check.</span>
+      <span class="landing-card-desc">Present an SD-JWT VC over OID4VP: read the verifier&rsquo;s DCQL query, choose which Disclosures to send, sign the Key Binding JWT over its nonce, and read the verdict.</span>
+    </a>
+
     <a class="landing-card" href="/wsfed_tools.html">
       <span class="landing-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -103,7 +105,7 @@
         </svg>
       </span>
       <span class="landing-card-title">WS-Federation Protocol</span>
-      <span class="landing-card-desc">WS-Federation Passive Requestor Profile: load IdP federation metadata, build a wa=wsignin1.0 sign-in request (wtrealm / wreply / wctx), capture the wresult the IdP returns, and inspect the issued SAML token &mdash; validate its signature and decrypt an encrypted token.</span>
+      <span class="landing-card-desc">WS-Federation Passive Requestor Profile: load federation metadata, build a wa=wsignin1.0 sign-in request, and inspect the SAML token in the wresult.</span>
     </a>
   </div>
 </div>

@@ -1,25 +1,31 @@
-/* Landing page: choose which protocol to debug. Big icon cards laid out in a
-   horizontal row that wraps. */
+/* Landing page: choose which protocol to debug. Icon cards in a grid.
+
+   Sized so that EVERY card is visible without scrolling, which is the one thing
+   this page has to get right: it exists to be a choice, and a choice you have to
+   scroll to find is one you do not know you have. That constraint is what fixes
+   the numbers below — three columns rather than the two this had when there were
+   four protocols (six cards two-across is three rows, and the third was below the
+   fold), and an icon, padding and description size small enough that two rows of
+   three fit a 768px-tall viewport under the header. `landingFitsOnOneScreen()` in
+   tests/navigation.js asserts it geometrically, so a seventh protocol that breaks
+   it fails there rather than in someone's browser. */
 
 .landing {
   text-align: center;
-  padding: 36px 12px 56px;
+  padding: 22px 12px 28px;
 }
-.landing-title { font-size: 1.9em; margin: 8px 0 4px; color: #333; }
-.landing-sub { font-size: 1em; color: #666; margin: 0 0 34px; }
+.landing-title { font-size: 1.6em; margin: 4px 0 4px; color: #333; }
+.landing-sub { font-size: .95em; color: #666; margin: 0 0 20px; }
 
-/* Horizontal row of choices; wraps to a column on narrow screens.
-   Capped at two cards wide (2 x 370px + the gap) so the four choices wrap to a
-   balanced 2x2 rather than 3 + 1 — four across does not fit the container at
-   any realistic width. */
+/* Three across on a full-width container (940px at most desktop widths, 1170px
+   above 1200px), two when the container narrows to Bootstrap's 724px, one on a
+   phone — auto-fit does all three without a media query per breakpoint. */
 .landing-choices {
-  display: flex;
-  flex-direction: row;
-  gap: 28px;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 18px;
   align-items: stretch;
-  flex-wrap: wrap;
-  max-width: 768px;
+  max-width: 940px;
   margin: 0 auto;
 }
 
@@ -28,8 +34,7 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  width: 320px;
-  padding: 30px 24px;
+  padding: 18px 16px 20px;
   border: 1px solid #ccc;
   border-radius: 12px;
   background: #fafafa;
@@ -46,21 +51,29 @@
   outline: none;
 }
 
-/* Big icon. Each card gets its own accent colour; hover inherits the card colour. */
-.landing-icon { margin-bottom: 16px; line-height: 0; }
-.landing-icon svg { width: 84px; height: 84px; }
+/* The icon. Each card gets its own accent colour; hover inherits the card colour.
+   There is one rule per card, so every protocol added here needs one — miss it and
+   that card's icon silently falls back to the text colour, which is what happened
+   to the two newest ones. */
+.landing-icon { margin-bottom: 10px; line-height: 0; }
+.landing-icon svg { width: 56px; height: 56px; }
 .landing-card:nth-child(1) .landing-icon { color: #2680eb; }
 .landing-card:nth-child(2) .landing-icon { color: #5a2a8f; }
 .landing-card:nth-child(3) .landing-icon { color: #0a7d63; }
 .landing-card:nth-child(4) .landing-icon { color: #b05423; }
+.landing-card:nth-child(5) .landing-icon { color: #a3226b; }
+.landing-card:nth-child(6) .landing-icon { color: #1f5f9e; }
 .landing-card:hover .landing-icon,
 .landing-card:focus .landing-icon { color: inherit; }
 
-.landing-card-title { font-size: 1.2em; font-weight: 700; margin-bottom: 10px; }
-.landing-card-desc { font-size: .82em; color: #666; line-height: 1.45; }
+.landing-card-title { font-size: 1.05em; font-weight: 700; margin-bottom: 7px; }
+.landing-card-desc { font-size: .78em; color: #666; line-height: 1.4; }
 .landing-card:hover .landing-card-desc,
 .landing-card:focus .landing-card-desc { color: inherit; }
 
+/* A phone gets one card per row and the full description; there is nothing to fit
+   on one screen there, so the compaction above is relaxed rather than doubled. */
 @media (max-width: 700px) {
-  .landing-choices { flex-direction: column; align-items: center; }
+  .landing-choices { grid-template-columns: 1fr; max-width: 360px; }
+  .landing-icon svg { width: 64px; height: 64px; }
 }

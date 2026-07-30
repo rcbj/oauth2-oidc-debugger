@@ -84,6 +84,10 @@ function vpSetAllPanes(expand) {
           <td><div class="tooltip"><label>What they can read</label><span class="tooltiptext">The claim set that follows from the bytes sent — computed here from the presentation itself.</span></div></td>
           <td><pre class="vc-json" id="vp_sent_claims">&nbsp;</pre></td>
         </tr>
+        <tr>
+          <td><div class="tooltip"><label>Answered the request?</label><span class="tooltiptext">What the verifier's DCQL query asked for, against what was actually disclosed. A verifier need not check this — walt.id's does not — so the wallet is often the only party that can tell you.</span></div></td>
+          <td><span id="vp_answered">&nbsp;</span></td>
+        </tr>
       </tbody>
     </table>
     <p class="vc-note">The presentation, with its parts called out:
