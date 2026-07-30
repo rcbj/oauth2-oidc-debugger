@@ -434,8 +434,25 @@ async function presentThroughThePages(driver, held, byReference) {
     log.info("[step0] OK — the flow starts at the verifier: " + verifierPage);
     await click(driver, By.id("present_by_value"));
   }
+  // As in the issuance suite: if the verifier's hand-off does not arrive, name the
+  // URL the browser is actually on. The verifier builds it from OID4VP_WALLET_URL
+  // (falling back to OID4VCI_WALLET_URL), and that default only works when the
+  // browser and the wallet share a host.
   await driver.wait(until.urlContains("sd-jwt-vc-presentation-1.html"), fetchWait,
     "the verifier should send the wallet the request.");
+
+  // The wallet PAGE is in that URL — but is it this wallet? The verifier builds the
+  // hand-off from OID4VP_WALLET_URL (falling back to OID4VCI_WALLET_URL), whose
+  // default only works when the browser and the wallet share a host; in the
+  // containerized stack the browser is in the tests container, where
+  // localhost:3000 is nothing. The URL check above passes either way — the path is
+  // right, only the origin is wrong — and what follows is a bare timeout waiting
+  // for a page that never loaded. Check the origin and say so instead.
+  var landedAt = await driver.getCurrentUrl();
+  assert.ok(landedAt.indexOf(baseUrl) === 0,
+    "the verifier sent the browser to " + landedAt + ", but the wallet under test is " + baseUrl +
+    ". The verifier builds that URL from OID4VP_WALLET_URL / OID4VCI_WALLET_URL: set it to the base URL " +
+    "the BROWSER uses (the containerized stack needs http://client:3000).");
 
   // ---- step 1: the request ------------------------------------------------
   await driver.wait(until.elementLocated(By.id("vp_request_status")), waitTime);

@@ -1718,8 +1718,21 @@ async function credentialOfferSameDevice(driver) {
 
   // ---- following the link hands the wallet an offer ------------------------
   await click(driver, By.linkText("Request your digital diploma"));
-  await driver.wait(until.elementLocated(By.id("pane_offer")), fetchWait,
-    "the link should take the End-User back to the wallet with a Credential Offer.");
+  // If the hand-off does not arrive, say WHERE the browser ended up. The issuer
+  // builds that URL from OID4VCI_WALLET_URL, whose default (http://localhost:3000)
+  // is right only when the browser and the wallet share a host — in the
+  // containerized stack the browser is in the tests container, where
+  // localhost:3000 is nothing at all. On its own the wait below just times out,
+  // which says the hand-off failed but not that it was aimed at the wrong host.
+  try {
+    await driver.wait(until.elementLocated(By.id("pane_offer")), fetchWait);
+  } catch (e) {
+    var landed = await driver.getCurrentUrl();
+    throw new Error("the link should take the End-User back to the wallet with a Credential Offer, but the " +
+      "browser ended up at " + landed + " and the wallet under test is " + baseUrl + ". The issuer builds " +
+      "that URL from OID4VCI_WALLET_URL: set it to the base URL the BROWSER uses (the containerized stack " +
+      "needs http://client:3000). Original error: " + e.message);
+  }
   await driver.wait(async function () {
     return !!(await value(driver, "authorization_endpoint"));
   }, fetchWait, "the wallet should discover the offering issuer and its authorization server by itself.");

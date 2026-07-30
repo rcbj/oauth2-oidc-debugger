@@ -110,6 +110,17 @@ services:
     environment:
       # Log level, chosen the same way as for api and client.
       - CONFIG_FILE=./env/docker-tests.js
+      # Where the WALLET lives, as a base URL the BROWSER can use.
+      #
+      # The mock issuer's Credential Offer pages and the mock verifier's request
+      # pages both link the End-User back to the wallet, appending
+      # /sd-jwt-vc-issuance-1.html or /sd-jwt-vc-presentation-1.html to this. It
+      # defaults to http://localhost:3000, which is right for the host-networking
+      # local stack and WRONG here: the browser runs in the tests container, where
+      # localhost:3000 is nothing at all, so those links went nowhere and the H.1
+      # and presentation flows timed out waiting for a page that never loaded.
+      # OID4VP_WALLET_URL falls back to this, so one setting covers both.
+      - OID4VCI_WALLET_URL=http://client:3000
     build:
       context: .
       dockerfile: sts/Dockerfile
