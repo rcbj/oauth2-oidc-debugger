@@ -55,7 +55,7 @@ const { Builder, By, until } = require("selenium-webdriver");
 const chrome = require("selenium-webdriver/chrome");
 const logging = require("selenium-webdriver/lib/logging");
 const assert = require("assert");
-const secureOrigin = require("./browser_secure_origin.js");
+const browserFlags = require("./browser_flags.js");
 const crypto = require("crypto");
 const { Command, Option } = require('commander');
 var appconfig = require(process.env.CONFIG_FILE);
@@ -181,12 +181,25 @@ async function stepOne(driver) {
   log.info("[step1] Configuration Parameters pane: " + coverage.fields + " fields in " +
            coverage.groups + " groups.");
 
-  // The RFC 8414 pane starts on the configured authorization server metadata
-  // endpoint, so the workflow is usable without pasting a URL in.
+  // The RFC 8414 pane starts on the authorization server metadata endpoint this
+  // deployment configures, so the workflow is usable without pasting a URL in —
+  // WHERE one is configured. `client/src/env/local.js` and `docker-tests.js` name
+  // this suite's STS; `prod.js` and `test-idptools-com.js` deliberately name
+  // nothing, because a public site has no business defaulting to somebody's
+  // localhost. So the SHAPE is asserted when a default is there, and its absence is
+  // recorded rather than failed: every pane this test drives is filled from the URLs
+  // the test was given, a few lines below.
   var asDefault = await value(driver, "oidc_discovery_endpoint");
-  assert.ok(asDefault && asDefault.indexOf("/.well-known/oauth-authorization-server") !== -1,
-    "the RFC 8414 pane should default to an RFC 8414 endpoint, got: " + JSON.stringify(asDefault));
-  log.info("[step1] the RFC 8414 pane defaults to " + asDefault + ".");
+  if (asDefault) {
+    assert.ok(asDefault.indexOf("/.well-known/oauth-authorization-server") !== -1,
+      "a configured default for the RFC 8414 pane must be an RFC 8414 endpoint, got: " +
+      JSON.stringify(asDefault));
+    log.info("[step1] the RFC 8414 pane defaults to " + asDefault + ".");
+  } else {
+    log.info("[step1] this deployment configures no default RFC 8414 endpoint " +
+             "(rfc8414MetadataUrlDefault is unset in its client env, as it is for the deployed sites); " +
+             "the test supplies the URL itself.");
+  }
 
   // ---- pane 1: the credential issuer metadata -----------------------------
   await driver.executeScript(
@@ -2719,12 +2732,12 @@ async function test() {
   if (headless) {
     options.addArguments("--headless=new", "--no-sandbox", "--disable-dev-shm-usage");
   }
-  // This whole workflow is Web Crypto: holder key pairs, proofs of possession, Key
-  // Binding JWTs, signature verification. crypto.subtle exists only in a secure
-  // context, and the containerized stack serves the pages from http://client:3000,
-  // which is not one — so without this the pages have no crypto at all and the
-  // failures look like everything except what they are.
-  secureOrigin.addSecureOriginFlags(options, baseUrl);
+  // Two environment hazards this workflow is exposed to, both silent: it is all Web
+  // Crypto (holder key pairs, proofs of possession, Key Binding JWTs, signature
+  // verification), which needs a secure context; and its pages must fetch this
+  // suite's services on loopback, which a deployed https page may not do without
+  // the private-network flags. See tests/browser_flags.js.
+  browserFlags.addBrowserAccessFlags(options, baseUrl);
   var driver = await new Builder().forBrowser("chrome").setChromeOptions(options).build();
   try {
     await handoffParameterCheck(driver);
