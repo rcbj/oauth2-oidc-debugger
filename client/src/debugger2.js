@@ -1,4 +1,8 @@
 const appconfig = require(process.env.CONFIG_FILE);
+// OpenID Provider Metadata (Discovery 1.0 s3) — shared with debugger.js so
+// both Configuration Parameters panes carry the same fields and defaults.
+const opMetadata = require("./op_metadata");
+const sdJwtVc = require("./sd_jwt_vc");
 const bunyan = require("bunyan");
 const DOMPurify = require("dompurify");
 const $ = require("jquery");
@@ -41,6 +45,7 @@ function getParameterByName(name, url)
 }
 
 function logoutButtonClick()  {
+  log.debug("Entering logoutButtonClick().");
   log.debug("Logout link clicked.");
   var nameValuePairs = {};
 
@@ -60,10 +65,12 @@ function logoutButtonClick()  {
   clearLocalStorage();
   window.location.href = logoutUrl;
 
+  log.debug("Leaving logoutButtonClick().");
   return false;
 };
 
 function tokenButtonClick() {
+  log.debug("Entering tokenButtonClick().");
   log.debug("Entering token Submit button clicked function.");
   $('#step3').show();
   $('#step4').show();
@@ -104,6 +111,7 @@ function tokenButtonClick() {
       error: errorInternalTokenAPICall
     });
   }
+  log.debug("Leaving tokenButtonClick().");
   return false; // don't reload the page.
 }
 
@@ -222,11 +230,11 @@ function successfulInternalTokenAPICall(data, textStatus, request)
   var token_endpoint_result_html = "";
   if (!!data.refresh_token && 
       data.refresh_token != 'undefined') {
-    currentRefreshToken = data.refresh_token;
+    currentRefreshToken = DOMPurify.sanitize(data.refresh_token);
   }
   if (!!data.id_token && 
       data.id_token != 'undefined'){
-    $("#logout_id_token_hint").val(data.id_token);
+    $("#logout_id_token_hint").val(DOMPurify.sanitize(data.id_token));
   }
   log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
   if(displayOpenIDConnectArtifacts == true)
@@ -247,7 +255,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                        '</td>' +
                                        '<td>' +
                                          "<textarea rows=5 cols=60 readonly name=token_access_token id=token_access_token>" + 
-                                           data.access_token + 
+                                           DOMPurify.sanitize(data.access_token) + 
                                          "</textarea>" +
                                        '</td>' +
                                      '</tr>';
@@ -276,7 +284,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                           '</td>' +
                                           '<td>' +
                                             '<textarea rows=5 cols=60 readonly name=token_id_token id=token_id_token>' + 
-                                            data.id_token + 
+                                            DOMPurify.sanitize(data.id_token) + 
                                             "</textarea>" +
                                           '</td>' +
                                         "</tr>" +
@@ -286,6 +294,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
       localStorage.setItem("token_access_token", data.access_token);
       localStorage.setItem("token_refresh_token", data.refresh_token);
       localStorage.setItem("token_id_token", data.id_token);
+      rememberAuthorizationDetails(data);
       saveTokenSetToHistory(data.access_token, data.refresh_token, data.id_token, 'token');
     } else {
       log.debug("Displaying Access Token. No OIDC ID Token: data.access_token=" + data.access_token);
@@ -302,7 +311,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           '</td>' +
                                           "<td><textarea rows=5 cols=60 readonly name=token_access_token id=token_access_token>" +
-                                            data.access_token +
+                                            DOMPurify.sanitize(data.access_token) +
                                             "</textarea>" +
                                           "</td>" +
                                         "</tr>";
@@ -324,11 +333,11 @@ function successfulInternalTokenAPICall(data, textStatus, request)
       token_endpoint_result_html += "</table>" +
                                     "</fieldset>" +
                                     "</div>";
-      localStorage.setItem("token_access_token", data.access_token);
-      localStorage.setItem("token_refresh_token", data.refresh_token);
-      saveTokenSetToHistory(data.access_token, data.refresh_token, null, 'token');
+      localStorage.setItem("token_access_token", DOMPurify.sanitize(data.access_token));
+      localStorage.setItem("token_refresh_token", DOMPurify.sanitize(data.refresh_token));
+      rememberAuthorizationDetails(data);
+      saveTokenSetToHistory(DOMPurify.sanitize(data.access_token), DOMPurify.sanitize(data.refresh_token), null, 'token');
     }
-    //$("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
     $("#token_endpoint_result").html(token_endpoint_result_html);
     $("#token_endpoint_result").show();
     $("#refresh_refresh_token").val(currentRefreshToken);
@@ -356,10 +365,21 @@ function successfulInternalTokenAPICall(data, textStatus, request)
       client_id: $("#token_client_id").val(),
       tokenHistoryIndex: getLatestTokenHistoryIndex()
     });
+    // If the SD-JWT VC workflow sent us here, the tokens are what it came for.
+    returnToSdJwtVcFlow();
 }
 
 function errorInternalTokenAPICall(request, status, error) {
+  log.debug("Entering errorInternalTokenAPICall().");
   log.error("An error occurred calling the token endpoint.");
+  if (sdJwtVc.isFlowActive()) {
+    // Stay on this page — the error panes below say what went wrong — but end
+    // the workflow's hold on it.
+    sdJwtVc.endFlow();
+    $("#sdjwtvc_banner").html("<strong>SD-JWT VC issuance</strong> — the token endpoint call failed, so the " +
+      "workflow stopped here. The error is shown below; <a href='/sd-jwt-vc-issuance-1.html'>step 1</a> " +
+      "starts it again.");
+  }
   log.error("request: " + JSON.stringify(request));
   log.error("status: " + JSON.stringify(status));
   log.error("error: " + JSON.stringify(error));
@@ -368,9 +388,11 @@ function errorInternalTokenAPICall(request, status, error) {
     client_id: $("#token_client_id").val(),
     detail: 'error'
   });
+  log.debug("Leaving errorInternalTokenAPICall().");
 }
 
 function buildInternalRefreshAPIRequestMessage() {
+  log.debug("Entering buildInternalRefreshAPIRequestMessage().");
   log.debug("Entering buildInternalTokenAPIRequestMessage()."); 
   // validate and process form here
   var token_endpoint = $("#token_endpoint").val();
@@ -406,10 +428,12 @@ function buildInternalRefreshAPIRequestMessage() {
     formData.client_secret = client_secret
   }
   log.debug("Leaving buildInternalTokenAPIRequestMessage().");
+  log.debug("Leaving buildInternalRefreshAPIRequestMessage().");
   return formData;
 }
 
 function refreshButtonClick() {
+  log.debug("Entering refreshButtonClick().");
   log.debug("Entering refresh Submit button clicked function.");
   log.debug("Write values to local storage.");
   writeValuesToLocalStorage();
@@ -439,10 +463,12 @@ function refreshButtonClick() {
       error: errorInternalRefreshAPICall
     });
   } 
+  log.debug("Leaving refreshButtonClick().");
   return false;
 }
 
 function successfulInternalRefreshAPICall(data, textStatus, request) {
+  log.debug("Entering successfulInternalRefreshAPICall().");
   log.debug("Entering ajax success function for Refresh Token call: data=" 
             + JSON.stringify(data)
             + ", textStatus="
@@ -477,9 +503,11 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
     tokenHistoryIndex: getLatestTokenHistoryIndex()
   });
   log.debug("Leaving ajax success function for Refresh Token.");
+  log.debug("Leaving successfulInternalRefreshAPICall().");
 }
 
 function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, currentIDToken) {
+  log.debug("Entering recreateRefreshTokenDisplay().");
   log.debug("Entering displayRefreshTokenPane().");
   var refresh_endpoint_result_html = "";
   log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
@@ -558,7 +586,6 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
                                       "</table>" +
                                       "</fieldset>" +
                                       "</div>";
-  //$("#refresh_endpoint_result").html(DOMPurify.sanitize(refresh_endpoint_result_html));
   $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
   // Update refresh token field in the refresh token grant pane
   $("#refresh_refresh_token").val(currentRefreshToken);
@@ -587,6 +614,7 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
   populateRevocationTokenWithLatestAccessToken();
   populateTokenExchangeSubjectWithLatestAccessToken();
   log.debug("Leaving displayRefreshTokenPane().");
+  log.debug("Leaving recreateRefreshTokenDisplay().");
 }
 
 function errorInternalRefreshAPICall(request, status, error) {
@@ -756,6 +784,7 @@ function writeValuesToLocalStorage()
       localStorage.setItem("useRefreshToken_no", $("#useRefreshToken-no").is(":checked"));
       localStorage.setItem("oidc_userinfo_endpoint", $("#oidc_userinfo_endpoint").val());
       localStorage.setItem("jwks_endpoint", $("#jwks_endpoint").val());
+      opMetadata.writeToLocalStorage();
       localStorage.setItem("end_session_endpoint", $("#logout_end_session_endpoint").val());
       localStorage.setItem("logout_client_id", $("#logout_client_id").val());
       localStorage.setItem("customTokenParametersCheck-yes", $("#customTokenParametersCheck-yes").is(":checked"));
@@ -952,13 +981,20 @@ function loadValuesFromLocalStorage()
   }
 
   $("#refresh_refresh_token").val(localStorage.getItem("refresh_refresh_token"));
-  $("#customTokenParametersCheck-no").prop("checked", getLSBooleanItem("customTokenParametersCheck-no"));$("#refresh_client_id").val(localStorage.getItem("refresh_client_id"));
+  $("#customTokenParametersCheck-no").prop("checked", getLSBooleanItem("customTokenParametersCheck-no"));
+  $("#refresh_client_id").val(localStorage.getItem("refresh_client_id"));
   $("#refresh_scope").val(localStorage.getItem("refresh_scope"));
   $("#refresh_client_secret").val(localStorage.getItem("refresh_client_secret"));
   $("#useRefreshToken-yes").prop("checked", getLSBooleanItem("useRefreshToken_yes"));
   $("#useRefreshToken-no").prop("checked", getLSBooleanItem("useRefreshToken_no"));
   $("#oidc_userinfo_endpoint").val(localStorage.getItem("oidc_userinfo_endpoint"));
   $("#jwks_endpoint").val(localStorage.getItem("jwks_endpoint"));
+  // Falls back to the dummy defaults for any member not in storage yet (this
+  // page can be the first one loaded, e.g. via the /callback redirect).
+  opMetadata.loadFromLocalStorage();
+  // Show the -->not defined<-- note for members the last loaded discovery
+  // document omitted (it is fetched on debugger.html; the log is shared).
+  opMetadata.applyNotesFromStoredDiscovery();
   $("#logout_end_session_endpoint").val(localStorage.getItem("end_session_endpoint"));
   $("#logout_client_id").val(localStorage.getItem("client_id"));
   $("#customTokenParametersCheck-yes").prop("checked", getLSBooleanItem("customTokenParametersCheck-yes"));
@@ -997,7 +1033,11 @@ function loadValuesFromLocalStorage()
   var savedActiveIndex = parseInt(localStorage.getItem('token_history_active_index'));
   if (!isNaN(savedActiveIndex)) {
     var cvHistory = [];
-    try { cvHistory = JSON.parse(localStorage.getItem('token_history') || '[]'); } catch(e) {}
+    try {
+      cvHistory = JSON.parse(localStorage.getItem('token_history') || '[]');
+    } catch (e) {
+      // Absent or unreadable storage: keep the default.
+    }
     if (savedActiveIndex >= 0 && savedActiveIndex < cvHistory.length) {
       renderCurrentlyViewing(savedActiveIndex, cvHistory[savedActiveIndex]);
     }
@@ -1036,14 +1076,14 @@ function recreateUniqueGrantFlowElements()
        agt == "oidc_implicit_flow")
   {
     log.debug("Looking for access_token.");
-    var access_token = getParameterByName("access_token",window.location.href);
+    var access_token = DOMPurify.sanitize(getParameterByName("access_token",window.location.href));
     log.debug("access_token=" + access_token);
     if(!!!access_token)
     {
       //Check to see if passed in as local anchor (ADFS & Azure Active Directory do this)
       log.debug("Didn't find token in query parameter. Looking in fragment.");
       log.debug("fragement: " + parseFragment());
-      access_token = parseFragment()["access_token"];
+      access_token = DOMPurify.sanitize(parseFragment()["access_token"]);
       if(!!!access_token)
       {
         log.debug("Didn't find token in fragment. Checking to see if there is a saved token in local storage.");
@@ -1133,7 +1173,7 @@ function recreateUniqueGrantFlowElements()
         pathname == "/debugger2.html") //retrieve access code that is returned from authorization endpoint.
   {
     log.debug("fragement: " + parseFragment());
-    access_token = parseFragment()["access_token"];
+    access_token = DOMPurify.sanitize(parseFragment()["access_token"]);
     if(!access_token)
     {
       access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS(oidc_hybrid_code_token)";
@@ -1151,10 +1191,12 @@ function recreateUniqueGrantFlowElements()
                                                                 "  </table>" +
                                                                 "</fieldset>"));
   }
-  if ( 	(agt == "oidc_implicit_flow" || agt == "oidc_implicit_flow_id_token" ||  agt == "oidc_hybrid_code_id_token") && 
-	pathname == "/debugger2.html") //retrieve access_token for implicit_grant for callback redirect response
+  if ( 	(agt == "oidc_implicit_flow" ||
+         agt == "oidc_implicit_flow_id_token" ||
+         agt == "oidc_hybrid_code_id_token") && 
+	 pathname == "/debugger2.html") //retrieve access_token for implicit_grant for callback redirect response
   {
-    var id_token = getParameterByName("id_token",window.location.href);
+    var id_token = DOMPurify.sanitize(getParameterByName("id_token",window.location.href));
     log.debug("id_token=" + access_token);
     if(!id_token)
     {
@@ -1246,39 +1288,39 @@ function recalculateTokenRequestDescription()
     var grant_type = $("#token_grant_type").val();
     if(grant_type == "authorization_code")
     {
-      $("#display_token_request_form_textarea1").val(                 "POST " + $("#token_endpoint").val() + "\n" +
+      $("#display_token_request_form_textarea1").val(                 DOMPurify.sanitize("POST " + $("#token_endpoint").val() + "\n" +
 								      "Message Body:\n" +
                                                                       "grant_type=" + $("#token_grant_type").val() + "&" + "\n" +
                                                                       "code=" + $("#code").val() + "&" + "\n" +
                                                                       "client_id=" + $("#token_client_id").val() + "&" + "\n" +
                                                                       "redirect_uri=" + $("#token_redirect_uri").val() + "&" +"\n" +
-                                                                      "scope=" + $("#token_scope").val());
+                                                                      "scope=" + $("#token_scope").val()));
       if(usePKCE) {
         $("#display_token_request_form_textarea1").val( $("#display_token_request_form_textarea1").val() +"&\n" + "code_verifier=" + $("#token_pkce_code_verifier").val());
       }
     } else if (grant_type == "client_credentials") {
-      $("#display_token_request_form_textarea1").val(		      "POST " + $("#token_endpoint").val() + "\n" +
+      $("#display_token_request_form_textarea1").val(		      DOMPurify.sanitize("POST " + $("#token_endpoint").val() + "\n" +
                                                                       "Message Body:\n" +
                                                                       "grant_type=" + $("#token_grant_type").val() + "&" + "\n" +
                                                                       "client_id=" + $("#token_client_id").val() + "&" + "\n" +
                                                                       "client_secret=" + $("#token_client_secret").val() + "&" + "\n" +
                                                                       "redirect_uri=" + $("#token_redirect_uri").val() + "&" +"\n" +
-                                                                      "scope=" + $("#token_scope").val());
+                                                                      "scope=" + $("#token_scope").val()));
     } else if (grant_type == "password") {
-      $("#display_token_request_form_textarea1").val(                 "POST " + $("#token_endpoint").val() + "\n" +
+      $("#display_token_request_form_textarea1").val(                 DOMPurify.sanitize("POST " + $("#token_endpoint").val() + "\n" +
                                                                       "Message Body:\n" +
                                                                       "grant_type=" + $("#token_grant_type").val() + "&" + "\n" +
                                                                       "client_id=" + $("#token_client_id").val() + "&" + "\n" +
                                                                       "client_secret=" + $("#token_client_secret").val() + "&" + "\n" +
                                                                       "username=" + $("#token_username").val() + "&" + "\n" +
                                                                       "password=" + $("#token_password").val() + "&" + "\n" +
-                                                                      "scope=" + $("#token_scope").val());
+                                                                      "scope=" + $("#token_scope").val()));
     } else if (grant_type == "urn:ietf:params:oauth:grant-type:device_code") {
-      $("#display_token_request_form_textarea1").val(                 "POST " + $("#token_endpoint").val() + "\n" +
+      $("#display_token_request_form_textarea1").val(                 DOMPurify.sanitize("POST " + $("#token_endpoint").val() + "\n" +
                                                                       "Message Body:\n" +
                                                                       "grant_type=" + $("#token_grant_type").val() + "&" + "\n" +
                                                                       "device_code=" + $("#device_code").val() + "&" + "\n" +
-                                                                      "client_id=" + $("#token_client_id").val());
+                                                                      "client_id=" + $("#token_client_id").val()));
     }
     if ( resourceComponent.length > 0) {
        $("#display_token_request_form_textarea1").val( $("#display_token_request_form_textarea1").val() + "&\n" + resourceComponent + "\n");
@@ -1330,7 +1372,7 @@ function processStateParameter()
   log.debug("Entering processStateParameter().");
   // Check if state matches
   log.debug("Checking on state.");
-  var state = getParameterByName("state");
+  var state = DOMPurify.sanitize(getParameterByName("state"));
   var stateParameterFound = false;
   if (!!state) {
     log.debug("Found state in query parameters: " + state);
@@ -1447,8 +1489,8 @@ $(document).ready(function() {
   processStateParameter();
 
   // an error was returned from the authorization endpoint
-  var errorDescriptionParam = getParameterByName('error_description');
-  var errorParam = getParameterByName('error');
+  var errorDescriptionParam = DOMPurify.sanitize(getParameterByName('error_description'));
+  var errorParam = DOMPurify.sanitize(getParameterByName('error'));
   log.debug('errorDescriptionParam=' + errorDescriptionParam + ', errorParam=' + errorParam);
   if (!!errorDescriptionParam || 
       !!errorParam) {
@@ -1490,10 +1532,13 @@ $(document).ready(function() {
   // signature dedupes so a manual page reload does not record it again.
   if (getParameterByName("redirectFromTokenDetail") != "true") {
     var fragmentParams = parseFragment();
-    var authzSignature = getParameterByName('code') || fragmentParams['code'] ||
-                         getParameterByName('access_token') || fragmentParams['access_token'] ||
-                         getParameterByName('id_token') || fragmentParams['id_token'];
-    if (!!authzSignature && localStorage.getItem('last_authz_signature') !== authzSignature) {
+    var authzSignature = DOMPurify.sanitize(getParameterByName('code') ||
+                         fragmentParams['code'] ||
+                         getParameterByName('access_token') || 
+                         fragmentParams['access_token'] ||
+                         getParameterByName('id_token') || fragmentParams['id_token']);
+    if (!!authzSignature && 
+        localStorage.getItem('last_authz_signature') !== authzSignature) {
       saveOperationToHistory('Authorization Endpoint', { client_id: localStorage.getItem('client_id') });
       localStorage.setItem('last_authz_signature', authzSignature);
     }
@@ -1637,8 +1682,56 @@ $(document).ready(function() {
     $('#operation-history-panel').show();
   }
 
+  maybeContinueSdJwtVcFlow();
   log.debug("Leaving document.ready().");
 });
+
+// ---------------------------------------------------------------------------
+// SD-JWT VC issuance.
+//
+// When the workflow started on sd-jwt-vc-issuance-1.html marked itself active,
+// this page is a waypoint rather than a destination: exchange the authorization
+// code for tokens as usual, then hand the browser back to the workflow, which
+// needs the access token to make its OID4VCI Credential Request.
+//
+// The flag is only ever set by that workflow (and cleared as soon as it is
+// used), so an ordinary visit to this page behaves exactly as before.
+// ---------------------------------------------------------------------------
+function maybeContinueSdJwtVcFlow() {
+  log.debug("Entering maybeContinueSdJwtVcFlow().");
+  if (!sdJwtVc.isFlowActive()) return false;
+  var code = getParameterByName('code');
+  if (!code) {
+    // No authorization code — the flow did not get this far. Say so rather
+    // than silently doing nothing; the error panes above have the detail.
+    $(".container").prepend(
+      "<div class='vc-handoff-banner'><strong>SD-JWT VC issuance</strong> — no authorization code came back " +
+      "from the identity provider, so there are no tokens to carry into the credential request. " +
+      "<a href='/sd-jwt-vc-issuance-1.html'>Return to step 1</a>.</div>");
+    sdJwtVc.endFlow();
+    return false;
+  }
+  $(".container").prepend(
+    "<div class='vc-handoff-banner' id='sdjwtvc_banner'><strong>SD-JWT VC issuance</strong> — exchanging the " +
+    "authorization code for tokens, then returning to <a href='" + sdJwtVc.STEP2_URL + "'>step 2</a> to request " +
+    "the credential.</div>");
+  window.setTimeout(tokenButtonClick, 250);
+  log.debug("Leaving maybeContinueSdJwtVcFlow().");
+  return true;
+}
+
+// Called from the token endpoint's success handler, once the tokens are in
+// local storage where step 2 of the workflow reads them.
+function returnToSdJwtVcFlow() {
+  if (!sdJwtVc.isFlowActive()) return false;
+  var target = sdJwtVc.returnUrl();
+  // Consumed here: a later, unrelated token call on this page must not be
+  // redirected too.
+  sdJwtVc.endFlow();
+  log.debug("SD-JWT VC issuance: returning to " + target);
+  window.location.href = target;
+  return true;
+}
 
 function generateUUID () { // Public Domain/MIT
     log.debug("Entering generateUUID().");
@@ -1731,10 +1824,10 @@ function recalculateAuthorizationErrorDescription()
         var error_description = getParameterByName("error_description",window.location.href);
         var error_uri = getParameterByName("error_uri",window.location.href);
         var state = getParameterByName("state",window.location.href);
-        $("#display_authz_error_form_textarea1").val(                         "error: " + error + "\n" +
+        $("#display_authz_error_form_textarea1").val(                         DOMPurify.sanitize("error: " + error + "\n" +
                                                                               "error_description: " + error_description + "\n" +
                                                                               "error_uri: " + error_uri + "\n" +
-                                                                              "state: " + state + "\n");
+                                                                              "state: " + state + "\n"));
       }
     } else if (	grant_type == "token" || 
 		grant_type == "id_token" ||
@@ -1748,10 +1841,10 @@ function recalculateAuthorizationErrorDescription()
         var error_description = getParameterByName("error_description",window.location.href);
         var error_uri = getParameterByName("error_uri",window.location.href);
         var state = getParameterByName("state",window.location.href);
-        $("#display_authz_error_form_textarea1").val(                         "error: " + error + "\n" +
+        $("#display_authz_error_form_textarea1").val(                         DOMPurify.sanitize("error: " + error + "\n" +
                                                                               "error_description: " + error_description + "\n" +
                                                                               "error_uri: " + error_uri + "\n" +
-                                                                              "state: " + state + "\n");
+                                                                              "state: " + state + "\n"));
       }
     }
   }
@@ -1791,13 +1884,13 @@ function recalculateTokenErrorDescription(data)
         log.warn("Unable to parse response text.");
         responseObject = {};
       }
-      $("#display_token_error_form_textarea1").val(                             "status: " + status + "\n" +
+      $("#display_token_error_form_textarea1").val(                             DOMPurify.sanitize("status: " + status + "\n" +
 										"statusText: " + statusText + "\n" +
 										"readyState: " + readyState + "\n" +
 										"responseText: " + responseText +"\n" +
 										"OAuth2 Response Error Details:" + "\n" +
 										"error: " + responseObject.error + "\n" +
-										"error_description: " + responseObject.error_description +"\n");
+										"error_description: " + responseObject.error_description +"\n"));
     } else if (grant_type == "client_credentials") {
       var status = data.status;
       var statusText = data.statusText;
@@ -1810,13 +1903,13 @@ function recalculateTokenErrorDescription(data)
         log.warn("Unable to parse response text.");
         responseObject = {};
       }
-      $("#display_token_error_form_textarea1").val(                         "status: " + status + "\n" +
+      $("#display_token_error_form_textarea1").val(                         DOMPurify.sanitize("status: " + status + "\n" +
                                                                             "statusText: " + statusText + "\n" +
                                                                             "readyState: " + readyState + "\n" +
                                                                             "responseText: " + responseText +"\n" +
                                                                             "OAuth2 Response Error Details:" + "\n" +
                                                                             "error: " + responseObject.error + "\n" +
-                                                                            "error_description: " + responseObject.error_description +"\n");
+                                                                            "error_description: " + responseObject.error_description +"\n"));
     } else if (grant_type == "password") {
       var status = data.status;
       var statusText = data.statusText;
@@ -1829,13 +1922,13 @@ function recalculateTokenErrorDescription(data)
         log.warn("Unable to parse response text.");
         responseObject = {};
       }
-      $("#display_token_error_form_textarea1").val(                         "status: " + status + "\n" +
+      $("#display_token_error_form_textarea1").val(                         DOMPurify.sanitize("status: " + status + "\n" +
                                                                             "statusText: " + statusText + "\n" +
                                                                             "readyState: " + readyState + "\n" +
                                                                             "responseText: " + responseText +"\n" +
                                                                             "OAuth2 Response Error Details:" + "\n" +
                                                                             "error: " + responseObject.error + "\n" +
-                                                                            "error_description: " + responseObject.error_description +"\n");
+                                                                            "error_description: " + responseObject.error_description +"\n"));
     } else if (grant_type == "urn:ietf:params:oauth:grant-type:device_code") {
       // RFC 8628 polling errors: authorization_pending, slow_down,
       // access_denied, expired_token.
@@ -1850,13 +1943,13 @@ function recalculateTokenErrorDescription(data)
         log.warn("Unable to parse response text.");
         responseObject = {};
       }
-      $("#display_token_error_form_textarea1").val(                         "status: " + status + "\n" +
+      $("#display_token_error_form_textarea1").val(                         DOMPurify.sanitize("status: " + status + "\n" +
                                                                             "statusText: " + statusText + "\n" +
                                                                             "readyState: " + readyState + "\n" +
                                                                             "responseText: " + responseText +"\n" +
                                                                             "OAuth2 Response Error Details:" + "\n" +
                                                                             "error: " + responseObject.error + "\n" +
-                                                                            "error_description: " + responseObject.error_description +"\n");
+                                                                            "error_description: " + responseObject.error_description +"\n"));
     }
   }
   log.debug("Leaving recalculateTokenErrorDescription().");
@@ -1895,13 +1988,13 @@ function recalculateRefreshErrorDescription(data)
         log.warn("Unable to parse response text.");
         responseObject = {};
       }
-      $("#display_refresh_error_form_textarea1").val(                           "status: " + status + "\n" +
+      $("#display_refresh_error_form_textarea1").val(                           DOMPurify.sanitize("status: " + status + "\n" +
 										"statusText: " + statusText + "\n" +
 										"readyState: " + readyState + "\n" +
 										"responseText: " + responseText +"\n" +
 										"OAuth2 Response Error Details:" + "\n" +
 										"error: " + responseObject.error + "\n" +
-										"error_description: " + responseObject.error_description +"\n");
+										"error_description: " + responseObject.error_description +"\n"));
     }
   }
   log.debug("Leaving recalculateRefreshErrorDescription().");
@@ -2012,7 +2105,34 @@ function extractSid(access_token) {
   return null;
 }
 
+// RFC 9396 / OID4VCI section 6.2: when the authorization was expressed as
+// authorization_details rather than a scope, the token response says which
+// Credential Datasets were granted. The SD-JWT VC workflow has to send one of
+// those credential_identifiers in its Credential Request — and MUST NOT send a
+// credential_configuration_id then — so what came back is kept for it. Nothing
+// else on this page uses it, and a response without it clears the key rather
+// than leaving a stale grant behind.
+function rememberAuthorizationDetails(data) {
+  log.debug("Entering rememberAuthorizationDetails().");
+  var details = data && data.authorization_details;
+  try {
+    if (details) {
+      localStorage.setItem("token_authorization_details", JSON.stringify(details));
+      log.debug("The token response granted authorization_details.");
+    } else {
+      localStorage.removeItem("token_authorization_details");
+    }
+  } catch (e) {
+    // No storage, or over quota: the workflow falls back to naming the
+    // credential by its configuration id, which is what an authorization
+    // without authorization_details would have needed anyway.
+    log.debug("rememberAuthorizationDetails(): " + e.message);
+  }
+  log.debug("Leaving rememberAuthorizationDetails().");
+}
+
 function saveTokenSetToHistory(access_token, refresh_token, id_token, source) {
+  log.debug("Entering saveTokenSetToHistory().");
   var history = [];
   try { 
     history = JSON.parse(localStorage.getItem('token_history') || '[]'); 
@@ -2038,9 +2158,11 @@ function saveTokenSetToHistory(access_token, refresh_token, id_token, source) {
   });
   localStorage.setItem('token_history', JSON.stringify(history));
   renderTokenHistory();
+  log.debug("Leaving saveTokenSetToHistory().");
 }
 
 function selectTokenSet(index) {
+  log.debug("Entering selectTokenSet().");
   var history = [];
   try {
     history = JSON.parse(localStorage.getItem('token_history') || '[]'); 
@@ -2063,10 +2185,12 @@ function selectTokenSet(index) {
   }
   renderTokenHistory();
   renderCurrentlyViewing(index, entry);
+  log.debug("Leaving selectTokenSet().");
   return false;
 }
 
 function renderCurrentlyViewing(index, entry) {
+  log.debug("Entering renderCurrentlyViewing().");
   var html = '<div class="dbg-pane">' +
                '<legend class="dbg-legend" data-target="currently_viewing_fieldset">Currently Viewing</legend>' +
                '<fieldset id="currently_viewing_fieldset">' +
@@ -2122,11 +2246,17 @@ function renderCurrentlyViewing(index, entry) {
              '</div>';
   $('#currently-viewing-panel').html(html);
   $('#currently-viewing-panel').show();
+  log.debug("Leaving renderCurrentlyViewing().");
 }
 
 function renderTokenHistory() {
+  log.debug("Entering renderTokenHistory().");
   var history = [];
-  try { history = JSON.parse(localStorage.getItem('token_history') || '[]'); } catch(e) {}
+  try {
+    history = JSON.parse(localStorage.getItem('token_history') || '[]');
+  } catch (e) {
+    // Absent or unreadable storage: keep the default.
+  }
   if (history.length === 0) {
     $("#token-history-panel").hide();
     return;
@@ -2190,6 +2320,7 @@ function renderTokenHistory() {
 
   $("#token-history-panel").html(html);
   $("#token-history-panel").show();
+  log.debug("Leaving renderTokenHistory().");
 }
 
 function regenerateState() {
@@ -2380,6 +2511,7 @@ function generateCustomParametersListUI()
 }
 
 function onClickShowFieldSet(expand_button_id, field_set_id) {
+  log.debug("Entering onClickShowFieldSet().");
   log.debug('Entering onClickShowConfigFieldSet(). expand_button_id='
     + expand_button_id + ', field_set_id=' + field_set_id
     + ', fieldset.style.display=' + $("#" + field_set_id).css("display")
@@ -2397,6 +2529,7 @@ function onClickShowFieldSet(expand_button_id, field_set_id) {
     event.preventDefault();
   });
   log.debug('Leaving onClickShowConfigFieldSet().');
+  log.debug("Leaving onClickShowFieldSet().");
   return false;
 }
 
@@ -2650,6 +2783,7 @@ function getLatestTokenHistoryIndex() {
 // Appends an entry to the cumulative operation history. options may include
 // detail, client_id, nonce, and tokenHistoryIndex.
 function saveOperationToHistory(operation, options) {
+  log.debug("Entering saveOperationToHistory().");
   options = options || {};
   var history = [];
   try {
@@ -2670,9 +2804,11 @@ function saveOperationToHistory(operation, options) {
   });
   localStorage.setItem('operation_history', JSON.stringify(history));
   renderOperationHistory();
+  log.debug("Leaving saveOperationToHistory().");
 }
 
 function renderOperationHistory() {
+  log.debug("Entering renderOperationHistory().");
   var history = [];
   try {
     history = JSON.parse(localStorage.getItem('operation_history') || '[]');
@@ -2709,6 +2845,7 @@ function renderOperationHistory() {
   });
   html += '</table></div></fieldset></div>';
   $("#operation-history-panel").html(html);
+  log.debug("Leaving renderOperationHistory().");
 }
 
 function clearOperationHistory() {
@@ -2877,6 +3014,7 @@ function revokeButtonClick() {
       error: errorRevocationAPICall
     });
   }
+  log.debug("Leaving revokeButtonClick().");
   return false;
 }
 
@@ -2904,6 +3042,7 @@ function successfulRevocationAPICall(data, textStatus, jqXHR) {
 }
 
 function errorRevocationAPICall(jqXHR, status, error) {
+  log.debug("Entering errorRevocationAPICall().");
   log.error("An error occurred calling the revocation endpoint.");
   log.error("status: " + JSON.stringify(status));
   log.error("error: " + JSON.stringify(error));
@@ -2924,6 +3063,7 @@ function errorRevocationAPICall(jqXHR, status, error) {
     client_id: $("#revocation_client_id").val(),
     detail: ($("#revocation_token_type_hint").val() || 'token') + ', error'
   });
+  log.debug("Leaving errorRevocationAPICall().");
 }
 
 function displayRevocationResult(message, isError) {
@@ -3179,6 +3319,7 @@ function tokenExchangeButtonClick() {
       error: errorTokenExchangeAPICall
     });
   }
+  log.debug("Leaving tokenExchangeButtonClick().");
   return false;
 }
 
@@ -3204,6 +3345,7 @@ function successfulTokenExchangeAPICall(data, textStatus, jqXHR) {
 }
 
 function errorTokenExchangeAPICall(jqXHR, status, error) {
+  log.debug("Entering errorTokenExchangeAPICall().");
   log.error("An error occurred calling the token endpoint for token exchange.");
   log.error("status: " + JSON.stringify(status));
   log.error("error: " + JSON.stringify(error));
@@ -3224,6 +3366,7 @@ function errorTokenExchangeAPICall(jqXHR, status, error) {
     client_id: $("#tokenexchange_client_id").val(),
     detail: ($("#tokenexchange_delegation").is(":checked") ? 'delegation' : 'impersonation') + ', error'
   });
+  log.debug("Leaving errorTokenExchangeAPICall().");
 }
 
 function displayTokenExchangeResult(message, isError) {
