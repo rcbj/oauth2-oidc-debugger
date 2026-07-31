@@ -333,10 +333,10 @@ function successfulInternalTokenAPICall(data, textStatus, request)
       token_endpoint_result_html += "</table>" +
                                     "</fieldset>" +
                                     "</div>";
-      localStorage.setItem("token_access_token", data.access_token);
-      localStorage.setItem("token_refresh_token", data.refresh_token);
+      localStorage.setItem("token_access_token", DOMPurify.sanitize(data.access_token));
+      localStorage.setItem("token_refresh_token", DOMPurify.sanitize(data.refresh_token));
       rememberAuthorizationDetails(data);
-      saveTokenSetToHistory(data.access_token, data.refresh_token, null, 'token');
+      saveTokenSetToHistory(DOMPurify.sanitize(data.access_token), DOMPurify.sanitize(data.refresh_token), null, 'token');
     }
     $("#token_endpoint_result").html(token_endpoint_result_html);
     $("#token_endpoint_result").show();
