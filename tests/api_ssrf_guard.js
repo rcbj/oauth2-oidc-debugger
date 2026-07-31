@@ -231,6 +231,62 @@ async function agentLayer() {
 }
 
 // ---------------------------------------------------------------------------
+// 4b. The scheme policy: http and https, nothing else.
+//
+// axios's Node adapter supports file: and data: as well (platform.protocols), and
+// every URL this service fetches is the caller's. A data: URL is the sharper of the
+// two: axios decodes it itself and hands the bytes back, so it never touches the
+// network and NO address policy applies to it.
+// ---------------------------------------------------------------------------
+function schemePolicy() {
+  log.info("=== The scheme policy (http/https only) ===");
+  var guard = guardModule.createGuard({}, quiet);
+
+  assert.deepStrictEqual(guard.allowedProtocols, ["http:", "https:"],
+    "the allow-list should be exactly http and https.");
+
+  [
+    ["http://idp.example/token", null],
+    ["https://idp.example/token", null],
+    ["HTTPS://IDP.EXAMPLE/token", null],
+    ["data:text/plain,anything", "data:"],
+    ["data:application/json;base64,e30=", "data:"],
+    ["file:///etc/passwd", "file:"],
+    ["file://localhost/etc/passwd", "file:"],
+    ["ftp://example.test/x", "ftp:"],
+    ["javascript:alert(1)", "javascript:"],
+    ["ws://example.test/x", "ws:"],
+  ].forEach(function (pair) {
+    var url = pair[0];
+    var expected = pair[1];
+    var refusal = guard.assertProtocolAllowed(url);
+    if (expected === null) {
+      assert.strictEqual(refusal, null, url + " must be allowed.");
+      return;
+    }
+    assert.ok(refusal, url + " must be refused.");
+    assert.strictEqual(refusal.code, "EPROTOCOLNOTALLOWED",
+      url + " must be refused as a scheme problem: " + refusal.code);
+    assert.strictEqual(refusal.blockedProtocol, expected,
+      url + " should name the scheme it refused.");
+  });
+
+  // Not an absolute URL: nothing to judge, and inventing a scheme here would be
+  // inventing policy. axios fails it on its own.
+  assert.strictEqual(guard.assertProtocolAllowed("/relative/path"), null,
+    "a relative URL is not a scheme violation.");
+
+  // The check must survive the address policy's off switch, which the local and
+  // docker stacks use.
+  var disabled = guardModule.createGuard({ blockPrivateNetworkCalls: false }, quiet);
+  assert.ok(disabled.assertProtocolAllowed("file:///etc/passwd"),
+    "turning the address policy off must NOT permit file: URLs.");
+
+  log.info("[scheme] OK — http/https allowed; data, file, ftp, javascript and ws refused, " +
+           "with the off switch making no difference.");
+}
+
+// ---------------------------------------------------------------------------
 // 5. install(): what it does to the http client, and the off switch.
 // ---------------------------------------------------------------------------
 function installation() {
@@ -248,8 +304,9 @@ function installation() {
   assert.ok(report.enabled, "install() should report the guard as enabled.");
   assert.ok(on.defaults.httpAgent && on.defaults.httpsAgent,
     "both agents must be set, or a redirect over the other scheme would go unchecked.");
-  assert.strictEqual(on.interceptors.request.handlers.length, 1,
-    "the pre-flight interceptor should be registered exactly once.");
+  // Two: the unconditional scheme check, plus the address pre-flight.
+  assert.strictEqual(on.interceptors.request.handlers.length, 2,
+    "the scheme check and the address pre-flight should each be registered once.");
 
   // The off switch: a deployment whose identity providers really are private
   // (this suite's own local and docker stacks) must be able to turn it off.
@@ -260,8 +317,12 @@ function installation() {
   assert.strictEqual(offReport.enabled, false, "install() should report it as disabled.");
   assert.ok(!off.defaults.httpAgent && !off.defaults.httpsAgent,
     "a disabled guard must not install its agents.");
-  assert.strictEqual(off.interceptors.request.handlers.length, 0,
-    "nor its interceptor.");
+  // The ADDRESS pre-flight goes away with the off switch; the scheme check does
+  // not. blockPrivateNetworkCalls is about which addresses are reachable, and the
+  // local and docker stacks that turn it off have no more business fetching
+  // file: or data: than a deployed one does.
+  assert.strictEqual(off.interceptors.request.handlers.length, 1,
+    "a disabled guard must still install the scheme check, and nothing else.");
 
   // And only an explicit false: a missing key, or anything truthy-ish, stays safe.
   [undefined, null, "false", 0, "no"].forEach(function (value) {
@@ -270,8 +331,8 @@ function installation() {
       "blockPrivateNetworkCalls=" + JSON.stringify(value) + " must NOT disable the guard — " +
       "only a real false may, so a typo cannot open it.");
   });
-  log.info("[install] OK — enabled: both agents plus one interceptor; disabled: neither; " +
-           "and only a real `false` disables it.");
+  log.info("[install] OK — enabled: both agents plus the scheme and address interceptors; " +
+           "disabled: the scheme check only; and only a real `false` disables the address policy.");
 }
 
 // ---------------------------------------------------------------------------
@@ -321,6 +382,7 @@ async function test() {
   addressMatrix();
   rangeConfiguration();
   await urlPreflight();
+  schemePolicy();
   await agentLayer();
   installation();
   shippedConfiguration();

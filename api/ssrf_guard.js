@@ -18,7 +18,9 @@
 //
 //   appconfig.blockPrivateNetworkCalls   boolean; DEFAULT ON. Only an explicit
 //                                        `false` disables it — a missing or
-//                                        misspelled key stays safe.
+//                                        misspelled key stays safe. It governs the
+//                                        ADDRESS layers only; the scheme check
+//                                        below is not configurable.
 //   appconfig.blockedAddressRanges       array of RANGES — CIDR blocks
 //                                        ("10.0.0.0/8") or first-last pairs
 //                                        ("10.0.0.0-10.255.255.255"). Defaults to
@@ -26,7 +28,13 @@
 //                                        bare single address is refused, with the
 //                                        reason logged: see parseRange().
 //
-// TWO LAYERS, because one is not enough:
+// THREE LAYERS, because no one of them is enough:
+//
+//   0. A SCHEME check, and it is UNCONDITIONAL — the only layer the configuration
+//      cannot switch off, because it is not an address policy. axios's Node adapter
+//      supports file: and data: as well as http(s), and a `data:` URL is decoded by
+//      axios itself and handed straight back, so it never reaches the network and
+//      no address rule below can see it. See assertProtocolAllowed().
 //
 //   1. A request interceptor checks the URL before the call. This is what produces
 //      a readable error, naming the host, the address it resolved to and the range
@@ -51,6 +59,11 @@ const dns = require('dns');
 const net = require('net');
 const http = require('http');
 const https = require('https');
+
+// The only URL schemes this service will fetch. axios's Node adapter also supports
+// file: and data: (see platform.protocols), and every URL here comes from the
+// caller, so the list is stated rather than inherited.
+const ALLOWED_PROTOCOLS = ['http:', 'https:'];
 
 // The default policy: loopback, the RFC 1918 private ranges, link-local (which is
 // where cloud metadata lives), carrier-grade NAT, and the IPv6 equivalents.
@@ -309,6 +322,44 @@ function createGuard(appconfig, log) {
     });
   }
 
+  // -------------------------------------------------------------------------
+  // Scheme policy: http and https, nothing else.
+  //
+  // This is not paranoia about exotic URLs — axios's Node adapter really does
+  // support more than HTTP. `platform.protocols` is ['http','https','file','data'],
+  // and every URL this service fetches comes from its CALLER, so without this:
+  //
+  //   * a `data:` URL is decoded by axios itself and handed straight back, which
+  //     turns these endpoints into a reflector and never touches the network (so no
+  //     address policy applies to it);
+  //   * a `file:` URL passes axios's own supported-protocol check and then dies in
+  //     Node's http transport, which — because these handlers only answer when an
+  //     error carries a `response` — left the request hanging rather than failing.
+  //
+  // Neither is anything an identity provider endpoint could legitimately be. The
+  // two endpoints that already tested the scheme themselves (/samlmetadata,
+  // /wstrust) keep doing so and answer 400; this is the floor under all of them,
+  // including any added later.
+  // -------------------------------------------------------------------------
+  function assertProtocolAllowed(url) {
+    let protocol;
+    try {
+      protocol = new URL(String(url)).protocol;
+    } catch (e) {
+      // Not an absolute URL. Nothing to judge: axios will fail it on its own, and
+      // guessing a scheme here would be inventing policy.
+      return null;
+    }
+    if (ALLOWED_PROTOCOLS.indexOf(protocol) >= 0) {
+      return null;
+    }
+    const error = new Error('Refusing to call ' + protocol + ' — only ' +
+                            ALLOWED_PROTOCOLS.join(' and ') + ' are allowed.');
+    error.code = 'EPROTOCOLNOTALLOWED';
+    error.blockedProtocol = protocol;
+    return error;
+  }
+
   // Pre-flight for the interceptor: the same policy, applied to a URL, with the
   // error raised before any socket is opened.
   function assertUrlAllowed(url) {
@@ -369,36 +420,76 @@ function createGuard(appconfig, log) {
     return connect(options, callback);
   }
 
-  const httpAgent = new http.Agent({ lookup: guardedLookup });
-  httpAgent.createConnection = function (options, callback) {
-    const self = this;
-    return guardConnection(options, callback, function (o, cb) {
-      return http.Agent.prototype.createConnection.call(self, o, cb);
-    });
-  };
-
-  const httpsAgent = new https.Agent({ lookup: guardedLookup });
-  httpsAgent.createConnection = function (options, callback) {
-    const self = this;
-    return guardConnection(options, callback, function (o, cb) {
-      return https.Agent.prototype.createConnection.call(self, o, cb);
-    });
-  };
-
-  // Wire the guard into an axios instance: both layers, or neither.
-  function install(axios) {
+  /**
+   * Build an agent that carries both agent-layer hooks.
+   *
+   * This is a FACTORY rather than a decorator because `lookup` has to be an
+   * agent option, which is read at construction; and it exists as an export
+   * because setting `httpsAgent` on an individual axios call REPLACES
+   * axios.defaults.httpsAgent, hooks and all. Every call in server.js does that
+   * (each one chooses its own rejectUnauthorized), so those calls need a way to
+   * ask for an agent that is guarded — otherwise the whole agent layer, and with
+   * it the redirect and literal-address checks, is present only on the calls that
+   * do not specify an agent.
+   *
+   * When the guard is disabled it still returns a usable agent, unhooked, so a
+   * caller can build one unconditionally.
+   *
+   * @param {string} protocol - 'http' or 'https'.
+   * @param {object} [options] - agent options (rejectUnauthorized, keepAlive, …).
+   * @returns {http.Agent|https.Agent}
+   */
+  function createAgent(protocol, options) {
+    const module_ = protocol === 'https' ? https : http;
     if (!enabled) {
-      logger.warn('ssrf_guard: DISABLED by configuration (blockPrivateNetworkCalls=false) — ' +
-                  'this service will call loopback and private addresses.');
+      return new module_.Agent(Object.assign({}, options || {}));
+    }
+    const agent = new module_.Agent(Object.assign({}, options || {}, { lookup: guardedLookup }));
+    agent.createConnection = function (opts, callback) {
+      const self = this;
+      return guardConnection(opts, callback, function (o, cb) {
+        return module_.Agent.prototype.createConnection.call(self, o, cb);
+      });
+    };
+    return agent;
+  }
+
+  const httpAgent = createAgent('http');
+  const httpsAgent = createAgent('https');
+
+  // The URL an axios config will actually fetch.
+  function targetOf(config) {
+    return config.url && /^[a-z][a-z0-9+.-]*:\/\//i.test(config.url)
+      ? config.url
+      : (config.baseURL || '') + (config.url || '');
+  }
+
+  // Wire the guard into an axios instance.
+  //
+  // The PROTOCOL check goes on unconditionally, before the enabled test: it is not
+  // an address policy, and there is no deployment for which fetching file: or
+  // data: is legitimate. The address layers are what blockPrivateNetworkCalls
+  // switches off, and the stacks that switch it off still need this.
+  function install(axios) {
+    axios.interceptors.request.use(function (config) {
+      const refusal = assertProtocolAllowed(targetOf(config));
+      if (refusal) {
+        logger.warn('ssrf_guard: ' + refusal.message);
+        return Promise.reject(refusal);
+      }
+      return config;
+    });
+    if (!enabled) {
+      logger.warn('ssrf_guard: address policy DISABLED by configuration ' +
+                  '(blockPrivateNetworkCalls=false) — this service will call loopback ' +
+                  'and private addresses. The ' + ALLOWED_PROTOCOLS.join('/') +
+                  '-only rule still applies.');
       return { enabled: false, ranges: ranges.map(function (r) { return r.text; }) };
     }
     axios.defaults.httpAgent = httpAgent;
     axios.defaults.httpsAgent = httpsAgent;
     axios.interceptors.request.use(function (config) {
-      const target = config.url && /^[a-z][a-z0-9+.-]*:\/\//i.test(config.url)
-        ? config.url
-        : (config.baseURL || '') + (config.url || '');
-      return assertUrlAllowed(target).then(function () { return config; });
+      return assertUrlAllowed(targetOf(config)).then(function () { return config; });
     });
     logger.info('ssrf_guard: enabled; refusing outbound calls to ' + ranges.length +
                 ' blocked range(s): ' + ranges.map(function (r) { return r.text; }).join(', '));
@@ -410,7 +501,10 @@ function createGuard(appconfig, log) {
     ranges: ranges.map(function (r) { return r.text; }),
     blockedRangeFor: blockedRangeFor,
     assertUrlAllowed: assertUrlAllowed,
+    assertProtocolAllowed: assertProtocolAllowed,
+    allowedProtocols: ALLOWED_PROTOCOLS.slice(),
     guardedLookup: guardedLookup,
+    createAgent: createAgent,
     httpAgent: httpAgent,
     httpsAgent: httpsAgent,
     install: install

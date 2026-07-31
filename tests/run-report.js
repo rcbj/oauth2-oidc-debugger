@@ -327,6 +327,20 @@ function buildJobs() {
     env: {},
   });
 
+  // The api's outbound limits: api/connect_timeout.js plus callTimeout,
+  // connectionTimeout, maxContentLength and maxRedirects in api/env/*.js. axios
+  // defaults to no timeout, no size cap and 21 redirects, so without these a
+  // caller-named host that goes quiet holds a request open for minutes, one that
+  // streams fills the heap, and one that redirects can walk the service elsewhere.
+  // The interesting half is that a connection which SUCCEEDED must not be cut off
+  // by the connect budget — an AbortSignal-based implementation gets that wrong.
+  // Node only, so never skipped.
+  jobs.push({
+    name: "API outbound call policy (timeouts, caps, User-Agent, keep-alive)",
+    script: "api_connect_timeout.js",
+    env: {},
+  });
+
   // The SD-JWT VC issuance workflow (OID4VCI + RFC 9901): the mock Credential
   // Issuer the STS service hosts, the three sd-jwt-vc-issuance pages, and the
   // ?sdjwtvc=1 hand-off through debugger.html / debugger2.html. Needs both the

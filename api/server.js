@@ -11,8 +11,10 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 const crypto = require('crypto');
-const { convertToOAuth2Format  } = require('./data.js');
+const {
+  convertToOAuth2Format  } = require('./data.js');
 const ssrfGuard = require('./ssrf_guard.js');
+const connectTimeout = require('./connect_timeout.js');
 
 // Constants
 const PORT = appconfig.port || 4000;
@@ -21,15 +23,303 @@ const LOG_LEVEL = appconfig.logLevel || 'debug';
 const uiUrl = appconfig.uiUrl || 'http://localhost:3000';
 
 const STATUS_200 = 200;
+const STATUS_204 = 204;
 const STATUS_400 = 400;
 const STATUS_401 = 401;
 const STATUS_403 = 403;
 const STATUS_404 = 404;
 const STATUS_500 = 500;
 
-var log = bunyan.createLogger({ name: 'server',
+var log = bunyan.createLogger({
+                                name: 'server',
                                 level: LOG_LEVEL });
 log.info("Log initialized. logLevel=" + log.level());
+
+// ---------------------------------------------------------------------------
+// Outbound call timeout, in milliseconds, applied to every axios call this
+// service makes (appconfig.callTimeout, set in api/env/*.js).
+//
+// It is needed because every one of those calls goes to a host the CALLER named
+// — the token, introspection, revocation, device-authorization and userinfo
+// endpoints, the SAML metadata and ArtifactResolve back-channels, the WS-Trust
+// STS, the DCR endpoint — and axios has NO default timeout of its own. A host
+// that completes the TCP handshake and then never answers therefore holds the
+// Express request, its socket and the browser's spinner open for as long as the
+// operating system's own keep-alive allows, which is minutes.
+// ---------------------------------------------------------------------------
+const DEFAULT_CALL_TIMEOUT = 10000;
+const DEFAULT_CONNECTION_TIMEOUT = 5000;
+const DEFAULT_MAX_CONTENT_LENGTH = 1048576;   // 1 MiB
+const DEFAULT_MAX_REDIRECTS = 5;
+
+/**
+ * Read one positive-number limit out of the environment config.
+ *
+ * Shared by callTimeout, connectionTimeout and maxContentLength so they cannot
+ * drift in how a missing or nonsensical value is treated.
+ *
+ * @param {string} name - the appconfig key, for the log message.
+ * @param {*} configured - whatever the config file put there.
+ * @param {number} fallback - the code default.
+ * @param {string} unit - 'milliseconds' or 'bytes', for the log message.
+ * @returns {number} a positive, finite number.
+ */
+function resolvePositiveNumber(name, configured, fallback, unit) {
+  if (configured === undefined || configured === null) {
+    return fallback;
+  }
+  var value = Number(configured);
+  // A misconfigured value must not quietly become "no limit". That is exactly what
+  // axios makes of a missing timeout, and 0 is worse than useless for
+  // maxContentLength — axios enforces any value > -1, so 0 would refuse every
+  // response with a body in it. Name the key in the log and fall back.
+  if (!Number.isFinite(value) || value <= 0) {
+    log.warn("Ignoring " + name + "=" + JSON.stringify(configured) +
+             ": expected a positive number of " + unit + ". Using " +
+             fallback + ".");
+    return fallback;
+  }
+  return value;
+}
+
+const CALL_TIMEOUT = resolvePositiveNumber(
+  'callTimeout', appconfig.callTimeout, DEFAULT_CALL_TIMEOUT, 'milliseconds');
+
+// ---------------------------------------------------------------------------
+// Connection timeout, in milliseconds (appconfig.connectionTimeout): the budget
+// for reaching a USABLE connection — DNS, TCP connect and, on https, the TLS
+// handshake — enforced by connect_timeout.js on the agent that opens the socket.
+//
+// It is a genuinely different deadline from callTimeout, not a smaller copy of
+// it. It stops counting the instant the connection is up, so the two are
+// additive: a dead or firewalled address fails inside connectionTimeout, while a
+// host that has answered gets the full callTimeout to produce a response. axios
+// cannot express this on its own — neither its `timeout` nor an AbortSignal can,
+// because both bound everything that follows.
+// ---------------------------------------------------------------------------
+const CONNECTION_TIMEOUT = resolvePositiveNumber(
+  'connectionTimeout', appconfig.connectionTimeout, DEFAULT_CONNECTION_TIMEOUT,
+  'milliseconds');
+
+// ---------------------------------------------------------------------------
+// Largest response body, in bytes, this service will accept from an outbound call
+// (appconfig.maxContentLength), passed to axios as `maxContentLength`.
+//
+// A timeout alone does not bound a call: a host that answers promptly and then
+// streams for as long as it likes is entirely within its deadline while the api
+// buffers the whole body IN MEMORY to hand back to the browser. axios's default is
+// -1, unlimited, so the only ceiling today is the heap. Ten concurrent callers
+// pointing this service at a large file is a denial of service that needs no
+// special effort.
+//
+// axios enforces this incrementally, destroying the response stream as soon as the
+// running total passes the cap, so an oversized body is abandoned mid-download
+// rather than counted after the fact. It rejects with ERR_BAD_RESPONSE and the
+// message "maxContentLength size of N exceeded", which surfaces through the
+// existing error handling like any other call failure.
+//
+// It applies to RESPONSES only. Request bodies are axios's `maxBodyLength`, which
+// is not set here: what this service sends is assembled from a request Express has
+// already accepted and size-limited.
+// ---------------------------------------------------------------------------
+const MAX_CONTENT_LENGTH = resolvePositiveNumber(
+  'maxContentLength', appconfig.maxContentLength, DEFAULT_MAX_CONTENT_LENGTH, 'bytes');
+
+/**
+ * Read one non-negative integer setting out of the environment config.
+ *
+ * Deliberately separate from resolvePositiveNumber, because ZERO is meaningful
+ * here and invalid there. `maxRedirects: 0` makes axios use the native transport
+ * instead of follow-redirects, i.e. hand back the 3xx without following it — a
+ * legitimate and stricter choice. For a timeout or a size cap, 0 means "no limit"
+ * or "refuse everything", so it has to be rejected.
+ *
+ * @param {string} name - the appconfig key, for the log message.
+ * @param {*} configured - whatever the config file put there.
+ * @param {number} fallback - the code default.
+ * @returns {number} a non-negative integer.
+ */
+function resolveNonNegativeInteger(name, configured, fallback) {
+  if (configured === undefined || configured === null) {
+    return fallback;
+  }
+  var value = Number(configured);
+  // A non-integer or negative value must not be passed through. axios gates on
+  // `if (maxRedirects)`, so anything that comes out falsy-but-not-zero — NaN from
+  // a non-numeric string — silently leaves follow-redirects' OWN default of 21 in
+  // place, which is the opposite of having configured a limit.
+  if (!Number.isInteger(value) || value < 0) {
+    log.warn("Ignoring " + name + "=" + JSON.stringify(configured) +
+             ": expected a non-negative whole number. Using " + fallback + ".");
+    return fallback;
+  }
+  return value;
+}
+
+// ---------------------------------------------------------------------------
+// How many redirects an outbound call may follow (appconfig.maxRedirects), passed
+// to axios as `maxRedirects`. axios's own default is 21.
+//
+// Two reasons to hold it down. A redirect chain is unbounded work behind a single
+// caller-supplied URL — each hop is a fresh DNS lookup and connection, and a loop
+// or a long chain burns the whole callTimeout doing nothing useful. And a redirect
+// is precisely how a *public* host sends this service somewhere private:
+// `302 Location: http://127.0.0.1:8080/`. That address is refused by the SSRF
+// guard's agent layer, which is on every hop because axios hands the agents to
+// follow-redirects — but a shorter chain is less to reason about either way.
+//
+// 0 is a valid setting and means "do not follow redirects at all"; the 3xx is
+// returned to the caller as the response.
+// ---------------------------------------------------------------------------
+const MAX_REDIRECTS = resolveNonNegativeInteger(
+  'maxRedirects', appconfig.maxRedirects, DEFAULT_MAX_REDIRECTS);
+
+// ---------------------------------------------------------------------------
+// The User-Agent every outbound call sends (appconfig.userAgent).
+//
+// Without it axios announces itself as `axios/1.18.1`, which tells an identity
+// provider's operator nothing about who is calling. This service shows up in other
+// people's access logs by design — it is pointed at their token, introspection and
+// metadata endpoints — so it should say what it is and which build, which is what
+// makes a report like "your debugger sent us a malformed request on Tuesday"
+// actionable.
+//
+// The setting is the whole template; `{{VERSION}}` in it is replaced with the
+// build version, the same placeholder the client's footer and error pages use. A
+// value with no placeholder is sent verbatim, which is a legitimate choice.
+// ---------------------------------------------------------------------------
+const DEFAULT_USER_AGENT = 'Identity Protocol Debugger/{{VERSION}}';
+
+/**
+ * The application version, M.N.O.
+ *
+ * api/Dockerfile stamps version.json into this directory at image build time and
+ * copies the client's version.js beside it — one implementation of the scheme for
+ * both services rather than a second that could drift. Neither is present in a
+ * bare checkout (same as ./data.js), so the client's copy is tried next, and the
+ * package manifest last: this must never be the thing that stops the service
+ * starting.
+ *
+ * @returns {string} e.g. "0.9.20260731120000", or "0.9.0" from the manifest.
+ */
+function resolveAppVersion() {
+  var candidates = ['./version.js', '../client/version.js'];
+  for (var i = 0; i < candidates.length; i++) {
+    try {
+      var appversion = require(candidates[i]);
+      // load() prefers the stamped record and computes one only if the artifact
+      // was never stamped, so a built image reports its build and a checkout
+      // still reports something usable.
+      var record = appversion.load(__dirname);
+      if (record && record.version) {
+        return record.version;
+      }
+    } catch (e) {
+      // Not present in this layout; try the next. Logged at debug because the
+      // first miss is entirely normal in a checkout.
+      log.debug('resolveAppVersion: ' + candidates[i] + ' unavailable (' + e.code + ').');
+    }
+  }
+  try {
+    return require('./package.json').version;
+  } catch (e) {
+    log.warn('Could not determine the application version: ' + e.message);
+    return '0.0.0';
+  }
+}
+
+const APP_VERSION = resolveAppVersion();
+
+/**
+ * The User-Agent template from the config, with the version substituted.
+ *
+ * @returns {string} never blank.
+ */
+function resolveUserAgent() {
+  var configured = appconfig.userAgent;
+  var template = DEFAULT_USER_AGENT;
+  if (configured !== undefined && configured !== null) {
+    // An empty or whitespace-only setting is a misconfiguration, not a request to
+    // be anonymous: axios would send a User-Agent header with nothing after the
+    // colon, which is worse than the default it replaced. Say so and use the
+    // default, as the numeric settings do.
+    if (typeof configured !== 'string' || !String(configured).trim()) {
+      log.warn("Ignoring userAgent=" + JSON.stringify(configured) +
+               ": expected a non-empty string. Using \"" + DEFAULT_USER_AGENT + "\".");
+    } else {
+      template = String(configured);
+    }
+  }
+  return template.split('{{VERSION}}').join(APP_VERSION);
+}
+
+const USER_AGENT = resolveUserAgent();
+
+/**
+ * Read one boolean setting out of the environment config.
+ *
+ * A missing, null or misspelled key therefore keeps the default rather than
+ * reading as false — the same rule blockPrivateNetworkCalls follows.
+ *
+ * @param {string} name - the appconfig key, for the log message.
+ * @param {*} configured - whatever the config file put there.
+ * @param {boolean} fallback - the code default.
+ * @returns {boolean}
+ */
+function resolveBoolean(name, configured, fallback) {
+  if (configured === undefined || configured === null) {
+    return fallback;
+  }
+  if (typeof configured !== 'boolean') {
+    // Deliberately strict: the string "false" is truthy in JavaScript, so a
+    // quoted value would turn an intended off into an on without a word.
+    log.warn("Ignoring " + name + "=" + JSON.stringify(configured) +
+             ": expected true or false. Using " + fallback + ".");
+    return fallback;
+  }
+  return configured;
+}
+
+// ---------------------------------------------------------------------------
+// Whether outbound connections are pooled and reused (appconfig.keepAlive).
+//
+// On, this service stops paying for a TCP connection — and a TLS handshake, which
+// is the expensive half — on every call to an identity provider it has just
+// finished talking to. A debugger session is exactly that pattern: token, then
+// introspection, then userinfo, all to the same host within seconds.
+//
+// It is what makes the agents SHARED rather than built per call, and the two are
+// not separable. A keep-alive agent that is thrown away after one response still
+// holds that response's socket in its free pool, and nothing closes it — so a
+// per-call agent with keepAlive on leaks a file descriptor per outbound call,
+// which is strictly worse than not pooling. See agentFor() below.
+// ---------------------------------------------------------------------------
+const KEEP_ALIVE = resolveBoolean('keepAlive', appconfig.keepAlive, true);
+
+/**
+ * A headers object with this service's User-Agent on it.
+ *
+ * Applied at every call site rather than once on axios.defaults.headers, for the
+ * same reason the agents are: a per-call `headers` object REPLACES the defaults,
+ * and every one of these calls sets its own.
+ *
+ * Ours wins over anything already in the object. No call site sets a User-Agent
+ * today, and none should be able to make this service anonymous by accident.
+ *
+ * @param {object} [headers] - the call's own headers.
+ * @returns {object} a new object; the caller's is not modified.
+ */
+function withUserAgent(headers) {
+  return Object.assign({}, headers || {}, {
+    'User-Agent': USER_AGENT });
+}
+
+log.info("Outbound call timeout: " + CALL_TIMEOUT + "ms (whole call); connection " +
+         "timeout: " + CONNECTION_TIMEOUT + "ms (until connected); max response " +
+         "size: " + MAX_CONTENT_LENGTH + " bytes; max redirects: " + MAX_REDIRECTS +
+         (MAX_REDIRECTS === 0 ? " (redirects are not followed)." : "."));
+log.info("Outbound User-Agent: " + USER_AGENT);
+log.info("Outbound connection pooling (keepAlive): " + (KEEP_ALIVE ? "on" : "off") + ".");
 
 // ---------------------------------------------------------------------------
 // Refuse outbound calls to loopback and private networks (see ssrf_guard.js).
@@ -45,7 +335,74 @@ log.info("Log initialized. logLevel=" + log.level());
 // On by default; a deployment whose identity providers really are on a private
 // network sets blockPrivateNetworkCalls to false in its api/env config.
 // ---------------------------------------------------------------------------
-ssrfGuard.createGuard(appconfig, log).install(axios);
+const guard = ssrfGuard.createGuard(appconfig, log);
+guard.install(axios);
+
+// ---------------------------------------------------------------------------
+// The agents every outbound call uses: the SSRF guard's hooks, the connect-phase
+// timeout, and connection pooling.
+//
+// They must be built HERE rather than with a bare `new https.Agent(...)` at each
+// call site, because setting httpsAgent on an axios call replaces
+// axios.defaults.httpsAgent — so a hand-rolled agent silently drops the guard's
+// DNS `lookup` and `createConnection` hooks, the layer that catches a redirect to
+// a private literal address. Going through the guard's own factory keeps both
+// concerns attached wherever an agent is needed.
+//
+// They are also CACHED rather than built per call, which keepAlive requires: an
+// agent's pool of idle sockets lives on the agent, so a fresh one per call reuses
+// nothing (pointless) while still parking that call's socket in a pool nobody will
+// ever read (a leaked file descriptor per call). Sharing is safe because
+// everything on these agents is stateless policy; the only thing a call chooses is
+// rejectUnauthorized, so there are three agents at most and the cache cannot grow
+// with traffic.
+//
+// One interaction worth knowing: a REUSED socket does not go through
+// createConnection, so it carries no connect timeout. That is correct — it is
+// already connected — and it is also why the connect timeout must not be thought
+// of as a per-request guarantee once pooling is on.
+// ---------------------------------------------------------------------------
+const outboundAgentCache = new Map();
+
+/**
+ * The shared agent for one protocol and certificate policy.
+ *
+ * @param {string} protocol - 'http' or 'https'.
+ * @param {boolean} [rejectUnauthorized] - https only.
+ * @returns {http.Agent|https.Agent} the same instance for the same arguments.
+ */
+function agentFor(protocol, rejectUnauthorized) {
+  var key = protocol + (protocol === 'https' ? '|' + rejectUnauthorized : '');
+  var cached = outboundAgentCache.get(key);
+  if (cached) {
+    return cached;
+  }
+  var options = {
+    keepAlive: KEEP_ALIVE };
+  if (protocol === 'https') {
+    options.rejectUnauthorized = rejectUnauthorized;
+  }
+  var agent = connectTimeout.withConnectTimeout(
+    guard.createAgent(protocol, options), CONNECTION_TIMEOUT, log);
+  outboundAgentCache.set(key, agent);
+  log.debug('Created the ' + key + ' outbound agent (keepAlive=' + KEEP_ALIVE + ').');
+  return agent;
+}
+
+function outboundHttpAgent() {
+  return agentFor('http');
+}
+
+/**
+ * @param {boolean} rejectUnauthorized - whether to verify the peer's certificate.
+ *   Normalised so that only an explicit `false` turns verification off, which
+ *   bounds the cache to two https agents and means a missing or oddly-typed value
+ *   from a request body cannot quietly stop certificates being checked.
+ * @returns {https.Agent}
+ */
+function outboundHttpsAgent(rejectUnauthorized) {
+  return agentFor('https', rejectUnauthorized !== false);
+}
 
 // Ephemeral, in-memory store for SAML exchanges. The ACS endpoint stashes the
 // (potentially large) SAMLResponse here and redirects the browser to the client
@@ -63,7 +420,8 @@ function sweepSamlExchanges() {
 function stashSamlResponse(xml, relayState) {
   sweepSamlExchanges();
   var id = crypto.randomBytes(16).toString('hex');
-  samlExchanges.set(id, { responseXml: xml, relayState: relayState || '', createdAt: Date.now() });
+  samlExchanges.set(id, {
+    responseXml: xml, relayState: relayState || '', createdAt: Date.now() });
   return id;
 }
 
@@ -74,7 +432,8 @@ var samlArtifactCtx = new Map();
 function stashArtifactCtx(ctx) {
   sweepSamlArtifactCtx();
   var id = crypto.randomBytes(16).toString('hex');
-  samlArtifactCtx.set(id, Object.assign({ createdAt: Date.now() }, ctx));
+  samlArtifactCtx.set(id, Object.assign({
+    createdAt: Date.now() }, ctx));
   return id;
 }
 function sweepSamlArtifactCtx() {
@@ -96,10 +455,11 @@ const expressSwagger = require('express-swagger-generator')(app);
 app.use(bodyParser.json());
 // SAML ACS receives application/x-www-form-urlencoded POSTs (SAMLResponse,
 // RelayState, SAMLart) from the IdP; enable urlencoded parsing for those.
-app.use(bodyParser.urlencoded({ extended: true, limit: '5mb' }));
+app.use(bodyParser.urlencoded({
+  extended: true, limit: '5mb' }));
 var corsOptions = {
   origin: '*',
-  optionsSuccessStatus: 204
+  optionsSuccessStatus: STATUS_204
 };
 // app.use(expressLogging(logger));
 app.options("*", cors(corsOptions));
@@ -120,8 +480,15 @@ app.use(cors(corsOptions));
 app.get('/healthcheck', function (req, res) {
   res
   .status(STATUS_200)
-  .json({ message: 'Success' });
+  .json({
+    message: 'Success' });
 });
+
+// The IANA JWT claim registry: the one outbound call in this service whose URL is
+// NOT chosen by the caller. It gets the same treatment as the rest anyway — both
+// timeouts, the size cap and the guarded agents — because having picked the URL
+// ourselves is no reason to accept a hung or unbounded response from it.
+const IANA_JWT_CLAIMS_URL = 'https://www.iana.org/assignments/jwt/jwt.xml';
 
 /**
  * Retrieve Claims Description.
@@ -132,55 +499,79 @@ app.get('/healthcheck', function (req, res) {
  * @returns {Error.model} 500 - Unexpected error
  */
 app.get('/claimdescription', function(req, res) {
-  console.log("Entering GET /claimdescription.");
+  log.debug("Entering GET /claimdescription.");
   try {
     if(cachedClaimDescriptions) {
-      console.debug("Using cached claim descriptions.");
+      log.debug("Using cached claim descriptions.");
       res
       .append('Content-Type', 'application/xml')
       .status(STATUS_200)
       .send(claimDescriptions);
     } else {
-      log.debug("Pulling claim descriptions");
-      fetch("https://www.iana.org/assignments/jwt/jwt.xml")
-      .then((response) => {
-        response
-        .text()
-        .then( (text) => {
-          log.debug("Retrieved: " + text);
-          res
-          .append('Content-Type', 'application/xml')
-          .send(text);
-          cachedClaimDescriptions = true;
-          claimDescriptions = text;
-        });
+      log.debug("Pulling claim descriptions from " + IANA_JWT_CLAIMS_URL);
+      axios({
+        method: 'get',
+        url: IANA_JWT_CLAIMS_URL,
+        responseType: 'text',
+        // The registry is XML. Keep axios's default response transform, which
+        // tries JSON.parse on a string body, away from it.
+        transformResponse: [function (d) {
+          return d; }],
+        timeout: CALL_TIMEOUT,
+        maxContentLength: MAX_CONTENT_LENGTH,
+        maxRedirects: MAX_REDIRECTS,
+        httpAgent: outboundHttpAgent(),
+        httpsAgent: outboundHttpsAgent(true),
+        headers: withUserAgent({
+          'Accept': 'application/xml, text/xml, */*' })
+      })
+      .then(function (response) {
+        var xml = String(response.data == null ? '' : response.data);
+        log.debug("Retrieved " + xml.length + " bytes of claim descriptions.");
+        res
+        .append('Content-Type', 'application/xml')
+        .status(STATUS_200)
+        .send(xml);
+        // Cached only here, which means only on a 2xx: axios rejects every other
+        // status, so an IANA error page can no longer be memoised and served as
+        // the claim registry for the lifetime of the process. `fetch` resolved on
+        // a 404, which is exactly how that could happen before.
+        claimDescriptions = xml;
+        cachedClaimDescriptions = true;
       })
       .catch(function (error) {
-        log.error('Error from claimsdescription endpoint: ' + error.stack);
-      if(!!error.response) {
-        if(!!error.response.status) {
-          log.error("Error Status: " + error.response.status);
+        log.error('Error from claimdescription endpoint: ' +
+                  (error && error.stack ? error.stack : error));
+        if(!!error.response) {
+          if(!!error.response.status) {
+            log.error("Error Status: " + error.response.status);
+          }
+          if(!!error.response.data) {
+            log.error("Error Response body: " + JSON.stringify(error.response.data));
+          }
+          if(!!error.response.headers) {
+            log.error("Error Response headers: " + error.response.headers);
+          }
+          res.status(error.response.status || STATUS_500).json(error.response.data);
+          return;
         }
-        if(!!error.response.data) {
-          log.error("Error Response body: " + JSON.stringify(error.response.data));
-        }
-        if(!!error.response.headers) {
-          log.error("Error Response headers: " + error.response.headers);
-        }
-        if (!!error.response) {
-          res.status(error.response.status);
-          res.json(error.response.data);
-        } else {
-          res.status(STATUS_500);
-          res.json(error.message);
-        }
-      }
-    });
+        // No response at all: the call timed out, the connection never opened, or
+        // the body passed maxContentLength. This branch MUST answer. The previous
+        // implementation replied only when error.response was set — which a
+        // network-level failure never sets, and `fetch` never set at all — so
+        // every failure of this endpoint left the browser waiting for a reply that
+        // was never sent, on the path of every token inspection the debugger does.
+        // With the limits above in place this is the common branch, not the rare one.
+        res.status(STATUS_500).json({
+          error: 'claim description fetch failed: ' +
+                 (error && error.message ? error.message : String(error)) });
+      });
    }
   } catch(e) {
     log.error("An error occurred while retrieving the claim description XML: " + e.stack);
     res.status(STATUS_500)
-       .render('error', { error: e });
+       .render('error', {
+         error: e });
   }
 });
 
@@ -206,17 +597,23 @@ app.get('/samlmetadata', function (req, res) {
   try {
     target = Buffer.from(String(req.query.url || ''), 'base64').toString('utf8').trim();
   } catch (e) {
-    return res.status(STATUS_400).json({ error: 'Invalid url parameter (expected base64).' });
+    return res.status(STATUS_400).json({
+      error: 'Invalid url parameter (expected base64).' });
   }
   if (!/^https?:\/\//i.test(target)) {
-    return res.status(STATUS_400).json({ error: 'url must be an absolute http(s) URL.' });
+    return res.status(STATUS_400).json({
+      error: 'url must be an absolute http(s) URL.' });
   }
-  var https = require('https');
   axios.get(target, {
     responseType: 'text',
+    timeout: CALL_TIMEOUT,
+    maxContentLength: MAX_CONTENT_LENGTH,
+    maxRedirects: MAX_REDIRECTS,
+    httpAgent: outboundHttpAgent(),
     // Allow self-signed IdP TLS in test/dev environments.
-    httpsAgent: new https.Agent({ rejectUnauthorized: false }),
-    headers: { 'Accept': 'application/samlmetadata+xml, application/xml, text/xml, */*' }
+    httpsAgent: outboundHttpsAgent(false),
+    headers: withUserAgent({
+      'Accept': 'application/samlmetadata+xml, application/xml, text/xml, */*' })
   })
   .then(function (response) {
     res.append('Content-Type', 'application/xml').status(STATUS_200).send(response.data);
@@ -226,7 +623,8 @@ app.get('/samlmetadata', function (req, res) {
     if (error && error.response) {
       res.status(error.response.status || STATUS_500).send(String(error.response.data || 'metadata fetch failed'));
     } else {
-      res.status(STATUS_500).json({ error: 'metadata fetch failed: ' + (error && error.message ? error.message : String(error)) });
+      res.status(STATUS_500).json({
+        error: 'metadata fetch failed: ' + (error && error.message ? error.message : String(error)) });
     }
   });
 });
@@ -275,7 +673,8 @@ function signXmlEnveloped(xml, privateKeyPem, certPem, rootLocalName) {
   });
   // Per the SAML schema the <Signature> must follow <Issuer>.
   sig.computeSignature(xml, {
-    location: { reference: "/*[local-name(.)='" + root + "']/*[local-name(.)='Issuer']", action: 'after' }
+    location: {
+      reference: "/*[local-name(.)='" + root + "']/*[local-name(.)='Issuer']", action: 'after' }
   });
   return sig.getSignedXml();
 }
@@ -288,7 +687,8 @@ function signXmlEnveloped(xml, privateKeyPem, certPem, rootLocalName) {
 app.post('/samlsign', function (req, res) {
   log.debug('Entering POST /samlsign.');
   try {
-    var b = req.body || {};
+    var b = req.body || {
+      };
     var binding = b.binding || 'redirect';
     var xml = b.xml;
     var dest = b.destination;
@@ -298,16 +698,19 @@ app.post('/samlsign', function (req, res) {
     var relayState = b.relayState || '';
     var rootElement = b.rootElement || 'AuthnRequest'; // AuthnRequest | LogoutRequest
     if (!xml || !privateKeyPem) {
-      return res.status(STATUS_400).json({ error: 'xml and privateKeyPem are required.' });
+      return res.status(STATUS_400).json({
+        error: 'xml and privateKeyPem are required.' });
     }
 
     if (binding === 'post') {
       var signedXml = signXmlEnveloped(xml, privateKeyPem, certPem, rootElement);
-      var params = { SAMLRequest: Buffer.from(signedXml, 'utf8').toString('base64') };
+      var params = {
+        SAMLRequest: Buffer.from(signedXml, 'utf8').toString('base64') };
       if (relayState) params.RelayState = relayState;
       // signedXml is also returned so the UI can display the enveloped-signed
       // document (e.g. the "Build Request" button).
-      return res.json({ mode: 'post', location: dest || '', params: params, signedXml: signedXml });
+      return res.json({
+        mode: 'post', location: dest || '', params: params, signedXml: signedXml });
     }
 
     // redirect binding (also used to send the request when the response is
@@ -339,10 +742,13 @@ app.post('/samlsign', function (req, res) {
     // Full GET URL when a destination is known; otherwise just the signed query
     // string (e.g. "Build Request" before metadata is loaded).
     var location = dest ? (dest + (dest.indexOf('?') >= 0 ? '&' : '?') + qs) : qs;
-    return res.json({ mode: 'redirect', location: location, queryString: qs });
+    return res.json({
+      mode: 'redirect', location: location, queryString: qs });
   } catch (e) {
     log.error('samlsign: ' + (e && e.stack ? e.stack : e));
-    res.status(STATUS_500).json({ error: 'sign failed: ' + (e && e.message ? e.message : String(e)) });
+    res.status(STATUS_500).json({
+      error: 'sign failed: ' + (e && e.message ? e.message : String(e)) 
+    });
   }
 });
 
@@ -356,9 +762,12 @@ app.post('/samlsign', function (req, res) {
  * @group SAML - SAML support operations
  */
 app.post('/samlartifactctx', function (req, res) {
-  var b = req.body || {};
+  var b = req.body || {
+    };
   if (!b.privateKeyPem || !b.arsUrl) {
-    return res.status(STATUS_400).json({ error: 'privateKeyPem and arsUrl are required.' });
+    return res.status(STATUS_400).json({
+      error: 'privateKeyPem and arsUrl are required.'
+    });
   }
   var id = stashArtifactCtx({
     arsUrl: b.arsUrl,
@@ -369,7 +778,8 @@ app.post('/samlartifactctx', function (req, res) {
     // Optional WS-Addressing headers for the ArtifactResolve SOAP envelope.
     wsa: b.wsa || {}
   });
-  res.json({ relayState: 'art:' + id });
+  res.json({
+    relayState: 'art:' + id });
 });
 
 // Decode a SAML protocol message from a binding parameter: POST binding is raw
@@ -443,10 +853,16 @@ function resolveArtifact(artifact, relayState) {
     }
     var soap = '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"' + wsaNs + '>' +
                soapHeader + '<soap:Body>' + signed + '</soap:Body></soap:Envelope>';
-    var https = require('https');
     axios.post(ctx.arsUrl, soap, {
-      headers: { 'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': '""' },
-      httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+      timeout: CALL_TIMEOUT,
+      maxContentLength: MAX_CONTENT_LENGTH,
+      maxRedirects: MAX_REDIRECTS,
+      headers: withUserAgent({
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction': '""'
+      }),
+      httpAgent: outboundHttpAgent(),
+      httpsAgent: outboundHttpsAgent(false),
       responseType: 'text'
     }).then(function (resp) {
       var respXml = extractResponseFromArtifactResponse(resp.data);
@@ -476,14 +892,16 @@ function handleSamlAcs(req, res) {
     if (samlResponse) {
       var xml = decodeSamlMessage(samlResponse);
       var id = stashSamlResponse(xml, relayState);
-      res.writeHead(302, { 'Location': uiUrl + '/saml_response.html?id=' + encodeURIComponent(id) });
+      res.writeHead(302, {
+        'Location': uiUrl + '/saml_response.html?id=' + encodeURIComponent(id) });
       return res.end();
     }
     if (artifact) {
       return resolveArtifact(artifact, relayState)
         .then(function (respXml) {
           var artId = stashSamlResponse(respXml, relayState);
-          res.writeHead(302, { 'Location': uiUrl + '/saml_response.html?id=' + encodeURIComponent(artId) });
+          res.writeHead(302, {
+            'Location': uiUrl + '/saml_response.html?id=' + encodeURIComponent(artId) });
           res.end();
         })
         .catch(function (e) {
@@ -514,8 +932,10 @@ app.get('/samlslo', handleSamlAcs);
 app.get('/samlresponse', function (req, res) {
   sweepSamlExchanges();
   var ex = samlExchanges.get(String(req.query.id || ''));
-  if (!ex) return res.status(STATUS_404).json({ error: 'not found or expired' });
-  res.json({ responseXml: ex.responseXml, relayState: ex.relayState });
+  if (!ex) return res.status(STATUS_404).json({
+    error: 'not found or expired' });
+  res.json({
+    responseXml: ex.responseXml, relayState: ex.relayState });
 });
 
 // ---------------------------------------------------------------------------
@@ -549,11 +969,13 @@ function handleWsFedLanding(req, res) {
     if (wresult) {
       // wresult is raw XML (an RSTR envelope) — stash verbatim, do NOT decode.
       var id = stashSamlResponse(wresult, wctx);
-      res.writeHead(302, { 'Location': uiUrl + '/wsfed_response.html?id=' + encodeURIComponent(id) });
+      res.writeHead(302, {
+        'Location': uiUrl + '/wsfed_response.html?id=' + encodeURIComponent(id) });
       return res.end();
     }
     // Sign-out (wsignout1.0 / wsignoutcleanup1.0) carries no token.
-    res.writeHead(302, { 'Location': uiUrl + '/wsfed_response.html?signout=' + encodeURIComponent(wa || '1') });
+    res.writeHead(302, {
+      'Location': uiUrl + '/wsfed_response.html?signout=' + encodeURIComponent(wa || '1') });
     res.end();
   } catch (e) {
     log.error('wsfed: ' + (e && e.stack ? e.stack : e));
@@ -571,8 +993,10 @@ app.get('/wsfed', handleWsFedLanding);
 app.get('/wsfedresponse', function (req, res) {
   sweepSamlExchanges();
   var ex = samlExchanges.get(String(req.query.id || ''));
-  if (!ex) return res.status(STATUS_404).json({ error: 'not found or expired' });
-  res.json({ responseXml: ex.responseXml, relayState: ex.relayState });
+  if (!ex) return res.status(STATUS_404).json({
+    error: 'not found or expired' });
+  res.json({
+    responseXml: ex.responseXml, relayState: ex.relayState });
 });
 
 // ---------------------------------------------------------------------------
@@ -601,7 +1025,8 @@ app.get('/wsfedresponse', function (req, res) {
  */
 app.post('/wstrust', function (req, res) {
   log.debug('Entering POST /wstrust.');
-  var b = req.body || {};
+  var b = req.body || {
+    };
   var url = b.url;
   var soap = b.soap;
   var soapVersion = String(b.soapVersion || '1.2');
@@ -609,34 +1034,46 @@ app.post('/wstrust', function (req, res) {
   // Default to validating TLS; only skip it when the caller explicitly opts out.
   var sslValidate = (b.sslValidate === false || b.sslValidate === 'false') ? false : true;
   if (!url || !soap) {
-    return res.status(STATUS_400).json({ error: 'url and soap are required.' });
+    return res.status(STATUS_400).json({
+      error: 'url and soap are required.' });
   }
   if (!/^https?:\/\//i.test(url)) {
-    return res.status(STATUS_400).json({ error: 'url must be an absolute http(s) URL.' });
+    return res.status(STATUS_400).json({
+      error: 'url must be an absolute http(s) URL.' });
   }
   // SOAP 1.2 carries the action inside the content-type; SOAP 1.1 uses a separate
   // SOAPAction header with a text/xml body.
   var headers;
   if (soapVersion === '1.1') {
-    headers = { 'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': '"' + action + '"' };
+    headers = {
+      'Content-Type': 'text/xml; charset=utf-8', 'SOAPAction': '"' + action + '"' };
   } else {
-    headers = { 'Content-Type': 'application/soap+xml; charset=utf-8' + (action ? ('; action="' + action + '"') : '') };
+    headers = {
+      'Content-Type': 'application/soap+xml; charset=utf-8' + (action ? ('; action="' + action + '"') : '') };
   }
   axios.post(url, soap, {
     responseType: 'text',
-    transformResponse: [function (d) { return d; }],
+    timeout: CALL_TIMEOUT,
+    maxContentLength: MAX_CONTENT_LENGTH,
+    maxRedirects: MAX_REDIRECTS,
+    transformResponse: [function (d) {
+      return d; }],
     // The STS may return a SOAP Fault with a 4xx/5xx status; capture the body
     // rather than throwing so the client can display the fault.
-    validateStatus: function () { return true; },
-    httpsAgent: new (require('https').Agent)({ rejectUnauthorized: sslValidate }),
-    headers: headers
+    validateStatus: function () {
+      return true; },
+    httpAgent: outboundHttpAgent(),
+    httpsAgent: outboundHttpsAgent(sslValidate),
+    headers: withUserAgent(headers)
   })
   .then(function (response) {
-    res.status(STATUS_200).json({ status: response.status, body: String(response.data == null ? '' : response.data) });
+    res.status(STATUS_200).json({
+      status: response.status, body: String(response.data == null ? '' : response.data) });
   })
   .catch(function (error) {
     log.error('wstrust proxy error to ' + url + ': ' + (error && error.stack ? error.stack : error));
-    res.status(STATUS_500).json({ error: 'STS call failed: ' + (error && error.message ? error.message : String(error)) });
+    res.status(STATUS_500).json({
+      error: 'STS call failed: ' + (error && error.message ? error.message : String(error)) });
   });
 });
 
@@ -714,9 +1151,13 @@ app.post('/token', (req, res) => {
     axios({
       method: 'post',
       url: tokenEndpoint,
-      headers: headers,
+      headers: withUserAgent(headers),
       data: parameterString,
-      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: sslValidate })
+      timeout: CALL_TIMEOUT,
+      maxContentLength: MAX_CONTENT_LENGTH,
+      maxRedirects: MAX_REDIRECTS,
+      httpAgent: outboundHttpAgent(),
+      httpsAgent: outboundHttpsAgent(sslValidate)
     })
     .then(function (response) {
       log.debug('Response from OAuth2 Token Endpoint: ' + JSON.stringify(response.data));
@@ -736,19 +1177,26 @@ app.post('/token', (req, res) => {
         if(!!error.response.headers) {
           log.error("Error Response headers: " + error.response.headers);
         }
-        if (!!error.response) {
-          res.status(error.response.status);
-          res.json(error.response.data);
-        } else {
-          res.status(500);
-          res.json(error.message);
-        }
+        res.status(error.response.status || STATUS_500);
+        res.json(error.response.data);
+        return;
       }
+      // No response: the call timed out, the connection never opened, the body
+      // passed maxContentLength, the redirect chain was too long, or the URL was
+      // refused (a non-http(s) scheme, a blocked address). This branch MUST answer
+      // — the 500 used to sit INSIDE the `if (error.response)` above, so it could
+      // never run, and every network-level failure left the browser waiting on a
+      // reply that was never sent. Those failures are exactly what the outbound
+      // limits produce, so this is now the common path, not a rare one.
+      res.status(STATUS_500).json({
+        error: 'The outbound call failed: ' +
+               (error && error.message ? error.message : String(error)) });
     });
   } catch (e) {
     log.error('An error occurred: ' + e);
     res.status(STATUS_500);
-    res.json({ "error": e });
+    res.json({
+      "error": e });
   }
 });
 
@@ -794,9 +1242,13 @@ try {
   axios({
       method: 'post',
       url: body.introspectionEndpoint,
-      headers: headers,
+      headers: withUserAgent(headers),
       data: introspectionRequestMessage,
-      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: true })
+      timeout: CALL_TIMEOUT,
+      maxContentLength: MAX_CONTENT_LENGTH,
+      maxRedirects: MAX_REDIRECTS,
+      httpAgent: outboundHttpAgent(),
+      httpsAgent: outboundHttpsAgent(true)
     })
     .then(function (response) {
       log.debug('Response from OAuth2 Introspection Endpoint: ' + JSON.stringify(response.data));
@@ -816,17 +1268,29 @@ try {
         if(!!error.response.headers) {
           log.error("Error Response headers: " + error.response.headers);
         }
-        if (!!error.response) {
-          res.status(error.response.status);
-          res.json(error.response.data);
-        } else {
-          res.status(STATUS_500);
-          res.json(error.message);
-        }
+        res.status(error.response.status || STATUS_500);
+        res.json(error.response.data);
+        return;
       }
+      // No response: the call timed out, the connection never opened, the body
+      // passed maxContentLength, the redirect chain was too long, or the URL was
+      // refused (a non-http(s) scheme, a blocked address). This branch MUST answer
+      // — the 500 used to sit INSIDE the `if (error.response)` above, so it could
+      // never run, and every network-level failure left the browser waiting on a
+      // reply that was never sent. Those failures are exactly what the outbound
+      // limits produce, so this is now the common path, not a rare one.
+      res.status(STATUS_500).json({
+        error: 'The outbound call failed: ' +
+               (error && error.message ? error.message : String(error)) });
     });
   } catch(e) {
-    log.error("Error from OAuth2 Introspection Endpoint: " + error);
+    // `e`, not `error`: this referenced an undefined variable, so an exception
+    // here raised a ReferenceError instead of being logged, and answered nothing.
+    log.error("Error from OAuth2 Introspection Endpoint: " + (e && e.stack ? e.stack : e));
+    if (!res.headersSent) {
+      res.status(STATUS_500).json({
+        error: 'The outbound call could not be made: ' + (e && e.message ? e.message : String(e)) });
+    }
   }
 });
 
@@ -894,9 +1358,13 @@ app.post('/revoke', (req, res) => {
     axios({
       method: 'post',
       url: revocationEndpoint,
-      headers: headers,
+      headers: withUserAgent(headers),
       data: parameterString,
-      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: sslValidate })
+      timeout: CALL_TIMEOUT,
+      maxContentLength: MAX_CONTENT_LENGTH,
+      maxRedirects: MAX_REDIRECTS,
+      httpAgent: outboundHttpAgent(),
+      httpsAgent: outboundHttpsAgent(sslValidate)
     })
     .then(function (response) {
       // RFC 7009: a successful revocation returns HTTP 200 with an empty body.
@@ -922,13 +1390,15 @@ app.post('/revoke', (req, res) => {
         res.json(error.response.data);
       } else {
         res.status(STATUS_500);
-        res.json({ error: error.message });
+        res.json({
+          error: error.message });
       }
     });
   } catch (e) {
     log.error('An error occurred: ' + e);
     res.status(STATUS_500);
-    res.json({ "error": e });
+    res.json({
+      "error": e });
   }
 });
 
@@ -1008,9 +1478,13 @@ app.post('/tokenexchange', (req, res) => {
     axios({
       method: 'post',
       url: tokenEndpoint,
-      headers: headers,
+      headers: withUserAgent(headers),
       data: parameterString,
-      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: sslValidate })
+      timeout: CALL_TIMEOUT,
+      maxContentLength: MAX_CONTENT_LENGTH,
+      maxRedirects: MAX_REDIRECTS,
+      httpAgent: outboundHttpAgent(),
+      httpsAgent: outboundHttpsAgent(sslValidate)
     })
     .then(function (response) {
       log.debug('Response from OAuth2 Token Endpoint (token exchange): ' + JSON.stringify(response.data));
@@ -1030,13 +1504,15 @@ app.post('/tokenexchange', (req, res) => {
         res.json(error.response.data);
       } else {
         res.status(STATUS_500);
-        res.json({ error: error.message });
+        res.json({
+          error: error.message });
       }
     });
   } catch (e) {
     log.error('An error occurred: ' + e);
     res.status(STATUS_500);
-    res.json({ "error": e });
+    res.json({
+      "error": e });
   }
 });
 
@@ -1100,9 +1576,13 @@ app.post('/deviceauthorization', (req, res) => {
     axios({
       method: 'post',
       url: deviceAuthorizationEndpoint,
-      headers: headers,
+      headers: withUserAgent(headers),
       data: parameterString,
-      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: sslValidate })
+      timeout: CALL_TIMEOUT,
+      maxContentLength: MAX_CONTENT_LENGTH,
+      maxRedirects: MAX_REDIRECTS,
+      httpAgent: outboundHttpAgent(),
+      httpsAgent: outboundHttpsAgent(sslValidate)
     })
     .then(function (response) {
       log.debug('Response from OAuth2 Device Authorization Endpoint: ' + JSON.stringify(response.data));
@@ -1122,13 +1602,16 @@ app.post('/deviceauthorization', (req, res) => {
         res.json(error.response.data);
       } else {
         res.status(STATUS_500);
-        res.json({ error: error.message });
+        res.json({
+          error: error.message });
       }
     });
   } catch (e) {
     log.error('An error occurred: ' + e);
     res.status(STATUS_500);
-    res.json({ "error": e });
+    res.json({
+      "error": e
+    });
   }
 });
 
@@ -1184,16 +1667,20 @@ app.post('/register', (req, res) => {
     axios({
       method: method,
       url: url,
-      headers: headers,
+      headers: withUserAgent(headers),
       data: payload,
-      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: sslValidate })
+      timeout: CALL_TIMEOUT,
+      maxContentLength: MAX_CONTENT_LENGTH,
+      maxRedirects: MAX_REDIRECTS,
+      httpAgent: outboundHttpAgent(),
+      httpsAgent: outboundHttpsAgent(sslValidate)
     })
     .then(function (response) {
       log.debug('Response from Dynamic Client Registration endpoint: ' + JSON.stringify(response.data));
       // A successful DELETE (RFC 7592 Section 2.3) returns HTTP 204 with no body.
       // Normalize that to 200 with a JSON summary so the browser reliably
       // receives a body (a body sent with 204 is dropped by HTTP clients).
-      if (response.status === 204 || !response.data) {
+      if (response.status === STATUS_204 || !response.data) {
         res.status(STATUS_200).json({
           message: 'Client registration request succeeded.',
           status: response.status,
@@ -1216,13 +1703,16 @@ app.post('/register', (req, res) => {
         res.json(error.response.data);
       } else {
         res.status(STATUS_500);
-        res.json({ error: error.message });
+        res.json({
+          error: error.message
+        });
       }
     });
   } catch (e) {
     log.error('An error occurred: ' + e);
     res.status(STATUS_500);
-    res.json({ "error": e });
+    res.json({
+      "error": e });
   }
 });
 
@@ -1260,8 +1750,12 @@ try {
   axios({
       method: 'get',
       url: Buffer.from(req.query.userinfo_endpoint, 'base64').toString('utf-8'),
-      headers: headers,
-      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: true })
+      headers: withUserAgent(headers),
+      timeout: CALL_TIMEOUT,
+      maxContentLength: MAX_CONTENT_LENGTH,
+      maxRedirects: MAX_REDIRECTS,
+      httpAgent: outboundHttpAgent(),
+      httpsAgent: outboundHttpsAgent(true)
     })
     .then(function (response) {
       log.debug('Response from OIDC UserInfo Endpoint: ' + JSON.stringify(response.data));
@@ -1281,17 +1775,29 @@ try {
         if(!!error.response.headers) {
           log.error("Error Response headers: " + error.response.headers);
         }
-        if (!!error.response) {
-          res.status(error.response.status);
-          res.json(error.response.data);
-        } else {
-          res.status(STATUS_500);
-          res.json(error.message);
-        }
+        res.status(error.response.status || STATUS_500);
+        res.json(error.response.data);
+        return;
       }
+      // No response: the call timed out, the connection never opened, the body
+      // passed maxContentLength, the redirect chain was too long, or the URL was
+      // refused (a non-http(s) scheme, a blocked address). This branch MUST answer
+      // — the 500 used to sit INSIDE the `if (error.response)` above, so it could
+      // never run, and every network-level failure left the browser waiting on a
+      // reply that was never sent. Those failures are exactly what the outbound
+      // limits produce, so this is now the common path, not a rare one.
+      res.status(STATUS_500).json({
+        error: 'The outbound call failed: ' +
+               (error && error.message ? error.message : String(error)) });
     });
   } catch(e) {
-    log.error("Error from OIDC UserInfo Endpoint: " + error);
+    // `e`, not `error`: this referenced an undefined variable, so an exception
+    // here raised a ReferenceError instead of being logged, and answered nothing.
+    log.error("Error from OIDC UserInfo Endpoint: " + (e && e.stack ? e.stack : e));
+    if (!res.headersSent) {
+      res.status(STATUS_500).json({
+        error: 'The outbound call could not be made: ' + (e && e.message ? e.message : String(e)) });
+    }
   }
 }
 

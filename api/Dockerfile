@@ -59,6 +59,21 @@ COPY api/. .
 COPY api/env/ /usr/src/app/env/
 COPY common/data.js .
 
+# Application version: the repo-root VERSION file (M.N) plus the shared stamping
+# module, which is the client's — there is one implementation of the scheme and
+# both services read it, rather than a second copy that could drift. Without the
+# VERSION file the module falls back to 0.0, so this COPY is load-bearing.
+COPY VERSION /usr/src/app/VERSION
+COPY client/version.js /usr/src/app/version.js
+
+# Fix this image's build number (M.N.O) and ship it in version.json, so the
+# User-Agent this service sends names the build it came from and does not change
+# when the container restarts. Supplied by CI as --build-arg BUILD_NUMBER=...
+ARG BUILD_NUMBER
+ARG GIT_COMMIT
+RUN BUILD_NUMBER="${BUILD_NUMBER}" GIT_COMMIT="${GIT_COMMIT}" node version.js --stamp . && \
+    cat version.json
+
 # ---- Code coverage (opt-in) ----
 # When built with --build-arg COVERAGE=true, install c8 so the coverage compose
 # override can launch the server under it. No-op for the default build.

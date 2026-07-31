@@ -22,4 +22,12 @@ sp-cert.pem
 waltid/generated-config/
 waltid/generated-verifier-config/
 
+# Build-time version stamps (client/version.js --stamp) and the copies of the
+# shared version module the images make. They belong to one build and are written
+# INSIDE the image by api/Dockerfile and client/Dockerfile — a committed one would
+# make every later build report a version it is not.
+api/version.json
+api/version.js
+client/public/version.json
+
 *.swp
