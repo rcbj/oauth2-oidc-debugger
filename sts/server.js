@@ -530,13 +530,24 @@ app.use(function (req, res, next) {
 //                       a style.
 //   img-src data:       the two QR pages embed the code as a data: URI produced
 //                       by the qrcode library server-side.
-//   form-action 'self'  the only form posts to /oauth2/login.
+//
+// NOT present, and it must not be added back: **form-action**. It looks obviously
+// right here — the only form posts to /oauth2/login, which is same-origin — but
+// Chrome enforces form-action against the whole REDIRECT CHAIN that follows a
+// submission, not just its immediate target. This is an authorization server:
+// signing in POSTs the login form and the response is a 302 to the client's
+// redirect_uri, which is by definition another origin. `form-action 'self'`
+// therefore blocks the browser from ever reaching the client, and the symptom is
+// remote from the cause — the sign-in appears to succeed and the wallet simply
+// never comes back. It cost a full SD-JWT VC issuance run to find, and
+// tests/sd_jwt_vc_issuance.js is what catches it (H.1 signs in here).
+// Enumerating allowed redirect origins is not a fix either: this mock accepts
+// arbitrary redirect_uris on purpose.
 const CONTENT_SECURITY_POLICY = [
   "default-src 'none'",
   "script-src 'none'",
   "style-src 'unsafe-inline'",
   "img-src 'self' data:",
-  "form-action 'self'",
   "base-uri 'none'",
   "frame-ancestors 'none'"
 ].join('; ');

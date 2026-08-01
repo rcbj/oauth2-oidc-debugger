@@ -224,6 +224,19 @@ function vcSetAllPanes(expand) {
             <span class="vc-note" id="vc_refresh_key_note">&nbsp;</span>
           </td>
         </tr>
+        <tr id="vc_holder_key_row" style="display: none;">
+          <td>
+            <div class="tooltip"><label for="vc_holder_private_jwk">Holder private key</label>
+              <span class="tooltiptext">The private half of the key this credential is bound to. It is not in this browser's storage — either it was issued elsewhere, or "Save this holder key pair in browser localStorage" is turned off on step 2 — so paste it here to reuse that key. The file from Download Key Pair works as-is, and so does a bare private JWK.</span>
+            </div>
+          </td>
+          <td>
+            <textarea class="vc-token" rows="4" id="vc_holder_private_jwk"
+                      placeholder='Paste the holder key pair file, or a private JWK: {"kty":"EC","crv":"P-256","d":"…","x":"…","y":"…"}'
+                      oninput="return sdjwtvc4.onHolderKeyPasted();"></textarea>
+            <span class="vc-note" id="vc_holder_key_note">&nbsp;</span>
+          </td>
+        </tr>
         <tr>
           <td><div class="tooltip"><label>c_nonce</label><span class="tooltiptext">A fresh nonce from the issuer's Nonce Endpoint. The one step 2 used was spent on the original issuance — a c_nonce is single use.</span></div></td>
           <td><code id="vc_reissue_nonce">&mdash;</code></td>

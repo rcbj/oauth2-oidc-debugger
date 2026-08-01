@@ -393,7 +393,23 @@ window.onload = function () {
     var dk = el('wsfed_dec_key');
     var sk = window.localStorage && localStorage.getItem('wsfedtools_wsfed_rp_private_key');
     if (dk && !dk.value && sk) dk.value = sk;
-  } catch (e) { /* ignore */ }
+    // The tools page can be told not to keep the key pair in localStorage, in
+    // which case there is nothing to prefill from and the standing "Prefilled
+    // from…" wording would be a promise this page did not keep. Say what is
+    // actually true, so an empty field reads as expected rather than broken.
+    // This page never WRITES the key: whatever is pasted here stays in the field.
+    var note = el('wsfed_dec_key_note');
+    if (note && dk && !dk.value) {
+      note.textContent = 'If the IdP encrypted the token to the RP, decrypt it in the browser with the ' +
+        'RP private key. Nothing was prefilled — either no key pair has been generated yet, or ' +
+        '"Save this key pair in browser localStorage" is turned off on the WS-Federation Test Tools ' +
+        'page. Paste the private key below. The data/key-transport algorithms are read from the ' +
+        "token's EncryptionMethod.";
+    }
+  } catch (e) {
+    // No storage, or nothing stashed by the tools page: the field is simply left
+    // for the user to paste into.
+  }
 
   var signout = qp('signout');
   if (signout) {

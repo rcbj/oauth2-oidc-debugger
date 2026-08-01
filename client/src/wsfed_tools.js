@@ -43,14 +43,81 @@ function firstText(root, localName) { var e = tags(root, localName)[0]; return e
 // localStorage persistence — every .stored element is saved by its id.
 // ---------------------------------------------------------------------------
 function persistedEls() { return document.querySelectorAll('.stored'); }
+
+// The relying-party key pair, and whether it may be written to localStorage.
+//
+// The same exception, and the same opt-out, as the SP key pair on
+// saml_request.html and the requestor pair on wstrust_tools.html — see the note
+// in saml_request.js. Everything else this page persists is configuration; this
+// is key material, and the debugger's standing rule is that credentials stay out
+// of localStorage. It is kept anyway by default because the workflow spans
+// screens: wsfed_response.html needs this private key to decrypt an
+// EncryptedAssertion, and the Passive Requestor Profile means the round trip
+// leaves this page entirely.
+//
+// Clearing the box stops the two fields being written AND removes what was
+// written before. wsfed_signer_cert is deliberately NOT in this list: it is the
+// IdP's signing certificate, someone else's public credential, not part of this
+// key pair — the counterpart of wst_enc_cert on the WS-Trust page.
+var KEYPAIR_FIELDS = ['wsfed_rp_private_key', 'wsfed_rp_cert'];
+
+function keyPairMayBeStored() {
+  var e = el('wsfed_save_keypair');
+  // Absent checkbox (an older cached copy of the page) keeps the previous
+  // behaviour rather than silently dropping a key pair the user expects to
+  // still be there after a reload.
+  return !e || e.checked;
+}
+
+function forgetStoredKeyPair() {
+  log.debug("Entering forgetStoredKeyPair().");
+  if (!window.localStorage) return;
+  for (var i = 0; i < KEYPAIR_FIELDS.length; i++) {
+    localStorage.removeItem(STORE_PREFIX + KEYPAIR_FIELDS[i]);
+  }
+  log.debug("Leaving forgetStoredKeyPair().");
+}
+
+// Say what clearing the box costs, at the moment it is cleared: the consequence
+// lands on the response page after an IdP round trip, which is a long way from
+// here to discover it.
+function renderKeyPairStorageNote() {
+  var note = el('wsfed_keypair_storage_note');
+  if (!note) return;
+  if (keyPairMayBeStored()) {
+    note.textContent = '';
+    return;
+  }
+  // textContent, not innerHTML: this is a message, not markup.
+  note.textContent = 'Not saved. Use Download to keep this key pair. After a reload you will need ' +
+    'to paste it back into these two fields, and paste the private key into the Decryption Key ' +
+    'field on the WS-Federation Response page before an encrypted token can be decrypted.';
+}
+
+function onSaveKeyPairChange() {
+  log.debug("Entering onSaveKeyPairChange(). save=" + keyPairMayBeStored());
+  // saveState() records the preference itself and, when the box is now clear,
+  // removes the key pair it had previously written.
+  saveState();
+  renderKeyPairStorageNote();
+  log.debug("Leaving onSaveKeyPairChange().");
+  return false;
+}
+
 function saveState() {
   if (!window.localStorage) return;
+  var storeKeyPair = keyPairMayBeStored();
   var els = persistedEls();
   for (var i = 0; i < els.length; i++) {
     if (!els[i].id) continue;
+    if (!storeKeyPair && KEYPAIR_FIELDS.indexOf(els[i].id) >= 0) continue;
     var v = els[i].type === 'checkbox' ? (els[i].checked ? '1' : '0') : els[i].value;
     localStorage.setItem(STORE_PREFIX + els[i].id, v);
   }
+  // Not merely "skip writing": remove what an earlier save (or an earlier
+  // session, before the box was cleared) already put there. saveState() runs on
+  // most interactions, so no code path can leave the key pair behind.
+  if (!storeKeyPair) forgetStoredKeyPair();
 }
 function restoreState() {
   if (!window.localStorage) return;
@@ -378,6 +445,11 @@ window.onload = function () {
   log.debug('Entering onload().');
   restoreState();
   setReturnLink();
+  // Reflect the restored preference: if saving was turned off in an earlier
+  // session, the note belongs back on the page, and a key pair written before
+  // that has to go.
+  if (!keyPairMayBeStored()) forgetStoredKeyPair();
+  renderKeyPairStorageNote();
 
   var f = el('wsfed_metadata_file');
   if (f) f.addEventListener('change', onMetadataFile);
@@ -433,6 +505,7 @@ module.exports = {
   signOut,
   viewCertificate,
   copyField,
+  onSaveKeyPairChange,
   showTab,
   togglePane
 };

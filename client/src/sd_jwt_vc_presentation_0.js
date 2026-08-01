@@ -109,12 +109,20 @@ function renderCredentialState() {
   }
   var payload = parsed.payload || {};
   var hasKey = !!sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_PRIVATE_JWK);
-  host.className = "vc-note vc-status " + (hasKey ? "vc-ok" : "vc-bad");
+  // Absent-by-choice is not the same as absent-and-lost: the holder key pair can
+  // be deliberately kept out of localStorage (issuance step 2), in which case it
+  // is pasted in on step 2 of this workflow and the credential is perfectly
+  // presentable. Saying "cannot be presented" for that case would be wrong.
+  var optedOut = !hasKey && !sdJwtVc.holderPrivateKeyMayBeStored();
+  host.className = "vc-note vc-status " + (hasKey ? "vc-ok" : (optedOut ? "vc-pending" : "vc-bad"));
   host.textContent = "Holding a " + (payload.vct || "credential") + " with " +
     parsed.disclosures.length + " selectively-disclosable claim(s)" +
     (hasKey
       ? ", and the holder key it is bound to — so it can be presented."
-      : ", but NOT the private half of the key it is bound to, so no Key Binding JWT can be signed for it.");
+      : optedOut
+        ? ". The holder key is not kept in this browser, by the choice made on issuance step 2 — you " +
+          "will be asked to paste it when the presentation is assembled."
+        : ", but NOT the private half of the key it is bound to, so no Key Binding JWT can be signed for it.");
   log.debug("Leaving renderCredentialState(). held=true, key=" + hasKey);
   return hasKey;
 }

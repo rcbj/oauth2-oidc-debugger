@@ -117,6 +117,17 @@ function vpSetAllPanes(expand) {
     </p>
     <table class="vc-token-table">
       <tbody>
+        <tr id="vp_holder_key_row" style="display: none;">
+          <td>
+            <div class="tooltip"><label>Holder private key</label><span class="tooltiptext">The private half of the key the credential is bound to (its cnf claim). Needed to sign the Key Binding JWT. It is not in this browser's storage — either it was never generated here, or "Save this holder key pair in browser localStorage" is turned off on issuance step 2 — so paste it here. The file from Download Key Pair works as-is, and so does a bare private JWK.</span></div>
+          </td>
+          <td>
+            <textarea class="vc-token" rows="4" id="vp_holder_private_jwk"
+                      placeholder='Paste the holder key pair file, or a private JWK: {"kty":"EC","crv":"P-256","d":"…","x":"…","y":"…"}'
+                      oninput="return sdjwtvp2.onHolderKeyPasted();"></textarea>
+            <span class="vc-note" id="vp_holder_key_note">&nbsp;</span>
+          </td>
+        </tr>
         <tr>
           <td><div class="tooltip"><label>sd_hash</label><span class="tooltiptext">base64url of the hash of the issuer-signed JWT and the selected Disclosures, each followed by a tilde. Recomputed here; the verifier recomputes it too, and a mismatch means the presentation was altered after it was signed.</span></div></td>
           <td><code id="vp_sd_hash">&mdash;</code></td>

@@ -73,14 +73,59 @@ function genId() {
 // localStorage persistence — every .stored element is saved by its id.
 // ---------------------------------------------------------------------------
 function persistedEls() { return document.querySelectorAll('.stored'); }
+
+// The SP signing key pair, and whether it may be written to localStorage.
+//
+// Everything else this page persists is configuration. This is key material,
+// and the debugger's standing rule is that credentials do not go to
+// localStorage — the password fields on the OAuth2 pages are deliberately
+// excluded for exactly that reason. This pane is where the rule got bent, and
+// for a real reason: the workflow spans screens, the SAML Response page needs
+// this private key to decrypt an EncryptedAssertion, and re-pasting a PEM at
+// every hop is the sort of friction people work around by keeping the key
+// somewhere worse.
+//
+// So saving stays the default, but it is now a choice. With the box cleared the
+// two fields are never written, AND anything already written is removed on the
+// spot — an opt-out that leaves yesterday's private key sitting in storage is
+// not an opt-out. The user then carries the pair themselves (the Download
+// button beside the fields) and pastes it back here, and pastes the private key
+// into the Decryption Key field on the response page, which is already written
+// to cope with an empty prefill.
+var KEYPAIR_FIELDS = ['saml_sp_private_key', 'saml_sp_public_key'];
+
+function keyPairMayBeStored() {
+  var e = el('saml_save_keypair');
+  // Absent checkbox (an older cached copy of the page) keeps the previous
+  // behaviour rather than silently dropping a key pair the user expects to
+  // still be there after a reload.
+  return !e || e.checked;
+}
+
+function forgetStoredKeyPair() {
+  log.debug("Entering forgetStoredKeyPair().");
+  if (!window.localStorage) return;
+  for (var i = 0; i < KEYPAIR_FIELDS.length; i++) {
+    localStorage.removeItem(STORE_PREFIX + KEYPAIR_FIELDS[i]);
+  }
+  log.debug("Leaving forgetStoredKeyPair().");
+}
+
 function saveState() {
   if (!window.localStorage) return;
+  var storeKeyPair = keyPairMayBeStored();
   var els = persistedEls();
   for (var i = 0; i < els.length; i++) {
     if (!els[i].id) continue;
+    if (!storeKeyPair && KEYPAIR_FIELDS.indexOf(els[i].id) >= 0) continue;
     var v = els[i].type === 'checkbox' ? (els[i].checked ? '1' : '0') : els[i].value;
     localStorage.setItem(STORE_PREFIX + els[i].id, v);
   }
+  // Not merely "skip writing": remove what an earlier save (or an earlier
+  // session, before the box was cleared) already put there. saveState() runs on
+  // most interactions, so doing it here means no code path can leave the key
+  // pair behind.
+  if (!storeKeyPair) forgetStoredKeyPair();
 }
 function restoreState() {
   log.debug("Entering restoreState().");
@@ -364,6 +409,32 @@ function onSignChange() {
   var e = el('saml_sign_request');
   show('saml_signing_section', !e || e.checked);
   saveState();
+  return false;
+}
+
+// Say what clearing the box actually costs, at the moment it is cleared. The
+// consequence lands on a different page (the response page's prefill goes away)
+// and after a reload, so it is not something to leave the user to discover.
+function renderKeyPairStorageNote() {
+  var note = el('saml_keypair_storage_note');
+  if (!note) return;
+  if (keyPairMayBeStored()) {
+    note.textContent = '';
+    return;
+  }
+  // textContent, not innerHTML: this is a message, not markup.
+  note.textContent = 'Not saved. Use Download to keep this key pair. After a reload you will need ' +
+    'to paste it back into these two fields, and paste the private key into the Decryption Key ' +
+    'field on the SAML Response page before an EncryptedAssertion can be decrypted.';
+}
+
+function onSaveKeyPairChange() {
+  log.debug("Entering onSaveKeyPairChange(). save=" + keyPairMayBeStored());
+  // saveState() records the preference itself and, when the box is now clear,
+  // removes the key pair it had previously written.
+  saveState();
+  renderKeyPairStorageNote();
+  log.debug("Leaving onSaveKeyPairChange().");
   return false;
 }
 
@@ -1547,6 +1618,12 @@ window.onload = function () {
   log.debug('Entering onload().');
   restoreState();
   setReturnLink();
+  // Reflect the restored preference: if the user turned saving off in an earlier
+  // session, the note has to be back on the page, and any key pair written
+  // before that has to be gone (restoreState leaves the fields empty, but the
+  // storage entries would otherwise survive an upgrade to this build).
+  if (!keyPairMayBeStored()) forgetStoredKeyPair();
+  renderKeyPairStorageNote();
 
   // Seed defaults where the user hasn't stored anything yet.
   if (!val('saml_metadata_url') && appconfig.samlMetadataUrlDefault) setVal('saml_metadata_url', appconfig.samlMetadataUrlDefault);
@@ -1619,6 +1696,7 @@ module.exports = {
   onNameIdFormatChange,
   onVersionChange,
   onSignChange,
+  onSaveKeyPairChange,
   onEncryptChange,
   onWsaChange,
   validateHint,

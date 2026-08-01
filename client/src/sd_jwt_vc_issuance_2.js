@@ -95,6 +95,87 @@ function loadOrGenerateHolderKey() {
   return generateHolderKey();
 }
 
+// ---------------------------------------------------------------------------
+// Keeping — or not keeping — the holder key pair.
+//
+// The private half has to outlive this page for the workflow to continue: step 4
+// needs it to refresh the credential, and the PRESENTATION pages need it to sign
+// the Key Binding JWT. That is why it is stored by default, and why turning
+// storage off is a real decision rather than a tidy-up. sd_jwt_vc.js enforces the
+// choice for every writer (see holderPrivateKeyMayBeStored there); this page is
+// where the choice is made and explained.
+// ---------------------------------------------------------------------------
+function triggerDownload(filename, data, mime) {
+  var blob = new Blob([data], { type: mime || 'application/octet-stream' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+}
+
+// Both halves, because the point of the file is to be able to put the pair back.
+// It is offered whether or not storage is on: with storage off it is the only
+// copy there will be, and with storage on it is still the only way to move the
+// key to another browser.
+function downloadHolderKey() {
+  log.debug("Entering downloadHolderKey().");
+  var pub = request.holderPublicJwk || sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_JWK);
+  var priv = request.holderPrivateJwk || sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_PRIVATE_JWK);
+  if (!pub && !priv) {
+    status("vc_approval_status", "There is no holder key pair to download yet.", "vc-bad");
+    log.debug("Leaving downloadHolderKey(). Nothing to download.");
+    return false;
+  }
+  triggerDownload("holder-key-pair.json",
+    JSON.stringify({ publicJwk: pub || null, privateJwk: priv || null }, null, 2),
+    "application/json");
+  log.debug("Leaving downloadHolderKey().");
+  return false;
+}
+
+// Say what turning it off costs, where and when it is turned off. The
+// consequences land on other pages (step 4, and the whole presentation
+// workflow), so leaving the user to discover them is not good enough.
+function renderHolderKeyStorageNote() {
+  var note = document.getElementById("vc_holder_key_storage_note");
+  if (!note) return;
+  if (sdJwtVc.holderPrivateKeyMayBeStored()) {
+    note.textContent = "Kept in this browser so step 4 and the presentation pages can use it.";
+    return;
+  }
+  // textContent, not innerHTML: a message, not markup.
+  note.textContent = "Not saved. Download the key pair now — without the private half in storage, " +
+    "step 4 cannot refresh this credential and the presentation pages cannot sign a Key Binding " +
+    "JWT, and any earlier generation in Credential History has lost its key too.";
+}
+
+function onSaveHolderKeyChange() {
+  log.debug("Entering onSaveHolderKeyChange().");
+  var box = document.getElementById("vc_save_holder_key");
+  var on = !box || box.checked;
+  // Turning it off purges every stored copy, including the per-generation ones
+  // in Credential History — that is the whole point, and it cannot be undone by
+  // ticking the box again, which is what the note has to convey BEFORE the fact
+  // and the status line reports after it.
+  var stripped = sdJwtVc.setHolderKeySaving(on);
+  renderHolderKeyStorageNote();
+  if (!on) {
+    status("vc_approval_status",
+      "Holder key saving is off. The stored private key was removed" +
+      (stripped ? ", along with the key on " + stripped + " credential history generation(s)" : "") +
+      ". Use Download Key Pair to keep a copy.", "vc-bad");
+  } else {
+    // Re-enabling stores the pair the page is holding right now, if it has one;
+    // it cannot bring back what the purge removed.
+    if (request.holderPublicJwk) sdJwtVc.setJson(sdJwtVc.KEYS.HOLDER_JWK, request.holderPublicJwk);
+    if (request.holderPrivateJwk) sdJwtVc.setJson(sdJwtVc.KEYS.HOLDER_PRIVATE_JWK, request.holderPrivateJwk);
+    status("vc_approval_status", "Holder key saving is back on for the key pair on this page.", "vc-ok");
+  }
+  log.debug("Leaving onSaveHolderKeyChange(). on=" + on + ", stripped=" + stripped);
+  return false;
+}
+
 function regenerateHolderKey() {
   log.debug("Entering regenerateHolderKey().");
   generateHolderKey().then(function (pub) {
@@ -964,6 +1045,14 @@ function onload() {
   var zero = document.getElementById("vc_step_0");
   if (zero) zero.className = "vc-step-done";
 
+  // Reflect the stored preference on the checkbox, and re-apply it: if saving
+  // was turned off in an earlier session, anything written since (by an older
+  // build, or by a page that ran before this one) has to go.
+  var saveBox = document.getElementById("vc_save_holder_key");
+  if (saveBox) saveBox.checked = sdJwtVc.holderPrivateKeyMayBeStored();
+  if (!sdJwtVc.holderPrivateKeyMayBeStored()) sdJwtVc.forgetStoredHolderPrivateKeys();
+  renderHolderKeyStorageNote();
+
   var claims = showTokens();
   showRequestConfig(claims);
   // A pre-authorized offer has no OIDC leg behind it: the token request is
@@ -1008,6 +1097,8 @@ module.exports = {
   renderAssembledCall: renderAssembledCall,
   denyIssuance: denyIssuance,
   regenerateHolderKey: regenerateHolderKey,
+  downloadHolderKey: downloadHolderKey,
+  onSaveHolderKeyChange: onSaveHolderKeyChange,
   togglePane: togglePane,
   extractCredential: extractCredential,
   allCredentials: allCredentials,

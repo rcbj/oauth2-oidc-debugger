@@ -253,6 +253,11 @@ http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname</textarea>
             <label class="saml-has-copy" title="Client signing certificate (self-signed X.509 PEM). Carried in the signature KeyInfo.">Certificate <button type="button" class="saml-copy" onclick="return wstrust_tools.copyField('wst_sp_cert');">Copy</button></label>
             <textarea class="stored" rows="4" id="wst_sp_cert" name="wst_sp_cert"></textarea>
           </div>
+          <div class="saml-field saml-check">
+            <input class="stored" type="checkbox" id="wst_save_keypair" name="wst_save_keypair" checked="checked" onchange="return wstrust_tools.onSaveKeyPairChange();" />
+            <label for="wst_save_keypair" title="Keep this key pair in this browser's localStorage so it survives a reload and is picked up automatically by the WS-Trust Response page (which needs the private key to decrypt an encrypted token). Turn it off to keep the private key out of storage — you then have to carry the key pair yourself with Download, and paste it back into this pane and into the Decryption Key field on the response page.">Save this key pair in browser localStorage</label>
+          </div>
+          <div class="saml-note" id="wst_keypair_storage_note"></div>
           <div class="saml-row">
             <a href="/saml_cert.html?from=wstrust_tools.html" onclick="return wstrust_tools.viewCertificate('wst_sp_cert');" title="Show full details of the signing certificate.">View certificate details &rarr;</a>
           </div>

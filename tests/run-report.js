@@ -317,6 +317,18 @@ function buildJobs() {
     env: {},
   });
 
+  // The "save this key pair in browser localStorage" opt-out on the SAML and
+  // WS-Trust request pages, exercised in BOTH states. Worth a browser test
+  // because the failure mode is silent and reassuring: if the guard in
+  // saveState() broke, the box would still untick and the note would still
+  // appear while the private key went on being written. Only reading storage
+  // shows it. Needs the client alone — no IdP, no STS — so it is never skipped.
+  jobs.push({
+    name: "Key pair localStorage opt-out (SAML, WS-Trust, WS-Fed, SD-JWT VC — checked and unchecked)",
+    script: "keypair_storage_optout.js",
+    env: {},
+  });
+
   // The inertness of this app's XML parsing — the invariant behind CodeQL's
   // js/xss-through-dom reports on every DOMParser call in client/src (alert #147
   // and eleven siblings). Those are a modelling artefact: parseFromString with

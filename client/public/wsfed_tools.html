@@ -183,6 +183,11 @@ function wsfedSetAllPanes(expand) {
           <label class="saml-has-copy" title="RP certificate (self-signed X.509 PEM) to register at the IdP for token encryption.">Certificate <button type="button" class="saml-copy" onclick="return wsfed_tools.copyField('wsfed_rp_cert');">Copy</button></label>
           <textarea class="stored" rows="4" id="wsfed_rp_cert" name="wsfed_rp_cert"></textarea>
         </div>
+        <div class="saml-field saml-check">
+          <input class="stored" type="checkbox" id="wsfed_save_keypair" name="wsfed_save_keypair" checked="checked" onchange="return wsfed_tools.onSaveKeyPairChange();" />
+          <label for="wsfed_save_keypair" title="Keep this key pair in this browser's localStorage so it survives a reload and is picked up automatically by the WS-Federation Response page (which needs the private key to decrypt an encrypted token). Turn it off to keep the private key out of storage — you then have to carry the key pair yourself with Download, and paste it back into this pane and into the Decryption Key field on the response page.">Save this key pair in browser localStorage</label>
+        </div>
+        <div class="saml-note" id="wsfed_keypair_storage_note"></div>
         <div class="saml-row">
           <a href="/saml_cert.html?from=wsfed_tools.html" onclick="return wsfed_tools.viewCertificate('wsfed_rp_cert');" title="Show full details of the RP certificate.">View certificate details &rarr;</a>
         </div>

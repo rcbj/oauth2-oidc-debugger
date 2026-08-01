@@ -166,7 +166,11 @@ function renderDisclosureTable() {
 function buildPresentation() {
   log.debug("Entering buildPresentation().");
   var params = (state.request && state.request.params) || {};
-  var priv = sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_PRIVATE_JWK);
+  // Storage first; falling back to the field the user pasted the downloaded key
+  // into when holder-key saving is turned off on issuance step 2.
+  var holderKey = sdJwtVc.readHolderPrivateJwk("vp_holder_private_jwk");
+  var priv = holderKey.jwk;
+  renderHolderKeyRow(holderKey);
   if (!state.parsed || !params.client_id || !params.nonce) {
     setValue("vp_presentation", "");
     setValue("vp_kb_jwt", "");
@@ -182,8 +186,11 @@ function buildPresentation() {
   var keyBinding = sdJwtVp.requiresKeyBinding(state.credentialQuery);
   if (keyBinding && !priv) {
     status("vp_present_status",
-      "This verifier requires a holder proof, but the private half of the holder key is not in this browser, " +
-      "so no Key Binding JWT can be signed.", "vc-bad");
+      "This verifier requires a holder proof, but the private half of the holder key is not available, " +
+      "so no Key Binding JWT can be signed." +
+      (holderKey.problem ? " " + holderKey.problem.charAt(0).toUpperCase() + holderKey.problem.slice(1) + "."
+                         : " Paste it into the Holder private key field above, or turn saving back on " +
+                           "for a future credential on issuance step 2."), "vc-bad");
     log.debug("Leaving buildPresentation(). No holder key.");
     return Promise.resolve(false);
   }
@@ -424,6 +431,35 @@ function togglePane(id) {
   return false;
 }
 
+// The paste-in row only appears when there is nothing in storage to sign with:
+// with saving on it would be a field asking for something the page already has.
+function renderHolderKeyRow(holderKey) {
+  var row = document.getElementById("vp_holder_key_row");
+  var note = document.getElementById("vp_holder_key_note");
+  if (!row) return;
+  var needed = (holderKey.source !== "storage");
+  row.style.display = needed ? "" : "none";
+  if (!note) return;
+  if (!needed) {
+    note.textContent = "";
+  } else if (holderKey.problem) {
+    note.textContent = holderKey.problem;
+  } else if (holderKey.jwk) {
+    note.textContent = "Using the key pasted here. It is not stored.";
+  } else {
+    note.textContent = "Not in this browser's storage — paste the key pair you downloaded on issuance step 2.";
+  }
+}
+
+// Rebuild as the key is typed/pasted, so the presentation appears the moment a
+// usable key is present rather than after some other interaction.
+function onHolderKeyPasted() {
+  log.debug("Entering onHolderKeyPasted().");
+  buildPresentation();
+  log.debug("Leaving onHolderKeyPasted().");
+  return false;
+}
+
 function onload() {
   log.debug("Entering onload().");
   sdJwtVp.renderUseCaseBadge();
@@ -435,6 +471,11 @@ function onload() {
   });
 
   loadState();
+  // Show the paste-in row from the start when there is no stored private half:
+  // buildPresentation() also renders it, but it returns early when there is not
+  // enough state yet, which is exactly the case where the user most needs to be
+  // told the key is missing and given somewhere to put it.
+  renderHolderKeyRow(sdJwtVc.readHolderPrivateJwk("vp_holder_private_jwk"));
   var params = (state.request && state.request.params) || {};
   setText("vp_verifier", params.client_id || "—");
   setText("vp_nonce", params.nonce || "—");
@@ -470,6 +511,7 @@ if (typeof window !== "undefined") {
 }
 
 module.exports = {
+  onHolderKeyPasted: onHolderKeyPasted,
   onSelectionChange: onSelectionChange,
   selectRequestedOnly: selectRequestedOnly,
   selectAll: selectAll,

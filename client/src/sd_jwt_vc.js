@@ -85,8 +85,21 @@ var KEYS = {
   HISTORY: "sdjwtvc_credential_history",
   HISTORY_INDEX: "sdjwtvc_credential_history_index",
   // How many held generations the list has had to forget, so it can say so.
-  HISTORY_DROPPED: "sdjwtvc_credential_history_dropped"
+  HISTORY_DROPPED: "sdjwtvc_credential_history_dropped",
+  // Whether the holder key pair's PRIVATE half may be written to localStorage
+  // at all. "0" means no; anything else (including absent) means yes, which is
+  // the default. See holderPrivateKeyMayBeStored() below.
+  SAVE_HOLDER_KEY: "sdjwtvc_save_holder_key"
 };
+
+// The keys that hold private key material. Every one of these is the private
+// half of a holder key pair, and every one of them is refused when the user has
+// opted out of storing it.
+var HOLDER_PRIVATE_KEYS = [
+  "sdjwtvc_holder_private_jwk",
+  "sdjwtvc_refreshed_holder_private_jwk",
+  "sdjwtvc_previous_holder_private_jwk"
+];
 
 // ---------------------------------------------------------------------------
 // Which use case the workflow is running.
@@ -273,9 +286,75 @@ function get(key) {
   return s ? s.getItem(key) : null;
 }
 
+// ---------------------------------------------------------------------------
+// Whether the holder key pair's private half may be kept in localStorage.
+//
+// The debugger's standing rule is that credentials do not go to localStorage.
+// This workflow bends it, and unlike the SAML and WS-Trust key pairs it bends it
+// hard: the holder private key is written on step 2, read again on step 4 to
+// refresh, and read by a DIFFERENT workflow entirely — the presentation pages —
+// to sign the Key Binding JWT. Those pages are where the two workflows meet, and
+// they meet at this key.
+//
+// So it stays the default, and it is now a choice, made on step 2 where the pair
+// is generated. The gate lives HERE, in set()/setJson(), rather than at the call
+// sites: there are writers in three bundles (issuance step 2, issuance step 4's
+// refresh and generation-activation, and the history), and a gate at each is a
+// gate somebody will forget to add to the fourth.
+function holderPrivateKeyMayBeStored() {
+  // Only an explicit "0" disables it, so a missing or unreadable preference
+  // keeps the previous behaviour rather than silently dropping a key the user
+  // expects to still be there.
+  return get(KEYS.SAVE_HOLDER_KEY) !== "0";
+}
+
+function isHolderPrivateKey(key) {
+  return HOLDER_PRIVATE_KEYS.indexOf(key) >= 0;
+}
+
+// Remove every stored copy of the private half, including the per-generation
+// copies inside the credential history. Stripping the history is the deliberate
+// part: a generation whose holder key is gone cannot be presented, which is
+// normally a bug (see recordHistoryEntry) — here it is the point, and it is what
+// the user is warned about before choosing it.
+function forgetStoredHolderPrivateKeys() {
+  log.debug("Entering forgetStoredHolderPrivateKeys().");
+  for (var i = 0; i < HOLDER_PRIVATE_KEYS.length; i++) {
+    remove(HOLDER_PRIVATE_KEYS[i]);
+  }
+  var history = getJson(KEYS.HISTORY);
+  if (history && history.length) {
+    var stripped = 0;
+    for (var j = 0; j < history.length; j++) {
+      if (history[j].holderPrivateJwk) {
+        history[j].holderPrivateJwk = null;
+        stripped++;
+      }
+    }
+    if (stripped) {
+      // Written straight through set(), not setJson(): the history is not itself
+      // a private key, and the rows have already had the private halves removed.
+      set(KEYS.HISTORY, JSON.stringify(history));
+    }
+    log.debug("Leaving forgetStoredHolderPrivateKeys(). Stripped " + stripped + " history row(s).");
+    return stripped;
+  }
+  log.debug("Leaving forgetStoredHolderPrivateKeys(). No history to strip.");
+  return 0;
+}
+
 function set(key, value) {
   var s = ls();
   if (!s) return;
+  if (isHolderPrivateKey(key) && !holderPrivateKeyMayBeStored()) {
+    // Refused, and anything an earlier session wrote goes too — an opt-out that
+    // leaves yesterday's private key in storage is not an opt-out. remove() is
+    // called directly rather than via forgetStoredHolderPrivateKeys() to avoid
+    // recursing back through set() on the history.
+    remove(key);
+    log.debug("set(): refused to store " + key + " — holder key saving is turned off.");
+    return;
+  }
   try {
     s.setItem(key, value);
   } catch (e) {
@@ -304,6 +383,47 @@ function getJson(key) {
   }
 }
 function setJson(key, value) { set(key, JSON.stringify(value)); }
+
+// Record the choice and enforce it immediately. Turning it off purges; turning
+// it back on cannot un-purge, which the step 2 pane says out loud.
+// Read the holder private key for a page that needs to SIGN with it.
+//
+// With storage on this is just a read. With storage off there is nothing to
+// read, so the page offers a field to paste the downloaded key into and this
+// falls back to it — which is the whole reason the opt-out is usable at all.
+// The distinction between "no key" and "a key that will not parse" is returned
+// rather than collapsed, because they need different things said to the user.
+function readHolderPrivateJwk(inputId) {
+  var stored = getJson(KEYS.HOLDER_PRIVATE_JWK);
+  if (stored) return { jwk: stored, source: "storage", problem: null };
+  var e = (typeof document !== "undefined" && inputId) ? document.getElementById(inputId) : null;
+  var raw = (e && e.value) ? e.value.trim() : "";
+  if (!raw) return { jwk: null, source: "none", problem: null };
+  var parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return { jwk: null, source: "pasted", problem: "the pasted holder key is not JSON: " + err.message };
+  }
+  // A downloaded pair is { publicJwk, privateJwk }; accept that as well as a
+  // bare private JWK, because pasting back the file you were given is the
+  // obvious thing to try.
+  if (parsed && parsed.privateJwk) parsed = parsed.privateJwk;
+  if (!parsed || !parsed.kty || !parsed.d) {
+    return { jwk: null, source: "pasted",
+             problem: "that JSON is not a private JWK — it needs at least kty and d" };
+  }
+  return { jwk: parsed, source: "pasted", problem: null };
+}
+
+function setHolderKeySaving(on) {
+  log.debug("Entering setHolderKeySaving(). on=" + !!on);
+  set(KEYS.SAVE_HOLDER_KEY, on ? "1" : "0");
+  var stripped = 0;
+  if (!on) stripped = forgetStoredHolderPrivateKeys();
+  log.debug("Leaving setHolderKeySaving().");
+  return stripped;
+}
 
 // ---------------------------------------------------------------------------
 // The credential history: a log of every ATTEMPT, and the generations it produced.
@@ -459,7 +579,11 @@ function recordHistoryEntry(entry) {
     row.credentials = entry.credentials && entry.credentials.length ? entry.credentials : [credential];
     row.meta = entry.meta || {};
     row.holderJwk = entry.holderJwk || null;
-    row.holderPrivateJwk = entry.holderPrivateJwk || null;
+    // The private half is recorded per generation so an older credential can be
+    // made current again and still be presentable — unless the user has opted
+    // out of keeping holder private keys at all, in which case the row carries
+    // the public half only and that generation is viewable but not presentable.
+    row.holderPrivateJwk = holderPrivateKeyMayBeStored() ? (entry.holderPrivateJwk || null) : null;
     row.summary = summarizeCredential(credential);
   }
   history.push(row);
@@ -748,6 +872,11 @@ function disclosedClaims(parsed) {
 
 module.exports = {
   KEYS: KEYS,
+  HOLDER_PRIVATE_KEYS: HOLDER_PRIVATE_KEYS,
+  holderPrivateKeyMayBeStored: holderPrivateKeyMayBeStored,
+  setHolderKeySaving: setHolderKeySaving,
+  readHolderPrivateJwk: readHolderPrivateJwk,
+  forgetStoredHolderPrivateKeys: forgetStoredHolderPrivateKeys,
   USE_CASES: USE_CASES,
   DEFAULT_USE_CASE: DEFAULT_USE_CASE,
   useCases: useCases,

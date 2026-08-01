@@ -173,8 +173,20 @@ function vcSetAllPanes(expand) {
           <td>
             <div class="tooltip"><label>Holder public key</label><span class="tooltiptext">The public half of the key pair generated in this browser, as a JWK. It goes in the proof JWT header and ends up in the credential's cnf claim.</span></div>
             <p><input class="btn2" id="vc_regenerate_key_button" type="button" value="Regenerate Key" onclick="return sdjwtvc2.regenerateHolderKey();" /></p>
+            <p><input class="btn2" id="vc_download_key_button" type="button" value="Download Key Pair" onclick="return sdjwtvc2.downloadHolderKey();" title="Save the holder key pair (both halves, as a JWK pair) to a file. This is the only copy you get if the key pair is not kept in localStorage." /></p>
           </td>
           <td><pre class="vc-json" id="vc_holder_jwk">&nbsp;</pre></td>
+        </tr>
+        <tr>
+          <td>
+            <div class="tooltip"><label>Keep the key pair</label><span class="tooltiptext">Whether the PRIVATE half of the holder key pair may be written to this browser's localStorage. It has to be kept for the workflow to continue past this page: step 4 needs it to refresh the credential, and the presentation pages need it to sign the Key Binding JWT. Turn it off to keep it out of storage, and carry it yourself with Download Key Pair.</span></div>
+          </td>
+          <td>
+            <input type="checkbox" id="vc_save_holder_key" name="vc_save_holder_key" checked="checked"
+                   onchange="return sdjwtvc2.onSaveHolderKeyChange();" />
+            <label for="vc_save_holder_key">Save this holder key pair in browser localStorage</label>
+            <span class="vc-note" id="vc_holder_key_storage_note">&nbsp;</span>
+          </td>
         </tr>
         <tr>
           <td><div class="tooltip"><label>c_nonce</label><span class="tooltiptext">A fresh nonce from the issuer's Nonce Endpoint, carried by the proof so the issuer knows the proof was made for this request.</span></div></td>

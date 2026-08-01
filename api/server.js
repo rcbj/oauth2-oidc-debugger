@@ -266,6 +266,62 @@ const USER_AGENT = resolveUserAgent();
  * @param {boolean} fallback - the code default.
  * @returns {boolean}
  */
+/**
+ * The browser origins allowed to call this api, derived from the configured URLs.
+ *
+ * Until now this was `origin: '*'`, which tells every site on the internet that
+ * its visitors' browsers may call this api and read the replies. That is a poor
+ * fit for a service whose whole job is proxying token, introspection and
+ * userinfo calls — the caller supplies the endpoint AND the client secret.
+ *
+ * **Note which URL this is built from.** `Access-Control-Allow-Origin` names the
+ * origin of the PAGE making the request, which is the debugger UI — `uiUrl`
+ * (http://localhost:3000, http://client:3000, https://tools.test.idptools.io).
+ * It is not `apiUrl`: that is this service's own address, and a page served from
+ * it would be same-origin and would never send a CORS request at all. Allowing
+ * only `apiUrl` would reject every real call. `apiUrl` is still included below
+ * because it costs nothing and covers a deployment that serves the UI from this
+ * origin, but `uiUrl` is the one that matters.
+ *
+ * A configured value may carry a path (or a trailing slash); an Origin header
+ * never does, so each is reduced to scheme://host:port before comparison.
+ *
+ * @param {object} config - the appconfig for this environment.
+ * @returns {string[]|string} the allowlist, or '*' when nothing usable is
+ *   configured — a deployment missing both keys keeps working rather than
+ *   refusing its own UI, with the reason logged.
+ */
+function resolveAllowedOrigins(config) {
+  var origins = [];
+  [["uiUrl", config.uiUrl], ["apiUrl", config.apiUrl]].forEach(function (pair) {
+    var name = pair[0];
+    var configured = pair[1];
+    if (configured === undefined || configured === null || String(configured).trim() === "") {
+      return;
+    }
+    var parsed;
+    try {
+      parsed = new URL(String(configured).trim());
+    } catch (e) {
+      log.warn("Ignoring " + name + "=" + JSON.stringify(configured) +
+               " for CORS: it is not an absolute URL (" + e.message + ").");
+      return;
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      log.warn("Ignoring " + name + "=" + JSON.stringify(configured) +
+               " for CORS: an origin must be http or https, not " + parsed.protocol + ".");
+      return;
+    }
+    if (origins.indexOf(parsed.origin) === -1) origins.push(parsed.origin);
+  });
+  if (!origins.length) {
+    log.warn("Neither uiUrl nor apiUrl gives a usable origin, so CORS falls back to '*'. " +
+             "Set uiUrl to the browser origin that calls this api.");
+    return "*";
+  }
+  return origins;
+}
+
 function resolveBoolean(name, configured, fallback) {
   if (configured === undefined || configured === null) {
     return fallback;
@@ -295,6 +351,9 @@ function resolveBoolean(name, configured, fallback) {
 // which is strictly worse than not pooling. See agentFor() below.
 // ---------------------------------------------------------------------------
 const KEEP_ALIVE = resolveBoolean('keepAlive', appconfig.keepAlive, true);
+// The browser origins allowed to call this api. See resolveAllowedOrigins() for
+// why this is built from uiUrl rather than apiUrl.
+const ALLOWED_ORIGINS = resolveAllowedOrigins(appconfig);
 
 /**
  * A headers object with this service's User-Agent on it.
@@ -320,6 +379,8 @@ log.info("Outbound call timeout: " + CALL_TIMEOUT + "ms (whole call); connection
          (MAX_REDIRECTS === 0 ? " (redirects are not followed)." : "."));
 log.info("Outbound User-Agent: " + USER_AGENT);
 log.info("Outbound connection pooling (keepAlive): " + (KEEP_ALIVE ? "on" : "off") + ".");
+log.info("CORS allowed origins: " +
+         (ALLOWED_ORIGINS === "*" ? "* (any site) — uiUrl is not configured" : ALLOWED_ORIGINS.join(", ")) + ".");
 
 // ---------------------------------------------------------------------------
 // Refuse outbound calls to loopback and private networks (see ssrf_guard.js).
@@ -458,7 +519,12 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({
   extended: true, limit: '5mb' }));
 var corsOptions = {
-  origin: '*',
+  // See resolveAllowedOrigins(): this is uiUrl (the browser origin that calls
+  // the api), not apiUrl. The cors package reflects the request's Origin when it
+  // is in the list and sends no Allow-Origin at all when it is not, and it adds
+  // Vary: Origin for us — which matters, because a cached response carrying one
+  // allowed origin must not be served to another.
+  origin: ALLOWED_ORIGINS,
   optionsSuccessStatus: STATUS_204
 };
 // app.use(expressLogging(logger));

@@ -225,10 +225,20 @@ function renderCurrentCredential() {
 // browser. Without it no proof of possession can be signed for that key, so a
 // refresh would have to bind the new credential to a different one.
 function holderKeyIsHeld(jwk) {
-  var held = sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_JWK);
-  var priv = sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_PRIVATE_JWK);
-  if (!held || !priv || !jwk) return false;
-  return held.kty === jwk.kty && held.crv === jwk.crv && held.x === jwk.x && held.y === jwk.y;
+  if (!jwk) return false;
+  // "Held" means a private half is AVAILABLE to sign with — from storage, or
+  // from the field the user pasted the downloaded key into when holder key
+  // saving is off on step 2.
+  var available = sdJwtVc.readHolderPrivateJwk("vc_holder_private_jwk").jwk;
+  if (!available) return false;
+  // Compare that key's OWN public coordinates against what the credential is
+  // bound to, rather than the separately stored public half. With saving off,
+  // step 2 generates a fresh pair on every visit and stores only the public
+  // half, so the stored value can easily belong to a different key than the one
+  // just pasted here — trusting it would refuse a reuse that is perfectly valid.
+  // An EC private JWK carries x/y, so it can answer for itself.
+  return available.kty === jwk.kty && available.crv === jwk.crv &&
+         available.x === jwk.x && available.y === jwk.y;
 }
 
 // ---------------------------------------------------------------------------
@@ -707,11 +717,44 @@ function keyChoice() {
   return choice;
 }
 
+// The paste-in row appears only when the private half is not in storage: with
+// saving on it would be a field asking for something the page already has.
+function renderHolderKeyRow() {
+  var row = el("vc_holder_key_row");
+  var note = el("vc_holder_key_note");
+  if (!row) return;
+  var stored = !!sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_PRIVATE_JWK);
+  row.style.display = stored ? "none" : "";
+  if (!note) return;
+  if (stored) {
+    note.textContent = "";
+    return;
+  }
+  var pasted = sdJwtVc.readHolderPrivateJwk("vc_holder_private_jwk");
+  if (pasted.problem) note.textContent = pasted.problem;
+  else if (pasted.jwk) note.textContent = "Using the key pasted here. It is not stored.";
+  else {
+    note.textContent = "Not in this browser's storage — paste the key pair you downloaded on step 2 to " +
+      "reuse the bound key, or choose \"Generate a new holder key pair\".";
+  }
+}
+
+// Re-evaluate as the key is pasted: whether "reuse" is available depends on it.
+function onHolderKeyPasted() {
+  log.debug("Entering onHolderKeyPasted().");
+  renderReissue();
+  log.debug("Leaving onHolderKeyPasted().");
+  return false;
+}
+
 function holderKeyForRequest() {
   log.debug("Entering holderKeyForRequest().");
   if (keyChoice() === "reuse") {
-    var pub = sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_JWK);
-    var priv = sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_PRIVATE_JWK);
+    var priv = sdJwtVc.readHolderPrivateJwk("vc_holder_private_jwk").jwk;
+    // The public half comes from storage when it is there; otherwise it is the
+    // public part of the pasted private JWK, which for an EC key carries x/y.
+    var pub = sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_JWK) ||
+              (priv ? { kty: priv.kty, crv: priv.crv, x: priv.x, y: priv.y } : null);
     if (pub && priv) {
       log.debug("Leaving holderKeyForRequest(). Reusing the stored holder key.");
       return Promise.resolve({ publicJwk: pub, privateJwk: priv });
@@ -827,16 +870,26 @@ function renderReissue() {
   var boundJwk = (cnf && cnf.jwk) || null;
   var held = holderKeyIsHeld(boundJwk);
   var select = el("vc_refresh_key_mode");
-  if (select && !held) {
-    // Nothing to reuse: say so on the option itself rather than letting it be
-    // chosen and quietly meaning something else.
+  if (select) {
     var reuse = select.querySelector('option[value="reuse"]');
-    if (reuse) {
-      reuse.disabled = true;
-      reuse.text = "Reuse the bound key — unavailable, its private half is not in this browser";
+    if (!held) {
+      // Nothing to reuse: say so on the option itself rather than letting it be
+      // chosen and quietly meaning something else.
+      if (reuse) {
+        reuse.disabled = true;
+        reuse.text = "Reuse the bound key — unavailable, its private half is not in this browser";
+      }
+      if (select.value === "reuse") select.value = "new";
+    } else if (reuse) {
+      // ...and put it back when the key becomes available again, which it now
+      // can: pasting the downloaded key into the field below makes the bound key
+      // usable without it ever being stored. Without this branch the option
+      // stayed disabled for the life of the page and the paste had no effect.
+      reuse.disabled = false;
+      reuse.text = "Reuse the key the credential is already bound to";
     }
-    if (select.value === "reuse") select.value = "new";
   }
+  renderHolderKeyRow();
   setText("vc_refresh_key_note", keyChoice() === "reuse"
     ? "The refreshed credential will carry the same cnf.jwk, so it replaces the one in hand rather than " +
       "sitting beside it."
@@ -1570,6 +1623,7 @@ module.exports = {
   onRefreshScopeChange: onRefreshScopeChange,
   sendRefreshRequest: sendRefreshRequest,
   onKeyModeChange: onKeyModeChange,
+  onHolderKeyPasted: onHolderKeyPasted,
   requestRefreshedCredential: requestRefreshedCredential,
   pollDeferred: pollDeferred,
   renderComparison: renderComparison,

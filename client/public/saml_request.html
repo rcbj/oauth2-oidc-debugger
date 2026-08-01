@@ -225,6 +225,11 @@ function samlSetAllPanes(expand) {
         <label class="saml-has-copy" title="SP public signer certificate (self-signed X.509 PEM). Register it on the IdP client so it can verify the signed request.">Public Signer Certificate <button type="button" class="saml-copy" onclick="return saml_request.copyField('saml_sp_public_key');">Copy</button></label>
         <textarea class="stored" rows="4" id="saml_sp_public_key" name="saml_sp_public_key"></textarea>
       </div>
+      <div class="saml-field saml-check">
+        <input class="stored" type="checkbox" id="saml_save_keypair" name="saml_save_keypair" checked="checked" onchange="return saml_request.onSaveKeyPairChange();" />
+        <label for="saml_save_keypair" title="Keep the SP key pair in this browser's localStorage so it survives a reload and is picked up automatically by the SAML Response page (which needs the private key to decrypt an EncryptedAssertion). Turn it off to keep the private key out of storage — you then have to carry the key pair yourself with Download, and paste it back into this pane and into the Decryption Key field on the response page.">Save this key pair in browser localStorage</label>
+      </div>
+      <div class="saml-note" id="saml_keypair_storage_note"></div>
       <div class="saml-row">
         <a href="/saml_cert.html?from=saml_request.html" onclick="return saml_request.viewCertificate('saml_sp_public_key');" title="Show full details of the SP signer certificate.">View certificate details &rarr;</a>
       </div>

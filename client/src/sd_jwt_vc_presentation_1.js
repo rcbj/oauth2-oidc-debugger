@@ -279,10 +279,24 @@ function renderRequest() {
   }
   if (!request.dcql) problems.push("no dcql_query, so the request does not say what it wants");
   var held = heldCredential();
+  // A missing holder key is only a dead end when there is no way to supply one.
+  // Since the holder key pair can be deliberately kept out of localStorage
+  // (issuance step 2), "not in storage" now has two meanings, and treating them
+  // alike would strand the user one page before the field that fixes it.
+  var holderKeyAdvisory = null;
   if (!held) problems.push("this wallet holds no credential to present");
   else if (!held.parsed) problems.push("the credential in storage cannot be parsed: " + held.error);
   else if (!sdJwtVc.getJson(sdJwtVc.KEYS.HOLDER_PRIVATE_JWK)) {
-    problems.push("the private half of the holder key is missing, so no Key Binding JWT can be signed");
+    if (sdJwtVc.holderPrivateKeyMayBeStored()) {
+      // Saving is on and it is still absent: the key was never generated in this
+      // browser, so there is nothing to paste and nothing to continue to.
+      problems.push("the private half of the holder key is missing, so no Key Binding JWT can be signed");
+    } else {
+      // Deliberately not kept. Step 2 has a field to paste it into, so this must
+      // NOT disable Continue.
+      holderKeyAdvisory = "The holder key is not kept in this browser, by the choice made on issuance " +
+        "step 2 — paste it on the next page so the Key Binding JWT can be signed.";
+    }
   }
   if (request.signed && request.signatureValid === false) {
     problems.push("the Request Object's signature does not verify");
@@ -295,7 +309,9 @@ function renderRequest() {
     status("vp_request_status",
       "Request read" + (request.signed ? " and its signature checked" : "") +
       ". It asks for " + sdJwtVp.requestedClaims(request.dcql).length + " claim(s) and nothing else has to be " +
-      "sent. Continue to choose what to disclose.", "vc-ok");
+      "sent. Continue to choose what to disclose." +
+      (holderKeyAdvisory ? " " + holderKeyAdvisory : ""),
+      holderKeyAdvisory ? "vc-pending" : "vc-ok");
     disable("vp_continue_button", false);
   }
   sdJwtVp.storeRequest(request);

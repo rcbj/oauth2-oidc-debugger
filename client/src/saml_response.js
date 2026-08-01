@@ -614,6 +614,18 @@ window.onload = function () {
     var dk = el('saml_dec_key');
     var sk = window.localStorage && localStorage.getItem('samltools_saml_sp_private_key');
     if (dk && !dk.value && sk) dk.value = sk;
+    // The Test Tools page can be told not to keep the key pair in localStorage,
+    // in which case there is nothing to prefill from and the standing "Prefilled
+    // from…" wording would be a promise this page did not keep. Say what is
+    // actually true, so an empty field reads as expected rather than broken.
+    // This page never WRITES the key: whatever is pasted here stays in the field.
+    var note = el('saml_dec_key_note');
+    if (note && dk && !dk.value) {
+      note.textContent = 'If the response carries an EncryptedAssertion (or a message-level ' +
+        'EncryptedData), decrypt it in the browser with the recipient (SP) private key. Nothing was ' +
+        'prefilled — either no key pair has been generated yet, or "Save this key pair in browser ' +
+        'localStorage" is turned off on the SAML Test Tools page. Paste the private key below.';
+    }
   } catch (e) {
     // No storage, or nothing stashed by the SAML Test Tools page: the field is
     // simply left for the user to paste into.

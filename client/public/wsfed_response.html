@@ -86,7 +86,7 @@
 
   <div class="saml-sub">
     <div class="saml-sub-title">Decrypt (EncryptedAssertion / EncryptedData)</div>
-    <p class="saml-note">If the IdP encrypted the token to the RP (a <code>&lt;EncryptedAssertion&gt;</code> / <code>&lt;xenc:EncryptedData&gt;</code>), decrypt it in the browser with the RP private key. Prefilled from the key generated on the WS-Federation Test Tools page. The data/key-transport algorithms are read from the token's <code>EncryptionMethod</code>.</p>
+    <p class="saml-note" id="wsfed_dec_key_note">If the IdP encrypted the token to the RP (a <code>&lt;EncryptedAssertion&gt;</code> / <code>&lt;xenc:EncryptedData&gt;</code>), decrypt it in the browser with the RP private key. Prefilled from the key generated on the WS-Federation Test Tools page. The data/key-transport algorithms are read from the token's <code>EncryptionMethod</code>.</p>
     <div class="saml-field">
       <label class="saml-has-copy" title="RP private key (PKCS#8 PEM).">Decryption Key <button type="button" class="saml-copy" onclick="return wsfed_response.copyField('wsfed_dec_key');">Copy</button></label>
       <textarea rows="3" id="wsfed_dec_key" name="wsfed_dec_key"></textarea>

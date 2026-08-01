@@ -76,7 +76,7 @@
 
   <div class="saml-sub">
     <div class="saml-sub-title">Decrypt (EncryptedData / EncryptedAssertion)</div>
-    <p class="saml-note">If the STS returns an encrypted token (a <code>&lt;xenc:EncryptedData&gt;</code> / <code>&lt;saml:EncryptedAssertion&gt;</code> in the RSTR, or a message-level EncryptedData), decrypt it in the browser with the requestor private key. Prefilled from the signing key on the WS-Trust Test Tools page.</p>
+    <p class="saml-note" id="wst_dec_key_note">If the STS returns an encrypted token (a <code>&lt;xenc:EncryptedData&gt;</code> / <code>&lt;saml:EncryptedAssertion&gt;</code> in the RSTR, or a message-level EncryptedData), decrypt it in the browser with the requestor private key. Prefilled from the signing key on the WS-Trust Test Tools page.</p>
     <div class="saml-field">
       <label class="saml-has-copy" title="Requestor private key (PKCS#8 PEM).">Decryption Key <button type="button" class="saml-copy" onclick="return wstrust_response.copyField('wst_dec_key');">Copy</button></label>
       <textarea rows="3" id="wst_dec_key" name="wst_dec_key"></textarea>
