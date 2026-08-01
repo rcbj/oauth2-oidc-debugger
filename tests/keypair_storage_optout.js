@@ -301,6 +301,21 @@ async function sdJwtVcHolderKeyOptOut(driver) {
   log.info("=== SD-JWT VC: the holder key pair ===");
   var read = function (script) { return driver.executeScript(script); };
 
+  // Check the one environmental precondition this section has, before spending
+  // twenty seconds discovering it as a timeout. Everything below depends on the
+  // page being able to generate a holder key pair, which is Web Crypto, which
+  // needs a secure context — see browser_flags.js and the --headless=new note in
+  // test(). Failing here names the cause; failing later names a missing element.
+  await driver.get(baseUrl + "/sd-jwt-vc-issuance-2.html");
+  var ctx = await read("return { secure: window.isSecureContext," +
+                       "         subtle: typeof (window.crypto && window.crypto.subtle)," +
+                       "         origin: window.location.origin };");
+  assert.ok(ctx.secure && ctx.subtle === "object",
+    "[SD-JWT VC] " + ctx.origin + " is not a secure context (isSecureContext=" + ctx.secure +
+    ", crypto.subtle=" + ctx.subtle + "), so no holder key pair can be generated. Chrome needs " +
+    "--unsafely-treat-insecure-origin-as-secure for this origin (tests/browser_flags.js), and " +
+    "that flag is ignored by Chrome's OLD headless mode — this test must run with --headless=new.");
+
   await driver.get(baseUrl + "/sd-jwt-vc-issuance-2.html");
   await waitVisible(driver, By.id("vc_save_holder_key"));
 
@@ -493,7 +508,23 @@ async function sdJwtVcHolderKeyOptOut(driver) {
 
 async function test() {
   const options = new chrome.Options();
-  if (headless) { options.addArguments("--headless"); }
+  options.addArguments("--window-size=1500,1400");
+  // --headless=new, NOT plain --headless, and this matters more than it looks.
+  //
+  // The SD-JWT VC half of this test needs window.crypto.subtle, which exists
+  // only in a secure context. On the containerized stack the origin is
+  // http://client:3000 — plain HTTP on a DNS name — so browser_flags.js relaxes
+  // it with --unsafely-treat-insecure-origin-as-secure. Chrome's OLD headless
+  // implementation does not honour that flag, and the tests image pins Chrome
+  // 121, which still has it.
+  //
+  // A modern Chrome cannot show you this: old headless is gone from current
+  // builds and --headless is simply new headless, so both spellings measure
+  // identical locally (isSecureContext=true, crypto.subtle=object) while only
+  // one of them works in CI. Every other Web Crypto test in this suite already
+  // uses --headless=new for exactly this reason; this one did not, and failed in
+  // the container while passing on every local run.
+  if (headless) { options.addArguments("--headless=new"); }
   options.addArguments("--no-sandbox");
   options.addArguments("--disable-dev-shm-usage");
   // These pages generate key pairs with Web Crypto on some paths, and this test
