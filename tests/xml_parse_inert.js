@@ -13,8 +13,10 @@
 // As written they are not exploitable, and the reason is worth stating
 // precisely because it is also the thing this test keeps true:
 //
-//   1. `application/xml` parsing has no script semantics. The result is an
-//      inert, DETACHED XMLDocument; a <script> element in it is just an element.
+//   1. `application/xml` parsing has no script semantics. The result is a
+//      SEPARATE XMLDocument — not the page — and a <script> element in it is
+//      just an element. ("Detached" would be the wrong word: the parsed root is
+//      connected, to its own document. What matters is which document.)
 //      (Sanitizing the input instead would be the wrong fix twice over: it would
 //      not change this, and XML-DSIG signs the exact octets that get
 //      canonicalized, so rewriting them invalidates the signature being made.)
