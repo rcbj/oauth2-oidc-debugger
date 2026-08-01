@@ -62,7 +62,17 @@ app.use(function(req, res, next) {
     if (err) { return next(); }
     var processed = content.replace(/<!--#include file="([^"]+)"-->/g, function(match, file) {
       try {
-        const includePath = path.resolve(PUBLIC_ROOT, file);
+        // The include is written site-absolute in the markup
+        // ("/partials/footer.html"), and path.resolve IGNORES its base when the
+        // next segment starts with a slash — path.resolve(PUBLIC_ROOT, '/partials/x')
+        // is '/partials/x', outside PUBLIC_ROOT. The traversal guard below then
+        // refused EVERY include and the catch replaced each one with '', so the
+        // header, footer and step links silently vanished from every page. Anchor
+        // it under PUBLIC_ROOT the way the page path above already does, with a
+        // leading '.', which keeps the guard meaningful: a '../' inside `file`
+        // still escapes and is still refused.
+        const relative = file.startsWith('/') ? file : '/' + file;
+        const includePath = path.resolve(PUBLIC_ROOT, '.' + relative);
         if (!(includePath === PUBLIC_ROOT || includePath.startsWith(PUBLIC_ROOT + path.sep))) {
           throw new Error('Path traversal attempt');
         }
