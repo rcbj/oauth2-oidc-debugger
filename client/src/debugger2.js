@@ -25,6 +25,42 @@ var useRevocationFrontEnd = false;
 var useTokenExchangeFrontEnd = false;
 var refreshTokenUsed = false;
 
+// ---------------------------------------------------------------------------
+// Put a value INTO a generated field, rather than concatenating it into the
+// markup that builds the field.
+//
+// Everything these result panes show is caller-supplied — access, refresh and
+// ID tokens, and the error string an authorization endpoint sent back. Building
+// "<textarea>" + value + "</textarea>" and handing the result to .html()
+// reinterprets that value as markup, which is what CodeQL reports as
+// js/xss-through-dom (alerts #34 and #43 were two instances of it). A value
+// containing "</textarea>" closes the element early and everything after it is
+// parsed as HTML.
+//
+// DOMPurify does not fix that, and it was wrapped around several of these
+// already: <textarea> is on DOMPurify's own allowlist, so a
+// "<textarea></textarea><img ...>" payload survives sanitizing intact and still
+// breaks out of the enclosing element. Measured, not assumed.
+//
+// .val() sets the DOM value property and never parses markup, so there is
+// nothing to escape and no context to escape from.
+//
+// Fields are addressed by data-token-field rather than by id because several of
+// these panes reuse ONE id for more than one field — both implicit-flow
+// textareas are id="implicit_grant_access_token", and refresh_refresh_token also
+// names a static input further down the page. An id selector would silently set
+// whichever the browser happened to find first.
+function fillGeneratedFields(container, values) {
+  log.debug("Entering fillGeneratedFields().");
+  var pane = (container && container.jquery) ? container : $(container);
+  Object.keys(values).forEach(function (field) {
+    var value = values[field];
+    pane.find('[data-token-field="' + field + '"]').val(value == null ? "" : value);
+  });
+  log.debug("Leaving fillGeneratedFields().");
+  return pane;
+}
+
 function OnSubmitTokenEndpointForm()
 {
   log.debug("Entering OnSubmitTokenEndpointForm().");
@@ -254,9 +290,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                          ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                        '</td>' +
                                        '<td>' +
-                                         "<textarea rows=5 cols=60 readonly name=token_access_token id=token_access_token>" + 
-                                           DOMPurify.sanitize(data.access_token) + 
-                                         "</textarea>" +
+                                         "<textarea rows=5 cols=60 readonly name=token_access_token id=token_access_token data-token-field=\"access\"></textarea>" +
                                        '</td>' +
                                      '</tr>';
     if(useRefreshTokenTester) {
@@ -269,9 +303,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
-                                              '<textarea rows=5 cols=60 readonly name=token_refresh_token id=token_refresh_token>' + 
-                                              currentRefreshToken +
-                                              "</textarea>" +
+                                              '<textarea rows=5 cols=60 readonly name=token_refresh_token id=token_refresh_token data-token-field="refresh"></textarea>' +
                                           "</td>" +
                                         "</tr>";
       }
@@ -283,9 +315,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_id_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
-                                            '<textarea rows=5 cols=60 readonly name=token_id_token id=token_id_token>' + 
-                                            DOMPurify.sanitize(data.id_token) + 
-                                            "</textarea>" +
+                                            '<textarea rows=5 cols=60 readonly name=token_id_token id=token_id_token data-token-field="id"></textarea>' +
                                           '</td>' +
                                         "</tr>" +
                                       "</table>" +
@@ -310,9 +340,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           '</td>' +
-                                          "<td><textarea rows=5 cols=60 readonly name=token_access_token id=token_access_token>" +
-                                            DOMPurify.sanitize(data.access_token) +
-                                            "</textarea>" +
+                                          "<td><textarea rows=5 cols=60 readonly name=token_access_token id=token_access_token data-token-field=\"access\"></textarea>" +
                                           "</td>" +
                                         "</tr>";
       if(useRefreshTokenTester) {
@@ -324,9 +352,7 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
-                                          "<td><textarea rows=5 cols=60 readonly name=token_refresh_token id=token_refresh_token>" +
-                                           currentRefreshToken +
-                                            "</textarea>" +
+                                          "<td><textarea rows=5 cols=60 readonly name=token_refresh_token id=token_refresh_token data-token-field=\"refresh\"></textarea>" +
                                           "</td>" +
                                         "</tr>";
       }
@@ -339,6 +365,27 @@ function successfulInternalTokenAPICall(data, textStatus, request)
       saveTokenSetToHistory(DOMPurify.sanitize(data.access_token), DOMPurify.sanitize(data.refresh_token), null, 'token');
     }
     $("#token_endpoint_result").html(token_endpoint_result_html);
+    // The token values are put in as VALUES, not concatenated into the markup
+    // above — which is what CodeQL alert #43 (js/xss-through-dom) was reporting:
+    // a value read out of the DOM was being reinterpreted as HTML here.
+    //
+    // .val() sets the DOM value property and never parses markup, so there is
+    // no escaping question and no context to break out of. Interpolating into
+    // "<textarea>" + token + "</textarea>" had one: a token containing
+    // "</textarea>" closes the element early and the rest is parsed as markup.
+    // DOMPurify was applied to some of these and could not fix it — it is an
+    // HTML sanitizer, and its own allowlist permits <textarea>, so a
+    // "<textarea></textarea>" payload survives it intact and still breaks out.
+    //
+    // Scoped with .find() rather than $("#id") because `refresh_refresh_token`
+    // is a DUPLICATE id: the static input in the Refresh Token pane carries it
+    // too, and the generated pane comes FIRST in document order. A bare id
+    // selector would set whichever the browser found first. Scoping to the
+    // container makes these assignments hit exactly the fields built above and
+    // leaves the existing $("#refresh_refresh_token").val(...) calls untouched.
+    fillGeneratedFields("#token_endpoint_result", {
+      access: data.access_token, refresh: currentRefreshToken, id: data.id_token
+    });
     $("#token_endpoint_result").show();
     $("#refresh_refresh_token").val(currentRefreshToken);
     $("#refresh_client_id").val($("#token_client_id").val());
@@ -541,9 +588,7 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_access_token\');"/></form></P>' +
                                           "</td>" +
                                           "<td>" + 
-                                            "<textarea rows=5 cols=60 readonly name=refresh_access_token id=refresh_access_token>" + 
-                                              currentAccessToken + 
-                                            "</textarea>" +
+                                            "<textarea rows=5 cols=60 readonly name=refresh_access_token id=refresh_access_token data-token-field=\"access\"></textarea>" +
                                           "</td>" +
                                        "</tr>"; 
   if(!!currentRefreshToken) {
@@ -555,9 +600,7 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_refresh_token\');"/></form></P>' +
                                           "</td>" +
-                                          "<td><textarea rows=5 cols=60 readonly name=refresh_refresh_token id=refresh_refresh_token>" + 
-                                              currentRefreshToken +
-                                            "</textarea>" +
+                                          "<td><textarea rows=5 cols=60 readonly name=refresh_refresh_token id=refresh_refresh_token data-token-field=\"refresh\"></textarea>" +
                                           "</td>" +
                                         "</tr>";
   }
@@ -570,9 +613,7 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_id_token\');"/></form></P>' +
                                           "</td>" +
                                           "<td>" +
-                                            "<textarea rows=5 cols=60 readonly name=refresh_id_token id=refresh_id_token>" + 
-                                              currentIDToken +
-                                            "</textarea>" +
+                                            "<textarea rows=5 cols=60 readonly name=refresh_id_token id=refresh_id_token data-token-field=\"id\"></textarea>" +
                                           "</td>" +
                                         "</tr>";
   }
@@ -580,13 +621,19 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
 					  "<td>iteration</td>" +
 					  "<td>" +
                                             '<input type="text" readonly value="' + iteration +
-                                            '" id="refresh-token-results-iteration-count" name="refresh-token-results-iteration-count">'
+                                            '" id="refresh-token-results-iteration-count" name="refresh-token-results-iteration-count">' +
                                           "</td>" +
                                         "</tr>" +
                                       "</table>" +
                                       "</fieldset>" +
                                       "</div>";
   $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
+  // Set as values, not concatenated into the markup — CodeQL alert #34, the same
+  // finding as #43 above and fixed the same way. See the note there for why
+  // .find() is scoped to the pane rather than using a bare id selector.
+  fillGeneratedFields("#refresh_endpoint_result", {
+    access: currentAccessToken, refresh: currentRefreshToken, id: currentIDToken
+  });
   // Update refresh token field in the refresh token grant pane
   $("#refresh_refresh_token").val(currentRefreshToken);
   // Store new tokens in local storage
@@ -1112,14 +1159,13 @@ function recreateUniqueGrantFlowElements()
                                                    '<P><form><input class="token_btn" type="submit" value="Copy Token"' +
                                                    ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                                  "</td>" +
-                                                 "<td><textarea rows=5 cols=60 name=\"token_access_token\" id=\"token_access_token\">" +
-                                                     access_token +
-                                                   "</textarea>" +
+                                                 "<td><textarea rows=5 cols=60 name=\"token_access_token\" id=\"token_access_token\" data-token-field=\"access\"></textarea>" +
                                                  "</td>" +
                                                "</tr>" + 
                                              "</table>" +
                                              "</fieldset>";
     $("#authorization_endpoint_result").html(DOMPurify.sanitize(authorization_endpoint_result_html));
+    fillGeneratedFields("#authorization_endpoint_result", { access: access_token });
     localStorage.setItem("token_access_token", access_token);
   }
   if (  agt == "oidc_hybrid_code_id_token_token" &&
@@ -1147,11 +1193,11 @@ function recreateUniqueGrantFlowElements()
 				    "<table>" +
 				      "<tr>" +
 				        "<td>access_token</td>" +
-                                        "<td><textarea id=\"implicit_grant_access_token\" rows=3 cols=100>" + access_token + "</textarea></td>"
+                                        "<td><textarea id=\"implicit_grant_access_token\" rows=3 cols=100 data-token-field=\"access\"></textarea></td>" +
 				      "</tr>" + 
 				      "<tr>" +
 				        "<td>id_token</td>" + 
-				        "<td><textarea id=\"implicit_grant_access_token\" rows=3 cols=100>" + id_token + "</textarea></td>" +
+				        "<td><textarea id=\"implicit_grant_access_token\" rows=3 cols=100 data-token-field=\"id\"></textarea></td>" +
 				      "</tr>" +
 				    "</table>" +
                                     "</fieldset>";
@@ -1161,12 +1207,13 @@ function recreateUniqueGrantFlowElements()
                                     "<table>" +
                                       "<tr>" +
                                         "<td>access_token</td>" +
-                                        "<td><textarea id=\"implicit_grant_access_token\" rows=3 cols=100>" + access_token + "</textarea></td>"
+                                        "<td><textarea id=\"implicit_grant_access_token\" rows=3 cols=100 data-token-field=\"access\"></textarea></td>" +
                                       "</tr>" +
                                     "</table>" +
                                     "</fieldset>";
     }
     $("#authorization_endpoint_result").html(DOMPurify.sanitize(authz_endpoint_results_html));
+    fillGeneratedFields("#authorization_endpoint_result", { access: access_token, id: id_token });
   }
 
   if (  agt == "oidc_hybrid_code_token" &&
@@ -1185,11 +1232,12 @@ function recreateUniqueGrantFlowElements()
                                                                 "    <tr>" +
                                                                 "      <td>access_token</td>" +
                                                                 "      <td>" +
-                                                                "        <textarea id='implicit_grant_access_token' rows=3 cols=100>" + access_token + "</textarea>" +
+                                                                "        <textarea id='implicit_grant_access_token' rows=3 cols=100 data-token-field='access'></textarea>" +
                                                                 "      </td>" +
                                                                 "    </tr>" +
                                                                 "  </table>" +
                                                                 "</fieldset>"));
+    fillGeneratedFields("#authorization_endpoint_result", { access: access_token });
   }
   if ( 	(agt == "oidc_implicit_flow" ||
          agt == "oidc_implicit_flow_id_token" ||
@@ -1216,11 +1264,12 @@ function recreateUniqueGrantFlowElements()
                                                                          "    <tr>" +
                                                                          "      <td>id_token</td>" +
                                                                          "      <td>" +
-                                                                         "        <textarea id='implicit_flow_id_token' rows=3 cols=100>" + DOMPurify.sanitize(id_token) + "</textarea>" +
+                                                                         "        <textarea id='implicit_flow_id_token' rows=3 cols=100 data-token-field='id'></textarea>" +
                                                                          "      </td>" +
                                                                          "    </tr>" +
                                                                          "  </table>" +
                                                                          "</fieldset>"));
+    fillGeneratedFields("#authorization_endpoint_id_token_result", { id: id_token });
   }
   var error = getParameterByName("error",window.location.href);
   var authzGrantType = $("#authorization_grant_type").val();
@@ -1239,15 +1288,14 @@ function recreateUniqueGrantFlowElements()
                            "<label name='display_authz_error_form_label1' value='' id='display_authz_error_form_label1'>Error</label>" +
                          "</td>" +
                          "<td>" +
-                           "<textarea rows='5' cols='50' id='display_authz_error_form_textarea1'>" +
-                           error +
-                           "</textarea>"
+                           "<textarea rows='5' cols='50' id='display_authz_error_form_textarea1' data-token-field='error'></textarea>" +
                          "</td>" +
                        "</tr>" +
                      "</table>" +
                    "</form>" +
                  "</fieldset>";
     $("#display_authz_error_class").html(DOMPurify.sanitize(error_html));
+    fillGeneratedFields("#display_authz_error_class", { error: error });
   }
   log.debug("Entering recreateUniqueGrantFlowElements().");
 }
@@ -2204,7 +2252,7 @@ function renderCurrentlyViewing(index, entry) {
                      '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                      ' onclick="return debugger2.onClickCopyToken(\'#cv_access_token\');"/></form></P>' +
                    '</td>' +
-                   '<td><textarea rows=5 cols=60 readonly name=cv_access_token id=cv_access_token>' + (entry.access_token || '') + '</textarea></td>' +
+                   '<td><textarea rows=5 cols=60 readonly name=cv_access_token id=cv_access_token data-token-field="access"></textarea></td>' +
                  '</tr>';
   if (entry.refresh_token) {
     html +=      '<tr>' +
@@ -2215,7 +2263,7 @@ function renderCurrentlyViewing(index, entry) {
                      '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                      ' onclick="return debugger2.onClickCopyToken(\'#cv_refresh_token\');"/></form></P>' +
                    '</td>' +
-                   '<td><textarea rows=5 cols=60 readonly name=cv_refresh_token id=cv_refresh_token>' + (entry.refresh_token || '') + '</textarea></td>' +
+                   '<td><textarea rows=5 cols=60 readonly name=cv_refresh_token id=cv_refresh_token data-token-field="refresh"></textarea></td>' +
                  '</tr>';
   }
   if (entry.id_token) {
@@ -2226,7 +2274,7 @@ function renderCurrentlyViewing(index, entry) {
                      '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                      ' onclick="return debugger2.onClickCopyToken(\'#cv_id_token\');"/></form></P>' +
                    '</td>' +
-                   '<td><textarea rows=5 cols=60 readonly name=cv_id_token id=cv_id_token>' + (entry.id_token || '') + '</textarea></td>' +
+                   '<td><textarea rows=5 cols=60 readonly name=cv_id_token id=cv_id_token data-token-field="id"></textarea></td>' +
                  '</tr>';
   }
   html +=      '<tr>' +
@@ -2235,16 +2283,20 @@ function renderCurrentlyViewing(index, entry) {
                '</tr>' +
                '<tr>' +
                  '<td><strong>Nonce:</strong></td>' +
-                 '<td><input type="text" readonly value="' + (entry.nonce || '') + '" style="width:100%;" /></td>' +
+                 '<td><input type="text" readonly data-token-field="nonce" style="width:100%;" /></td>' +
                '</tr>' +
                '<tr>' +
                  '<td><strong>Session ID (sid):</strong></td>' +
-                 '<td><input type="text" readonly value="' + (entry.sid || '') + '" style="width:100%;" /></td>' +
+                 '<td><input type="text" readonly data-token-field="sid" style="width:100%;" /></td>' +
                '</tr>' +
              '</table>' +
              '</fieldset>' +
              '</div>';
   $('#currently-viewing-panel').html(html);
+  fillGeneratedFields('#currently-viewing-panel', {
+    access: entry.access_token, refresh: entry.refresh_token, id: entry.id_token,
+    nonce: entry.nonce, sid: entry.sid
+  });
   $('#currently-viewing-panel').show();
   log.debug("Leaving renderCurrentlyViewing().");
 }
@@ -2357,9 +2409,7 @@ function recreateTokenDisplay()
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           "</td>" +
                                           "<td>" +
-                                             "<textarea rows=5 cols=60 readonly name=token_access_token id=token_access_token>" + 
-                                               localStorage.getItem("token_access_token") + 
-                                             "</textarea>" +
+                                             "<textarea rows=5 cols=60 readonly name=token_access_token id=token_access_token data-token-field=\"access\"></textarea>" +
                                           "</td>" +
                                         "</tr>";
         if(useRefreshTokenTester) {
@@ -2373,9 +2423,7 @@ function recreateTokenDisplay()
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
-                                              '<textarea rows=5 cols=60 readonly name=token_refresh_token id=token_refresh_token>' + 
-                                                refreshToken +
-                                              "</textarea>" +
+                                              '<textarea rows=5 cols=60 readonly name=token_refresh_token id=token_refresh_token data-token-field="refresh"></textarea>' +
                                           "</td>" +
                                         "</tr>";
          }
@@ -2387,9 +2435,7 @@ function recreateTokenDisplay()
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_id_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
-                                            '<textarea rows=5 cols=60 readonly name=token_id_token id=token_id_token>' + 
-                                              localStorage.getItem("token_id_token") + 
-                                            "</textarea>" +
+                                            '<textarea rows=5 cols=60 readonly name=token_id_token id=token_id_token data-token-field="id"></textarea>' +
                                           '</td>' +
                                         "</tr>" +
                                       "</table>" +
@@ -2409,9 +2455,7 @@ function recreateTokenDisplay()
                                             '<P><form><input class="btn2" type="submit" value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           '</td>' +
-                                          "<td><textarea rows=5 cols=60 readonly name=token_access_token id=token_access_token>" +
-                                              localStorage.getItem("token_access_token") + 
-                                            "</textarea>" +
+                                          "<td><textarea rows=5 cols=60 readonly name=token_access_token id=token_access_token data-token-field=\"access\"></textarea>" +
                                           "</td>" +
                                         "</tr>";
          if(useRefreshTokenTester) {
@@ -2424,9 +2468,7 @@ function recreateTokenDisplay()
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
                                           "<td>" +
-                                            "<textarea rows=5 cols=60 readonly name=token_refresh_token id=token_refresh_token>" +
-                                              refreshToken +
-                                            "</textarea>" +
+                                            "<textarea rows=5 cols=60 readonly name=token_refresh_token id=token_refresh_token data-token-field=\"refresh\"></textarea>" +
                                           "</td>" +
                                         "</tr>";
          }
@@ -2434,8 +2476,12 @@ function recreateTokenDisplay()
                                       "</fieldset>" +
                                       "</div>";
       }
-      //$("#token_endpoint_result").html(DOMPurify.sanitize(token_endpoint_result_html));
       $("#token_endpoint_result").html(token_endpoint_result_html);
+      fillGeneratedFields("#token_endpoint_result", {
+        access: localStorage.getItem("token_access_token"),
+        refresh: refreshToken,
+        id: localStorage.getItem("token_id_token")
+      });
 }
 
 function displayTokenCustomParametersCheck()

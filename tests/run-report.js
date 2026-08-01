@@ -317,6 +317,20 @@ function buildJobs() {
     env: {},
   });
 
+  // The inertness of this app's XML parsing — the invariant behind CodeQL's
+  // js/xss-through-dom reports on every DOMParser call in client/src (alert #147
+  // and eleven siblings). Those are a modelling artefact: parseFromString with
+  // 'application/xml' yields an inert, detached document, and nothing renders it
+  // as markup. Sanitizing the input would be the wrong fix — XML-DSIG signs the
+  // exact octets that get canonicalized, so rewriting them breaks the signature.
+  // What CAN be done is keep the premise true, which is what this asserts.
+  // Node only, never skipped.
+  jobs.push({
+    name: "XML parsing is inert (no DOMParser HTML mode, no markup sink on the XML path)",
+    script: "xml_parse_inert.js",
+    env: {},
+  });
+
   // The scheme allowlist applied before the app navigates anywhere
   // (client/src/url_safety.js). Every URL it guards is caller-supplied — a
   // typed IdP endpoint, or one out of fetched metadata — and reaches
