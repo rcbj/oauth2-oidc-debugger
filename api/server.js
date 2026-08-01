@@ -637,7 +637,7 @@ app.get('/claimdescription', function(req, res) {
     log.error("An error occurred while retrieving the claim description XML: " + e.stack);
     res.status(STATUS_500)
        .render('error', {
-         error: e });
+         error: 'An unexpected error occurred.' });
   }
 });
 
