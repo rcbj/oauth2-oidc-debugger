@@ -38,6 +38,7 @@ const chrome = require("selenium-webdriver/chrome");
 const { Command, Option } = require('commander');
 const assert = require("assert");
 const browserFlags = require("./browser_flags.js");
+const waitForContent = require("./wait_for.js");
 var appconfig = require(process.env.CONFIG_FILE);
 
 var bunyan = require("bunyan");
@@ -281,6 +282,21 @@ function b64u(obj) {
   return Buffer.from(JSON.stringify(obj)).toString("base64url");
 }
 
+// Issuance step 2 generates the holder key pair with Web Crypto on page load,
+// asynchronously. The checkbox is static markup, so waiting for IT says nothing
+// about whether there is a key in hand yet — and re-enabling saving stores
+// whatever the page is holding at that moment. Wait for the key the page shows.
+//
+// This is the "wait on content, not elements" rule (tests/wait_for.js): the
+// element-only wait passed on a fast local server every time and lost the race
+// inside the containerized stack, where it failed at the very last assertion.
+async function waitForHolderKeyOnStep2(driver) {
+  await waitForContent.waitForStatus(driver, "vc_holder_jwk",
+    function (t) { return /"kty"/.test(t || ""); },
+    "[SD-JWT VC] step 2 never produced a holder key pair. If this says (blank) the page's " +
+    "Web Crypto is probably unavailable — check browser_flags on this origin");
+}
+
 async function sdJwtVcHolderKeyOptOut(driver) {
   log.info("=== SD-JWT VC: the holder key pair ===");
   var read = function (script) { return driver.executeScript(script); };
@@ -350,10 +366,16 @@ async function sdJwtVcHolderKeyOptOut(driver) {
 
   await driver.navigate().refresh();
   await waitVisible(driver, By.id("vc_save_holder_key"));
+  // Wait for the page to actually GENERATE a key before asserting it was not
+  // stored. Without this the assertion passes whenever the snapshot simply beats
+  // the key generation — true for the wrong reason, and it would keep passing
+  // with the gate removed entirely.
+  await waitForHolderKeyOnStep2(driver);
   var reloaded = await snapshot();
   assert.strictEqual(reloaded.box, false, "[SD-JWT VC] the opt-out should survive a reload.");
   assert.strictEqual(reloaded.priv, false,
-    "[SD-JWT VC] step 2 regenerates a holder key on load, and with saving off it must not be stored.");
+    "[SD-JWT VC] step 2 regenerates a holder key on load, and with saving off that key — which " +
+    "demonstrably exists, since the page is showing it — must not have been written.");
   log.info("[SD-JWT VC] OK — the preference survives a reload and the regenerated key is not stored.");
 
   // ...and the pages BEFORE that one must let the user reach it. This is the
@@ -455,6 +477,9 @@ async function sdJwtVcHolderKeyOptOut(driver) {
   await waitVisible(driver, By.id("vc_save_holder_key"));
   assert.strictEqual(await driver.findElement(By.id("vc_save_holder_key")).isSelected(), false,
     "[SD-JWT VC] precondition: the box should be clear before re-enabling.");
+  // Re-enabling saves the pair the page is CURRENTLY holding, so there has to be
+  // one before the click — see waitForHolderKeyOnStep2 above.
+  await waitForHolderKeyOnStep2(driver);
   await (await driver.findElement(By.id("vc_save_holder_key"))).click();
   var back = await snapshot();
   assert.strictEqual(back.pref, "1", "[SD-JWT VC] re-enabling should record the preference.");
