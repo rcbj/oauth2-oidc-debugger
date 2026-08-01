@@ -8,30 +8,31 @@
     "start": "node server.js",
     "build": "node build.js"
   },
+  "comments": {
+    "devDependencies": "Build-only tools: the bundler, its transform, and the three minifiers. They are separated from dependencies because they are not part of anything that runs or ships to a browser, and because browserify carries elliptic (GHSA-848j-6mx2-7j84, for which no patched version exists) through crypto-browserify. Nothing bundled requires elliptic any more — tests/jwk_pem.js is what holds that — so the advisory now describes a build tool only, and `npm audit --omit=dev` says so. Both images install with plain `npm ci`, which includes these, so the build is unaffected."
+  },
   "dependencies": {
-    "@fidm/x509": "^1.2.1",
     "@noble/curves": "1.4.0",
     "@noble/hashes": "1.4.0",
     "@noble/post-quantum": "^0.4.1",
-    "@peculiar/asn1-pkcs8": "latest",
     "asn1js": "^3.0.10",
-    "brace-expansion": "^1.1.16",
-    "browserify": "^17.0.1",
+    "brace-expansion": "^1.1.17",
     "bunyan": "latest",
-    "clean-css-cli": "^5.6.3",
+    "create-hash": "^1.2.0",
     "dompurify": "latest",
-    "envify": "latest",
     "express": "^4.22.2",
     "express-logging": "latest",
-    "html-minifier-terser": "^7.2.0",
     "jquery": "latest",
-    "jsonwebtoken": "latest",
-    "jwk-to-pem": "latest",
     "jwks": "latest",
     "logops": "latest",
     "node-forge": "^1.3.1",
-    "pem-file": "latest",
-    "pkijs": "^3.4.0",
+    "pkijs": "^3.4.0"
+  },
+  "devDependencies": {
+    "browserify": "^17.0.1",
+    "clean-css-cli": "^5.6.3",
+    "envify": "latest",
+    "html-minifier-terser": "^7.2.0",
     "terser": "^5.44.0"
   }
 }

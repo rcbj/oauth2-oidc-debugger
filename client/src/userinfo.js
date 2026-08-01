@@ -4,7 +4,6 @@ var $ = require("jquery");
 var log = bunyan.createLogger({ name: 'userinfo',
                                 level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
-const jwt = require('jsonwebtoken');
 var initialized = false
 var userinfo_endpoint = "";
 var userinfo_scope = "";

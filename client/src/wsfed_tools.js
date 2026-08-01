@@ -18,6 +18,9 @@
 var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var xd = require("./xmldsig");
+// The scheme allowlist applied before navigating anywhere. See url_safety.js
+// for why this is not DOMPurify.
+var urlSafety = require("./url_safety");
 var wm = require("./wsfed_msg");
 var log = bunyan.createLogger({ name: 'wsfed_tools', level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
@@ -269,18 +272,35 @@ function callIdp() {
   if (!endpoint) { setStatus('wsfed_call_status', 'Enter (or load from metadata) the IdP passive sign-in endpoint first.'); return false; }
   if (!val('wsfed_realm').trim()) { setStatus('wsfed_call_status', 'Enter the RP realm (wtrealm) first.'); return false; }
   var url = buildSignInUrl();
+  // The endpoint came from a form field (or from IdP metadata), so it is
+  // caller-supplied and reaches a navigation sink. Refuse anything that is not
+  // http/https rather than execute it.
+  var target;
+  try {
+    target = urlSafety.safeExternalUrl(url, 'The IdP sign-in endpoint');
+  } catch (e) {
+    setStatus('wsfed_call_status', e.message);
+    return false;
+  }
   setStatus('wsfed_call_status', 'Navigating to the IdP…');
   saveState();
-  window.location.assign(url);
+  window.location.assign(target);
   return false;
 }
 function signOut() {
   var endpoint = (val('wsfed_signout_endpoint') || val('wsfed_signin_endpoint')).trim();
   if (!endpoint) { setStatus('wsfed_call_status', 'Enter (or load from metadata) the IdP sign-in/sign-out endpoint first.'); return false; }
   var url = buildSignOutUrl();
+  var target;
+  try {
+    target = urlSafety.safeExternalUrl(url, 'The IdP sign-out endpoint');
+  } catch (e) {
+    setStatus('wsfed_call_status', e.message);
+    return false;
+  }
   setStatus('wsfed_call_status', 'Navigating to the IdP sign-out…');
   saveState();
-  window.location.assign(url);
+  window.location.assign(target);
   return false;
 }
 

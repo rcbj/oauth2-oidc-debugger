@@ -1,3 +1,8 @@
+## This is a Debugger
+This tool can be useful for troubleshooting Identity Provider configuration issues; however, it should never be installed in a production environment.
+
+Most users simply startup the dockerized version of the debugger on their local device.
+
 ## Publicly Accessible Hosted Sites
 The [IDPTools.com](https://idptools.com) is a static content website; there is no backend API endpoints that need to be secured.
 

@@ -58,13 +58,20 @@ RUN node -v
 RUN npm -v
 
 # Bundle app source
-COPY tests/oauth2_* tests/oidc_* tests/token_introspection.js tests/jwt_tools.js tests/encoding_tools.js tests/digital_signature.js tests/saml_sso.js tests/saml_logout.js tests/saml_encrypted_sso.js tests/saml_tools.js tests/saml_operation_history.js tests/wstrust_operation_history.js tests/wsfed_sso.js tests/wstrust.js tests/xmlsec_interop.js tests/wstrust_schema_validate.js tests/navigation.js tests/sd_jwt_vc_issuance.js tests/sd_jwt_vc_waltid.js tests/sd_jwt_vc_presentation.js tests/sd_jwt_vc_presentation_waltid.js tests/jose_jwe.js tests/module_paths.js tests/browser_flags.js tests/api_ssrf_guard.js tests/api_connect_timeout.js tests/edge_landing_contract.js tests/wait_for.js ./
+COPY tests/oauth2_* tests/oidc_* tests/token_introspection.js tests/jwt_tools.js tests/encoding_tools.js tests/digital_signature.js tests/saml_sso.js tests/saml_logout.js tests/saml_encrypted_sso.js tests/saml_tools.js tests/saml_operation_history.js tests/wstrust_operation_history.js tests/wsfed_sso.js tests/wstrust.js tests/xmlsec_interop.js tests/wstrust_schema_validate.js tests/navigation.js tests/sd_jwt_vc_issuance.js tests/sd_jwt_vc_waltid.js tests/sd_jwt_vc_presentation.js tests/sd_jwt_vc_presentation_waltid.js tests/jose_jwe.js tests/module_paths.js tests/browser_flags.js tests/api_ssrf_guard.js tests/api_connect_timeout.js tests/edge_landing_contract.js tests/jwk_pem.js tests/url_safety.js tests/wait_for.js ./
 # The XML Signature/Encryption interop test drives the frontend crypto module
 # directly (no browser); copy it next to the test so it can require('./xmldsig.js')
 # and resolve its deps (node-forge, etc.) from this image's node_modules. The
 # WS-Trust schema test likewise builds messages with the real generator
 # (wstrust_msg.js) and validates them against the derived XSD in ./schemas.
 COPY client/src/xmldsig.js client/src/wstrust_msg.js client/src/jose_jwe.js client/src/edge_landing.js ./
+# The JWK -> SPKI PEM encoder, tested the same way (tests/jwk_pem.js requires it
+# directly). Note that in this image there is no client/src tree, so that test's
+# scan for requires which would pull `elliptic` back into a bundle reports itself
+# skipped — the scan runs in a checkout, where the sources are present.
+COPY client/src/jwk_pem.js ./
+# The scheme allowlist, tested directly by tests/url_safety.js.
+COPY client/src/url_safety.js ./
 # The two halves of the edge landings' hand-off contract, which
 # tests/edge_landing_contract.js compares: the module deployed to Lambda@Edge by
 # Terraform and the client module browserified into the page (copied just above).

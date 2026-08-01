@@ -317,6 +317,33 @@ function buildJobs() {
     env: {},
   });
 
+  // The scheme allowlist applied before the app navigates anywhere
+  // (client/src/url_safety.js). Every URL it guards is caller-supplied — a
+  // typed IdP endpoint, or one out of fetched metadata — and reaches
+  // window.location.assign() or a form action, where `javascript:` is script
+  // execution in this origin. The cases that earn the test are the ones the URL
+  // parser normalises: `java\tscript:` and a leading control character are both
+  // the javascript: protocol by the time the browser acts. Node only, never
+  // skipped.
+  jobs.push({
+    name: "URL safety (only http/https reaches a navigation sink)",
+    script: "url_safety.js",
+    env: {},
+  });
+
+  // The JWK -> SPKI PEM encoder the JWKS page displays (client/src/jwk_pem.js).
+  // It exists so the page does not have to require `jwk-to-pem`, which reaches
+  // `elliptic` — GHSA-848j-6mx2-7j84, an ECDSA flaw that can expose a private
+  // key, and one with NO patched version in existence. That trade is only sound
+  // if the replacement encodes correctly, so this checks the DER against node's
+  // own SPKI parser, and additionally fails if any file in client/src takes a
+  // require that would put elliptic back into a bundle. Node only, never skipped.
+  jobs.push({
+    name: "JWK to PEM encoder (SPKI DER correctness; elliptic stays out of the bundles)",
+    script: "jwk_pem.js",
+    env: {},
+  });
+
   // The api's outbound address policy (api/ssrf_guard.js): the service fetches
   // URLs its caller supplies, so it must refuse loopback and private destinations
   // or it is an SSRF probe into whatever network it runs in. Node only — no

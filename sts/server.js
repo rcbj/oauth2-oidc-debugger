@@ -494,6 +494,34 @@ app.use(function (req, res, next) {
   next();
 });
 
+// The response hardening that actually applies to this service.
+//
+// Almost everything here answers `application/json`, and the values in those
+// responses are echoed from what a caller sent — an error_description quoting a
+// bad grant_type, a client name from a registration request. Escaping that
+// content is NOT the control: JSON.stringify already encodes it unambiguously,
+// and running an HTML sanitizer over it would corrupt legitimate values while
+// protecting nothing (a JSON string is not markup). The way such a body turns
+// into script is a browser deciding to treat it as HTML anyway, so the control
+// is to forbid that decision:
+//
+//   X-Content-Type-Options: nosniff   honour the declared Content-Type, never
+//                                     sniff a JSON body as text/html
+//   Content-Security-Policy           nothing loads or runs even if some
+//                                     response were rendered as a document
+//   X-Frame-Options: DENY             no framing of the login screen the
+//                                     authorization endpoint serves
+//
+// The HTML this service does emit (the login screen, the credential-offer and
+// verifier pages) builds its markup from server-side values, and where a
+// caller-supplied value appears in it, it is escaped at that point.
+app.use(function (req, res, next) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
+
 app.use(cors({ origin: '*' }));
 app.options('*', cors({ origin: '*' }));
 

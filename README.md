@@ -1031,12 +1031,16 @@ Thanks to the following:
 * [APICast (3Scale API Management Gateway OAuth2 Example)](https://github.com/3scale/apicast/tree/master/examples/oauth2) for being the starting point for this experiment.
 * [Docker](https://docs.docker.com/reference/cli/docker/)
 * [docker-compose](https://docs.docker.com/reference/cli/docker/compose/)
-* Node.js(https://nodejs.org/api/all.html)
-* Javascript(https://devdocs.io/javascript/)
-* Typescript(https://www.typescriptlang.org/docs/)
-* Browserify(https://github.com/browserify/browserify#usage)
-* OpenAPI(https://swagger.io/specification/)
-* Selenium(https://www.selenium.dev/selenium/docs/api/javascript/index.html)
+* [Node.js](https://nodejs.org/api/all.html)
+* [Javascript](https://devdocs.io/javascript/)
+* [Typescript](https://www.typescriptlang.org/docs/)
+* [Browserify](https://github.com/browserify/browserify#usage)
+* [OpenAPI](https://swagger.io/specification/)
+* [Selenium](https://www.selenium.dev/selenium/docs/api/javascript/index.html)
+* [Walt.ID](https://github.com/walt-id/waltid-identity)
+* [KeyCloak](https://github.com/keycloak/keycloak)
+* [KeyCloak WS-Federation Support](https://github.com/cloudtrust/keycloak-wsfed)
+ 
 
 # Flows
 ## OAuth2 Client Credentials Grant

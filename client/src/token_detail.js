@@ -16,7 +16,13 @@ var $ = require("jquery");
 var log = bunyan.createLogger({ name: 'token_detail',
                                 level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
-const jwt = require('jsonwebtoken');
+// `jsonwebtoken` used to be required here for the one call below. It reaches
+// `elliptic` (jsonwebtoken -> jwa -> crypto, which browserify fills in with
+// crypto-browserify -> browserify-sign/create-ecdh -> elliptic), and `elliptic`
+// carries GHSA-848j-6mx2-7j84 with no patched version in existence. Decoding a
+// JWT needs no cryptography at all, so decodeJWT() below does it directly and a
+// permanently-vulnerable ECDSA implementation stops being shipped to the
+// browser. Signature VERIFICATION on this page was already Web Crypto's job.
 const vendorClaims = {
   'rfc_jose_header': require('./vendor_claims/rfc_jose_header.json'),
   'microsoft_entra': require('./vendor_claims/microsoft_entra.json')
@@ -36,8 +42,79 @@ function getParameterByName(name, url)
   return urlParams.get(name);
 }
 
+// Exactly three base64url segments, the third allowed to be empty (an unsecured
+// JWT). This is `jws`'s own JWS_REGEX; keeping it identical keeps the set of
+// strings that decode identical.
+var JWS_REGEX = /^[a-zA-Z0-9\-_]+?\.[a-zA-Z0-9\-_]+?\.([a-zA-Z0-9\-_]+)?$/;
+
+function b64uToUtf8(segment) {
+  var b64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+  while (b64.length % 4 !== 0) {
+    b64 = b64 + "=";
+  }
+  var raw = atob(b64);
+  try {
+    // Percent-decoding rather than atob alone: a claim value may hold non-ASCII
+    // (a name, an address), and atob yields bytes, not characters.
+    return decodeURIComponent(
+      raw.split("").map(function (c) {
+        return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join("")
+    );
+  } catch (e) {
+    // Not valid UTF-8. Buffer.from(...).toString('utf8') — what jsonwebtoken
+    // used — substitutes replacement characters rather than failing, so show
+    // the bytes instead of refusing to decode a token that is merely mis-encoded.
+    log.debug("Segment is not valid UTF-8; showing the raw bytes: " + e.message);
+    return raw;
+  }
+}
+
+// The contract callers depend on is jsonwebtoken's decode(token, {complete:true}):
+// { header, payload, signature } back, or NULL — never a throw — when the string
+// is not a JWT or its header is not JSON. validateClaims() below turns that null
+// into its own error message, so returning null matters as much as the object.
+// The payload is JSON.parse'd when it parses to an object and left as a string
+// otherwise, which is what makes a non-JSON payload display rather than vanish.
 function decodeJWT(jwt_) {
-  return jwt.decode(jwt_, {complete: true});
+  log.debug("Entering decodeJWT().");
+  if (typeof jwt_ !== "string" || !JWS_REGEX.test(jwt_)) {
+    log.debug("Leaving decodeJWT() — not a JWS.");
+    return null;
+  }
+  var segments = jwt_.split(".");
+  var header;
+  try {
+    header = JSON.parse(b64uToUtf8(segments[0]));
+  } catch (e) {
+    // An unparseable header is not a JWT. jws.decode treats this the same way,
+    // and the caller is written to expect null rather than an exception.
+    log.debug("Leaving decodeJWT() — header is not JSON: " + e.message);
+    return null;
+  }
+  if (header === null || typeof header !== "object") {
+    log.debug("Leaving decodeJWT() — header is not an object.");
+    return null;
+  }
+  var payload;
+  try {
+    payload = b64uToUtf8(segments[1]);
+  } catch (e) {
+    log.debug("Leaving decodeJWT() — payload is not decodable: " + e.message);
+    return null;
+  }
+  try {
+    var parsed = JSON.parse(payload);
+    if (parsed !== null && typeof parsed === "object") {
+      payload = parsed;
+    }
+  } catch (e) {
+    // Deliberately ignored: a payload that is not JSON is legal in a JWS and is
+    // shown as the string it is, exactly as jsonwebtoken did.
+    log.debug("Payload is not JSON; keeping it as a string.");
+  }
+  log.debug("Leaving decodeJWT().");
+  return { header: header, payload: payload, signature: segments[2] || "" };
 }
 
 function resolveTokenFromParams() {

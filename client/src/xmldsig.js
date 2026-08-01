@@ -258,12 +258,38 @@ function mgfMdFor(uri) {
     default: return forge.md.sha1.create();
   }
 }
+// Parse caller-supplied XML, refusing anything that is not well-formed.
+//
+// This is the correct control for an XML input, and note what it deliberately
+// does NOT do: it does not alter a single byte. XML-DSIG signs the exact octets
+// that get canonicalized, so any "cleaning" applied before this point silently
+// invalidates the signature it is about to produce or check — which is why an
+// HTML sanitizer has no business on this path. What can go wrong with XML here
+// is that it is malformed and the code then operates on a `parsererror`
+// document (or a null documentElement) as though it were the caller's message;
+// that is what this catches, at the point of parsing, with a named error.
+//
+// External entities are not a concern to defend against here: the browser's
+// DOMParser does not resolve them at all, and neither does @xmldom/xmldom,
+// which is what the node-side tests load this module with.
+function parseXmlStrict(xml, what) {
+  var label = what || 'XML';
+  if (typeof xml !== 'string' || xml.trim() === '') {
+    throw new Error(label + ' is empty.');
+  }
+  var doc = new DOMParser().parseFromString(xml, 'application/xml');
+  if (!doc || doc.getElementsByTagName('parsererror').length || !doc.documentElement) {
+    throw new Error('malformed ' + label + ' — it is not well-formed XML.');
+  }
+  return doc;
+}
+
 function encPlaintext(xml, c14nMode, type) {
   log.debug("Entering encPlaintext().");
   var isContent = type && type.indexOf('#Content') >= 0;
   if (c14nMode === 'exc-c14n' || c14nMode === 'c14n') {
     var fn = (c14nMode === 'c14n') ? canonicalizeInclusive : canonicalize;
-    var doc = new DOMParser().parseFromString(xml, 'application/xml');
+    var doc = parseXmlStrict(xml, 'the XML to encrypt');
     var root = doc.documentElement;
     if (!isContent) return fn(root);
     var inner = '', ch = root.firstChild;
@@ -271,7 +297,7 @@ function encPlaintext(xml, c14nMode, type) {
     return inner;
   }
   if (!isContent) return xml;
-  var d2 = new DOMParser().parseFromString(xml, 'application/xml');
+  var d2 = parseXmlStrict(xml, 'the XML to encrypt');
   var r2 = d2.documentElement, s = '', c = r2.firstChild;
   while (c) { s += new XMLSerializer().serializeToString(c); c = c.nextSibling; }
   log.debug("Leaving encPlaintext().");
@@ -359,7 +385,7 @@ function signWsSecurity(soapXml, opts) {
   var sigAlg = opts.sigAlg || SIG_ALG_RSA_SHA256;
   var spec = sigAlgSpec(sigAlg);
 
-  var doc = new DOMParser().parseFromString(soapXml, 'application/xml');
+  var doc = parseXmlStrict(soapXml, 'the SOAP envelope to sign');
   var security = firstByLocal(doc, 'Security');
   if (!security) throw new Error('No <wsse:Security> header to hold the signature — enable a timestamp or a credential.');
 
@@ -739,6 +765,7 @@ module.exports = {
   sigAlgSpec: sigAlgSpec,
   canonicalize: canonicalize,
   canonicalizeInclusive: canonicalizeInclusive,
+  parseXmlStrict: parseXmlStrict,
   encryptXml: encryptXml,
   decryptXml: decryptXml,
   signEnveloped: signEnveloped,

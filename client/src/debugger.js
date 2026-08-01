@@ -6,6 +6,10 @@ var metadataClient = require("./metadata_client");
 var sdJwtVc = require("./sd_jwt_vc");
 var bunyan = require("bunyan");
 var DOMPurify = require("dompurify");
+// DOMPurify above is for markup going into the DOM, which is what it is for.
+// URLs going into a navigation sink need a scheme allowlist instead — see
+// url_safety.js.
+var urlSafety = require("./url_safety");
 var $ = require("jquery");
 console.log("logLevel: " + appconfig.logLevel);
 var log = bunyan.createLogger({ name: 'debugger',
@@ -823,9 +827,22 @@ function triggerAuthZEndpointCall()
   }
   writeValuesToLocalStorage();
   recalculateAuthorizationRequestDescription();
-  window.location.href = DOMPurify.sanitize($("#display_authz_request_form_textarea1").val().substring(4,
+  // The authorization request URL is assembled from fields the user typed, so
+  // it reaches this navigation sink caller-supplied. DOMPurify was applied here
+  // and did nothing for it: it is an HTML sanitizer, so it returns a
+  // `javascript:` URL unchanged (and escapes the `&` between query parameters).
+  // The scheme allowlist is the check this sink actually needs.
+  var authzRequestUrl = $("#display_authz_request_form_textarea1").val().substring(4,
     $("#display_authz_request_form_textarea1").val().length
-  ).replace("\n",""));
+  ).replace("\n","");
+  try {
+    window.location.href = urlSafety.safeExternalUrl(authzRequestUrl, 'The authorization endpoint');
+  } catch (e) {
+    log.error("triggerAuthZEndpointCall: " + e.message);
+    $("#display_authz_error_class").html(DOMPurify.sanitize(
+      "<fieldset><legend>Error</legend><p>" + e.message + "</p></fieldset>"));
+    return false;
+  }
   log.debug("Leaving triggerAuthZEndpointCall().");
 }
 
@@ -2105,8 +2122,18 @@ function onClickClearLocalStorage()
 
 function generateCodeChallenge(codeVerifier) {
   log.debug("Entering generateCodeChallenge().");
-  const crypto = require('crypto');
-  const hash = crypto.createHash('sha256');
+  // create-hash, not require('crypto'). browserify fills a bare 'crypto' in
+  // with crypto-browserify, which is the whole shim — including
+  // browserify-sign and create-ecdh, and so `elliptic`, which carries
+  // GHSA-848j-6mx2-7j84 with no patched version in existence. create-hash IS
+  // the piece crypto-browserify uses for createHash, so this is the same
+  // implementation and the same digest, minus an ECDSA implementation this
+  // page never calls. Web Crypto would be the other option and is not used
+  // here: crypto.subtle.digest is async, this function is called synchronously
+  // from setPKCEValues(), and crypto.subtle does not exist at all on the
+  // containerized suite's http://client:3000 origin.
+  const createHash = require('create-hash');
+  const hash = createHash('sha256');
   log.debug("Leaving generateCodeChallenge().");
   return hash.update(codeVerifier).digest("base64").replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 }

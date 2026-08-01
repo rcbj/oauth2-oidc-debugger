@@ -31,6 +31,9 @@ var appconfig = require(process.env.CONFIG_FILE);
 var bunyan = require("bunyan");
 var forge = require("node-forge");
 var history = require("./saml_history");
+// The scheme allowlist applied before navigating anywhere, or POSTing a form
+// anywhere. See url_safety.js for why this is not DOMPurify.
+var urlSafety = require("./url_safety");
 var log = bunyan.createLogger({ name: 'saml_request', level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
 
@@ -695,12 +698,32 @@ function signRedirect(xml, dest, relayState, doSign) {
 
 // HTTP-POST binding: enveloped XML-DSIG. Returns the signed XML string. The
 // <Signature> is placed after <Issuer> per the SAML schema.
+// Parse caller-supplied XML, refusing anything that is not well-formed.
+//
+// The counterpart of xmldsig.js's parseXmlStrict(), kept local because this
+// page carries its own copy of the signing code and does not load that module.
+// It deliberately alters no bytes: XML-DSIG signs exactly what is canonicalized,
+// so anything that rewrote the input here would invalidate the signature being
+// produced. What it catches is a malformed document being signed or encrypted
+// as though it had parsed.
+function parseXmlStrict(xml, what) {
+  var label = what || 'XML';
+  if (typeof xml !== 'string' || xml.trim() === '') {
+    throw new Error(label + ' is empty.');
+  }
+  var doc = new DOMParser().parseFromString(xml, 'application/xml');
+  if (!doc || doc.getElementsByTagName('parsererror').length || !doc.documentElement) {
+    throw new Error('malformed ' + label + ' — it is not well-formed XML.');
+  }
+  return doc;
+}
+
 function signPostEnveloped(xml) {
   log.debug("Entering signPostEnveloped().");
   var certB64 = certPemToB64(val('saml_sp_public_key'));
   var alg = selectedSigAlg();
   var spec = sigAlgSpec(alg);
-  var doc = new DOMParser().parseFromString(xml, 'application/xml');
+  var doc = parseXmlStrict(xml, 'the AuthnRequest to sign');
   var root = doc.documentElement;
   var id = root.getAttribute('ID') || '';
 
@@ -945,7 +968,7 @@ function encPlaintext(xml, c14nMode, type) {
   var isContent = type && type.indexOf('#Content') >= 0;
   if (c14nMode === 'exc-c14n' || c14nMode === 'c14n') {
     var fn = (c14nMode === 'c14n') ? canonicalizeInclusive : canonicalize;
-    var doc = new DOMParser().parseFromString(xml, 'application/xml');
+    var doc = parseXmlStrict(xml, 'the XML to encrypt');
     var root = doc.documentElement;
     if (!isContent) return fn(root);
     var inner = '', ch = root.firstChild;
@@ -954,7 +977,7 @@ function encPlaintext(xml, c14nMode, type) {
   }
   // none: serialize as-is.
   if (!isContent) return xml;
-  var d2 = new DOMParser().parseFromString(xml, 'application/xml');
+  var d2 = parseXmlStrict(xml, 'the XML to encrypt');
   var r2 = d2.documentElement, s = '', c = r2.firstChild;
   while (c) { s += new XMLSerializer().serializeToString(c); c = c.nextSibling; }
   log.debug("Leaving encPlaintext().");
@@ -1190,7 +1213,9 @@ function callIdp() {
           artifactSent = true;
           var id = opSent('Send AuthnRequest', 'sent to ' + dest);
           try {
-            window.location.assign(res.location);
+            // A refusal throws, and the existing handler below records it as a
+            // failed operation and reports it — which is what should happen.
+            window.location.assign(urlSafety.safeExternalUrl(res.location, 'The IdP destination'));
           } catch (e) {
             opFailed(id, e.message);
             throw e;
@@ -1211,7 +1236,7 @@ function callIdp() {
     signRedirect(reqXmlR, dest, 'saml_request', signOn)
       .then(function (res) {
         redirectSentId = opSent('Send AuthnRequest', 'sent to ' + dest);
-        window.location.assign(res.location);
+        window.location.assign(urlSafety.safeExternalUrl(res.location, 'The IdP destination'));
       })
       .catch(function (e) {
         log.error('callIdp: ' + e.message);
@@ -1233,7 +1258,10 @@ function submitPostForm(action, params) {
   log.debug("Entering submitPostForm().");
   var form = document.createElement('form');
   form.method = 'POST';
-  form.action = action;
+  // The action is the IdP SSO endpoint, which came from a form field or from
+  // fetched metadata. A form submitted to a `javascript:` action executes it,
+  // so the scheme is checked here rather than trusted.
+  form.action = urlSafety.safeExternalUrl(action, 'The IdP SSO endpoint');
   Object.keys(params).forEach(function (k) {
     var input = document.createElement('input');
     input.type = 'hidden';
@@ -1315,7 +1343,7 @@ function singleLogout() {
   signRedirect(xml, dest, 'slo')
     .then(function (res) {
       sloSentId = opSent('Single Logout', 'sent to ' + dest, { binding: sloBinding });
-      window.location.assign(res.location);
+      window.location.assign(urlSafety.safeExternalUrl(res.location, 'The IdP SLO destination'));
     })
     .catch(function (e) {
       log.error('singleLogout: ' + e.message);

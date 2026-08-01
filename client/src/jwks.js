@@ -9,11 +9,27 @@ var $ = require("jquery");
 var log = bunyan.createLogger({ name: 'jwks',
                                 level: appconfig.logLevel });
 log.info("Log initialized. logLevel=" + log.level());
-const jwkToPem = require('jwk-to-pem');
-const jwt = require('jsonwebtoken');
-const pemfile = require('pem-file');
-const { Certificate } = require('@fidm/x509');
-const pkcs8 = require('@peculiar/asn1-pkcs8');
+// ./jwk_pem rather than the `jwk-to-pem` package: that package builds the EC
+// point through `elliptic`, which browserify then bundles into this page, and
+// `elliptic` carries GHSA-848j-6mx2-7j84 with no patched version in existence.
+// The local module emits byte-identical PEMs and signs nothing.
+const jwkToPem = require('./jwk_pem');
+// pem-file, @fidm/x509 and @peculiar/asn1-pkcs8 were required here and never
+// called — the only references were the two commented-out lines below. They are
+// not free imports: @fidm/x509 requires 'crypto', which browserify fills in with
+// the whole crypto-browserify shim, and so this page shipped `elliptic` (and
+// tweetnacl) to display a table of public keys.
+
+// This page builds its tables by string concatenation, so anything quoted out
+// of a fetched JWKS has to be escaped on the way in.
+function escapeHtmlText(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 window.onload = function() {
   log.debug("Entering onload function.");
@@ -109,15 +125,25 @@ function buildJWKSInfoTable(discoveryInfo) {
      discovery_info_table_html = discovery_info_table_html +
                                 "</table></fieldset>";
 
-     var pem = jwkToPem(discoveryInfo.keys[i]);
+     // An identity provider may publish a key this encoder does not cover — an
+     // OKP key, say. `jwk-to-pem` threw on those as well, and the throw escaped
+     // to the caller and left the whole JWKS table unrendered. Report the one
+     // key that could not be encoded and carry on with the others. The message
+     // quotes a value from a fetched document, so it is escaped before it goes
+     // anywhere near the markup.
+     var pem;
+     try {
+       pem = jwkToPem(discoveryInfo.keys[i]);
+     } catch (e) {
+       log.warn('Could not encode key ' + i + ' as a PEM: ' + e.message);
+       pem = 'No PEM available for this key: ' + escapeHtmlText(e.message);
+     }
      log.debug('cert: ' + pem);
      discovery_info_table_html = discovery_info_table_html +
                                  "<fieldset><legend>PEM Format</legend>" +
                                  '<textarea id="x509-' + i + '" name="x509-' + i + '" rows="10" cols="70" readonly="true">' + pem + '</textarea>' +
                                  "</fieldset>";
 
-//     log.debug('decoded: ' + pemfile.decode(pem).toString());    
-//     const cert = Certificate.fromPEM(pem);
     discovery_info_table_html = discovery_info_table_html +
                                 "</fieldset>";
 
