@@ -887,6 +887,9 @@ function handleSamlAcs(req, res) {
   try {
     var samlResponse = (req.body && req.body.SAMLResponse) || req.query.SAMLResponse;
     var relayState = (req.body && req.body.RelayState) || req.query.RelayState || '';
+    if (typeof relayState !== 'string') {
+      return res.status(STATUS_400).send('ACS: invalid RelayState.');
+    }
     var artifact = (req.body && req.body.SAMLart) || req.query.SAMLart;
 
     if (samlResponse) {
