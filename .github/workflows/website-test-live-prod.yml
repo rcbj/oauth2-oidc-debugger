@@ -4,8 +4,8 @@ name: Live Site Test (idptools.com)
 # (https://idptools.com) by invoking ./remote-run-tests.sh — the same script used
 # to run this locally, so there is no CI-specific copy of the setup to drift.
 #
-# See the test-site workflow (website-test-live.yml) for why: the previous
-# docker-compose-live-tests.yml path started keycloak + sts only, so the two
+# See the test-site workflow (website-test-live.yml) for why: the previous path
+# used a compose file of its own that started keycloak + sts only, so the two
 # walt.id interoperability jobs were never added to the list and CI reported 50
 # tests where a local run reports 52.
 #

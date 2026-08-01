@@ -633,8 +633,8 @@ function buildJobs() {
   // false) there is no /wstrust proxy — the page disables backend routing and
   // sends every request from the browser. So rewrite "back" to "front" there
   // (rather than letting the report claim backend routing it never used) and skip
-  // the one job whose entire subject is backend routing. The live-site stack
-  // supplies a loopback STS the browser can reach; see docker-compose-live-tests.yml.
+  // the one job whose entire subject is backend routing. The live-site run
+  // supplies a loopback STS the browser can reach; see remote-run-tests.sh.
   var wstrustStsUrl = env.WSTRUST_STS_URL || "";
   var wstrustSkip = "WS-Trust needs an STS (WSTRUST_STS_URL) — none reachable from this target.";
   var wstrustNoBackendSkip = "This target has no API proxy (POST /wstrust) — backend routing cannot be exercised; the frontend-routing jobs cover the exchange.";

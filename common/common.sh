@@ -36,7 +36,11 @@ common_setup()
 # written on its command line survive. For a long time just CONFIG_FILE was
 # forwarded, so every other `${...}` in a compose file silently substituted to
 # empty — including GIT_COMMIT and BUILD_NUMBER, which stamp the build.
-COMPOSE_FORWARDED_VARS="CONFIG_FILE COMPOSE_PROJECT_NAME OID4VCI_WALLET_URL BUILD_NUMBER GIT_COMMIT LIVE_CONFIG_FILE LIVE_DEBUGGER_BASE_URL LIVE_WSTRUST_STS_URL"
+# The LIVE_* trio that used to be here (LIVE_CONFIG_FILE, LIVE_DEBUGGER_BASE_URL,
+# LIVE_WSTRUST_STS_URL) was consumed only by docker-compose-live-tests.yml, which
+# is gone: the live-site workflows call remote-run-tests.sh directly now, and it
+# runs the suite on the host rather than substituting those into a compose file.
+COMPOSE_FORWARDED_VARS="CONFIG_FILE COMPOSE_PROJECT_NAME OID4VCI_WALLET_URL BUILD_NUMBER GIT_COMMIT"
 
 docker_compose() {
   echo "Entering docker_compose()."

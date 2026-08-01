@@ -4,13 +4,15 @@ name: Live Site Test (test.idptools.com)
 # invoking ./remote-run-tests.sh — the same script used to run this locally, so
 # there is no CI-specific copy of the setup to drift.
 #
-# It used to drive docker-compose-live-tests.yml instead, which was a second,
-# smaller implementation of the same idea: that stack starts keycloak + sts + a
-# tests container, while remote-run-tests.sh also starts the WS-Federation
-# Keycloak side-car and walt.id's issuer and verifier. Two jobs are gated on
-# walt.id being reachable (WALTID_ISSUER_URL / WALTID_VERIFIER_URL) and
-# run-report.js does not add a gated job to the list at all — so CI reported 50
-# tests where a local run reports 52, with no indication two were missing.
+# It used to drive a compose file of its own (docker-compose-live-tests.yml, now
+# deleted), which was a second, smaller implementation of the same idea: that
+# stack started keycloak + sts + a tests container, while remote-run-tests.sh also
+# starts the WS-Federation Keycloak side-car and walt.id's issuer and verifier.
+# Two jobs are gated on walt.id being reachable (WALTID_ISSUER_URL /
+# WALTID_VERIFIER_URL) and run-report.js does not add a gated job to the list at
+# all — so CI reported 50 tests where a local run reports 52, with nothing saying
+# two were missing. That is the failure mode a parallel implementation produces,
+# and the reason there is now only one.
 #
 # The comment in remote-run-tests.sh saying it cannot run from CI was about the
 # browser needing to reach the identity stack on loopback. That holds on a

@@ -16,8 +16,10 @@ init()
   # Defaults target the fully-containerized stack (client + keycloak on the
   # compose network). They can be overridden via the environment to run the
   # SAME suite against a deployed site while talking to a locally-spun-up
-  # Keycloak — see docker-compose-live-tests.yml (e.g. DEBUGGER_BASE_URL set to
-  # https://test.idptools.com with KEYCLOAK_BASE_URL=http://localhost:8080).
+  # Keycloak (e.g. DEBUGGER_BASE_URL=https://test.idptools.com with
+  # KEYCLOAK_BASE_URL=http://localhost:8080). Note the live-site runs no longer
+  # come through this script at all — remote-run-tests.sh drives them on the
+  # host, browser included — so this override path is now only for a hand-run.
   DEBUGGER_BASE_URL="${DEBUGGER_BASE_URL:-http://client:3000}"
   KEYCLOAK_BASE_URL="${KEYCLOAK_BASE_URL:-http://keycloak:8080}"
   KEYCLOAK_LOCALHOST_BASE_URL="${KEYCLOAK_LOCALHOST_BASE_URL:-http://keycloak:8080}"
@@ -32,10 +34,10 @@ init()
   # STS directly, and Chrome blocks http://sts:8081/sts as mixed content — every
   # WS-Trust job then times out waiting for the response page. The live-site stack
   # therefore passes WSTRUST_STS_URL explicitly as http://localhost:8081/sts (its
-  # own host-networked sts service, loopback = potentially trustworthy); see
-  # docker-compose-live-tests.yml. If it arrives unset/empty, run-report.js SKIPS
+  # own host-networked sts service, loopback = potentially trustworthy), which is
+  # what remote-run-tests.sh does. If it arrives unset/empty, run-report.js SKIPS
   # the WS-Trust jobs (as it skips the SAML Artifact job on a backend-less target)
-  # rather than failing — mirroring remote-run-tests.sh.
+  # rather than failing.
   case "${DEBUGGER_BASE_URL}" in
     http://client:*)
       WSTRUST_STS_URL="${WSTRUST_STS_URL:-http://sts:8081/sts}"

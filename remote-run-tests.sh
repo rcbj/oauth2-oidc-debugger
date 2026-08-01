@@ -188,8 +188,7 @@ init()
 
   # The target is a deployed HTTPS site with no API proxy: the browser can't fetch
   # the local http Keycloak descriptor cross-origin (CORS). Have common.sh's
-  # configureKeycloak download the descriptor to a file so the SAML tests UPLOAD it
-  # (shared with docker-compose-live-tests.yml — one implementation, no drift).
+  # configureKeycloak download the descriptor to a file so the SAML tests UPLOAD it.
   export SAML_METADATA_UPLOAD=1
   export SAML_METADATA_FILE="${SAML_METADATA_FILE:-${CURRENT_DIR}/tests/saml-idp-metadata.xml}"
 
