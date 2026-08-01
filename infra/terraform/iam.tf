@@ -28,8 +28,35 @@ locals {
   deploy_bucket_arns = [for b in local.deploy_bucket_names : "arn:aws:s3:::${b}"]
   deploy_object_arns = [for b in local.deploy_bucket_names : "arn:aws:s3:::${b}/*"]
 
+  # The Lambda@Edge landings (lambda_edge.tf), for BOTH sites — the same reason
+  # the bucket list above covers both: this one policy is what the prod stack
+  # (infra/terraform) and the test stack (infra/terraform-test) both deploy with,
+  # and each stack owns its own copy of these resources.
+  edge_landing_role_names = [
+    "${replace(var.domain, ".", "-")}-edge-landing",      # idptools-com-edge-landing
+    "test-${replace(var.domain, ".", "-")}-edge-landing", # test-idptools-com-edge-landing
+  ]
+  edge_landing_role_arns = [
+    for r in local.edge_landing_role_names : "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${r}"
+  ]
+  # Lambda@Edge functions live in us-east-1 by definition. Both the unqualified
+  # ARN and the :version form are needed — `publish = true` means every apply
+  # addresses a numbered version, and the unqualified ARN alone does not match it.
+  edge_landing_function_names = [
+    "${replace(var.domain, ".", "-")}-wsfed-landing",
+    "${replace(var.domain, ".", "-")}-saml-landing",
+    "test-${replace(var.domain, ".", "-")}-wsfed-landing",
+    "test-${replace(var.domain, ".", "-")}-saml-landing",
+  ]
+  edge_landing_function_arns = concat(
+    [for f in local.edge_landing_function_names : "arn:aws:lambda:us-east-1:${data.aws_caller_identity.current.account_id}:function:${f}"],
+    [for f in local.edge_landing_function_names : "arn:aws:lambda:us-east-1:${data.aws_caller_identity.current.account_id}:function:${f}:*"],
+  )
+
   github_oidc_provider_arn = var.create_github_oidc_provider ? aws_iam_openid_connect_provider.github[0].arn : data.aws_iam_openid_connect_provider.github[0].arn
 }
+
+data "aws_caller_identity" "current" {}
 
 # GitHub Actions OIDC provider — one per AWS account. Create it here, or set
 # create_github_oidc_provider = false to reuse one already in the account.
@@ -135,6 +162,115 @@ data "aws_iam_policy_document" "deploy" {
       "route53:GetChange",
     ]
     resources = ["*"]
+  }
+
+  # --- Lambda@Edge landings (lambda_edge.tf): the execution role -----------
+  # Without these a plan cannot even refresh: the first symptom was
+  # "AccessDenied: iam:GetRole on resource: role test-idptools-com-edge-landing".
+  # The write actions are here too, because a policy that lets terraform read a
+  # resource but not create or destroy it just moves the failure to apply time.
+  statement {
+    sid    = "EdgeLandingRole"
+    effect = "Allow"
+    actions = [
+      "iam:GetRole",
+      "iam:CreateRole",
+      "iam:DeleteRole",
+      "iam:UpdateAssumeRolePolicy",
+      "iam:UpdateRoleDescription",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:ListRoleTags",
+      "iam:ListAttachedRolePolicies",
+      "iam:AttachRolePolicy",
+      "iam:DetachRolePolicy",
+      "iam:ListRolePolicies",
+      "iam:GetRolePolicy",
+      # terraform checks this before deleting a role.
+      "iam:ListInstanceProfilesForRole",
+    ]
+    resources = local.edge_landing_role_arns
+  }
+
+  # Creating or updating either function hands that role to Lambda, which is a
+  # PassRole. Conditioned on the service so it cannot be used to pass the role
+  # anywhere else.
+  statement {
+    sid       = "EdgeLandingPassRole"
+    effect    = "Allow"
+    actions   = ["iam:PassRole"]
+    resources = local.edge_landing_role_arns
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["lambda.amazonaws.com", "edgelambda.amazonaws.com"]
+    }
+  }
+
+  # --- Lambda@Edge landings: the two functions ----------------------------
+  # EnableReplication/DisableReplication are the Lambda@Edge-specific pair:
+  # CloudFront copies the function to the edge regions, and the caller
+  # associating it needs them.
+  statement {
+    sid    = "EdgeLandingFunctions"
+    effect = "Allow"
+    actions = [
+      "lambda:GetFunction",
+      "lambda:GetFunctionConfiguration",
+      "lambda:GetFunctionCodeSigningConfig",
+      "lambda:CreateFunction",
+      "lambda:DeleteFunction",
+      "lambda:UpdateFunctionCode",
+      "lambda:UpdateFunctionConfiguration",
+      "lambda:PublishVersion",
+      "lambda:ListVersionsByFunction",
+      "lambda:GetPolicy",
+      "lambda:AddPermission",
+      "lambda:RemovePermission",
+      "lambda:ListTags",
+      "lambda:TagResource",
+      "lambda:UntagResource",
+      "lambda:EnableReplication",
+      "lambda:DisableReplication",
+    ]
+    resources = local.edge_landing_function_arns
+  }
+
+  # --- This deploy identity's OWN role/policy/OIDC provider: READ ONLY -----
+  # The prod stack manages these three (they are in prod.tfstate), so a plan has
+  # to be able to refresh them or it fails the same way the edge role did.
+  #
+  # Read only, deliberately. Granting iam:CreatePolicyVersion on the very policy
+  # that grants these permissions would let anything holding this identity's keys
+  # rewrite its own permissions — the classic privilege-escalation shape, and not
+  # something a CI deploy user should have. The consequence is that a change to
+  # THIS policy cannot be applied by the workflow: it has to be published by an
+  # administrator first (which is how this statement itself arrived), after which
+  # terraform sees no diff and carries on.
+  statement {
+    sid    = "DeployIdentitySelfRead"
+    effect = "Allow"
+    actions = [
+      "iam:GetRole",
+      "iam:ListRoleTags",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListRolePolicies",
+      "iam:GetPolicy",
+      "iam:GetPolicyVersion",
+      "iam:ListPolicyVersions",
+      "iam:ListEntitiesForPolicy",
+      "iam:GetOpenIDConnectProvider",
+    ]
+    # Built from the names, NOT from aws_iam_policy.deploy.arn: that resource's
+    # policy body IS this document, so referencing it here is a dependency cycle
+    # (policy -> document -> policy). The names are fixed by var.deploy_role_name,
+    # so the ARNs are known without reading the resources back.
+    resources = [
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.deploy_role_name}",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${var.deploy_role_name}-policy",
+      "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com",
+    ]
   }
 
   # --- ACM: certificate generation + renewal. Cert ARNs are created by this

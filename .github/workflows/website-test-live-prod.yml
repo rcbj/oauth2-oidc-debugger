@@ -1,10 +1,13 @@
 name: Live Site Test (idptools.com)
 
 # Runs the full Selenium suite against the DEPLOYED PROD site
-# (https://idptools.com), using a throwaway Keycloak spun up locally (browser
-# reaches it at http://localhost:8080 via host networking). Same mechanism as
-# the test-site live test (docker-compose-live-tests.yml), pointed at prod via
-# LIVE_DEBUGGER_BASE_URL / LIVE_CONFIG_FILE.
+# (https://idptools.com) by invoking ./remote-run-tests.sh — the same script used
+# to run this locally, so there is no CI-specific copy of the setup to drift.
+#
+# See the test-site workflow (website-test-live.yml) for why: the previous
+# docker-compose-live-tests.yml path started keycloak + sts only, so the two
+# walt.id interoperability jobs were never added to the list and CI reported 50
+# tests where a local run reports 52.
 #
 # Runs automatically after a successful prod deploy, plus nightly and on demand.
 #
@@ -27,6 +30,9 @@ permissions:
 jobs:
   live-test:
     runs-on: ubuntu-latest
+    # Two Keycloaks, the mock STS and walt.id's issuer and verifier all have to
+    # come up before ~52 browser tests run against a real site.
+    timeout-minutes: 60
     # For a post-deploy (workflow_run) trigger, only run if the deploy
     # succeeded. Manual dispatch and the nightly schedule always run.
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
@@ -34,25 +40,41 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v7
 
-      - name: Install docker-compose
-        uses: KengoTODA/actions-setup-docker-compose@v1
+      # The script runs run-report.js and the test scripts on the runner itself,
+      # not in a container, so the runner needs the node the images use.
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          version: '5.2.0'
+          node-version: '24'
 
-      # Target the deployed PROD site. docker-compose-live-tests.yml derives the
-      # SAML/API env the suite needs (API_BASE_URL, SAML_SP_ENTITY_ID, ACS/SLO,
-      # SAML_BACKEND_AVAILABLE) from LIVE_DEBUGGER_BASE_URL — mirroring the
-      # non-localhost branch of remote-run-tests.sh — so setting it here is enough.
-      - name: Run Selenium suite against the live PROD site
+      # xmllint is what the WS-Trust schema test validates with when the optional
+      # native libxmljs2 binding is unusable. The tests image installs
+      # libxml2-utils for that reason; here the suite runs on the host instead.
+      - name: Install xmllint
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libxml2-utils
+
+      # Selenium drives the runner's own Chrome (preinstalled on ubuntu-latest)
+      # and fetches a matching driver itself. Printed so that a browser-version
+      # problem shows up in the log rather than as a mystery timeout.
+      - name: Show tool versions
         run: |
-          sudo LIVE_DEBUGGER_BASE_URL=https://idptools.com \
-               LIVE_CONFIG_FILE=./env/prod.js \
-               docker compose -f docker-compose-live-tests.yml \
-            up --build --abort-on-container-exit --exit-code-from tests
+          node --version
+          docker compose version
+          google-chrome --version || true
 
-      - name: Tear down the stack
+      # The script picks CONFIG_FILE from the URL (./env/prod.js for this one) and
+      # derives the SAML/API env itself, so the URL is the only input. It exits
+      # non-zero when a test fails: run-report.js exits 1 and check_return_code
+      # propagates it.
+      - name: Run the suite against the live PROD site
+        run: ./remote-run-tests.sh https://idptools.com
+
+      # The script deliberately leaves the stack up for fast local re-runs. A
+      # runner is thrown away, but tearing down keeps the log honest about what
+      # was left running.
+      - name: Tear down the identity stack
         if: always()
-        run: sudo docker compose -f docker-compose-live-tests.yml down
+        run: sudo docker compose -p idptools-kctest -f keycloak-tests.yml down -v --remove-orphans || true
 
       - name: Normalize report permissions
         if: always()

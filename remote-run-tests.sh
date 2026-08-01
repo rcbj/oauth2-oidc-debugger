@@ -22,13 +22,19 @@ set -x
 # may talk to these without a mixed-content block, and the mock STS and walt.id's
 # CORS proxies send the headers a cross-origin fetch needs.
 #
-# Local-only for now (the browser must reach the http://localhost services, so it
-# can't run from CI).
+# This also runs in CI: .github/workflows/website-test-live{,-prod}.yml call this
+# script directly rather than keeping a second copy of the setup. What the browser
+# needs is to reach the services above on loopback, which holds on a GitHub-hosted
+# runner because the job runs on the VM itself — the containers publish to that
+# VM's localhost and Chrome runs beside them. It would STOP holding if the job
+# were given a `container:`, which is what the old "local only" note here meant.
 #
 # Prerequisites (NOT started by this script):
 #   - Docker (used to start the containers above)
 #   - The debugger site reachable at $DEBUGGER_BASE_URL
-#   - Local Chrome + chromedriver on PATH (Selenium drives a local browser)
+#   - Local Chrome on PATH (Selenium drives a local browser and fetches a
+#     matching driver itself)
+#   - node, plus curl / jq / openssl, and xmllint for the WS-Trust schema job
 #
 # The stack is left running after the tests for fast re-runs. Stop it with:
 #   sudo docker compose -p idptools-kctest -f keycloak-tests.yml down
