@@ -18,5 +18,9 @@
   },
   "optionalDependencies": {
     "libxmljs2": "^0.37.0"
+  },
+  "overrides": {
+    "brace-expansion@1": "^1.1.17",
+    "brace-expansion@2": "^2.1.3"
   }
 }
