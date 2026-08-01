@@ -507,16 +507,43 @@ app.use(function (req, res, next) {
 //
 //   X-Content-Type-Options: nosniff   honour the declared Content-Type, never
 //                                     sniff a JSON body as text/html
-//   Content-Security-Policy           nothing loads or runs even if some
-//                                     response were rendered as a document
+//   Content-Security-Policy           no script runs even if some response were
+//                                     rendered as a document after all
 //   X-Frame-Options: DENY             no framing of the login screen the
 //                                     authorization endpoint serves
 //
 // The HTML this service does emit (the login screen, the credential-offer and
 // verifier pages) builds its markup from server-side values, and where a
-// caller-supplied value appears in it, it is escaped at that point.
+// caller-supplied value appears in it, it is escaped at that point with
+// xmlEscape().
+//
+// The policy is as tight as these pages allow, and it is worth saying what each
+// clause is for, because a stricter-looking one would break them:
+//   script-src 'none'   they contain no <script> at all, inline or external —
+//                       so this is the clause that makes the whole family of
+//                       js/reflected-xss reports moot rather than merely
+//                       unlikely: a JSON body rendered as a document still runs
+//                       nothing.
+//   style-src           six pages carry an inline <style> block, so
+//                       'unsafe-inline' is required; extracting them to files
+//                       would buy nothing here since no untrusted value reaches
+//                       a style.
+//   img-src data:       the two QR pages embed the code as a data: URI produced
+//                       by the qrcode library server-side.
+//   form-action 'self'  the only form posts to /oauth2/login.
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'none'",
+  "script-src 'none'",
+  "style-src 'unsafe-inline'",
+  "img-src 'self' data:",
+  "form-action 'self'",
+  "base-uri 'none'",
+  "frame-ancestors 'none'"
+].join('; ');
+
 app.use(function (req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', CONTENT_SECURITY_POLICY);
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
   next();
