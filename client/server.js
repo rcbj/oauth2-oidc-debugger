@@ -22,6 +22,7 @@ const HOST = appconfig.hostname || '0.0.0.0';
 
 // App
 const app = express();
+const PUBLIC_ROOT = path.resolve(__dirname, 'public');
 
 // Code-coverage collection endpoint (opt-in via COVERAGE=true). The
 // Istanbul-instrumented browser bundles POST their window.__coverage__ here on
@@ -55,11 +56,18 @@ app.use(function(req, res, next) {
   // (header/footer) are resolved; otherwise express.static would serve it raw.
   var reqPath = (req.path === '/') ? '/index.html' : req.path;
   if (!reqPath.endsWith('.html')) { return next(); }
-  const filePath = path.join(__dirname, 'public', reqPath);
+  const filePath = path.resolve(PUBLIC_ROOT, '.' + reqPath);
+  if (!(filePath === PUBLIC_ROOT || filePath.startsWith(PUBLIC_ROOT + path.sep))) { return next(); }
   fs.readFile(filePath, 'utf8', function(err, content) {
     if (err) { return next(); }
     var processed = content.replace(/<!--#include file="([^"]+)"-->/g, function(match, file) {
-      try { return fs.readFileSync(path.join(__dirname, 'public', file), 'utf8'); }
+      try {
+        const includePath = path.resolve(PUBLIC_ROOT, file);
+        if (!(includePath === PUBLIC_ROOT || includePath.startsWith(PUBLIC_ROOT + path.sep))) {
+          throw new Error('Path traversal attempt');
+        }
+        return fs.readFileSync(includePath, 'utf8');
+      }
       catch(e) { log.error('SSI include failed: ' + file + ' - ' + e); return ''; }
     });
     // Stamp the copyright year ({{YEAR}} in the footer partial / error pages).
