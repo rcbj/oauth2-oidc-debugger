@@ -22,7 +22,7 @@
     "express": "^4.22.2",
     "express-logging": "latest",
     "jquery": "latest",
-    "jsonld": "^8.3.3",
+    "jsonld": "^9.0.0",
     "jwks": "latest",
     "logops": "latest",
     "node-forge": "^1.3.1",
