@@ -235,7 +235,10 @@ module.exports = ({ By, until, Select, waitTime, log, jwt, assert }) => {
     const keycloak_username = By.id("username");
     const keycloak_password = By.id("password");
     const keycloak_kc_login = By.id("kc-login");
-    const token_access_token = By.id("token_access_token");
+    // The Authorization Endpoint Results pane's own field. It is authz_access_token
+    // and not the token endpoint pane's token_access_token because both panes can
+    // be on the page at once, and an implicit flow's token is only ever in this one.
+    const authz_access_token = By.id("authz_access_token");
     const display_token_error_form_textarea1 = By.id("display_token_error_form_textarea1");
 
     // Select OAuth2 Implicit Grant
@@ -278,7 +281,7 @@ module.exports = ({ By, until, Select, waitTime, log, jwt, assert }) => {
 
     // Wait for whichever appears first: the access token field or the error field.
     let visibleAccessTokenElement = await Promise.any([
-      waitForVisibility(driver, token_access_token),
+      waitForVisibility(driver, authz_access_token),
       waitForVisibility(driver, display_token_error_form_textarea1),
     ]);
 
