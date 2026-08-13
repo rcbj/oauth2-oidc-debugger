@@ -31,7 +31,6 @@ The project is split into two independent Node.js services:
 - **`/keycloak-wsfed/`** — A dedicated Keycloak 8.0.1 side-car carrying the cloudtrust `keycloak-wsfed` extension, because the main stack's Keycloak 26.x has no WS-Federation support at all. See `keycloak-wsfed/CLAUDE.md`.
 - **`/extension/`** — a **read-only** browser extension that observes `navigator.credentials` on one origin you arm it for and hands the artifacts to the WebAuthn pages. It never alters a ceremony and never starts one, and it will not name an RP ID it does not own — an extension that could would be a working defeat of WebAuthn's phishing resistance. The builds are generated (`extension/build.js`, called by the launchers), not committed. See `docs/webauthn.md`.
 - **`/infra/`** — Terraform and the Lambda@Edge handlers for the static deployments, which is how two protocols get an IdP's **POST** back to a site with no backend. See `infra/CLAUDE.md`.
-
 ## Running the App
 
 ```bash

@@ -692,6 +692,36 @@ function buildJobs() {
     env: {},
   });
 
+  // The wallet's DID module (client/src/did.js): did:jwk, did:key and did:web,
+  // reading a DID document, and the DIF Well Known DID Configuration check that
+  // proves a DID and an origin are the same entity. Everything here fails
+  // silently when it is wrong — a multicodec written as a fixed-width number
+  // instead of a varint produces DIDs that decode here and nowhere else, a
+  // compressed EC point decompressed with the wrong square root gives the other
+  // valid point on the curve, and a Domain Linkage Credential with a typ header
+  // or an iat claim is exactly what a JWT library produces by default. It found a
+  // real bug on its first run: P-384's and P-521's field primes were truncated.
+  // Node only, never skipped.
+  jobs.push({
+    name: "DID module (did:jwk/key/web, document reading, DIF domain linkage)",
+    script: "did_document.js",
+    env: {},
+  });
+
+  // DPoP's own arithmetic (client/src/dpop.js): the RFC 7638 JWK Thumbprint that
+  // becomes cnf.jkt, the htu normalization, the ath hash, and the shape of the
+  // proof itself. Every one of those fails SILENTLY when it is wrong — a proof with
+  // a wrong thumbprint or a wrong htu is perfectly well formed and simply matches
+  // nothing, so the server's refusal reads as "your key is wrong" rather than "your
+  // encoding is wrong". The oracle is not a second implementation but the RFCs' own
+  // published values: RFC 9449 prints an EC key and the jkt of the token bound to
+  // it, RFC 7638 section 3.1 does the same for RSA. Node only, never skipped.
+  jobs.push({
+    name: "DPoP arithmetic (RFC 7638 thumbprints against the RFCs' own vectors, htu/ath/jti)",
+    script: "dpop.js",
+    env: {},
+  });
+
   // The api's outbound address policy (api/ssrf_guard.js): the service fetches
   // URLs its caller supplies, so it must refuse loopback and private destinations
   // or it is an SSRF probe into whatever network it runs in. Node only — no

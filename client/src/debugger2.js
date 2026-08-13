@@ -28,6 +28,11 @@ var useRefreshFrontEnd = false;
 var useRevocationFrontEnd = false;
 var useTokenExchangeFrontEnd = false;
 var refreshTokenUsed = false;
+// The tokens an implicit or hybrid flow returned on the authorization response,
+// as resolved by recreateUniqueGrantFlowElements(). document.ready() reads it
+// afterwards to record the set in Token History; null when this load carried no
+// such response.
+var authorizationResponseTokenSet = null;
 
 // ---------------------------------------------------------------------------
 // Put a value INTO a generated field, rather than concatenating it into the
@@ -49,11 +54,14 @@ var refreshTokenUsed = false;
 // .val() sets the DOM value property and never parses markup, so there is
 // nothing to escape and no context to escape from.
 //
-// Fields are addressed by data-token-field rather than by id because several of
-// these panes reuse ONE id for more than one field — both implicit-flow
-// textareas are id="implicit_grant_access_token", and refresh_refresh_token also
-// names a static input further down the page. An id selector would silently set
-// whichever the browser happened to find first.
+// Fields are addressed by data-token-field rather than by id because these panes
+// do not have the page's ids to themselves: refresh_refresh_token also names a
+// static input further down the page, and token_access_token / token_id_token
+// are used by whichever of the Authorization Endpoint and Token Endpoint result
+// panes is on the screen. An id selector would silently set whichever the
+// browser happened to find first. (The implicit-flow panes used to go further
+// and give two textareas in one pane the same id; they are one pane now, and
+// that pair is gone.)
 function fillGeneratedFields(container, values) {
   log.debug("Entering fillGeneratedFields().");
   var pane = (container && container.jquery) ? container : $(container);
@@ -980,7 +988,6 @@ function resetUI(value)
       recalculateRefreshRequestDescription();
       $("#h2_title_2").html("Obtain Access Token");
       $("#authorization_endpoint_result").html("");
-      $("#authorization_endpoint_id_token_result").html("");
       $("#token_endpoint_result").html("");
       $("#display_authz_request_class").hide();
       $("#display_token_request").show();
@@ -1351,6 +1358,202 @@ function loadValuesFromLocalStorage()
   log.debug("Leaving loadValuesFromLocalStorage().");
 }
 
+// Which tokens the authorization response itself is expected to carry, by grant
+// type. The response types that return only a code are absent on purpose: their
+// tokens come back from the token endpoint, and that call has its own result
+// pane. A hybrid flow's code is handled separately above — this covers only the
+// tokens that ride along beside it.
+function authorizationResponseTokenTypes(grantType) {
+  switch (grantType) {
+    case "implicit_grant":                  return { access: true,  id: false };
+    case "oidc_implicit_flow":              return { access: true,  id: true  };
+    case "oidc_implicit_flow_id_token":     return { access: false, id: true  };
+    case "oidc_hybrid_code_token":          return { access: true,  id: false };
+    case "oidc_hybrid_code_id_token":       return { access: false, id: true  };
+    case "oidc_hybrid_code_id_token_token": return { access: true,  id: true  };
+    default:                                return { access: false, id: false };
+  }
+}
+
+// One token off the authorization response, from wherever the identity provider
+// put it. The fragment is what the token-returning response types are specified
+// to use; ADFS and Azure AD put them in the query string instead, so both are
+// read. storageKey is the last resort and covers one case only: the return from
+// the token detail page, which carries no authorization response of its own and
+// so has to redisplay what was saved.
+//
+// An absent token comes back as "" rather than as a placeholder string. The
+// placeholders it replaces were shown in the token's own textarea, where they
+// read as something the identity provider had said, and were saved to
+// localStorage — so every page reached from a link here was handed one.
+function authorizationResponseToken(name, storageKey) {
+  log.debug("Entering authorizationResponseToken(). name=" + name);
+  var fromQuery = getParameterByName(name);
+  if (!!fromQuery) {
+    log.debug("Found " + name + " in the query string.");
+    return DOMPurify.sanitize(fromQuery);
+  }
+  var fromFragment = parseFragment()[name];
+  if (!!fromFragment) {
+    log.debug("Found " + name + " in the fragment.");
+    return DOMPurify.sanitize(fromFragment);
+  }
+  var saved = storageKey ? localStorage.getItem(storageKey) : "";
+  if (!!saved) {
+    log.debug("No " + name + " on this response. Using the saved one.");
+    return saved;
+  }
+  log.debug("No " + name + " found.");
+  return "";
+}
+
+// Which Token History entry holds exactly the tokens this pane is showing, or
+// null if it has not been recorded yet.
+//
+// It exists because localStorage's token_access_token / token_id_token are "the
+// most recent token", and for a hybrid flow this pane is NOT the most recent:
+// the code exchange that follows overwrites both. Links keyed on those slots
+// would then open, introspect, fetch UserInfo for — and revoke — a different
+// token from the one displayed beside them, silently. The history entry holds
+// the exact bytes, and every page these links reach already implements the
+// history_* types Currently Viewing uses, so nothing new has to be taught.
+//
+// Searched newest-first, since the same response replayed twice is the same
+// tokens and the later entry is the one being looked at.
+function authorizationTokenHistoryIndex(returned) {
+  var history = [];
+  try {
+    history = JSON.parse(localStorage.getItem('token_history') || '[]');
+  } catch (e) {
+    log.error("Failed to parse token_history: " + e);
+    return null;
+  }
+  for (var i = history.length - 1; i >= 0; i--) {
+    if (history[i].source === 'authorization' &&
+        (history[i].access_token || '') === (returned.access_token || '') &&
+        (history[i].id_token || '') === (returned.id_token || '')) {
+      return i;
+    }
+  }
+  return null;
+}
+
+// The Authorization Endpoint Results pane, built the way every other pane on
+// this page is: a dbg-pane whose fieldset both the pane title and the
+// Expand/Collapse all switch collapse, and one row per token carrying the same
+// links and buttons that token gets when the token endpoint returns it. An
+// implicit flow's access token is an ordinary access token, and it was the only
+// one on the page that could not be inspected, introspected, revoked, copied or
+// used to fetch UserInfo without being selected out of a textarea by hand.
+//
+// expected says which rows to draw, returned says what to put in them: a row is
+// drawn for a token the flow asked for even when none came back, because
+// "response_type asked for an id_token and none arrived" is the single most
+// useful thing this pane can say. That row states it in words and leaves its
+// field empty, rather than offering links that would act on nothing.
+//
+// The fields are authz_* rather than the token_* ids the Token Endpoint Results
+// pane uses, because both panes can be on the page at once — a hybrid flow
+// exchanges its code after the authorization response has already returned an
+// id_token, and returning from the token detail page redraws the token endpoint
+// pane beside this one. Sharing the ids would leave two elements answering to
+// #token_access_token, and each pane's Copy button would take whichever came
+// first in the document rather than the token it sits next to.
+function renderAuthorizationEndpointResults(expected, returned) {
+  log.debug("Entering renderAuthorizationEndpointResults().");
+  // Once the set is in Token History every link names it by generation, which is
+  // the only way they go on meaning THIS token after a hybrid flow's code
+  // exchange replaces the current one. Before it is recorded — this pane is
+  // drawn first, and document.ready() re-renders it once the entry exists — the
+  // plain slots are correct, because nothing has overwritten them yet.
+  var generation = authorizationTokenHistoryIndex(returned);
+  var byGeneration = (generation !== null);
+  var accessType = byGeneration ? "history_access&generation=" + generation : "access";
+  var userinfoType = byGeneration ? "history_access&generation=" + generation : "token_access_token";
+  var idType = byGeneration ? "history_id_token&generation=" + generation : "id";
+  var revokeAttributes = byGeneration
+    ? 'data-revoke-type="history_access" data-revoke-generation="' + generation + '"'
+    : 'data-revoke-type="access"';
+  log.debug("Pane links keyed by " + (byGeneration ? "generation " + generation : "the current token slots") + ".");
+  var html = '<div class="dbg-pane">' +
+             '<legend class="dbg-legend" data-target="authz_result_fieldset">Authorization Endpoint Results</legend>' +
+             '<fieldset id="authz_result_fieldset">' +
+             '<p><em>Tokens returned by the Authorization Endpoint itself rather than by a call to the Token Endpoint.</em></p>' +
+             '<table>';
+  if (expected.access) {
+    html += '<tr><td>';
+    if (returned.access_token) {
+      html +=   '<P><a href="/token_detail.html?type=' + accessType + '" onclick="debugger2.clickLink()">Access Token</a></P>' +
+                '<P style="font-size:50%;"><a href="/introspection.html?type=' + accessType + '" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
+                // UserInfo sits on the ACCESS token's row, not on the ID token's
+                // where the Token Endpoint Results pane draws it. The call is
+                // authenticated with the access token — the link is literally
+                // ?type=token_access_token — so this is the token it belongs to,
+                // and hanging it off the ID token row means the flows that
+                // return an access token and no id_token (OAuth2 Implicit Grant,
+                // response_type=code token) never offer it at all, which is how
+                // it came to be missing here.
+                '<P style="font-size:50%;">Get <a href="/userinfo.html?type=' + userinfoType + '" onclick="debugger2.clickLink()">UserInfo Data</a></P>' +
+                '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" ' + revokeAttributes + ' /></P>' +
+                '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                ' onclick="return debugger2.onClickCopyToken(\'#authz_access_token\');"/></form></P>';
+    } else {
+      html +=   '<P>Access Token</P>';
+    }
+    html += '</td><td>' +
+              '<textarea rows=5 cols=60 readonly name=authz_access_token id=authz_access_token data-token-field="access"></textarea>';
+    if (!returned.access_token) {
+      html +=   '<p><em>No access_token was returned on the authorization response.</em></p>';
+    }
+    html += '</td></tr>';
+  }
+  if (expected.id) {
+    html += '<tr><td>';
+    if (returned.id_token) {
+      html +=   '<P><a href="/token_detail.html?type=' + idType + '" onclick="debugger2.clickLink()">ID Token</a></P>' +
+                '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                ' onclick="return debugger2.onClickCopyToken(\'#authz_id_token\');"/></form></P>';
+    } else {
+      html +=   '<P>ID Token</P>';
+    }
+    html += '</td><td>' +
+              '<textarea rows=5 cols=60 readonly name=authz_id_token id=authz_id_token data-token-field="id"></textarea>';
+    if (!returned.id_token) {
+      html +=   '<p><em>No id_token was returned on the authorization response.</em></p>';
+    }
+    // The Token Endpoint Results pane offers UserInfo beside the ID token, and
+    // it is absent here, so say why rather than leaving the comparison to be
+    // made twice. UserInfo is authenticated with an access token and this
+    // response did not carry one, so the link would be dead the moment it
+    // appeared. Worded as "this authorization response" rather than "this flow"
+    // because a hybrid flow (code id_token) does get an access token — from the
+    // token endpoint, whose own pane carries the link.
+    if (returned.id_token && !returned.access_token) {
+      html +=   '<p><em>No UserInfo link: that call is made with an access token, ' +
+                'and this authorization response returned none.</em></p>';
+    }
+    html += '</td></tr>';
+  }
+  html += '</table></fieldset></div>';
+  // NOT run through DOMPurify, and that is the point rather than an oversight:
+  // the string above is a constant with no value interpolated into it, and
+  // DOMPurify strips inline event handlers. Sanitizing it — which is what this
+  // pane used to do — removed the very onclick attributes its buttons are made
+  // of, so "Copy Token" copied nothing and, being inside a <form>, submitted it
+  // and reloaded the page instead. The Token Endpoint Results pane is written
+  // to the DOM the same way for the same reason.
+  //
+  // The tokens themselves go in as VALUES below, never as markup: one
+  // containing "</textarea>" would otherwise close the element early and have
+  // the rest of it parsed as HTML (see fillGeneratedFields).
+  $("#authorization_endpoint_result").html(html);
+  fillGeneratedFields("#authorization_endpoint_result", {
+    access: returned.access_token, id: returned.id_token
+  });
+  $("#authorization_endpoint_result").show();
+  log.debug("Leaving renderAuthorizationEndpointResults().");
+}
+
 function recreateUniqueGrantFlowElements()
 {
   log.debug("Entering recreateUniqueGrantFlowElements().");
@@ -1378,63 +1581,46 @@ function recreateUniqueGrantFlowElements()
       $("#code").val(code);
     }
   }
-  if ( agt == "implicit_grant" || 
-       agt == "oidc_implicit_flow")
+  // Implicit and hybrid flows return their tokens on the authorization response
+  // itself, so this page is where those tokens are first seen: there is no token
+  // endpoint call whose result pane would otherwise render them. Which ones to
+  // expect is decided by the grant type, and each is looked for in both places
+  // one can arrive.
+  //
+  // They all go into ONE pane. There was a second container for the id_token,
+  // which is why an OIDC Implicit Flow put two panes both titled "Authorization
+  // Endpoint Results" on the page — and the second printed the placeholder
+  // NO_ID_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS into a textarea whenever the
+  // id_token was not where it looked, which reads as a token rather than as an
+  // explanation of why there isn't one. Each of the four flows that land here
+  // had its own copy of the markup, and they had drifted: two rendered the token
+  // beside a bare "access_token" label with no links at all.
+  var expectedTokens = authorizationResponseTokenTypes(agt);
+  var returnedTokens = { access_token: "", id_token: "" };
+  if ( (expectedTokens.access || expectedTokens.id) &&
+       pathname == "/debugger2.html")
   {
-    log.debug("Looking for access_token.");
-    var access_token = DOMPurify.sanitize(getParameterByName("access_token",window.location.href));
-    log.debug("access_token=" + access_token);
-    if(!!!access_token)
-    {
-      //Check to see if passed in as local anchor (ADFS & Azure Active Directory do this)
-      log.debug("Didn't find token in query parameter. Looking in fragment.");
-      log.debug("fragement: " + parseFragment());
-      access_token = DOMPurify.sanitize(parseFragment()["access_token"]);
-      if(!!!access_token)
-      {
-        log.debug("Didn't find token in fragment. Checking to see if there is a saved token in local storage.");
-        access_token = localStorage.getItem("token_access_token");
-        if(!!!access_token)
-        {
-          log.debug("Didn't find token in local storage. No access_token found.");
-          access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS(IMPLICIT_GRANT||OIDC_IMPLICIT_FLOW)";
-        } else {
-          log.debug("Found access_token in local storage.");
-        }
-      } else {
-        log.debug("Found token in fragment.");
-      } 
-    } else {
-     log.debug("Found token in query parameter.");
-    } 
-    var authorization_endpoint_result_html = "<fieldset>" +
-                                             "<legend>Authorization Endpoint Results:</legend>" +
-                                             "<table>" + 
-                                               "<tr>" +
-                                                 "<td>" +
-                                                   '<P><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></P>' +
-                                                   '<P style="font-size:50%;"><a href="/introspection.html?type=access" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
-                                         '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="access" /></P>' +
-                                                   '<P><form><input class="token_btn" type="submit" value="Copy Token"' +
-                                                   ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
-                                                 "</td>" +
-                                                 "<td><textarea rows=5 cols=60 name=\"token_access_token\" id=\"token_access_token\" data-token-field=\"access\"></textarea>" +
-                                                 "</td>" +
-                                               "</tr>" + 
-                                             "</table>" +
-                                             "</fieldset>";
-    $("#authorization_endpoint_result").html(DOMPurify.sanitize(authorization_endpoint_result_html));
-    fillGeneratedFields("#authorization_endpoint_result", { access: access_token });
-    localStorage.setItem("token_access_token", access_token);
+    returnedTokens.access_token =
+      expectedTokens.access ? authorizationResponseToken("access_token", "token_access_token") : "";
+    returnedTokens.id_token =
+      expectedTokens.id ? authorizationResponseToken("id_token", "token_id_token") : "";
+    log.debug("Authorization response carried: access_token=" + returnedTokens.access_token +
+              ", id_token=" + returnedTokens.id_token);
   }
-  if (  agt == "oidc_hybrid_code_id_token_token" &&
-        pathname == "/debugger2.html") //retrieve access code and id_token that is returned from authorization endpoint.
+  // Nothing found means no authorization response reached this load at all — the
+  // page was opened directly, or the identity provider returned an error, which
+  // the error pane below reports. Drawing the pane anyway would announce that no
+  // token came back from a call that was never made. It IS drawn when one of two
+  // expected tokens arrived, because naming the missing one is then the most
+  // useful thing on the page.
+  if (returnedTokens.access_token || returnedTokens.id_token)
   {
-    log.debug("fragement: " + parseFragment());
-    access_token = parseFragment()["access_token"];
-    if(!access_token)
-    {
-      access_token = "NO_ACCESS_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS(oidc_hybrid_code_id_token_token)";
+    // Written only when one actually came back. document.ready() clears these
+    // keys at the top of every load that is not a return from the token detail
+    // page, so there is nothing stale to leave behind — and on that return the
+    // saved token is the one being redisplayed.
+    if (returnedTokens.access_token) {
+      localStorage.setItem("token_access_token", returnedTokens.access_token);
     }
     log.debug("access_token=" + access_token);
     log.debug("fragement: " + parseFragment());
@@ -1538,6 +1724,20 @@ function recreateUniqueGrantFlowElements()
                                                                          "  </table>" +
                                                                          "</fieldset>"));
     fillGeneratedFields("#authorization_endpoint_id_token_result", { id: id_token });
+    if (returnedTokens.id_token) {
+      // Stored, not merely displayed: /token_detail.html?type=id reads this key,
+      // so the ID Token link below is dead without it.
+      localStorage.setItem("token_id_token", returnedTokens.id_token);
+      $("#logout_id_token_hint").val(returnedTokens.id_token);
+    }
+    renderAuthorizationEndpointResults(expectedTokens, returnedTokens);
+    // Read by document.ready(), which records the set in Token History and then
+    // draws the pane again so its links can name that entry. This is the only
+    // place that can record it: no other code on the page ever saw these tokens.
+    // Which rows to draw travels with them, so the second render does not have
+    // to work the grant type out a second time.
+    returnedTokens.expected = expectedTokens;
+    authorizationResponseTokenSet = returnedTokens;
   }
   var error = getParameterByName("error",window.location.href);
   var authzGrantType = $("#authorization_grant_type").val();
@@ -1761,6 +1961,55 @@ function enforceBackendAvailability() {
   log.debug("Leaving enforceBackendAvailability().");
 }
 
+// The three implicit variants the Authorization Grant Type drop down offers:
+// OAuth2 Implicit Grant, and the two OIDC Implicit Flows (id_token token, and
+// id_token alone). What they share is the only thing the callers below care
+// about — the tokens come back on the authorization response itself, so there
+// is no second call for this page to help compose.
+function isImplicitGrantType(grantType) {
+  return grantType === "implicit_grant" ||
+         grantType === "oidc_implicit_flow" ||
+         grantType === "oidc_implicit_flow_id_token";
+}
+
+// True when this page load is one the identity provider sent a token to.
+//
+// Both places a token can arrive are checked: the fragment, which is the
+// binding an implicit response uses, and the query string, because ADFS and
+// Azure AD put it there instead (recreateUniqueGrantFlowElements() reads both
+// for the same reason). localStorage is deliberately NOT consulted — it still
+// holds the previous run's token, which would make a return carrying an error
+// look like a successful one.
+//
+// The way back from the token detail page carries no authorization response of
+// its own, but it is reachable only from a token that was already returned, so
+// it counts.
+function implicitTokenReturned() {
+  var fragment = parseFragment();
+  return !!fragment["access_token"] ||
+         !!fragment["id_token"] ||
+         !!getParameterByName("access_token") ||
+         !!getParameterByName("id_token") ||
+         getParameterByName("redirectFromTokenDetail") === "true";
+}
+
+// Collapse the page's first row of panes: Configuration Parameters, Tools, and
+// the token request. Only the default state is set here — each pane's title
+// still expands it, as does the Expand all panes switch. Tools already ships
+// collapsed in the markup and is named anyway, so the row is stated in one
+// place rather than depending on three separate defaults staying put.
+function collapseFirstPaneRow() {
+  log.debug("Entering collapseFirstPaneRow().");
+  var panes = [["config_fieldset", "config_expand_button"],
+               ["tools_fieldset", "tools_expand_button"],
+               ["token_fieldset", "token_expand_button"]];
+  for (var i = 0; i < panes.length; i++) {
+    $("#" + panes[i][0]).css("display", "none");
+    $("#" + panes[i][1]).val("Expand");
+  }
+  log.debug("Leaving collapseFirstPaneRow().");
+}
+
 $(document).ready(function() {
   log.debug("Entering document.ready() function.");
 
@@ -1871,9 +2120,34 @@ $(document).ready(function() {
                          getParameterByName('access_token') || 
                          fragmentParams['access_token'] ||
                          getParameterByName('id_token') || fragmentParams['id_token']);
-    if (!!authzSignature && 
+    if (!!authzSignature &&
         localStorage.getItem('last_authz_signature') !== authzSignature) {
-      saveOperationToHistory('Authorization Endpoint', { client_id: localStorage.getItem('client_id') });
+      // An implicit or hybrid flow's tokens came from the response this
+      // signature was taken from, so this is the only chance to record them:
+      // no token endpoint call will happen, and saveTokenSetToHistory() is
+      // otherwise reached only from one. Without it the tokens were missing
+      // from Token History, and so from Currently Viewing and every history_*
+      // link — an implicit token set looked like it had never been issued.
+      //
+      // Recorded under the same signature dedupe as the operation, so a reload
+      // of the same response does not add a second copy of either.
+      var tokenHistoryIndex = null;
+      if (authorizationResponseTokenSet &&
+          (authorizationResponseTokenSet.access_token || authorizationResponseTokenSet.id_token)) {
+        tokenHistoryIndex = saveTokenSetToHistory(authorizationResponseTokenSet.access_token,
+                                                  '',
+                                                  authorizationResponseTokenSet.id_token,
+                                                  'authorization');
+        // Drawn again now that the entry exists, so the pane's links name it by
+        // generation instead of the current-token slots — which a hybrid flow's
+        // code exchange is about to overwrite with a different token.
+        renderAuthorizationEndpointResults(authorizationResponseTokenSet.expected,
+                                           authorizationResponseTokenSet);
+      }
+      saveOperationToHistory('Authorization Endpoint', {
+        client_id: localStorage.getItem('client_id'),
+        tokenHistoryIndex: tokenHistoryIndex
+      });
       localStorage.setItem('last_authz_signature', authzSignature);
     }
   }
@@ -2005,8 +2279,12 @@ $(document).ready(function() {
     $('#token_expand_button').val('Collapse');
   }
 
-  if( authzGrantType === "implicit_grant" ||
-      authzGrantType === "oidc_implicit_flow") 
+  // All three implicit variants, not the two this listed: an OIDC Implicit Flow
+  // returning only an id_token (response_type=id_token) is as much an implicit
+  // flow as the other two, and leaving it out left it as the one flow whose
+  // Operation History panel stayed hidden — the no-query-string branch above
+  // hides it, and this is what puts it back.
+  if (isImplicitGrantType(authzGrantType))
   {
     $('#step3').show();
     $('#step4').show();
@@ -2014,6 +2292,40 @@ $(document).ready(function() {
     $('#step6').show();
     $('#step7').show();
     $('#operation-history-panel').show();
+  }
+
+  // Both history panels were just hidden by the no-query-string branch above,
+  // and for these flows that is wrong: an authorization response carrying tokens
+  // arrives in the FRAGMENT — implicit and hybrid alike — so there is no query
+  // string to tell it apart from a page opened fresh. An authorization code flow
+  // never hit this, because its code comes back in the query string, which is
+  // why the two histories looked broken only on the flows that return tokens.
+  //
+  // Gated on a response having actually carried one, so a page opened fresh
+  // under one of these grant types is left alone. renderTokenHistory() decides
+  // its own panel's visibility from whether there is anything in it; the
+  // operation history panel has no such rule, and by this point it certainly has
+  // an entry — the Authorization Endpoint call was recorded above.
+  if (authorizationResponseTokenSet &&
+      (authorizationResponseTokenSet.access_token || authorizationResponseTokenSet.id_token)) {
+    renderTokenHistory();
+    $('#operation-history-panel').show();
+  }
+
+  // An implicit flow's tokens arrive with the authorization response, so once
+  // the identity provider has sent one there is nothing left to fill in on the
+  // first row of panes — the token request they sit beside describes a call this
+  // flow never makes. Collapse the row so the page opens on the tokens below it.
+  //
+  // This runs after the blocks above rather than in place of any of them,
+  // because two of them expand that row: the no-query-string path (which an
+  // implicit response takes, its parameters being in the fragment) expands both
+  // Configuration Parameters and the token pane, and the "step3 is visible but
+  // its fieldset is collapsed" repair expands the token pane again. Collapsing
+  // earlier would simply be undone.
+  if (isImplicitGrantType(authzGrantType) && implicitTokenReturned()) {
+    log.debug("Implicit flow returned a token. Collapsing the first row of panes.");
+    collapseFirstPaneRow();
   }
 
   maybeContinueSdJwtVcFlow();
@@ -2432,13 +2744,24 @@ function extractNonce(id_token) {
   return null;
 }
 
-// Session ID (sid) from the OAuth2 access token (JWT). Used to group the Token
-// History by session. Refresh responses preserve the sid of the originating
-// session, unlike nonce (which is only present on the original authentication).
-function extractSid(access_token) {
-  if (access_token) {
-    var payload = decodeJwtPayload(access_token);
-    if (payload && payload.sid) return payload.sid;
+// Session ID (sid), used to group the Token History by session. Refresh
+// responses preserve the sid of the originating session, unlike nonce (which is
+// only present on the original authentication).
+//
+// The access token is asked first because it is the one every grant returns and
+// the one a refresh carries forward. The id_token is a fallback for the two
+// response types that return one and no access token — OIDC Implicit Flow
+// (id_token) and OIDC Hybrid (code id_token) — whose sets would otherwise land
+// in the "No Session ID (sid)" bucket, apart from the token endpoint's own set
+// from the very same session. OIDC Session Management defines sid on the
+// id_token, and it is the same session either token names.
+function extractSid(access_token, id_token) {
+  var tokens = [access_token, id_token];
+  for (var i = 0; i < tokens.length; i++) {
+    if (tokens[i]) {
+      var payload = decodeJwtPayload(tokens[i]);
+      if (payload && payload.sid) return payload.sid;
+    }
   }
   return null;
 }
@@ -2479,11 +2802,21 @@ function saveTokenSetToHistory(access_token, refresh_token, id_token, source) {
     log.error("An error occurred while writing to local storage: " + e);
   }
   var nonce = extractNonce(id_token);
-  var sid = extractSid(access_token);
+  var sid = extractSid(access_token, id_token);
   if (history.length >= TOKEN_HISTORY_LIMIT) {
     localStorage.removeItem('token_history');
     renderTokenHistory();
-    return;
+    // Every generation went with it, including one the Authorization Endpoint
+    // Results pane may be naming in its links. Same redraw as clearTokenHistory()
+    // does, for the same reason — this is the other way the history is wiped.
+    if (authorizationResponseTokenSet) {
+      renderAuthorizationEndpointResults(authorizationResponseTokenSet.expected,
+                                         authorizationResponseTokenSet);
+    }
+    // Nothing was stored, so there is no index to hand back — callers that
+    // record the index alongside an operation must not point at a set that was
+    // just discarded.
+    return null;
   }
   history.push({
     timestamp: new Date().toISOString(),
@@ -2497,6 +2830,9 @@ function saveTokenSetToHistory(access_token, refresh_token, id_token, source) {
   localStorage.setItem('token_history', JSON.stringify(history));
   renderTokenHistory();
   log.debug("Leaving saveTokenSetToHistory().");
+  // The index of the set just added, for callers that cross-reference it from
+  // the Operation History entry describing the call that produced it.
+  return history.length - 1;
 }
 
 function selectTokenSet(index) {
@@ -3082,6 +3418,14 @@ function clearTokenHistory() {
   localStorage.removeItem('token_history_active_index');
   $('#token-history-panel').hide();
   $('#currently-viewing-panel').hide();
+  // The Authorization Endpoint Results pane names its tokens by generation once
+  // they are in the history, so clearing it leaves those links pointing at an
+  // entry that no longer exists. Redrawn here, which falls back to the
+  // current-token slots — the pane and its tokens are still on the screen.
+  if (authorizationResponseTokenSet) {
+    renderAuthorizationEndpointResults(authorizationResponseTokenSet.expected,
+                                       authorizationResponseTokenSet);
+  }
   return false;
 }
 
