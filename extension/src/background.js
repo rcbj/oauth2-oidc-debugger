@@ -49,11 +49,13 @@ const ARMED_KEY = "armed";
 const MAX_CAPTURES = 50;
 const TTL_MS = 30 * 60 * 1000;
 
-function log(...args) {
-  log.debug("Entering log().");
-  console.log("[idptools-webauthn]", ...args);
-  log.debug("Leaving log().");
-}
+// The service worker's own progress lines went through a `log(...args)`
+// function that wrote them under "[idptools-webauthn]". The console-backed
+// `log.info` above does the same thing under LOG_TAG, so the function is gone
+// rather than renamed — and it had to go: a function declaration and a `var` of
+// the same name are ONE binding, so the object assignment won and every call
+// became "log is not a function", inside a service worker whose console nobody
+// reads on a passing run.
 
 async function getArmed() {
   log.debug("Entering getArmed().");
@@ -123,7 +125,7 @@ async function unregisterAll() {
 
 async function arm(origin) {
   log.debug("Entering arm().");
-  log("arming for", origin);
+  log.info("arming for", origin);
   await registerFor(origin);
   const armed = { origin: origin, since: Date.now(), expires: Date.now() +
       TTL_MS };
@@ -137,7 +139,7 @@ async function arm(origin) {
 
 async function disarm(reason) {
   log.debug("Entering disarm().");
-  log("disarming:", reason);
+  log.info("disarming:", reason);
   await unregisterAll();
   await chrome.storage.local.remove(ARMED_KEY);
   // The buffer goes with it. A capture is somebody's authentication ceremony;
@@ -171,7 +173,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     if (res.ok) {
       const cfg = await res.json();
       if (Array.isArray(cfg.origins) && cfg.origins.length) {
-        log("autoarm.json present (CI build); arming for", cfg.origins[0]);
+        log.info("autoarm.json present (CI build); arming for", cfg.origins[0]);
         await arm(cfg.origins[0]);
       }
     }
@@ -195,7 +197,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       buffer.unshift(msg.capture);
       await chrome.storage.local.set({ [BUFFER_KEY]: buffer.slice(0,
                                      MAX_CAPTURES) });
-      log("captured a", msg.capture.ceremony, "ceremony on",
+      log.info("captured a", msg.capture.ceremony, "ceremony on",
           msg.capture.origin);
       reply({ stored: true });
       return;

@@ -13,9 +13,13 @@
 // nothing arrived — a message that names neither file and sends you looking at
 // the IdP. Comparing them here costs milliseconds and fails with the cause.
 //
-// Both files are plain data with no dependencies, so they are require()d and
-// compared directly rather than scraped. Called by tests/wsfed_sso.js and
-// tests/saml_encrypted_sso.js — whichever runs first catches the drift.
+// Both files are plain data, so they are require()d and compared directly
+// rather than scraped. The edge half genuinely has no dependencies (a
+// Lambda@Edge bundle cannot have any); the client half carries a bunyan logger
+// like every other module under client/src, which is why it is loaded through
+// module_paths.js below rather than by a bare require(). Called by
+// tests/wsfed_sso.js and tests/saml_encrypted_sso.js — whichever runs first
+// catches the drift.
 //
 // Skipped, with a log line rather than silently, when a layout has only one of
 // the two files. Both are copied flat into the tests container
@@ -25,6 +29,7 @@ const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
 const bunyan = require("bunyan");
+const paths = require("./module_paths.js");
 
 // This module is required BY other tests (wsfed_sso.js, saml_encrypted_sso.js),
 // each of which passes its own logger in so the contract check appears in that
@@ -90,7 +95,16 @@ function assertEdgeLandingContract(log) {
   }
 
   const edge = require(edgePath).CONTRACTS;
-  const client = require(clientPath);
+  // Not a bare require(). Node resolves a module's own requires relative to
+  // WHERE THAT MODULE LIVES, and edge_landing.js requires bunyan for the
+  // logging convention — so from client/src it looks under client/node_modules,
+  // which a checkout that installed only the tests' dependencies does not have.
+  // requireSharedModule() puts tests/node_modules on the resolution path first.
+  // A plain require() here was "Cannot find module 'bunyan'" naming
+  // edge_landing.js, and because this check is the first step of both
+  // callers it failed all 21 WS-Federation cases and the SAML
+  // EncryptedAssertion one.
+  const client = paths.requireSharedModule([clientPath], "edge_landing.js");
 
   assert.strictEqual(client.MARKER, edge.marker,
     "the landing marker differs: infra/edge/edge_common.js says '" +

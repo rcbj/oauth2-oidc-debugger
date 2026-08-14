@@ -118,8 +118,8 @@ code you write **as you write it**, not as a later sweep.
   an `addEventListener` handler, a config IIFE — which have no name to log and
   are left alone.
 
-  **Two places a log line is not a log line but a crash, and both cost a full
-  suite run on 2026-08-14 (23 of 127 tests, from a baseline of 127 green).**
+  **Three places a log line is not a log line but a crash, and all three cost a
+  full suite run on 2026-08-14 (26 of 127 tests, from a baseline of 127 green).**
   Check each before adding one:
 
   * **`log` must actually be in scope.** `tests/edge_landing_contract.js` keeps
@@ -136,6 +136,20 @@ code you write **as you write it**, not as a later sweep.
     defined` from executeScript, which reads as a page fault. Log what the
     function *returns*, out in node. Those functions and everything they declare
     are exempt from this rule, and say so in a comment.
+  * **The name `log` may already be taken — check before adding a shim.**
+    `waltid/cors-proxy.js`, `client/build.js` and `extension/src/background.js`
+    each already had a `function log(message)` of their own writing one line per
+    request/step, and each was given a console-backed `var log = {…}` above it.
+    A function declaration and a `var` of the same name are **one binding**, so
+    the object assignment wins and every existing call becomes `log is not a
+    function` — in the proxy, thrown from `server.listen()`'s callback, so it
+    died before it listened and the only symptom was a connection refused on
+    7005/7003 that failed all four walt.id interoperability tests naming
+    walt.id. (`const`/`let` instead of `var` would at least be a `SyntaxError`
+    at load; `var` defers it to the first call, which is why two of the three
+    were invisible to the suite.) Fold the old function into the shim
+    (`log.info(...)`, as `build.js` and `background.js` now do) or rename it
+    (`logLine()`, as the proxy does) — never leave two.
 
   The one standing exception is a **hot path**, and it must say so: `cbor.js`
   runs its item decoder hundreds of times for a single credential, so it logs at

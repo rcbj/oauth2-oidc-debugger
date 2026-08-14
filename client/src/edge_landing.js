@@ -25,8 +25,11 @@
 // drift, because a rename on one side alone shows up only as a deployed site
 // reporting that nothing arrived — which names nothing.
 //
-// No DOM, no crypto, no requires: safe to load from Node, which is what lets
-// the contract check compare the two directly instead of scraping source.
+// No DOM and no crypto: safe to load from Node, which is what lets the contract
+// check compare the two directly instead of scraping source. Its one require is
+// bunyan, for the logging convention — so the contract check loads this file
+// through tests/module_paths.js, because bunyan does not resolve from
+// client/src in a checkout that installed only the tests' dependencies.
 // ---------------------------------------------------------------------------
 
 // <meta name="wsfed-landing" content="..."> on every page a landing generates.

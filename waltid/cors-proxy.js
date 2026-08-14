@@ -84,12 +84,21 @@ function applyCors(res) {
   log.debug("Leaving applyCors().");
 }
 
-function log(message) {
-  log.debug("Entering log().");
+// `logLine`, not `log`: this file already had a request logger of its own when
+// the console-backed `log` above was added, and both were called `log`. A
+// function declaration and a `var` of the same name are ONE binding, so the
+// object assignment above won and every call here became "log is not a
+// function" — thrown from server.listen()'s callback, which killed the proxy
+// at startup. The only symptom was a connection refused on 7005/7003, so all
+// four walt.id interoperability tests failed at their first fetch, naming
+// walt.id rather than this file.
+function logLine(message) {
+  log.debug("Entering logLine().");
   // One line per call, so a failing browser request can be traced to what the
-  // issuer actually answered.
-  console.log(new Date().toISOString() + "  " + message);
-  log.debug("Leaving log().");
+  // issuer actually answered. Timestamped: this is a container log read after
+  // the fact, and `docker logs` adds none of its own by default.
+  console.log(new Date().toISOString() + "  " + LOG_TAG + " " + message);
+  log.debug("Leaving logLine().");
 }
 
 var server = http.createServer(function (req, res) {
@@ -101,7 +110,7 @@ var server = http.createServer(function (req, res) {
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
-    log("204 OPTIONS " + req.url + " (preflight answered here)");
+    logLine("204 OPTIONS " + req.url + " (preflight answered here)");
     return;
   }
 
@@ -125,7 +134,7 @@ var server = http.createServer(function (req, res) {
     });
     res.writeHead(answer.statusCode);
     answer.pipe(res);
-    log(answer.statusCode + " " + req.method + " " + req.url);
+    logLine(answer.statusCode + " " + req.method + " " + req.url);
   });
 
   upstream.on("error", function (e) {
@@ -135,8 +144,8 @@ var server = http.createServer(function (req, res) {
     // "service" rather than "issuer": one copy of this proxy fronts the issuer
     // and another fronts the verifier, and a 502 naming the wrong one sends
     // whoever reads it looking at the wrong container.
-    log("502 " + req.method + " " + req.url + " — upstream " + UPSTREAM + ": " +
-        e.message);
+    logLine("502 " + req.method + " " + req.url + " — upstream " + UPSTREAM +
+        ": " + e.message);
     if (!res.headersSent) {
       res.writeHead(502, { "Content-Type": "application/json" });
     }
@@ -151,6 +160,6 @@ var server = http.createServer(function (req, res) {
 });
 
 server.listen(PORT, "0.0.0.0", function () {
-  log("CORS proxy listening on 0.0.0.0:" + PORT + ", forwarding to " +
+  logLine("CORS proxy listening on 0.0.0.0:" + PORT + ", forwarding to " +
       UPSTREAM + ".");
 });

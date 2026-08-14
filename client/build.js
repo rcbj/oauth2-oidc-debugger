@@ -139,14 +139,16 @@ function gaSnippet(id) {
     '    </script>\n';
 }
 
-function log(msg) {
-  log.debug("Entering log().");
-  console.log('[build] ' + msg);
-  log.debug("Leaving log().");
-}
+// The build's own progress lines went through a `log(msg)` function that wrote
+// '[build] ' + msg. That is exactly what the console-backed `log.info` above
+// does, so the function is gone rather than renamed — and it had to go: a
+// function declaration and a `var` of the same name are ONE binding, so the
+// object assignment won and every call below was "log is not a function". This
+// script runs outside the suite (deploy/Dockerfile, `npm run build`), so no
+// test would have reported it.
 
 // 1. Clean output
-log('cleaning ' + path.relative(CLIENT_DIR, DIST));
+log.info('cleaning ' + path.relative(CLIENT_DIR, DIST));
 fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(path.join(DIST, 'js'), { recursive: true });
 
@@ -154,16 +156,16 @@ fs.mkdirSync(path.join(DIST, 'js'), { recursive: true });
 const appversion = require('./version');
 const VERSION = appversion.stamp(DIST);
 const BUILD_INFO = appversion.buildInfo(VERSION);
-log('version ' + VERSION.version + ' (' + BUILD_INFO + ')');
+log.info('version ' + VERSION.version + ' (' + BUILD_INFO + ')');
 // Warn (don't fail) if a project's package.json version drifted from VERSION.
 appversion.checkManifests().filter(function (m) { return !m.ok; })
                           .forEach(function (m) {
-  log('WARNING: ' + m.path + ' says ' + m.actual + ', expected ' + m.expected +
-      ' — run `node client/version.js --sync-manifests`');
+  log.warn('WARNING: ' + m.path + ' says ' + m.actual + ', expected ' +
+      m.expected + ' — run `node client/version.js --sync-manifests`');
 });
 
 // 2. Copy static assets
-log('copying public/ -> dist/');
+log.info('copying public/ -> dist/');
 fs.cpSync(PUBLIC, DIST, { recursive: true });
 
 // 2b. Ship the IANA JWT claim registry as a static object at /claimdescription.
@@ -174,7 +176,7 @@ fs.cpSync(PUBLIC, DIST, { recursive: true });
 //     resolve. The client reads it via response.text() + DOMParser, so the
 //     object's content-type does not matter for parsing.
 const CLAIM_XML_SRC = path.join(CLIENT_DIR, '..', 'api', 'jwt.xml');
-log('copying api/jwt.xml -> dist/claimdescription');
+log.info('copying api/jwt.xml -> dist/claimdescription');
 fs.copyFileSync(CLAIM_XML_SRC, path.join(DIST, 'claimdescription'));
 
 // 3. Bundle. debugger2 requires('./data.js'), so stage common/data.js into src/
@@ -184,7 +186,7 @@ fs.copyFileSync(COMMON_DATA, stagedData);
 try {
   for (const [name, standalone] of BUNDLES) {
     const out = path.join(DIST, 'js', name + '.js');
-    log('browserify src/' + name + '.js -> dist/js/' + name +
+    log.info('browserify src/' + name + '.js -> dist/js/' + name +
         '.js (CONFIG_FILE=' + CONFIG_FILE + ')');
     // Omit inline source maps (--debug) when minifying — they would bloat the
     // shipped bundle and defeat the point.
@@ -197,7 +199,7 @@ try {
     if (!MINIFY) bArgs.splice(3, 0, '--debug');
     execFileSync(BROWSERIFY, bArgs, { cwd: CLIENT_DIR, stdio: 'inherit' });
     if (MINIFY) {
-      log('terser dist/js/' + name + '.js (minify)');
+      log.info('terser dist/js/' + name + '.js (minify)');
       execFileSync(TERSER, [out, '-o', out, '--compress', '--mangle'],
         { cwd: CLIENT_DIR, stdio: 'inherit' });
     }
@@ -227,7 +229,7 @@ function resolveIncludes(dir) {
     });
     if (resolved !== html) {
       fs.writeFileSync(full, resolved);
-      log('resolved includes in ' + path.relative(DIST, full));
+      log.info('resolved includes in ' + path.relative(DIST, full));
     }
   }
   log.debug("Leaving resolveIncludes().");
@@ -252,11 +254,11 @@ function stampYear(dir) {
       .split('{{YEAR}}').join(YEAR)
       .split('{{VERSION}}').join(VERSION.version)
       .split('{{BUILD_INFO}}').join(BUILD_INFO));
-    log('stamped year in ' + path.relative(DIST, full));
+    log.info('stamped year in ' + path.relative(DIST, full));
   }
   log.debug("Leaving stampYear().");
 }
-log('stamping copyright year ' + YEAR + ' and version ' + VERSION.version);
+log.info('stamping copyright year ' + YEAR + ' and version ' + VERSION.version);
 stampYear(DIST);
 
 // 5. Inject Google Analytics into each page's <head> (hosted build only)
@@ -274,15 +276,16 @@ if (GA_MEASUREMENT_ID) {
       const injected = html.replace(HEAD_RE, function (m) { return m +
           snippet; });
       fs.writeFileSync(full, injected);
-      log('injected GA into ' + path.relative(DIST, full));
+      log.info('injected GA into ' + path.relative(DIST, full));
     }
     log.debug("Leaving injectGA().");
   }
-  log('injecting Google Analytics (GA_MEASUREMENT_ID=' + GA_MEASUREMENT_ID +
+  log.info('injecting Google Analytics (GA_MEASUREMENT_ID=' +
+      GA_MEASUREMENT_ID +
       ')');
   injectGA(DIST);
 } else {
-  log('GA_MEASUREMENT_ID not set — skipping Google Analytics injection');
+  log.info('GA_MEASUREMENT_ID not set — skipping Google Analytics injection');
 }
 
 // 6. Minify CSS and HTML (JS was minified per-bundle above). Each tool reads
@@ -306,13 +309,13 @@ if (MINIFY) {
     log.debug("Leaving walk().");
   }
 
-  log('minifying CSS');
+  log.info('minifying CSS');
   walk(DIST, '.css', function (file) {
     minifyInPlace(CLEANCSS, (i, o) => ['-o', o, i], file);
-    log('cleancss ' + path.relative(DIST, file));
+    log.info('cleancss ' + path.relative(DIST, file));
   });
 
-  log('minifying HTML');
+  log.info('minifying HTML');
   walk(DIST, '.html', function (file) {
     minifyInPlace(HTMLMIN, (i, o) => [
       i, '-o', o,
@@ -324,13 +327,13 @@ if (MINIFY) {
       // tag). Don't fail the deploy build over them — skip and pass through.
       '--continue-on-parse-error',
     ], file);
-    log('html-minifier-terser ' + path.relative(DIST, file));
+    log.info('html-minifier-terser ' + path.relative(DIST, file));
   });
 }
 
 // 7. Callback shim
 fs.mkdirSync(path.join(DIST, 'callback'), { recursive: true });
 fs.writeFileSync(path.join(DIST, 'callback', 'index.html'), CALLBACK_HTML);
-log('wrote callback/index.html shim');
+log.info('wrote callback/index.html shim');
 
-log('done — dist/ is ready.');
+log.info('done — dist/ is ready.');
