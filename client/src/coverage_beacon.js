@@ -8,30 +8,51 @@
 //
 // Coverage is shipped ASYNCHRONOUSLY while the page is alive. We cannot ship at
 // dismissal time: Chrome drops synchronous XMLHttpRequest fired during page
-// dismissal (pagehide/unload/visibilitychange-to-hidden), so a sync XHR there is
-// silently discarded and never reaches the server. navigator.sendBeacon() /
-// fetch(keepalive) are also out because coverage payloads routinely exceed their
-// ~64KB body limit. Instead we POST the current window.__coverage__ on a short
-// interval; since Istanbul accumulates coverage live, the last snapshot before a
-// navigation captures that page's coverage. The client server writes each POST
-// as a separate file and nyc merges them, so repeated snapshots are harmless
-// (merge unions covered statements; inflated hit counts don't affect coverage %).
+// dismissal (pagehide/unload/visibilitychange-to-hidden), so a sync XHR there
+// is silently discarded and never reaches the server. navigator.sendBeacon() /
+// fetch(keepalive) are also out because coverage payloads routinely exceed
+// their ~64KB body limit. Instead we POST the current window.__coverage__ on a
+// short interval; since Istanbul accumulates coverage live, the last snapshot
+// before a navigation captures that page's coverage. The client server writes
+// each POST as a separate file and nyc merges them, so repeated snapshots are
+// harmless (merge unions covered statements; inflated hit counts don't affect
+// coverage %).
+
+// The log level comes from the same configuration everything else here
+// reads. A caller without one still has to be able to load this module,
+// so an unresolvable CONFIG_FILE falls back to info rather than throwing.
+var bunyan = require("bunyan");
+var log = bunyan.createLogger({
+  name: "coverage_beacon",
+  level: (function () {
+    try {
+      return require(process.env.CONFIG_FILE).logLevel || "info";
+    } catch (e) {
+      return "info";
+    }
+  })()
+});
+
 (function () {
   if (typeof window === "undefined") {
     return;
   }
   function shipCoverage() {
+    log.debug("Entering shipCoverage().");
     try {
       if (!window.__coverage__) {
+        log.debug("Leaving shipCoverage().");
         return;
       }
       var xhr = new XMLHttpRequest();
-      xhr.open("POST", "/coverage", true); // async: works outside page dismissal
+      xhr.open("POST", "/coverage",
+               true); // async: works outside page dismissal
       xhr.setRequestHeader("Content-Type", "application/json");
       xhr.send(JSON.stringify(window.__coverage__));
     } catch (e) {
       // Never let coverage shipping interfere with the page.
     }
+    log.debug("Leaving shipCoverage().");
   }
   // Primary mechanism: periodic snapshot while the page is alive.
   setInterval(shipCoverage, 1000);

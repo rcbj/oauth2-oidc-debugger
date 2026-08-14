@@ -54,20 +54,21 @@ var authorizationResponseTokenSet = null;
 // .val() sets the DOM value property and never parses markup, so there is
 // nothing to escape and no context to escape from.
 //
-// Fields are addressed by data-token-field rather than by id because these panes
-// do not have the page's ids to themselves: refresh_refresh_token also names a
-// static input further down the page, and token_access_token / token_id_token
-// are used by whichever of the Authorization Endpoint and Token Endpoint result
-// panes is on the screen. An id selector would silently set whichever the
-// browser happened to find first. (The implicit-flow panes used to go further
-// and give two textareas in one pane the same id; they are one pane now, and
-// that pair is gone.)
+// Fields are addressed by data-token-field rather than by id because these
+// panes do not have the page's ids to themselves: refresh_refresh_token also
+// names a static input further down the page, and token_access_token /
+// token_id_token are used by whichever of the Authorization Endpoint and Token
+// Endpoint result panes is on the screen. An id selector would silently set
+// whichever the browser happened to find first. (The implicit-flow panes used
+// to go further and give two textareas in one pane the same id; they are one
+// pane now, and that pair is gone.)
 function fillGeneratedFields(container, values) {
   log.debug("Entering fillGeneratedFields().");
   var pane = (container && container.jquery) ? container : $(container);
   Object.keys(values).forEach(function (field) {
     var value = values[field];
-    pane.find('[data-token-field="' + field + '"]').val(value == null ? "" : value);
+    pane.find('[data-token-field="' + field + '"]').val(value == null ?
+              "" : value);
   });
   log.debug("Leaving fillGeneratedFields().");
   return pane;
@@ -89,6 +90,7 @@ function getParameterByName(name, url)
     url = window.location.search;
   }
   var urlParams = new URLSearchParams(url);
+  log.debug("Leaving getParameterByName().");
   return urlParams.get(name);
 }
 
@@ -108,7 +110,8 @@ function logoutButtonClick()  {
   var queryString = $.param(nameValuePairs);
 
   log.debug(queryString); // Log the query string
-  var logoutUrl = DOMPurify.sanitize($("#logout_end_session_endpoint").val()) + "?" + DOMPurify.sanitize(queryString);
+  var logoutUrl = DOMPurify.sanitize($("#logout_end_session_endpoint").val()) +
+      "?" + DOMPurify.sanitize(queryString);
 
   clearLocalStorage();
   window.location.href = logoutUrl;
@@ -137,12 +140,13 @@ function tokenButtonClick() {
   log.debug("Build internal representation of token request data.");
   var formData = buildInternalTokenAPIRequestMessage();
   if (useFrontEnd) {
-    log.debug("Using frontend to call Token Endpoint. formData=" + JSON.stringify(formData));
+    log.debug("Using frontend to call Token Endpoint. formData=" +
+              JSON.stringify(formData));
     // RFC 9449: when the SD-JWT VC workflow has DPoP switched on, this Token
     // Request carries a proof and the token comes back bound. Building it is
-    // asynchronous (Web Crypto), so the call is made from the promise rather than
-    // inline — and when DPoP is off, dpopTokenRequestHeaders() resolves to an
-    // empty object and this is the request it always was.
+    // asynchronous (Web Crypto), so the call is made from the promise rather
+    // than inline — and when DPoP is off, dpopTokenRequestHeaders() resolves to
+    // an empty object and this is the request it always was.
     dpopTokenRequestHeaders(localStorage.getItem("token_endpoint"))
       .then(function (headers) {
         $.ajax({
@@ -157,29 +161,37 @@ function tokenButtonClick() {
         });
       });
   } else {
-    log.debug("Using backend to call Token Endpoint. formData=" + JSON.stringify(formData));
-    // The proxied call cannot carry a DPoP proof: the api makes the request to the
-    // token endpoint, so a proof built here would either name the api as its htu
-    // (and be refused) or name an endpoint this browser is not calling. Saying so
-    // beats sending an unbound token onward as if it were bound — which is the
-    // failure this whole mechanism exists to prevent.
-    var dpopOnHere = sdJwtVc.isFlowActive() ? sdJwtVc.dpopEnabled() : oauthDpop.enabled();
+    log.debug("Using backend to call Token Endpoint. formData=" +
+              JSON.stringify(formData));
+    // The proxied call cannot carry a DPoP proof: the api makes the request to
+    // the token endpoint, so a proof built here would either name the api as
+    // its htu (and be refused) or name an endpoint this browser is not calling.
+    // Saying so beats sending an unbound token onward as if it were bound —
+    // which is the failure this whole mechanism exists to prevent.
+    var dpopOnHere = sdJwtVc.isFlowActive() ?
+        sdJwtVc.dpopEnabled() : oauthDpop.enabled();
     if (dpopOnHere) {
-      log.debug("DPoP is on, but this call is proxied through the api, which does not forward " +
+      log.debug("DPoP is on, but this call is proxied through the api, which " +
+                "does not forward " +
                 "DPoP proofs.");
-      var proxyNote = "DPoP is on, but this Token Request is being <strong>proxied through " +
-                      "the api</strong>, which does not forward DPoP proofs \u2014 so the token will " +
-                      "come back as an ordinary Bearer token. Choose <em>Front End</em> for " +
-                      "<em>Initiate call from</em> to send the request from the browser and have " +
+      var proxyNote = "DPoP is on, but this Token Request is being " +
+          "<strong>proxied through " +
+                      "the api</strong>, which does not forward DPoP proofs " +
+                          "\u2014 so the token will " +
+                      "come back as an ordinary Bearer token. Choose " +
+                          "<em>Front End</em> for " +
+                      "<em>Initiate call from</em> to send the request from " +
+                          "the browser and have " +
                       "it bound.";
       // Two workflows, two places to say it: the VC workflow has its hand-off
-      // banner, and this page's own DPoP pane has a status line. Writing only to
-      // the banner (which does not exist here) meant an OAuth2/OIDC user got no
-      // warning at all and an unbound token with no explanation.
+      // banner, and this page's own DPoP pane has a status line. Writing only
+      // to the banner (which does not exist here) meant an OAuth2/OIDC user got
+      // no warning at all and an unbound token with no explanation.
       if (sdJwtVc.isFlowActive()) {
         $("#sdjwtvc_banner").append("<p class='vc-bad'>" + proxyNote + "</p>");
       } else {
-        $("#dpop_status").html(DOMPurify.sanitize("<span class='dbg-bad'>" + proxyNote + "</span>"));
+        $("#dpop_status").html(DOMPurify.sanitize("<span class='dbg-bad'>" +
+          proxyNote + "</span>"));
       }
     }
     $.ajax({
@@ -200,39 +212,44 @@ function tokenButtonClick() {
 // The DPoP proof for this page's Token Request (RFC 9449).
 //
 // This page is shared: it is the OAuth2/OIDC workflow's token exchange AND the
-// SD-JWT VC issuance workflow's authorization-code leg. DPoP is a decision the VC
-// workflow makes, so it is read from that workflow's state and is simply absent
-// for everybody else — which is why this resolves to {} rather than refusing when
-// there is nothing to sign with.
+// SD-JWT VC issuance workflow's authorization-code leg. DPoP is a decision the
+// VC workflow makes, so it is read from that workflow's state and is simply
+// absent for everybody else — which is why this resolves to {} rather than
+// refusing when there is nothing to sign with.
 //
 // It applies only to the BROWSER-DIRECT call. The proxied call goes to the api,
 // which then calls the token endpoint itself: a proof made here would name the
-// api's URL as its htu and be refused, and one naming the token endpoint would be
-// a proof for a request this browser is not making. Forwarding proofs through the
-// api is not implemented, so the pane says so instead of sending something that
-// cannot work.
+// api's URL as its htu and be refused, and one naming the token endpoint would
+// be a proof for a request this browser is not making. Forwarding proofs
+// through the api is not implemented, so the pane says so instead of sending
+// something that cannot work.
 // ---------------------------------------------------------------------------
 function dpopTokenRequestHeaders(tokenEndpoint) {
   log.debug("Entering dpopTokenRequestHeaders().");
   var context = null;
   try {
     // WHICH workflow is asking. This page is the OAuth2/OIDC token exchange and
-    // the VC workflow's authorization-code leg, and each decides DPoP for itself:
-    // the VC workflow on issuance step 2, this one in its own DPoP pane below.
-    // Reading the VC switch unconditionally — which is what this did — put a proof
-    // on every browser-direct Token Request once DPoP had been turned on over
-    // there, with nothing on this page able to turn it off again.
-    context = sdJwtVc.isFlowActive() ? sdJwtVc.dpopContext() : oauthDpop.context();
+    // the VC workflow's authorization-code leg, and each decides DPoP for
+    // itself: the VC workflow on issuance step 2, this one in its own DPoP pane
+    // below. Reading the VC switch unconditionally — which is what this did —
+    // put a proof on every browser-direct Token Request once DPoP had been
+    // turned on over there, with nothing on this page able to turn it off
+    // again.
+    context = sdJwtVc.isFlowActive() ?
+        sdJwtVc.dpopContext() : oauthDpop.context();
   } catch (e) {
     // The storage backing either one is unavailable (private mode, or storage
     // disabled). A Bearer request is the right fallback and needs no headers.
-    log.debug("dpopTokenRequestHeaders(): no DPoP state is readable: " + e.message);
+    log.debug("dpopTokenRequestHeaders(): no DPoP state is readable: " +
+              e.message);
     context = null;
   }
   if (!context) {
-    log.debug("Leaving dpopTokenRequestHeaders(). No DPoP context; a Bearer request.");
+    log.debug("Leaving dpopTokenRequestHeaders(). No DPoP context; a " +
+              "Bearer request.");
     return Promise.resolve({});
   }
+  log.debug("Leaving dpopTokenRequestHeaders().");
   return vciWallet.dpopHeadersFor({
     context: context, method: "POST", url: tokenEndpoint
     // No accessToken: this request is how one is obtained.
@@ -241,10 +258,11 @@ function dpopTokenRequestHeaders(tokenEndpoint) {
     return built.headers;
   }).catch(function (e) {
     // A proof that cannot be built must not silently become a Bearer request:
-    // the token would come back unbound and the workflow would carry on as if it
-    // were bound. Reported and then sent without, which the step 2 pane will show
-    // as "NOT bound".
-    log.error("could not build a DPoP proof for the token request: " + e.message);
+    // the token would come back unbound and the workflow would carry on as if
+    // it were bound. Reported and then sent without, which the step 2 pane will
+    // show as "NOT bound".
+    log.error("could not build a DPoP proof for the token request: " +
+              e.message);
     return {};
   });
 }
@@ -257,15 +275,19 @@ function dpopTokenRequestHeaders(tokenEndpoint) {
 // only place this workflow's DPoP can be switched on, which is the point — it
 // used to have no switch at all and inherited the VC workflow's.
 // ---------------------------------------------------------------------------
-// Whether the selected flow reaches the token endpoint at all. The three that do
-// not are the two OIDC Implicit variants and the OAuth2 Implicit grant: their
-// tokens are delivered by the authorization endpoint in the fragment, so there is
-// no request for a DPoP proof to ride on and no code for dpop_jkt to bind.
-// Everything else here — the Authorization Code flow and all three Hybrids —
-// redeems a code, which is exactly where DPoP applies.
+// Whether the selected flow reaches the token endpoint at all. The three that
+// do not are the two OIDC Implicit variants and the OAuth2 Implicit grant:
+// their tokens are delivered by the authorization endpoint in the fragment, so
+// there is no request for a DPoP proof to ride on and no code for dpop_jkt to
+// bind. Everything else here — the Authorization Code flow and all three
+// Hybrids — redeems a code, which is exactly where DPoP applies.
 function flowHasTokenRequest() {
-  var agt = $("#authorization_grant_type").val() || localStorage.getItem("authorization_grant_type");
-  return ["implicit_grant", "oidc_implicit_flow", "oidc_implicit_flow_id_token"].indexOf(agt) < 0;
+  log.debug("Entering flowHasTokenRequest().");
+  var agt = $("#authorization_grant_type").val() ||
+      localStorage.getItem("authorization_grant_type");
+  log.debug("Leaving flowHasTokenRequest().");
+  return ["implicit_grant", "oidc_implicit_flow",
+          "oidc_implicit_flow_id_token"].indexOf(agt) < 0;
 }
 
 function setDpopEnabled() {
@@ -275,9 +297,9 @@ function setDpopEnabled() {
   $("#dpop_controls").toggle(on);
   if (on) {
     // A key is generated on the spot rather than at the first request, because
-    // the authorization request needs its thumbprint (dpop_jkt) and is assembled
-    // on the OTHER page — synchronously, from storage. No key here means no
-    // dpop_jkt there, and a code that is not bound after all.
+    // the authorization request needs its thumbprint (dpop_jkt) and is
+    // assembled on the OTHER page — synchronously, from storage. No key here
+    // means no dpop_jkt there, and a code that is not bound after all.
     ensureDpopKey();
   } else {
     $("#dpop_key_summary").text("");
@@ -291,6 +313,7 @@ function setDpopEnabled() {
 
 function ensureDpopKey() {
   log.debug("Entering ensureDpopKey().");
+  log.debug("Leaving ensureDpopKey().");
   return oauthDpop.ensureKeyPair()
     .then(function (made) {
       renderOauthDpopStatus();
@@ -303,7 +326,8 @@ function ensureDpopKey() {
       // the honest state is "DPoP is on and cannot work here".
       log.error("could not generate a DPoP key pair: " + e.message);
       $("#dpop_status").html(DOMPurify.sanitize(
-        "<span class='dbg-bad'>No DPoP key pair could be generated: " + e.message +
+        "<span class='dbg-bad'>No DPoP key pair could be generated: " +
+            e.message +
         ". The Token Request will go out unbound.</span>"));
       return null;
     });
@@ -322,7 +346,8 @@ function generateDpopKey() {
     .catch(function (e) {
       log.error("could not generate a DPoP key pair: " + e.message);
       $("#dpop_status").html(DOMPurify.sanitize(
-        "<span class='dbg-bad'>No DPoP key pair could be generated: " + e.message + ".</span>"));
+        "<span class='dbg-bad'>No DPoP key pair could be generated: " +
+            e.message + ".</span>"));
     });
   log.debug("Leaving generateDpopKey().");
   return false;
@@ -343,39 +368,48 @@ function renderOauthDpopStatus(accessToken) {
     return;
   }
   if (!state.ready) {
-    $("#dpop_status").html(DOMPurify.sanitize("<span class='dbg-bad'>" + state.problem + "</span>"));
+    $("#dpop_status").html(DOMPurify.sanitize("<span class='dbg-bad'>" +
+      state.problem + "</span>"));
     log.debug("Leaving renderOauthDpopStatus(). On, but not ready.");
     return;
   }
   // A flow with no Token Request has nothing for DPoP to bind, and saying so is
-  // the whole job of this line. RFC 9449 sender-constrains a token issued at the
-  // TOKEN endpoint: it proves possession on the request that mints the token, and
-  // section 10's dpop_jkt binds the authorization CODE. The Implicit flows have
-  // neither — the access token arrives in the fragment straight from the
-  // authorization endpoint — so a ready key and a ticked box here would otherwise
-  // read as "this token will be bound", which it will not be.
+  // the whole job of this line. RFC 9449 sender-constrains a token issued at
+  // the TOKEN endpoint: it proves possession on the request that mints the
+  // token, and section 10's dpop_jkt binds the authorization CODE. The Implicit
+  // flows have neither — the access token arrives in the fragment straight from
+  // the authorization endpoint — so a ready key and a ticked box here would
+  // otherwise read as "this token will be bound", which it will not be.
   if (!flowHasTokenRequest()) {
     $("#dpop_status").html(DOMPurify.sanitize(
-      "<span class='dbg-bad'>DPoP is on, but this flow has no Token Request: the access token " +
-      "comes straight from the authorization endpoint in the fragment. RFC 9449 binds tokens " +
-      "issued at the token endpoint, so nothing here will be sender-constrained. Use a flow " +
+      "<span class='dbg-bad'>DPoP is on, but this flow has no Token Request: " +
+          "the access token " +
+      "comes straight from the authorization endpoint in the fragment. RFC " +
+          "9449 binds tokens " +
+      "issued at the token endpoint, so nothing here will be " +
+          "sender-constrained. Use a flow " +
       "that returns a <code>code</code> to see the binding.</span>"));
-    log.debug("Leaving renderOauthDpopStatus(). On, but this flow has no token request.");
+    log.debug("Leaving renderOauthDpopStatus(). On, but this flow has no " +
+              "token request.");
     return;
   }
   var sent = oauthDpop.jktSent();
   var lines = [];
   if (sent && sent !== state.jkt) {
-    lines.push("<span class='dbg-bad'>The authorization request was sent with dpop_jkt=" + sent +
-               ", but the key has been regenerated since (" + state.jkt + "). The code cannot be " +
+    lines.push("<span class='dbg-bad'>The authorization request was sent " +
+               "with dpop_jkt=" + sent +
+               ", but the key has been regenerated since (" + state.jkt +
+                   "). The code cannot be " +
                "redeemed — start the authorization request again.</span>");
   } else if (sent) {
-    lines.push("The authorization request carried <code>dpop_jkt=" + sent + "</code>, so the code " +
+    lines.push("The authorization request carried <code>dpop_jkt=" + sent +
+               "</code>, so the code " +
                "is bound to this key as well as the token.");
   }
   var verdict = oauthDpop.bindingVerdict(accessToken);
   if (verdict.state !== "off") {
-    lines.push("<span class='" + (verdict.state === "bound" ? "dbg-good" : "dbg-bad") + "'>" +
+    lines.push("<span class='" + (verdict.state === "bound" ?
+               "dbg-good" : "dbg-bad") + "'>" +
                verdict.text + "</span>");
   }
   $("#dpop_status").html(DOMPurify.sanitize(lines.join("<br/>")));
@@ -465,12 +499,15 @@ function buildInternalTokenAPIRequestMessage() {
   {
     formData.client_secret = client_secret
   }
-  var tokencustomParametersCheck = $("#customTokenParametersCheck-yes").is(":checked");
-  log.debug("customTokenParametersCheck: " + tokencustomParametersCheck + ", type=" + typeof(tokencustomParametersCheck));
+  var tokencustomParametersCheck =
+      $("#customTokenParametersCheck-yes").is(":checked");
+  log.debug("customTokenParametersCheck: " + tokencustomParametersCheck +
+            ", type=" + typeof(tokencustomParametersCheck));
   if(tokencustomParametersCheck) 
   {
     formData.customParams = {};
-    const numberCustomParameters = parseInt($("#tokenNumberCustomParameters").val());
+    const numberCustomParameters =
+        parseInt($("#tokenNumberCustomParameters").val());
     log.debug('numberCustomParameters=' + numberCustomParameters);
     var i = 0;
     for(i = 0; i < numberCustomParameters; i++)
@@ -488,6 +525,7 @@ function buildInternalTokenAPIRequestMessage() {
 
 function successfulInternalTokenAPICall(data, textStatus, request)
 {
+  log.debug("Entering successfulInternalTokenAPICall().");
   log.debug("Entering ajax success function for Access Token call: data=" 
           + JSON.stringify(data)
           + ", textStatus="
@@ -497,12 +535,13 @@ function successfulInternalTokenAPICall(data, textStatus, request)
   var token_endpoint_result_html = "";
   // What the server said about the binding. Recorded rather than inferred,
   // because asking for a DPoP-bound token does not make one: a server that
-  // ignored the proof answers Bearer, and both DPoP panes report that difference.
-  // Recorded against whichever workflow asked, for the same reason the proof is
-  // built from that workflow's key.
+  // ignored the proof answers Bearer, and both DPoP panes report that
+  // difference. Recorded against whichever workflow asked, for the same reason
+  // the proof is built from that workflow's key.
   if (!!data.token_type) {
     if (sdJwtVc.isFlowActive()) {
-      localStorage.setItem(sdJwtVc.KEYS.DPOP_TOKEN_TYPE, DOMPurify.sanitize(String(data.token_type)));
+      localStorage.setItem(sdJwtVc.KEYS.DPOP_TOKEN_TYPE,
+                           DOMPurify.sanitize(String(data.token_type)));
     } else if (oauthDpop.enabled()) {
       oauthDpop.rememberBinding(DOMPurify.sanitize(String(data.token_type)),
                                 oauthDpop.jktOfToken(data.access_token));
@@ -532,14 +571,18 @@ function successfulInternalTokenAPICall(data, textStatus, request)
     token_endpoint_result_html = '<div class="dbg-pane">' +
                                  '<legend class="dbg-legend" data-target="token_result_fieldset">Token Endpoint Results:</legend>' +
                                  '<fieldset id="token_result_fieldset">' +
-                                 "<p><em>Most recent results of the OAuth2 Grant or OIDC Authentication Flow call.</em></p>" +
+                                 "<p><em>Most recent results of the OAuth2 " +
+                                     "Grant or OIDC Authentication Flow " +
+                                     "call.</em></p>" +
 				   "<table>" +
 				     "<tr>" +
                                        '<td>' +
                                          '<P><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></P>' +
                                          '<P style="font-size:50%;"><a href="/introspection.html?type=access" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
                                          '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="access" /></P>' + 
-                                         '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                         '<P><form><input class="btn2" ' +
+                                             'type="submit" ' +
+                                             'value="Copy Token"' +
                                          ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                        '</td>' +
                                        '<td>' +
@@ -552,7 +595,9 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                               '<P><a href="/token_detail.html?type=refresh" onclick="debugger2.clickLink()">Refresh Token</a></P>' +
                                               '<P style="font-size:50%;"><a href="/introspection.html?type=refresh" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
                                          '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="refresh" /></P>' +
-                                              '<P><form><input class="btn2" type="submit" value="Copy Token"' + 
+                                              '<P><form><input class="btn2" ' +
+                                                  'type="submit" ' +
+                                                  'value="Copy Token"' + 
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
@@ -564,7 +609,10 @@ function successfulInternalTokenAPICall(data, textStatus, request)
                                           '<td>' +
                                             '<P><a href="/token_detail.html?type=id" onclick="debugger2.clickLink()">ID Token</a></P>' +
                                             '<P style="font-size:50%;">Get <a href="/userinfo.html?type=token_access_token" onclick="debugger2.clickLink()">UserInfo Data</a></P>' +
-                                            '<P><form><input class="token_btn" type="submit" value="Copy Token"' + 
+                                            '<P><form><input ' +
+                                                'class="token_btn" ' +
+                                                'type="submit" ' +
+                                                'value="Copy Token"' + 
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_id_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
@@ -578,31 +626,40 @@ function successfulInternalTokenAPICall(data, textStatus, request)
       localStorage.setItem("token_refresh_token", data.refresh_token);
       localStorage.setItem("token_id_token", data.id_token);
       rememberAuthorizationDetails(data);
-      saveTokenSetToHistory(data.access_token, data.refresh_token, data.id_token, 'token');
+      saveTokenSetToHistory(data.access_token, data.refresh_token,
+                            data.id_token, 'token');
     } else {
-      log.debug("Displaying Access Token. No OIDC ID Token: data.access_token=" + data.access_token);
+      log.debug("Displaying Access Token. No OIDC ID Token: " +
+                "data.access_token=" + data.access_token);
       token_endpoint_result_html = '<div class="dbg-pane">' +
                                       '<legend class="dbg-legend" data-target="token_result_fieldset">Token Endpoint Results:</legend>' +
                                       '<fieldset id="token_result_fieldset">' +
-                                 "<p><em>Most recent results of the OAuth2 Grant or OIDC Authentication Flow call.</em></p>" +
+                                 "<p><em>Most recent results of the OAuth2 " +
+                                     "Grant or OIDC Authentication Flow " +
+                                     "call.</em></p>" +
                                       "<table>" +
                                         "<tr>" +
                                           '<td>' +
                                             '<p><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></p>' +
                                             '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="access" /></P>' +
-                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            '<P><form><input class="btn2" ' +
+                                                'type="submit" ' +
+                                                'value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           '</td>' +
                                           "<td><textarea rows=5 cols=60 readonly name=token_access_token id=token_access_token data-token-field=\"access\"></textarea>" +
                                           "</td>" +
                                         "</tr>";
       if(useRefreshTokenTester) {
-        log.debug("Refresh token found. Generating token: data.refresh_token=" + currentRefreshToken);
+        log.debug("Refresh token found. Generating token: data.refresh_token=" +
+                  currentRefreshToken);
         token_endpoint_result_html += "<tr>" +
                                           '<td>' +
                                             '<a href="/token_detail.html?type=id" onclick="debugger2.clickLink()">Refresh Token</a>' +
                                             '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="refresh" /></P>' +
-                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            '<P><form><input class="btn2" ' +
+                                                'type="submit" ' +
+                                                'value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
                                           "<td><textarea rows=5 cols=60 readonly name=token_refresh_token id=token_refresh_token data-token-field=\"refresh\"></textarea>" +
@@ -612,15 +669,20 @@ function successfulInternalTokenAPICall(data, textStatus, request)
       token_endpoint_result_html += "</table>" +
                                     "</fieldset>" +
                                     "</div>";
-      localStorage.setItem("token_access_token", DOMPurify.sanitize(data.access_token));
-      localStorage.setItem("token_refresh_token", DOMPurify.sanitize(data.refresh_token));
+      localStorage.setItem("token_access_token",
+                           DOMPurify.sanitize(data.access_token));
+      localStorage.setItem("token_refresh_token",
+                           DOMPurify.sanitize(data.refresh_token));
       rememberAuthorizationDetails(data);
-      saveTokenSetToHistory(DOMPurify.sanitize(data.access_token), DOMPurify.sanitize(data.refresh_token), null, 'token');
+      saveTokenSetToHistory(DOMPurify.sanitize(data.access_token),
+                            DOMPurify.sanitize(data.refresh_token), null,
+                            'token');
     }
     $("#token_endpoint_result").html(token_endpoint_result_html);
     // The token values are put in as VALUES, not concatenated into the markup
-    // above — which is what CodeQL alert #43 (js/xss-through-dom) was reporting:
-    // a value read out of the DOM was being reinterpreted as HTML here.
+    // above — which is what CodeQL alert #43 (js/xss-through-dom) was
+    // reporting: a value read out of the DOM was being reinterpreted as HTML
+    // here.
     //
     // .val() sets the DOM value property and never parses markup, so there is
     // no escaping question and no context to break out of. Interpolating into
@@ -667,12 +729,14 @@ function successfulInternalTokenAPICall(data, textStatus, request)
     });
     // Whether the token actually came back sender-constrained, shown beside the
     // token it is about. Read off the token's own cnf.jkt rather than from the
-    // fact that a proof was sent: asking does not make it so, and an authorization
-    // server that ignores DPoP answers with a perfectly ordinary Bearer token.
+    // fact that a proof was sent: asking does not make it so, and an
+    // authorization server that ignores DPoP answers with a perfectly ordinary
+    // Bearer token.
     if (dpopVerdictToShow) {
       $("#token_endpoint_result").append(DOMPurify.sanitize(
         "<p id='dpop_result_status' class='" +
-        (dpopVerdictToShow.state === "bound" ? "dbg-good" : "dbg-bad") + "'>DPoP: " +
+        (dpopVerdictToShow.state === "bound" ? "dbg-good" : "dbg-bad") +
+         "'>DPoP: " +
         dpopVerdictToShow.text + "</p>"));
     }
     // If the SD-JWT VC workflow sent us here, the tokens are what it came for.
@@ -687,8 +751,10 @@ function errorInternalTokenAPICall(request, status, error) {
     // Stay on this page — the error panes below say what went wrong — but end
     // the workflow's hold on it.
     sdJwtVc.endFlow();
-    $("#sdjwtvc_banner").html("<strong>SD-JWT VC issuance</strong> — the token endpoint call failed, so the " +
-      "workflow stopped here. The error is shown below; <a href='/vc-issuance-1.html'>step 1</a> " +
+    $("#sdjwtvc_banner").html("<strong>SD-JWT VC issuance</strong> — the " +
+      "token endpoint call failed, so the " +
+      "workflow stopped here. The error is shown below; <a " +
+          "href='/vc-issuance-1.html'>step 1</a> " +
       "starts it again.");
   }
   log.error("request: " + JSON.stringify(request));
@@ -807,8 +873,10 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
     log.debug("Setting new ID Token.");
     currentIDToken = data.id_token;
   }
-  saveTokenSetToHistory(currentAccessToken, currentRefreshToken, currentIDToken, 'refresh');
-  recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, currentIDToken);
+  saveTokenSetToHistory(currentAccessToken, currentRefreshToken, currentIDToken,
+                        'refresh');
+  recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken,
+                              currentIDToken);
   saveOperationToHistory('Token Endpoint (Refresh)', {
     client_id: $("#refresh_client_id").val(),
     tokenHistoryIndex: getLatestTokenHistoryIndex()
@@ -817,7 +885,8 @@ function successfulInternalRefreshAPICall(data, textStatus, request) {
   log.debug("Leaving successfulInternalRefreshAPICall().");
 }
 
-function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, currentIDToken) {
+function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken,
+                                     currentIDToken) {
   log.debug("Entering recreateRefreshTokenDisplay().");
   log.debug("Entering recreateRefreshTokenDisplay().");
   var refresh_endpoint_result_html = "";
@@ -840,15 +909,19 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
   }
   refresh_endpoint_result_html = '<div class="dbg-pane">' +
                                       '<legend class="dbg-legend" data-target="refresh_result_fieldset">Token Endpoint Results for Refresh Token Call:</legend>' +
-                                      '<fieldset id="refresh_result_fieldset">' +
-                                      "<p><em>Most recent results of the Refresh Token call.</em></p>" +
+                                      '<fieldset ' +
+                                          'id="refresh_result_fieldset">' +
+                                      "<p><em>Most recent results of the " +
+                                          "Refresh Token call.</em></p>" +
 				      "<table>" +
 				        "<tr>" +
                                           '<td>' +
                                             '<P><a href="/token_detail.html?type=refresh_access" onclick="debugger2.clickLink()">Latest Access Token</a></P>' +
                                             '<P style="font-size:50%;"><a href="/introspection.html?type=refresh_access" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
                                             '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="refresh_access" /></P>' +
-                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            '<P><form><input class="btn2" ' +
+                                                'type="submit" ' +
+                                                'value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_access_token\');"/></form></P>' +
                                           "</td>" +
                                           "<td>" + 
@@ -861,7 +934,9 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
                                             '<P><a href="/token_detail.html?type=refresh_refresh" onclick="debugger2.clickLink()">Latest Refresh Token</a></P>' +
                                             '<P style="font-size:50%;"><a href="/introspection.html?type=refresh_refresh" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
                                             '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="refresh_refresh" /></P>' +
-                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            '<P><form><input class="btn2" ' +
+                                                'type="submit" ' +
+                                                'value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_refresh_token\');"/></form></P>' +
                                           "</td>" +
                                           "<td><textarea rows=5 cols=60 readonly name=refresh_refresh_token id=refresh_refresh_token data-token-field=\"refresh\"></textarea>" +
@@ -873,7 +948,9 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
                                           '<td>' +
                                             '<P><a href="/token_detail.html?type=refresh_id" onclick="debugger2.clickLink()">Latest ID Token</a></P>' +
                                             '<P style="font-size:50%;">Get <a href="/userinfo.html?type=refresh_access_token" onclick="debugger2.clickLink()">UserInfo Data</a></P>' +
-                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            '<P><form><input class="btn2" ' +
+                                                'type="submit" ' +
+                                                'value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#refresh_id_token\');"/></form></P>' +
                                           "</td>" +
                                           "<td>" +
@@ -884,7 +961,8 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
   refresh_endpoint_result_html +=        "<tr>" +
 					  "<td>iteration</td>" +
 					  "<td>" +
-                                            '<input type="text" readonly value="' + iteration +
+                                            '<input type="text" ' +
+                                                'readonly value="' + iteration +
                                             '" id="refresh-token-results-iteration-count" name="refresh-token-results-iteration-count">' +
                                           "</td>" +
                                         "</tr>" +
@@ -892,9 +970,9 @@ function recreateRefreshTokenDisplay(currentRefreshToken, currentAccessToken, cu
                                       "</fieldset>" +
                                       "</div>";
   $("#refresh_endpoint_result").html(refresh_endpoint_result_html);
-  // Set as values, not concatenated into the markup — CodeQL alert #34, the same
-  // finding as #43 above and fixed the same way. See the note there for why
-  // .find() is scoped to the pane rather than using a bare id selector.
+  // Set as values, not concatenated into the markup — CodeQL alert #34, the
+  // same finding as #43 above and fixed the same way. See the note there for
+  // why .find() is scoped to the pane rather than using a bare id selector.
   fillGeneratedFields("#refresh_endpoint_result", {
     access: currentAccessToken, refresh: currentRefreshToken, id: currentIDToken
   });
@@ -945,7 +1023,8 @@ function errorInternalRefreshAPICall(request, status, error) {
 function resetUI(value)
 {
     log.debug("Entering resetUI().");
-    $("#logout_post_redirect_uri").val((appconfig.uiUrl ? appconfig.uiUrl : "http://localhost:3000") + "/logout.html");
+    $("#logout_post_redirect_uri").val((appconfig.uiUrl ?
+      appconfig.uiUrl : "http://localhost:3000") + "/logout.html");
     if( value == "client_credential" &&
         getParameterByName("redirectFromTokenDetail") != "true")
     {
@@ -1036,11 +1115,14 @@ function resetUI(value)
       $("#deviceCodeRow").show();
       $("#device_code").val(localStorage.getItem("device_code"));
       $("#device_user_code").val(localStorage.getItem("user_code"));
-      $("#device_verification_uri").val(localStorage.getItem("verification_uri"));
-      $("#device_verification_uri_complete").val(localStorage.getItem("verification_uri_complete"));
+      $("#device_verification_uri")
+        .val(localStorage.getItem("verification_uri"));
+      $("#device_verification_uri_complete")
+        .val(localStorage.getItem("verification_uri_complete"));
       $("#step2").hide();
       $("#step3").show();
-      $("#token_grant_type").val("urn:ietf:params:oauth:grant-type:device_code");
+      $("#token_grant_type")
+        .val("urn:ietf:params:oauth:grant-type:device_code");
       $("#h2_title_2").html("Exchange Device Code for Access Token");
       $("#authorization_endpoint_result").html("");
       $("#display_token_request").show();
@@ -1076,32 +1158,48 @@ function writeValuesToLocalStorage()
   log.debug("Entering writeValuesToLocalStorage().");
   if (localStorage) {
       localStorage.setItem("token_client_id", $("#token_client_id").val());
-      localStorage.setItem("token_client_secret", $("#token_client_secret").val());
-      localStorage.setItem("token_redirect_uri", $("#token_redirect_uri").val());
+      localStorage.setItem("token_client_secret",
+                           $("#token_client_secret").val());
+      localStorage.setItem("token_redirect_uri",
+                           $("#token_redirect_uri").val());
       localStorage.setItem("token_username", $("#token_username").val());
       localStorage.setItem("token_scope", $("#token_scope").val());
-      localStorage.setItem("authorization_grant_type", $("#authorization_grant_type").val());
+      localStorage.setItem("authorization_grant_type",
+                           $("#authorization_grant_type").val());
       localStorage.setItem("token_resource", $("#token_resource").val());
-      localStorage.setItem("yesResourceCheckToken", $("#yesResourceCheckToken").is(":checked"));
-      localStorage.setItem("noResourceCheckToken", $("#noResourceCheckToken").is(":checked"));
-      localStorage.setItem("yesCheckOIDCArtifacts", $("#yesCheckOIDCArtifacts").is(":checked"));
-      localStorage.setItem("noCheckOIDCArtifacts", $("#noCheckOIDCArtifacts").is(":checked"));
+      localStorage.setItem("yesResourceCheckToken",
+                           $("#yesResourceCheckToken").is(":checked"));
+      localStorage.setItem("noResourceCheckToken",
+                           $("#noResourceCheckToken").is(":checked"));
+      localStorage.setItem("yesCheckOIDCArtifacts",
+                           $("#yesCheckOIDCArtifacts").is(":checked"));
+      localStorage.setItem("noCheckOIDCArtifacts",
+                           $("#noCheckOIDCArtifacts").is(":checked"));
       localStorage.setItem("yesCheck", $("#SSLValidate-yes").is(":checked"));
       localStorage.setItem("noCheck", $("#SSLValidate-no").is(":checked"));
       localStorage.setItem("refresh_client_id", $("#refresh_client_id").val());
-      localStorage.setItem("refresh_client_secret", $("#refresh_client_secret").val());
+      localStorage.setItem("refresh_client_secret",
+                           $("#refresh_client_secret").val());
       localStorage.setItem("refresh_scope", $("#refresh_scope").val());
-      localStorage.setItem("refresh_refresh_token", $("#refresh_refresh_token").val());
-      localStorage.setItem("useRefreshToken_yes", $("#useRefreshToken-yes").is(":checked"));
-      localStorage.setItem("useRefreshToken_no", $("#useRefreshToken-no").is(":checked"));
-      localStorage.setItem("oidc_userinfo_endpoint", $("#oidc_userinfo_endpoint").val());
+      localStorage.setItem("refresh_refresh_token",
+                           $("#refresh_refresh_token").val());
+      localStorage.setItem("useRefreshToken_yes",
+                           $("#useRefreshToken-yes").is(":checked"));
+      localStorage.setItem("useRefreshToken_no",
+                           $("#useRefreshToken-no").is(":checked"));
+      localStorage.setItem("oidc_userinfo_endpoint",
+                           $("#oidc_userinfo_endpoint").val());
       localStorage.setItem("jwks_endpoint", $("#jwks_endpoint").val());
       opMetadata.writeToLocalStorage();
-      localStorage.setItem("end_session_endpoint", $("#logout_end_session_endpoint").val());
+      localStorage.setItem("end_session_endpoint",
+                           $("#logout_end_session_endpoint").val());
       localStorage.setItem("logout_client_id", $("#logout_client_id").val());
-      localStorage.setItem("customTokenParametersCheck-yes", $("#customTokenParametersCheck-yes").is(":checked"));
-      localStorage.setItem("customTokenParametersCheck-no", $("#customTokenParametersCheck-no").is(":checked"));
-      localStorage.setItem("tokenNumberCustomParameters", $("#tokenNumberCustomParameters").val());
+      localStorage.setItem("customTokenParametersCheck-yes",
+                           $("#customTokenParametersCheck-yes").is(":checked"));
+      localStorage.setItem("customTokenParametersCheck-no",
+                           $("#customTokenParametersCheck-no").is(":checked"));
+      localStorage.setItem("tokenNumberCustomParameters",
+                           $("#tokenNumberCustomParameters").val());
       if ($("#token_postAuthStyleCheckToken").is(":checked"))
       {
         localStorage.setItem("token_post_auth_style", true);
@@ -1126,37 +1224,55 @@ function writeValuesToLocalStorage()
       } else {
         localStorage.setItem("tokenexchange_post_auth_style", false);
       }
-      localStorage.setItem("tokenexchange_initiateFromFrontEnd", $("#tokenexchange_initiateFromFrontEnd").is(":checked"));
-      localStorage.setItem("tokenexchange_initiateFromBackEnd", $("#tokenexchange_initiateFromBackEnd").is(":checked"));
+      localStorage.setItem("tokenexchange_initiateFromFrontEnd",
+          $("#tokenexchange_initiateFromFrontEnd").is(":checked"));
+      localStorage.setItem("tokenexchange_initiateFromBackEnd",
+          $("#tokenexchange_initiateFromBackEnd").is(":checked"));
       if ($("#customTokenParametersCheck-yes").is(":checked")) {
         var i = 0;
-        var tokenNumberCustomParameters = parseInt($("#tokenNumberCustomParameters").val());
+        var tokenNumberCustomParameters =
+            parseInt($("#tokenNumberCustomParameters").val());
         for(i = 0; i < tokenNumberCustomParameters; i++)
         {
-          log.debug("Writing customTokenParameterName-" + i + " as " + $("#customTokenParameterName-" + i).val() + "\n");
-          localStorage.setItem("customTokenParameterName-" + i, $("#customTokenParameterName-" + i).val());
-          log.debug("Writing customTokenParameterValue-" + i + " as " + $("#customTokenParameterValue-" + i).val() + "\n");
-          localStorage.setItem("customTokenParameterValue-" + i, $("#customTokenParameterValue-" + i).val());
+          log.debug("Writing customTokenParameterName-" + i + " as " +
+                    $("#customTokenParameterName-" + i).val() + "\n");
+          localStorage.setItem("customTokenParameterName-" + i,
+                               $("#customTokenParameterName-" + i).val());
+          log.debug("Writing customTokenParameterValue-" + i + " as " +
+                    $("#customTokenParameterValue-" + i).val() + "\n");
+          localStorage.setItem("customTokenParameterValue-" + i,
+                               $("#customTokenParameterValue-" + i).val());
         }
       }
-      localStorage.setItem("PKCE_code_challenge",$("#token_pkce_code_challenge").val());
-      localStorage.setItem("PKCE_code_challenge_method", $("#token_pkce_code_method").val());
-      localStorage.setItem("PKCE_code_verifier", $("#token_pkce_code_verifier").val() );
+      localStorage.setItem("PKCE_code_challenge",
+                           $("#token_pkce_code_challenge").val());
+      localStorage.setItem("PKCE_code_challenge_method",
+                           $("#token_pkce_code_method").val());
+      localStorage.setItem("PKCE_code_verifier",
+                           $("#token_pkce_code_verifier").val() );
       localStorage.setItem("usePKCE_yes", $("#usePKCE-yes").is(":checked"));
       localStorage.setItem("usePKCE_no", $("#usePKCE-no").is(":checked"));
-      localStorage.setItem("token_initiateFromFrontEnd", $("#token_initiateFromFrontEnd").is(":checked"));
-      localStorage.setItem("token_initiateFromBackEnd", $("#token_initiateFromBackEnd").is(":checked"));
-      localStorage.setItem("refresh_initiateFromFrontEnd", $("#refresh_initiateFromFrontEnd").is(":checked"));
-      localStorage.setItem("refresh_initiateFromBackEnd", $("#refresh_initiateFromBackEnd").is(":checked"));
+      localStorage.setItem("token_initiateFromFrontEnd",
+                           $("#token_initiateFromFrontEnd").is(":checked"));
+      localStorage.setItem("token_initiateFromBackEnd",
+                           $("#token_initiateFromBackEnd").is(":checked"));
+      localStorage.setItem("refresh_initiateFromFrontEnd",
+                           $("#refresh_initiateFromFrontEnd").is(":checked"));
+      localStorage.setItem("refresh_initiateFromBackEnd",
+                           $("#refresh_initiateFromBackEnd").is(":checked"));
       localStorage.setItem("refresh_token_used", refreshTokenUsed);
       if (!!$("#revocation_revocation_endpoint").val()) {
-        localStorage.setItem("revocation_endpoint", $("#revocation_revocation_endpoint").val());
+        localStorage.setItem("revocation_endpoint",
+                             $("#revocation_revocation_endpoint").val());
       }
       if (!!$("#registration_endpoint").val()) {
-        localStorage.setItem("registration_endpoint", $("#registration_endpoint").val());
+        localStorage.setItem("registration_endpoint",
+                             $("#registration_endpoint").val());
       }
-      localStorage.setItem("revocation_initiateFromFrontEnd", $("#revocation_initiateFromFrontEnd").is(":checked"));
-      localStorage.setItem("revocation_initiateFromBackEnd", $("#revocation_initiateFromBackEnd").is(":checked"));
+      localStorage.setItem("revocation_initiateFromFrontEnd",
+          $("#revocation_initiateFromFrontEnd").is(":checked"));
+      localStorage.setItem("revocation_initiateFromBackEnd",
+                           $("#revocation_initiateFromBackEnd").is(":checked"));
   }
 
   log.debug("Leaving writeValuesToLocalStorage().");
@@ -1183,11 +1299,13 @@ function loadValuesFromLocalStorage()
 
   setAuthorizationGrantType();
 
-  $("#authorization_endpoint").val(localStorage.getItem("authorization_endpoint"));
+  $("#authorization_endpoint")
+    .val(localStorage.getItem("authorization_endpoint"));
   $("#token_endpoint").val(localStorage.getItem("token_endpoint"));
 
   if (localStorage.getItem("introspection_endpoint")) {
-    $("#introspection_endpoint").val(localStorage.getItem("introspection_endpoint"));
+    $("#introspection_endpoint")
+      .val(localStorage.getItem("introspection_endpoint"));
     $("#introspection_endpoint").closest('tr').show();
   } else {
     $("#introspection_endpoint").val("");
@@ -1197,14 +1315,16 @@ function loadValuesFromLocalStorage()
   if (!!localStorage.getItem("revocation_endpoint")) {
     $("#revocation_endpoint").val(localStorage.getItem("revocation_endpoint"));
     $("#revocation_endpoint").closest('tr').show();
-    $("#revocation_revocation_endpoint").val(localStorage.getItem("revocation_endpoint"));
+    $("#revocation_revocation_endpoint")
+      .val(localStorage.getItem("revocation_endpoint"));
   } else {
     $("#revocation_endpoint").val("");
     $("#revocation_endpoint").closest('tr').hide();
   }
 
   if (!!localStorage.getItem("registration_endpoint")) {
-    $("#registration_endpoint").val(localStorage.getItem("registration_endpoint"));
+    $("#registration_endpoint")
+      .val(localStorage.getItem("registration_endpoint"));
     $("#registration_endpoint").closest('tr').show();
   } else {
     $("#registration_endpoint").val("");
@@ -1212,7 +1332,8 @@ function loadValuesFromLocalStorage()
   }
 
   if (!!localStorage.getItem("device_authorization_endpoint")) {
-    $("#device_authorization_endpoint").val(localStorage.getItem("device_authorization_endpoint"));
+    $("#device_authorization_endpoint")
+      .val(localStorage.getItem("device_authorization_endpoint"));
     $("#device_authorization_endpoint").closest('tr').show();
   } else {
     $("#device_authorization_endpoint").val("");
@@ -1221,8 +1342,10 @@ function loadValuesFromLocalStorage()
   $("#revocation_client_id").val(localStorage.getItem("client_id"));
   $("#revocation_client_secret").val(localStorage.getItem("client_secret"));
   if (localStorage.getItem("revocation_initiateFromFrontEnd") !== null) {
-    $("#revocation_initiateFromFrontEnd").prop("checked", getLSBooleanItem("revocation_initiateFromFrontEnd"));
-    $("#revocation_initiateFromBackEnd").prop("checked", getLSBooleanItem("revocation_initiateFromBackEnd"));
+    $("#revocation_initiateFromFrontEnd").prop("checked",
+      getLSBooleanItem("revocation_initiateFromFrontEnd"));
+    $("#revocation_initiateFromBackEnd").prop("checked",
+      getLSBooleanItem("revocation_initiateFromBackEnd"));
   }
   if (localStorage.getItem("revocation_post_auth_style") !== null) {
     if (getLSBooleanItem("revocation_post_auth_style")) {
@@ -1236,12 +1359,15 @@ function loadValuesFromLocalStorage()
 
   // Token Exchange (RFC 8693) pane. The exchange is performed against the Token
   // Endpoint, so its endpoint field mirrors the configured token_endpoint.
-  $("#tokenexchange_token_endpoint").val(localStorage.getItem("token_endpoint"));
+  $("#tokenexchange_token_endpoint")
+    .val(localStorage.getItem("token_endpoint"));
   $("#tokenexchange_client_id").val(localStorage.getItem("client_id"));
   $("#tokenexchange_client_secret").val(localStorage.getItem("client_secret"));
   if (localStorage.getItem("tokenexchange_initiateFromFrontEnd") !== null) {
-    $("#tokenexchange_initiateFromFrontEnd").prop("checked", getLSBooleanItem("tokenexchange_initiateFromFrontEnd"));
-    $("#tokenexchange_initiateFromBackEnd").prop("checked", getLSBooleanItem("tokenexchange_initiateFromBackEnd"));
+    $("#tokenexchange_initiateFromFrontEnd").prop("checked",
+      getLSBooleanItem("tokenexchange_initiateFromFrontEnd"));
+    $("#tokenexchange_initiateFromBackEnd").prop("checked",
+      getLSBooleanItem("tokenexchange_initiateFromBackEnd"));
   }
   if (localStorage.getItem("tokenexchange_post_auth_style") !== null) {
     if (getLSBooleanItem("tokenexchange_post_auth_style")) {
@@ -1256,7 +1382,8 @@ function loadValuesFromLocalStorage()
   $("#token_client_secret").val(localStorage.getItem("client_secret"));
   // Match this deployment's origin (appconfig.uiUrl); heal a stale/empty/
   // cross-origin value persisted by an earlier build or a different origin.
-  var redirectBase = (appconfig.uiUrl ? appconfig.uiUrl : "http://localhost:3000");
+  var redirectBase = (appconfig.uiUrl ?
+      appconfig.uiUrl : "http://localhost:3000");
   var storedRedirectUri = localStorage.getItem("redirect_uri");
   if (!storedRedirectUri || storedRedirectUri.indexOf(redirectBase) !== 0) {
     storedRedirectUri = redirectBase + "/callback";
@@ -1268,39 +1395,53 @@ function loadValuesFromLocalStorage()
   $("#token_resource").val(localStorage.getItem("token_resource"));
   $("#SSLValidate-yes").prop("checked", getLSBooleanItem("yesCheck"));
   $("#SSLValidate-no").prop("checked", getLSBooleanItem("noCheck"));
-  $("#yesResourceCheckToken").prop("checked", getLSBooleanItem("yesResourceCheckToken"));
-  $("#noResourceCheckToken").prop("checked", getLSBooleanItem("noResourceCheckToken"));
-  $("#yesCheckOIDCArtifacts").prop("checked", getLSBooleanItem("yesCheckOIDCArtifacts"));
-  $("#noCheckOIDCArtifacts").prop("checked", getLSBooleanItem("noCheckOIDCArtifacts"));
+  $("#yesResourceCheckToken").prop("checked",
+    getLSBooleanItem("yesResourceCheckToken"));
+  $("#noResourceCheckToken").prop("checked",
+    getLSBooleanItem("noResourceCheckToken"));
+  $("#yesCheckOIDCArtifacts").prop("checked",
+    getLSBooleanItem("yesCheckOIDCArtifacts"));
+  $("#noCheckOIDCArtifacts").prop("checked",
+    getLSBooleanItem("noCheckOIDCArtifacts"));
   $("#usePKCE-yes").prop("checked", getLSBooleanItem("usePKCE_yes"));
   $("#usePKCE-no").prop("checked", getLSBooleanItem("usePKCE_no"));
   // Default to the "Back" radio when nothing has been stored yet, so a radio
   // is always selected on first load (otherwise both would be left unchecked).
   if (localStorage.getItem("token_initiateFromFrontEnd") !== null ||
       localStorage.getItem("token_initiateFromBackEnd") !== null) {
-    $("#token_initiateFromFrontEnd").prop("checked", getLSBooleanItem("token_initiateFromFrontEnd"));
-    $("#token_initiateFromBackEnd").prop("checked", getLSBooleanItem("token_initiateFromBackEnd"));
+    $("#token_initiateFromFrontEnd").prop("checked",
+      getLSBooleanItem("token_initiateFromFrontEnd"));
+    $("#token_initiateFromBackEnd").prop("checked",
+      getLSBooleanItem("token_initiateFromBackEnd"));
   } else {
     $("#token_initiateFromFrontEnd").prop("checked", false);
     $("#token_initiateFromBackEnd").prop("checked", true);
   }
   if (localStorage.getItem("refresh_initiateFromFrontEnd") !== null ||
       localStorage.getItem("refresh_initiateFromBackEnd") !== null) {
-    $("#refresh_initiateFromFrontEnd").prop("checked", getLSBooleanItem("refresh_initiateFromFrontEnd"));
-    $("#refresh_initiateFromBackEnd").prop("checked", getLSBooleanItem("refresh_initiateFromBackEnd"));
+    $("#refresh_initiateFromFrontEnd").prop("checked",
+      getLSBooleanItem("refresh_initiateFromFrontEnd"));
+    $("#refresh_initiateFromBackEnd").prop("checked",
+      getLSBooleanItem("refresh_initiateFromBackEnd"));
   } else {
     $("#refresh_initiateFromFrontEnd").prop("checked", false);
     $("#refresh_initiateFromBackEnd").prop("checked", true);
   }
 
-  $("#refresh_refresh_token").val(localStorage.getItem("refresh_refresh_token"));
-  $("#customTokenParametersCheck-no").prop("checked", getLSBooleanItem("customTokenParametersCheck-no"));
+  $("#refresh_refresh_token")
+    .val(localStorage.getItem("refresh_refresh_token"));
+  $("#customTokenParametersCheck-no").prop("checked",
+    getLSBooleanItem("customTokenParametersCheck-no"));
   $("#refresh_client_id").val(localStorage.getItem("refresh_client_id"));
   $("#refresh_scope").val(localStorage.getItem("refresh_scope"));
-  $("#refresh_client_secret").val(localStorage.getItem("refresh_client_secret"));
-  $("#useRefreshToken-yes").prop("checked", getLSBooleanItem("useRefreshToken_yes"));
-  $("#useRefreshToken-no").prop("checked", getLSBooleanItem("useRefreshToken_no"));
-  $("#oidc_userinfo_endpoint").val(localStorage.getItem("oidc_userinfo_endpoint"));
+  $("#refresh_client_secret")
+    .val(localStorage.getItem("refresh_client_secret"));
+  $("#useRefreshToken-yes").prop("checked",
+    getLSBooleanItem("useRefreshToken_yes"));
+  $("#useRefreshToken-no").prop("checked",
+    getLSBooleanItem("useRefreshToken_no"));
+  $("#oidc_userinfo_endpoint")
+    .val(localStorage.getItem("oidc_userinfo_endpoint"));
   $("#jwks_endpoint").val(localStorage.getItem("jwks_endpoint"));
   // Falls back to the dummy defaults for any member not in storage yet (this
   // page can be the first one loaded, e.g. via the /callback redirect).
@@ -1308,11 +1449,16 @@ function loadValuesFromLocalStorage()
   // Show the -->not defined<-- note for members the last loaded discovery
   // document omitted (it is fetched on debugger.html; the log is shared).
   opMetadata.applyNotesFromStoredDiscovery();
-  $("#logout_end_session_endpoint").val(localStorage.getItem("end_session_endpoint"));
+  $("#logout_end_session_endpoint")
+    .val(localStorage.getItem("end_session_endpoint"));
   $("#logout_client_id").val(localStorage.getItem("client_id"));
-  $("#customTokenParametersCheck-yes").prop("checked", getLSBooleanItem("customTokenParametersCheck-yes"));
-  $("#customTokenParametersCheck-no").prop("checked", getLSBooleanItem("customTokenParametersCheck-no"));
-  $("#tokenNumberCustomParameters").val(localStorage.getItem("tokenNumberCustomParameters")? localStorage.getItem("tokenNumberCustomParameters"): 1);
+  $("#customTokenParametersCheck-yes").prop("checked",
+    getLSBooleanItem("customTokenParametersCheck-yes"));
+  $("#customTokenParametersCheck-no").prop("checked",
+    getLSBooleanItem("customTokenParametersCheck-no"));
+  $("#tokenNumberCustomParameters")
+    .val(localStorage.getItem("tokenNumberCustomParameters")?
+    localStorage.getItem("tokenNumberCustomParameters"): 1);
   if (getLSBooleanItem("token_post_auth_style")) {
     $("#token_postAuthStyleCheckToken").prop("checked", true);
     $("#token_headerAuthStyleCheckToken").prop("checked", false);
@@ -1325,25 +1471,34 @@ function loadValuesFromLocalStorage()
   if ($("#customTokenParametersCheck-yes").is(":checked")) {
     generateCustomParametersListUI();
     var i = 0;
-    var tokenNumberCustomParameters = parseInt($("#tokenNumberCustomParameters").val());
+    var tokenNumberCustomParameters =
+        parseInt($("#tokenNumberCustomParameters").val());
     for(i = 0; i < tokenNumberCustomParameters; i++)
     {
-      log.debug("Reading customTokenParameterName-" + i + " as " + localStorage.getItem("customTokenParameterName-" + i + "\n"));
-      $("#customTokenParameterName-" + i).val(localStorage.getItem("customTokenParameterName-" + i));
-      log.debug("Reading customTokenParameterValue-" + i + " as " + localStorage.getItem("customTokenParameterValue-" + i + "\n"));
-      $("#customTokenParameterValue-" + i).val(localStorage.getItem("customTokenParameterValue-" + i));
+      log.debug("Reading customTokenParameterName-" + i + " as " +
+                localStorage.getItem("customTokenParameterName-" + i + "\n"));
+      $("#customTokenParameterName-" +
+        i).val(localStorage.getItem("customTokenParameterName-" + i));
+      log.debug("Reading customTokenParameterValue-" + i + " as " +
+                localStorage.getItem("customTokenParameterValue-" + i + "\n"));
+      $("#customTokenParameterValue-" +
+        i).val(localStorage.getItem("customTokenParameterValue-" + i));
     }
   }
 
   if ($("#usePKCE-yes").is(":checked")) {
-    $("#token_pkce_code_challenge").val(localStorage.getItem("PKCE_code_challenge"));
-    $("#token_pkce_code_verifier").val(localStorage.getItem("PKCE_code_verifier"));
-    $("#token_pkce_code_method").val(localStorage.getItem("PKCE_code_challenge_method"));
+    $("#token_pkce_code_challenge")
+      .val(localStorage.getItem("PKCE_code_challenge"));
+    $("#token_pkce_code_verifier")
+      .val(localStorage.getItem("PKCE_code_verifier"));
+    $("#token_pkce_code_method")
+      .val(localStorage.getItem("PKCE_code_challenge_method"));
   }
   usePKCERFC();
   refreshTokenUsed=getLSBooleanItem("refresh_token_used");
   renderTokenHistory();
-  var savedActiveIndex = parseInt(localStorage.getItem('token_history_active_index'));
+  var savedActiveIndex =
+      parseInt(localStorage.getItem('token_history_active_index'));
   if (!isNaN(savedActiveIndex)) {
     var cvHistory = [];
     try {
@@ -1364,14 +1519,29 @@ function loadValuesFromLocalStorage()
 // pane. A hybrid flow's code is handled separately above — this covers only the
 // tokens that ride along beside it.
 function authorizationResponseTokenTypes(grantType) {
+  log.debug("Entering authorizationResponseTokenTypes().");
   switch (grantType) {
-    case "implicit_grant":                  return { access: true,  id: false };
-    case "oidc_implicit_flow":              return { access: true,  id: true  };
-    case "oidc_implicit_flow_id_token":     return { access: false, id: true  };
-    case "oidc_hybrid_code_token":          return { access: true,  id: false };
-    case "oidc_hybrid_code_id_token":       return { access: false, id: true  };
-    case "oidc_hybrid_code_id_token_token": return { access: true,  id: true  };
-    default:                                return { access: false, id: false };
+    case "implicit_grant":
+      log.debug("Leaving authorizationResponseTokenTypes().");
+      return { access: true,  id: false };
+    case "oidc_implicit_flow":
+      log.debug("Leaving authorizationResponseTokenTypes().");
+      return { access: true,  id: true  };
+    case "oidc_implicit_flow_id_token":
+      log.debug("Leaving authorizationResponseTokenTypes().");
+      return { access: false, id: true  };
+    case "oidc_hybrid_code_token":
+      log.debug("Leaving authorizationResponseTokenTypes().");
+      return { access: true,  id: false };
+    case "oidc_hybrid_code_id_token":
+      log.debug("Leaving authorizationResponseTokenTypes().");
+      return { access: false, id: true  };
+    case "oidc_hybrid_code_id_token_token":
+      log.debug("Leaving authorizationResponseTokenTypes().");
+      return { access: true,  id: true  };
+    default:
+      log.debug("Leaving authorizationResponseTokenTypes().");
+      return { access: false, id: false };
   }
 }
 
@@ -1391,19 +1561,23 @@ function authorizationResponseToken(name, storageKey) {
   var fromQuery = getParameterByName(name);
   if (!!fromQuery) {
     log.debug("Found " + name + " in the query string.");
+    log.debug("Leaving authorizationResponseToken().");
     return DOMPurify.sanitize(fromQuery);
   }
   var fromFragment = parseFragment()[name];
   if (!!fromFragment) {
     log.debug("Found " + name + " in the fragment.");
+    log.debug("Leaving authorizationResponseToken().");
     return DOMPurify.sanitize(fromFragment);
   }
   var saved = storageKey ? localStorage.getItem(storageKey) : "";
   if (!!saved) {
     log.debug("No " + name + " on this response. Using the saved one.");
+    log.debug("Leaving authorizationResponseToken().");
     return saved;
   }
   log.debug("No " + name + " found.");
+  log.debug("Leaving authorizationResponseToken().");
   return "";
 }
 
@@ -1421,20 +1595,24 @@ function authorizationResponseToken(name, storageKey) {
 // Searched newest-first, since the same response replayed twice is the same
 // tokens and the later entry is the one being looked at.
 function authorizationTokenHistoryIndex(returned) {
+  log.debug("Entering authorizationTokenHistoryIndex().");
   var history = [];
   try {
     history = JSON.parse(localStorage.getItem('token_history') || '[]');
   } catch (e) {
     log.error("Failed to parse token_history: " + e);
+    log.debug("Leaving authorizationTokenHistoryIndex().");
     return null;
   }
   for (var i = history.length - 1; i >= 0; i--) {
     if (history[i].source === 'authorization' &&
         (history[i].access_token || '') === (returned.access_token || '') &&
         (history[i].id_token || '') === (returned.id_token || '')) {
+      log.debug("Leaving authorizationTokenHistoryIndex().");
       return i;
     }
   }
+  log.debug("Leaving authorizationTokenHistoryIndex().");
   return null;
 }
 
@@ -1461,41 +1639,57 @@ function authorizationTokenHistoryIndex(returned) {
 // first in the document rather than the token it sits next to.
 function renderAuthorizationEndpointResults(expected, returned) {
   log.debug("Entering renderAuthorizationEndpointResults().");
-  // Once the set is in Token History every link names it by generation, which is
-  // the only way they go on meaning THIS token after a hybrid flow's code
+  // Once the set is in Token History every link names it by generation, which
+  // is the only way they go on meaning THIS token after a hybrid flow's code
   // exchange replaces the current one. Before it is recorded — this pane is
   // drawn first, and document.ready() re-renders it once the entry exists — the
   // plain slots are correct, because nothing has overwritten them yet.
   var generation = authorizationTokenHistoryIndex(returned);
   var byGeneration = (generation !== null);
-  var accessType = byGeneration ? "history_access&generation=" + generation : "access";
-  var userinfoType = byGeneration ? "history_access&generation=" + generation : "token_access_token";
-  var idType = byGeneration ? "history_id_token&generation=" + generation : "id";
+  var accessType = byGeneration ? "history_access&generation=" +
+      generation : "access";
+  var userinfoType = byGeneration ? "history_access&generation=" +
+      generation : "token_access_token";
+  var idType = byGeneration ? "history_id_token&generation=" +
+      generation : "id";
   var revokeAttributes = byGeneration
-    ? 'data-revoke-type="history_access" data-revoke-generation="' + generation + '"'
+    ? 'data-revoke-type="history_access" data-revoke-generation="' +
+        generation + '"'
     : 'data-revoke-type="access"';
-  log.debug("Pane links keyed by " + (byGeneration ? "generation " + generation : "the current token slots") + ".");
+  log.debug("Pane links keyed by " + (byGeneration ? "generation " +
+            generation : "the current token slots") + ".");
   var html = '<div class="dbg-pane">' +
-             '<legend class="dbg-legend" data-target="authz_result_fieldset">Authorization Endpoint Results</legend>' +
+             '<legend class="dbg-legend" ' +
+                 'data-target="authz_result_fieldset">Authorization Endpoint ' +
+                 'Results</legend>' +
              '<fieldset id="authz_result_fieldset">' +
-             '<p><em>Tokens returned by the Authorization Endpoint itself rather than by a call to the Token Endpoint.</em></p>' +
+             '<p><em>Tokens returned by the Authorization Endpoint itself ' +
+                 'rather than by a call to the Token Endpoint.</em></p>' +
              '<table>';
   if (expected.access) {
     html += '<tr><td>';
     if (returned.access_token) {
-      html +=   '<P><a href="/token_detail.html?type=' + accessType + '" onclick="debugger2.clickLink()">Access Token</a></P>' +
-                '<P style="font-size:50%;"><a href="/introspection.html?type=' + accessType + '" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
-                // UserInfo sits on the ACCESS token's row, not on the ID token's
-                // where the Token Endpoint Results pane draws it. The call is
-                // authenticated with the access token — the link is literally
-                // ?type=token_access_token — so this is the token it belongs to,
-                // and hanging it off the ID token row means the flows that
-                // return an access token and no id_token (OAuth2 Implicit Grant,
-                // response_type=code token) never offer it at all, which is how
-                // it came to be missing here.
-                '<P style="font-size:50%;">Get <a href="/userinfo.html?type=' + userinfoType + '" onclick="debugger2.clickLink()">UserInfo Data</a></P>' +
-                '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" ' + revokeAttributes + ' /></P>' +
-                '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+      html +=   '<P><a href="/token_detail.html?type=' + accessType +
+          '" onclick="debugger2.clickLink()">Access Token</a></P>' +
+                '<P style="font-size:50%;"><a href="/introspection.html?type=' +
+                    accessType +
+                    '" onclick="debugger2.clickLink()">Introspect ' +
+                    'Token</a></P>' +
+                // UserInfo sits on the ACCESS token's row, not on the ID
+                // token's where the Token Endpoint Results pane draws it. The
+                // call is authenticated with the access token — the link is
+                // literally ?type=token_access_token — so this is the token it
+                // belongs to, and hanging it off the ID token row means the
+                // flows that return an access token and no id_token (OAuth2
+                // Implicit Grant, response_type=code token) never offer it at
+                // all, which is how it came to be missing here.
+                '<P style="font-size:50%;">Get <a href="/userinfo.html?type=' +
+                    userinfoType +
+                    '" onclick="debugger2.clickLink()">UserInfo Data</a></P>' +
+                '<P><input class="btn2 revoke_token_btn" type="button" ' +
+                    'value="Revoke Token" ' + revokeAttributes + ' /></P>' +
+                '<P><form><input class="btn2" type="submit" ' +
+                    'value="Copy Token"' +
                 ' onclick="return debugger2.onClickCopyToken(\'#authz_access_token\');"/></form></P>';
     } else {
       html +=   '<P>Access Token</P>';
@@ -1510,8 +1704,10 @@ function renderAuthorizationEndpointResults(expected, returned) {
   if (expected.id) {
     html += '<tr><td>';
     if (returned.id_token) {
-      html +=   '<P><a href="/token_detail.html?type=' + idType + '" onclick="debugger2.clickLink()">ID Token</a></P>' +
-                '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+      html +=   '<P><a href="/token_detail.html?type=' + idType +
+          '" onclick="debugger2.clickLink()">ID Token</a></P>' +
+                '<P><form><input class="btn2" type="submit" ' +
+                    'value="Copy Token"' +
                 ' onclick="return debugger2.onClickCopyToken(\'#authz_id_token\');"/></form></P>';
     } else {
       html +=   '<P>ID Token</P>';
@@ -1529,7 +1725,8 @@ function renderAuthorizationEndpointResults(expected, returned) {
     // because a hybrid flow (code id_token) does get an access token — from the
     // token endpoint, whose own pane carries the link.
     if (returned.id_token && !returned.access_token) {
-      html +=   '<p><em>No UserInfo link: that call is made with an access token, ' +
+      html +=   '<p><em>No UserInfo link: that call is made with an ' +
+          'access token, ' +
                 'and this authorization response returned none.</em></p>';
     }
     html += '</td></tr>';
@@ -1582,10 +1779,10 @@ function recreateUniqueGrantFlowElements()
     }
   }
   // Implicit and hybrid flows return their tokens on the authorization response
-  // itself, so this page is where those tokens are first seen: there is no token
-  // endpoint call whose result pane would otherwise render them. Which ones to
-  // expect is decided by the grant type, and each is looked for in both places
-  // one can arrive.
+  // itself, so this page is where those tokens are first seen: there is no
+  // token endpoint call whose result pane would otherwise render them. Which
+  // ones to expect is decided by the grant type, and each is looked for in both
+  // places one can arrive.
   //
   // They all go into ONE pane. There was a second container for the id_token,
   // which is why an OIDC Implicit Flow put two panes both titled "Authorization
@@ -1593,26 +1790,29 @@ function recreateUniqueGrantFlowElements()
   // NO_ID_TOKEN_PRESENTED_IN_EXPECTED_LOCATIONS into a textarea whenever the
   // id_token was not where it looked, which reads as a token rather than as an
   // explanation of why there isn't one. Each of the four flows that land here
-  // had its own copy of the markup, and they had drifted: two rendered the token
-  // beside a bare "access_token" label with no links at all.
+  // had its own copy of the markup, and they had drifted: two rendered the
+  // token beside a bare "access_token" label with no links at all.
   var expectedTokens = authorizationResponseTokenTypes(agt);
   var returnedTokens = { access_token: "", id_token: "" };
   if ( (expectedTokens.access || expectedTokens.id) &&
        pathname == "/debugger2.html")
   {
     returnedTokens.access_token =
-      expectedTokens.access ? authorizationResponseToken("access_token", "token_access_token") : "";
+      expectedTokens.access ? authorizationResponseToken("access_token",
+          "token_access_token") : "";
     returnedTokens.id_token =
-      expectedTokens.id ? authorizationResponseToken("id_token", "token_id_token") : "";
-    log.debug("Authorization response carried: access_token=" + returnedTokens.access_token +
+      expectedTokens.id ? authorizationResponseToken("id_token",
+          "token_id_token") : "";
+    log.debug("Authorization response carried: access_token=" +
+              returnedTokens.access_token +
               ", id_token=" + returnedTokens.id_token);
   }
-  // Nothing found means no authorization response reached this load at all — the
-  // page was opened directly, or the identity provider returned an error, which
-  // the error pane below reports. Drawing the pane anyway would announce that no
-  // token came back from a call that was never made. It IS drawn when one of two
-  // expected tokens arrived, because naming the missing one is then the most
-  // useful thing on the page.
+  // Nothing found means no authorization response reached this load at all —
+  // the page was opened directly, or the identity provider returned an error,
+  // which the error pane below reports. Drawing the pane anyway would announce
+  // that no token came back from a call that was never made. It IS drawn when
+  // one of two expected tokens arrived, because naming the missing one is then
+  // the most useful thing on the page.
   if (returnedTokens.access_token || returnedTokens.id_token)
   {
     // Written only when one actually came back. document.ready() clears these
@@ -1623,17 +1823,17 @@ function recreateUniqueGrantFlowElements()
       localStorage.setItem("token_access_token", returnedTokens.access_token);
     }
     if (returnedTokens.id_token) {
-      // Stored, not merely displayed: /token_detail.html?type=id reads this key,
-      // so the ID Token link below is dead without it.
+      // Stored, not merely displayed: /token_detail.html?type=id reads this
+      // key, so the ID Token link below is dead without it.
       localStorage.setItem("token_id_token", returnedTokens.id_token);
       $("#logout_id_token_hint").val(returnedTokens.id_token);
     }
     renderAuthorizationEndpointResults(expectedTokens, returnedTokens);
     // Read by document.ready(), which records the set in Token History and then
     // draws the pane again so its links can name that entry. This is the only
-    // place that can record it: no other code on the page ever saw these tokens.
-    // Which rows to draw travels with them, so the second render does not have
-    // to work the grant type out a second time.
+    // place that can record it: no other code on the page ever saw these
+    // tokens. Which rows to draw travels with them, so the second render does
+    // not have to work the grant type out a second time.
     returnedTokens.expected = expectedTokens;
     authorizationResponseTokenSet = returnedTokens;
   }
@@ -1647,14 +1847,17 @@ function recreateUniqueGrantFlowElements()
   {
     error_html = "<fieldset>" +
                    "<legend>Authorization Endpoint Error</legend>" +
-                   "<form action='' name='display_authz_error_form' id='display_authz_error_form'>" +
+                   "<form action='' name='display_authz_error_form' " +
+                       "id='display_authz_error_form'>" +
                      "<table>" +
                        "<tr>" +
                          "<td>" +
                            "<label name='display_authz_error_form_label1' value='' id='display_authz_error_form_label1'>Error</label>" +
                          "</td>" +
                          "<td>" +
-                           "<textarea rows='5' cols='50' id='display_authz_error_form_textarea1' data-token-field='error'></textarea>" +
+                           "<textarea rows='5' cols='50' " +
+                               "id='display_authz_error_form_textarea1' " +
+                               "data-token-field='error'></textarea>" +
                          "</td>" +
                        "</tr>" +
                      "</table>" +
@@ -1683,19 +1886,24 @@ function recalculateTokenRequestDescription()
     }
   }
   var customParametersComponent = "";
-  var tokencustomParametersCheck = $("#customTokenParametersCheck-yes").is(":checked");
-  log.debug("customTokenParametersCheck: " + tokencustomParametersCheck + ", type=" + typeof(tokencustomParametersCheck));
+  var tokencustomParametersCheck =
+      $("#customTokenParametersCheck-yes").is(":checked");
+  log.debug("customTokenParametersCheck: " + tokencustomParametersCheck +
+            ", type=" + typeof(tokencustomParametersCheck));
   if(tokencustomParametersCheck) {
-    const numberCustomParameters = parseInt($("#tokenNumberCustomParameters").val());
+    const numberCustomParameters =
+        parseInt($("#tokenNumberCustomParameters").val());
     log.debug('numberCustomParameters=' + numberCustomParameters);
     var i = 0;
     for(i = 0; i < numberCustomParameters; i++)
     {
        customParametersComponent = customParametersComponent +
                                    $("#customTokenParameterName-" + i).val() +
-                                   '=' + $("#customTokenParameterValue-" + i).val() + "&" + "\n";
+                                   '=' + $("#customTokenParameterValue-" +
+                                       i).val() + "&" + "\n";
     }
-    customParametersComponent = customParametersComponent.substring(0,  customParametersComponent.length - 2);
+    customParametersComponent = customParametersComponent.substring(0,
+        customParametersComponent.length - 2);
     log.debug('customParametersComponent=' + customParametersComponent);
   }
   if (!!ta1)
@@ -1703,7 +1911,9 @@ function recalculateTokenRequestDescription()
     var grant_type = $("#token_grant_type").val();
     if(grant_type == "authorization_code")
     {
-      $("#display_token_request_form_textarea1").val(                 DOMPurify.sanitize("POST " + $("#token_endpoint").val() + "\n" +
+      $("#display_token_request_form_textarea1")
+        .val(                 DOMPurify.sanitize("POST " + $("#token_endpoint")
+        .val() + "\n" +
 								      "Message Body:\n" +
                                                                       "grant_type=" + $("#token_grant_type").val() + "&" + "\n" +
                                                                       "code=" + $("#code").val() + "&" + "\n" +
@@ -1711,10 +1921,14 @@ function recalculateTokenRequestDescription()
                                                                       "redirect_uri=" + $("#token_redirect_uri").val() + "&" +"\n" +
                                                                       "scope=" + $("#token_scope").val()));
       if(usePKCE) {
-        $("#display_token_request_form_textarea1").val( $("#display_token_request_form_textarea1").val() +"&\n" + "code_verifier=" + $("#token_pkce_code_verifier").val());
+        $("#display_token_request_form_textarea1")
+          .val( $("#display_token_request_form_textarea1").val() +"&\n" +
+          "code_verifier=" + $("#token_pkce_code_verifier").val());
       }
     } else if (grant_type == "client_credentials") {
-      $("#display_token_request_form_textarea1").val(		      DOMPurify.sanitize("POST " + $("#token_endpoint").val() + "\n" +
+      $("#display_token_request_form_textarea1")
+        .val(		      DOMPurify.sanitize("POST " + $("#token_endpoint").val() +
+        "\n" +
                                                                       "Message Body:\n" +
                                                                       "grant_type=" + $("#token_grant_type").val() + "&" + "\n" +
                                                                       "client_id=" + $("#token_client_id").val() + "&" + "\n" +
@@ -1722,7 +1936,9 @@ function recalculateTokenRequestDescription()
                                                                       "redirect_uri=" + $("#token_redirect_uri").val() + "&" +"\n" +
                                                                       "scope=" + $("#token_scope").val()));
     } else if (grant_type == "password") {
-      $("#display_token_request_form_textarea1").val(                 DOMPurify.sanitize("POST " + $("#token_endpoint").val() + "\n" +
+      $("#display_token_request_form_textarea1")
+        .val(                 DOMPurify.sanitize("POST " + $("#token_endpoint")
+        .val() + "\n" +
                                                                       "Message Body:\n" +
                                                                       "grant_type=" + $("#token_grant_type").val() + "&" + "\n" +
                                                                       "client_id=" + $("#token_client_id").val() + "&" + "\n" +
@@ -1731,27 +1947,37 @@ function recalculateTokenRequestDescription()
                                                                       "password=" + $("#token_password").val() + "&" + "\n" +
                                                                       "scope=" + $("#token_scope").val()));
     } else if (grant_type == "urn:ietf:params:oauth:grant-type:device_code") {
-      $("#display_token_request_form_textarea1").val(                 DOMPurify.sanitize("POST " + $("#token_endpoint").val() + "\n" +
+      $("#display_token_request_form_textarea1")
+        .val(                 DOMPurify.sanitize("POST " + $("#token_endpoint")
+        .val() + "\n" +
                                                                       "Message Body:\n" +
                                                                       "grant_type=" + $("#token_grant_type").val() + "&" + "\n" +
                                                                       "device_code=" + $("#device_code").val() + "&" + "\n" +
                                                                       "client_id=" + $("#token_client_id").val()));
     }
     if ( resourceComponent.length > 0) {
-       $("#display_token_request_form_textarea1").val( $("#display_token_request_form_textarea1").val() + "&\n" + resourceComponent + "\n");
+       $("#display_token_request_form_textarea1")
+         .val( $("#display_token_request_form_textarea1").val() + "&\n" +
+         resourceComponent + "\n");
      }
      if (customParametersComponent.length > 0) {
-       $("#display_token_request_form_textarea1").val( $("#display_token_request_form_textarea1").val() + "&\n" +  customParametersComponent + "\n");
+       $("#display_token_request_form_textarea1")
+         .val( $("#display_token_request_form_textarea1").val() + "&\n" +
+         customParametersComponent + "\n");
      }
-     // RFC 9449: the proof rides in a DPoP header, so a preview that showed only
-     // the body would describe a different request from the one being sent. It is
-     // named rather than rendered, because a proof covers its own jti and iat and
-     // is single use — any proof shown in advance would not be the one that goes.
+     // RFC 9449: the proof rides in a DPoP header, so a preview that showed
+     // only the body would describe a different request from the one being
+     // sent. It is named rather than rendered, because a proof covers its own
+     // jti and iat and is single use — any proof shown in advance would not be
+     // the one that goes.
      if (!sdJwtVc.isFlowActive() && oauthDpop.enabled()) {
        var dpopLine = useFrontEnd
-         ? "\n\nHeaders:\nDPoP: <a fresh RFC 9449 proof over POST " + $("#token_endpoint").val() +
-           ", signed by the key with thumbprint " + (oauthDpop.jkt() || "(none generated yet)") + ">"
-         : "\n\n(DPoP is on, but this call is proxied through the api, which does not forward " +
+         ? "\n\nHeaders:\nDPoP: <a fresh RFC 9449 proof over POST " +
+             $("#token_endpoint").val() +
+           ", signed by the key with thumbprint " + (oauthDpop.jkt() ||
+               "(none generated yet)") + ">"
+         : "\n\n(DPoP is on, but this call is proxied through the api, which " +
+             "does not forward " +
            "proofs — the request that reaches the token endpoint will carry none.)";
        $("#display_token_request_form_textarea1").val(
          $("#display_token_request_form_textarea1").val() + dpopLine);
@@ -1775,7 +2001,8 @@ function recalculateRefreshRequestDescription()
       var client_secret = $("#refresh_client_secret").val();
       if(!!client_secret)
       {
-        $("#display_refresh_request_form_textarea1").val(DOMPurify.sanitize("POST " + $("#token_endpoint").val() + "\n" +
+        $("#display_refresh_request_form_textarea1")
+          .val(DOMPurify.sanitize("POST " + $("#token_endpoint").val() + "\n" +
                                                                       "Message Body:\n" +
                                                                       "grant_type=" + $("#refresh_grant_type").val() + "&" + "\n" +
                                                                       "refresh_token=" + $("#refresh_refresh_token").val() + "&" + "\n" +
@@ -1783,7 +2010,8 @@ function recalculateRefreshRequestDescription()
                                                                       "client_secret=" + $("#refresh_client_secret").val() + "&" + "\n" +
                                                                       "scope=" + $("#refresh_scope").val() + "\n"));
       } else {
-        $("#display_refresh_request_form_textarea1").val(DOMPurify.sanitize("POST " + $("#token_endpoint").val() + "\n" +
+        $("#display_refresh_request_form_textarea1")
+          .val(DOMPurify.sanitize("POST " + $("#token_endpoint").val() + "\n" +
                                                                       "Message Body:\n" +
                                                                       "grant_type=" + $("#refresh_grant_type").val() + "&" + "\n" +
                                                                       "refresh_token=" + $("#refresh_refresh_token").val() + "&" + "\n" +
@@ -1806,7 +2034,8 @@ function processStateParameter()
     log.debug("Found state in query parameters: " + state);
     stateParameterFound = true;
   } else {
-    log.debug("Didn't find state in query parameters, attempting to find fragment.");
+    log.debug("Didn't find state in query parameters, attempting to find " +
+              "fragment.");
     state = parseFragment()["state"];
     if(!!state) {
       log.debug("Found state in fragment.");
@@ -1828,10 +2057,12 @@ function processStateParameter()
                             '</fieldset>';
       $("#state-status").html(DOMPurify.sanitize(stateReportHTML));
     } else {
-      log.debug('State does not match: state=' + state + ', storedState=' + storedState);
+      log.debug('State does not match: state=' + state + ', storedState=' +
+                storedState);
       var stateReportHTML = '<fieldset>' +
                             '<legend>State Report</legend>' +
-                            '<P>State does not match: state=' + state + ', storedState=' + storedState + '</P>' +
+                            '<P>State does not match: state=' + state +
+                                ', storedState=' + storedState + '</P>' +
                             '</fieldset>';
       $("#state-status").html(DOMPurify.sanitize(stateReportHTML));
     }
@@ -1849,7 +2080,8 @@ function enforceBackendAvailability() {
     var groups = ["token", "refresh", "revocation", "tokenexchange"];
     for (var i = 0; i < groups.length; i++) {
       $("#" + groups[i] + "_initiateFromFrontEnd").prop("checked", true);
-      $("#" + groups[i] + "_initiateFromBackEnd").prop("checked", false).prop("disabled", true);
+      $("#" + groups[i] + "_initiateFromBackEnd").prop("checked",
+        false).prop("disabled", true);
     }
     setInitiateFromEnd();
     setInitiateRefreshFromEnd();
@@ -1865,6 +2097,8 @@ function enforceBackendAvailability() {
 // about — the tokens come back on the authorization response itself, so there
 // is no second call for this page to help compose.
 function isImplicitGrantType(grantType) {
+  log.debug("Entering isImplicitGrantType().");
+  log.debug("Leaving isImplicitGrantType().");
   return grantType === "implicit_grant" ||
          grantType === "oidc_implicit_flow" ||
          grantType === "oidc_implicit_flow_id_token";
@@ -1883,7 +2117,9 @@ function isImplicitGrantType(grantType) {
 // its own, but it is reachable only from a token that was already returned, so
 // it counts.
 function implicitTokenReturned() {
+  log.debug("Entering implicitTokenReturned().");
   var fragment = parseFragment();
+  log.debug("Leaving implicitTokenReturned().");
   return !!fragment["access_token"] ||
          !!fragment["id_token"] ||
          !!getParameterByName("access_token") ||
@@ -1949,11 +2185,12 @@ $(document).ready(function() {
   $("#password-form-group1").hide();
   $("#password-form-group2").hide();
 
-  // If we are not coming back from the Token Detail Page clear all saved tokens. 
-  // It will be reset.
+  // If we are not coming back from the Token Detail Page clear all saved
+  // tokens. It will be reset.
   if(getParameterByName("redirectFromTokenDetail") != "true") {
     // Clear all token values.
-    log.debug("Detected page load for new grant/flow workflow. Clearing all existing tokens.");
+    log.debug("Detected page load for new grant/flow workflow. Clearing all " +
+              "existing tokens.");
     localStorage.setItem("token_access_token", "");
     localStorage.setItem("token_id_token", "");
     localStorage.setItem("token_refresh_token", "");
@@ -1966,21 +2203,26 @@ $(document).ready(function() {
   processStateParameter();
 
   // an error was returned from the authorization endpoint
-  var errorDescriptionParam = DOMPurify.sanitize(getParameterByName('error_description'));
+  var errorDescriptionParam =
+      DOMPurify.sanitize(getParameterByName('error_description'));
   var errorParam = DOMPurify.sanitize(getParameterByName('error'));
-  log.debug('errorDescriptionParam=' + errorDescriptionParam + ', errorParam=' + errorParam);
+  log.debug('errorDescriptionParam=' + errorDescriptionParam + ', errorParam=' +
+            errorParam);
   if (!!errorDescriptionParam || 
       !!errorParam) {
     $('#step0').hide();
     $('#step3').hide();
     $('#step4').hide();
     var authzErrorReportHTML = '<fieldset>' +
-                               '<legend>Authorization Endpoint Error Report</legend>' +
+                               '<legend>Authorization Endpoint Error ' +
+                                   'Report</legend>' +
                                '<P>' + 'Error: ' + errorParam + '</P>' +
-                               '<P>' + 'Error Description: ' +  errorDescriptionParam + '</P>' +
+                               '<P>' + 'Error Description: ' +
+                                   errorDescriptionParam + '</P>' +
                                '</fieldset>';
     $('#authz-error-report').html(DOMPurify.sanitize(authzErrorReportHTML));
-    log.debug('errorDescriptionParam=' + errorDescriptionParam + ', errorParam=' + errorParam); 
+    log.debug('errorDescriptionParam=' + errorDescriptionParam +
+              ', errorParam=' + errorParam); 
     return;
   }
 
@@ -1994,8 +2236,10 @@ $(document).ready(function() {
   initFields();
   generateCustomParametersListUI();
   $("#code").val(getParameterByName('code'));
-  $("#customTokenParametersCheck-yes").on("click", recalculateTokenRequestDescription);
-  $("#customTokenParametersCheck-no").on("click", recalculateTokenRequestDescription);
+  $("#customTokenParametersCheck-yes").on("click",
+    recalculateTokenRequestDescription);
+  $("#customTokenParametersCheck-no").on("click",
+    recalculateTokenRequestDescription);
 
   loadValuesFromLocalStorage();
   enforceBackendAvailability();
@@ -2017,7 +2261,8 @@ $(document).ready(function() {
                          fragmentParams['code'] ||
                          getParameterByName('access_token') || 
                          fragmentParams['access_token'] ||
-                         getParameterByName('id_token') || fragmentParams['id_token']);
+                         getParameterByName('id_token') ||
+                                            fragmentParams['id_token']);
     if (!!authzSignature &&
         localStorage.getItem('last_authz_signature') !== authzSignature) {
       // An implicit or hybrid flow's tokens came from the response this
@@ -2031,15 +2276,18 @@ $(document).ready(function() {
       // of the same response does not add a second copy of either.
       var tokenHistoryIndex = null;
       if (authorizationResponseTokenSet &&
-          (authorizationResponseTokenSet.access_token || authorizationResponseTokenSet.id_token)) {
-        tokenHistoryIndex = saveTokenSetToHistory(authorizationResponseTokenSet.access_token,
+          (authorizationResponseTokenSet.access_token ||
+           authorizationResponseTokenSet.id_token)) {
+        tokenHistoryIndex =
+            saveTokenSetToHistory(authorizationResponseTokenSet.access_token,
                                                   '',
                                                   authorizationResponseTokenSet.id_token,
                                                   'authorization');
         // Drawn again now that the entry exists, so the pane's links name it by
         // generation instead of the current-token slots — which a hybrid flow's
         // code exchange is about to overwrite with a different token.
-        renderAuthorizationEndpointResults(authorizationResponseTokenSet.expected,
+        renderAuthorizationEndpointResults(
+            authorizationResponseTokenSet.expected,
                                            authorizationResponseTokenSet);
       }
       saveOperationToHistory('Authorization Endpoint', {
@@ -2072,7 +2320,8 @@ $(document).ready(function() {
   } else {
     $("#step4").hide();
   }
-  var tokencustomParametersCheck = $("#customTokenParametersCheck-yes").is(":checked");
+  var tokencustomParametersCheck =
+      $("#customTokenParametersCheck-yes").is(":checked");
   if(tokencustomParametersCheck)
   {
     $("#tokenCustomParametersRow").show();
@@ -2124,14 +2373,17 @@ $(document).ready(function() {
 
   // Initialize revocation pane state and keep the request preview in sync.
   useRevocationFrontEnd = $("#revocation_initiateFromFrontEnd").is(":checked");
-  $("#revocation_token, #revocation_revocation_endpoint, #revocation_client_id, #revocation_client_secret")
+  $("#revocation_token, #revocation_revocation_endpoint, " +
+    "#revocation_client_id, #revocation_client_secret")
     .on("keyup change", recalculateRevocationRequestDescription);
-  $("#revocation_token_type_hint").on("change", recalculateRevocationRequestDescription);
+  $("#revocation_token_type_hint").on("change",
+    recalculateRevocationRequestDescription);
   // Delegated so it also fires for the dynamically-rendered "Revoke Token"
   // buttons in the result panes (and survives DOMPurify, which keeps data-*
   // attributes but strips inline onclick handlers).
   $(document).on("click", ".revoke_token_btn", function() {
-    revokeTokenDirect($(this).attr("data-revoke-type"), $(this).attr("data-revoke-generation"));
+    revokeTokenDirect($(this).attr("data-revoke-type"),
+                      $(this).attr("data-revoke-generation"));
     return false;
   });
   // Collapse/expand for the ds-style panes that are rendered dynamically (the
@@ -2140,16 +2392,22 @@ $(document).ready(function() {
   // onclick. The static panes use their own inline title onclick handlers.
   $(document).on("click", ".dbg-legend[data-target]", function() {
     var fs = document.getElementById($(this).attr("data-target"));
-    if (fs) { fs.style.display = (fs.style.display === "none") ? "block" : "none"; }
+    if (fs) { fs.style.display = (fs.style.display === "none") ?
+        "block" : "none"; }
     return false;
   });
   populateRevocationTokenWithLatestAccessToken();
 
   // Initialize Token Exchange pane state and keep the request preview in sync.
-  useTokenExchangeFrontEnd = $("#tokenexchange_initiateFromFrontEnd").is(":checked");
-  $("#tokenexchange_token_endpoint, #tokenexchange_subject_token, #tokenexchange_actor_token, #tokenexchange_resource, #tokenexchange_audience, #tokenexchange_scope, #tokenexchange_client_id, #tokenexchange_client_secret")
+  useTokenExchangeFrontEnd =
+      $("#tokenexchange_initiateFromFrontEnd").is(":checked");
+  $("#tokenexchange_token_endpoint, #tokenexchange_subject_token, " +
+    "#tokenexchange_actor_token, #tokenexchange_resource, " +
+    "#tokenexchange_audience, #tokenexchange_scope, " +
+    "#tokenexchange_client_id, #tokenexchange_client_secret")
     .on("keyup change", recalculateTokenExchangeRequestDescription);
-  $("#tokenexchange_subject_token_type, #tokenexchange_actor_token_type, #tokenexchange_requested_token_type")
+  $("#tokenexchange_subject_token_type, #tokenexchange_actor_token_type, " +
+    "#tokenexchange_requested_token_type")
     .on("change", recalculateTokenExchangeRequestDescription);
   setTokenExchangeType();
   populateTokenExchangeSubjectWithLatestAccessToken();
@@ -2193,27 +2451,30 @@ $(document).ready(function() {
   }
 
   // Both history panels were just hidden by the no-query-string branch above,
-  // and for these flows that is wrong: an authorization response carrying tokens
-  // arrives in the FRAGMENT — implicit and hybrid alike — so there is no query
-  // string to tell it apart from a page opened fresh. An authorization code flow
-  // never hit this, because its code comes back in the query string, which is
-  // why the two histories looked broken only on the flows that return tokens.
+  // and for these flows that is wrong: an authorization response carrying
+  // tokens arrives in the FRAGMENT — implicit and hybrid alike — so there is no
+  // query string to tell it apart from a page opened fresh. An authorization
+  // code flow never hit this, because its code comes back in the query string,
+  // which is why the two histories looked broken only on the flows that return
+  // tokens.
   //
   // Gated on a response having actually carried one, so a page opened fresh
   // under one of these grant types is left alone. renderTokenHistory() decides
   // its own panel's visibility from whether there is anything in it; the
-  // operation history panel has no such rule, and by this point it certainly has
-  // an entry — the Authorization Endpoint call was recorded above.
+  // operation history panel has no such rule, and by this point it certainly
+  // has an entry — the Authorization Endpoint call was recorded above.
   if (authorizationResponseTokenSet &&
-      (authorizationResponseTokenSet.access_token || authorizationResponseTokenSet.id_token)) {
+      (authorizationResponseTokenSet.access_token ||
+       authorizationResponseTokenSet.id_token)) {
     renderTokenHistory();
     $('#operation-history-panel').show();
   }
 
   // An implicit flow's tokens arrive with the authorization response, so once
   // the identity provider has sent one there is nothing left to fill in on the
-  // first row of panes — the token request they sit beside describes a call this
-  // flow never makes. Collapse the row so the page opens on the tokens below it.
+  // first row of panes — the token request they sit beside describes a call
+  // this flow never makes. Collapse the row so the page opens on the tokens
+  // below it.
   //
   // This runs after the blocks above rather than in place of any of them,
   // because two of them expand that row: the no-query-string path (which an
@@ -2222,7 +2483,8 @@ $(document).ready(function() {
   // its fieldset is collapsed" repair expands the token pane again. Collapsing
   // earlier would simply be undone.
   if (isImplicitGrantType(authzGrantType) && implicitTokenReturned()) {
-    log.debug("Implicit flow returned a token. Collapsing the first row of panes.");
+    log.debug("Implicit flow returned a token. Collapsing the first row " +
+              "of panes.");
     collapseFirstPaneRow();
   }
 
@@ -2243,21 +2505,29 @@ $(document).ready(function() {
 // ---------------------------------------------------------------------------
 function maybeContinueSdJwtVcFlow() {
   log.debug("Entering maybeContinueSdJwtVcFlow().");
-  if (!sdJwtVc.isFlowActive()) return false;
+  if (!sdJwtVc.isFlowActive()) {
+    log.debug("Leaving maybeContinueSdJwtVcFlow().");
+    return false;
+  }
   var code = getParameterByName('code');
   if (!code) {
     // No authorization code — the flow did not get this far. Say so rather
     // than silently doing nothing; the error panes above have the detail.
     $(".container").prepend(
-      "<div class='vc-handoff-banner'><strong>SD-JWT VC issuance</strong> — no authorization code came back " +
-      "from the identity provider, so there are no tokens to carry into the credential request. " +
+      "<div class='vc-handoff-banner'><strong>SD-JWT VC issuance</strong> — " +
+          "no authorization code came back " +
+      "from the identity provider, so there are no tokens to carry into the " +
+          "credential request. " +
       "<a href='/vc-issuance-1.html'>Return to step 1</a>.</div>");
     sdJwtVc.endFlow();
+    log.debug("Leaving maybeContinueSdJwtVcFlow().");
     return false;
   }
   $(".container").prepend(
-    "<div class='vc-handoff-banner' id='sdjwtvc_banner'><strong>SD-JWT VC issuance</strong> — exchanging the " +
-    "authorization code for tokens, then returning to <a href='" + sdJwtVc.STEP2_URL + "'>step 2</a> to request " +
+    "<div class='vc-handoff-banner' id='sdjwtvc_banner'><strong>SD-JWT VC " +
+        "issuance</strong> — exchanging the " +
+    "authorization code for tokens, then returning to <a href='" +
+        sdJwtVc.STEP2_URL + "'>step 2</a> to request " +
     "the credential.</div>");
   window.setTimeout(tokenButtonClick, 250);
   log.debug("Leaving maybeContinueSdJwtVcFlow().");
@@ -2267,24 +2537,31 @@ function maybeContinueSdJwtVcFlow() {
 // Called from the token endpoint's success handler, once the tokens are in
 // local storage where step 2 of the workflow reads them.
 function returnToSdJwtVcFlow() {
-  if (!sdJwtVc.isFlowActive()) return false;
+  log.debug("Entering returnToSdJwtVcFlow().");
+  if (!sdJwtVc.isFlowActive()) {
+    log.debug("Leaving returnToSdJwtVcFlow().");
+    return false;
+  }
   var target = sdJwtVc.returnUrl();
   // Consumed here: a later, unrelated token call on this page must not be
   // redirected too.
   sdJwtVc.endFlow();
   log.debug("SD-JWT VC issuance: returning to " + target);
   window.location.href = target;
+  log.debug("Leaving returnToSdJwtVcFlow().");
   return true;
 }
 
 function generateUUID () { // Public Domain/MIT
     log.debug("Entering generateUUID().");
     var d = new Date().getTime();
-    if (typeof performance !== "undefined" && typeof performance.now === "function"){
+    if (typeof performance !== "undefined" &&
+        typeof performance.now === "function"){
         d += performance.now(); //use high-precision timer if available
     }
     log.debug("Leaving generateUUID().");
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,
+        function (c) {
         var r = (d + Math.random() * 16) % 16 | 0;
         d = Math.floor(d / 16);
         return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16);
@@ -2365,10 +2642,13 @@ function recalculateAuthorizationErrorDescription()
       if (pathname == "/debugger2.html")
       {
         var error = getParameterByName("error",window.location.href);
-        var error_description = getParameterByName("error_description",window.location.href);
+        var error_description = getParameterByName("error_description",
+            window.location.href);
         var error_uri = getParameterByName("error_uri",window.location.href);
         var state = getParameterByName("state",window.location.href);
-        $("#display_authz_error_form_textarea1").val(                         DOMPurify.sanitize("error: " + error + "\n" +
+        $("#display_authz_error_form_textarea1")
+          .val(                         DOMPurify.sanitize("error: " + error +
+          "\n" +
                                                                               "error_description: " + error_description + "\n" +
                                                                               "error_uri: " + error_uri + "\n" +
                                                                               "state: " + state + "\n"));
@@ -2382,10 +2662,13 @@ function recalculateAuthorizationErrorDescription()
       if (pathname == "/debugger2.html")
       {
         var error = getParameterByName("error",window.location.href);
-        var error_description = getParameterByName("error_description",window.location.href);
+        var error_description = getParameterByName("error_description",
+            window.location.href);
         var error_uri = getParameterByName("error_uri",window.location.href);
         var state = getParameterByName("state",window.location.href);
-        $("#display_authz_error_form_textarea1").val(                         DOMPurify.sanitize("error: " + error + "\n" +
+        $("#display_authz_error_form_textarea1")
+          .val(                         DOMPurify.sanitize("error: " + error +
+          "\n" +
                                                                               "error_description: " + error_description + "\n" +
                                                                               "error_uri: " + error_uri + "\n" +
                                                                               "state: " + state + "\n"));
@@ -2409,7 +2692,8 @@ function recalculateTokenErrorDescription(data)
                                            "</table>" +
                                          "</form>" +
                                        "</fieldset>";
-  $("#display_token_error_class").html(DOMPurify.sanitize(display_token_error_class_html));
+  $("#display_token_error_class")
+    .html(DOMPurify.sanitize(display_token_error_class_html));
   log.debug("update error field");
   var ta1 = $("#display_token_error_form_textarea1");
   if (ta1 != null)
@@ -2428,7 +2712,9 @@ function recalculateTokenErrorDescription(data)
         log.warn("Unable to parse response text.");
         responseObject = {};
       }
-      $("#display_token_error_form_textarea1").val(                             DOMPurify.sanitize("status: " + status + "\n" +
+      $("#display_token_error_form_textarea1")
+        .val(                             DOMPurify.sanitize("status: " +
+        status + "\n" +
 										"statusText: " + statusText + "\n" +
 										"readyState: " + readyState + "\n" +
 										"responseText: " + responseText +"\n" +
@@ -2447,7 +2733,9 @@ function recalculateTokenErrorDescription(data)
         log.warn("Unable to parse response text.");
         responseObject = {};
       }
-      $("#display_token_error_form_textarea1").val(                         DOMPurify.sanitize("status: " + status + "\n" +
+      $("#display_token_error_form_textarea1")
+        .val(                         DOMPurify.sanitize("status: " + status +
+        "\n" +
                                                                             "statusText: " + statusText + "\n" +
                                                                             "readyState: " + readyState + "\n" +
                                                                             "responseText: " + responseText +"\n" +
@@ -2466,7 +2754,9 @@ function recalculateTokenErrorDescription(data)
         log.warn("Unable to parse response text.");
         responseObject = {};
       }
-      $("#display_token_error_form_textarea1").val(                         DOMPurify.sanitize("status: " + status + "\n" +
+      $("#display_token_error_form_textarea1")
+        .val(                         DOMPurify.sanitize("status: " + status +
+        "\n" +
                                                                             "statusText: " + statusText + "\n" +
                                                                             "readyState: " + readyState + "\n" +
                                                                             "responseText: " + responseText +"\n" +
@@ -2487,7 +2777,9 @@ function recalculateTokenErrorDescription(data)
         log.warn("Unable to parse response text.");
         responseObject = {};
       }
-      $("#display_token_error_form_textarea1").val(                         DOMPurify.sanitize("status: " + status + "\n" +
+      $("#display_token_error_form_textarea1")
+        .val(                         DOMPurify.sanitize("status: " + status +
+        "\n" +
                                                                             "statusText: " + statusText + "\n" +
                                                                             "readyState: " + readyState + "\n" +
                                                                             "responseText: " + responseText +"\n" +
@@ -2503,7 +2795,8 @@ function recalculateRefreshErrorDescription(data)
 {
   log.debug("Entering recalculateRefreshErrorDescription().");
   var display_refresh_error_class = "<fieldset>" +
-                                    "<legend>Token Endpoint (For Refresh) Error</legend>" +
+                                    "<legend>Token Endpoint (For Refresh) " +
+                                        "Error</legend>" +
                                        "<form action=\"\" name=\"display_refresh_error_form\" id=\"display_refresh_error_form\">" +
                                          "<table>" +
                                            "<tr>" +
@@ -2513,7 +2806,8 @@ function recalculateRefreshErrorDescription(data)
                                          "</table>" +
                                         "</form>" +
                                       "</fieldset>";
-  $("#display_refresh_error_class").html(DOMPurify.sanitize(display_refresh_error_class));
+  $("#display_refresh_error_class")
+    .html(DOMPurify.sanitize(display_refresh_error_class));
   log.debug("update error field");
   var ta1 = $("#display_refresh_error_form_textarea1");
   if (ta1 != null)
@@ -2532,7 +2826,9 @@ function recalculateRefreshErrorDescription(data)
         log.warn("Unable to parse response text.");
         responseObject = {};
       }
-      $("#display_refresh_error_form_textarea1").val(                           DOMPurify.sanitize("status: " + status + "\n" +
+      $("#display_refresh_error_form_textarea1")
+        .val(                           DOMPurify.sanitize("status: " + status +
+        "\n" +
 										"statusText: " + statusText + "\n" +
 										"readyState: " + readyState + "\n" +
 										"responseText: " + responseText +"\n" +
@@ -2564,7 +2860,8 @@ function displayOIDCArtifacts()
   log.debug("Entering displayOIDCArtifacts().");
   var yesCheck = $("#yesCheckOIDCArtifacts").is(":checked");
   var noCheck = $("#noCheckOIDCArtifacts").is("checked");
-  log.debug("yesCheckOIDCArtifacts=" + yesCheck + ", noCheckOIDCArtifacts=" + noCheck + ", typeof=" + typeof(yesCheck));
+  log.debug("yesCheckOIDCArtifacts=" + yesCheck + ", noCheckOIDCArtifacts=" +
+            noCheck + ", typeof=" + typeof(yesCheck));
   if(yesCheck) {
     displayOpenIDConnectArtifacts = true;
   } else if(noCheck) {
@@ -2604,18 +2901,22 @@ $("#tipText").hover(
 function isUrl(url) {
   log.debug('Entering isUrl().');
   try {
+    log.debug("Leaving isUrl().");
     return Boolean(new URL(url));
   } catch(e) {
     log.debug('An error occurred: ' + e.stack);
+    log.debug("Leaving isUrl().");
     return false;
   }
 }
 
 function clearLocalStorage() {
+  log.debug("Entering clearLocalStorage().");
   if (localStorage) {
     localStorage.setItem("token_client_secret", "");
     localStorage.setItem("refresh_client_secret", "");
   }
+  log.debug("Leaving clearLocalStorage().");
 }
 
 // ---- Token History ----
@@ -2624,21 +2925,31 @@ function decodeJwtPayload(token) {
   log.debug("Entering decodeJwtPayload().");
   try {
     var parts = token.split('.');
-    if (parts.length < 2) return null;
+    if (parts.length < 2) {
+      log.debug("Leaving decodeJwtPayload().");
+      return null;
+    }
     var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     var pad = '==='.slice(0, (4 - b64.length % 4) % 4);
+    log.debug("Leaving decodeJwtPayload().");
     return JSON.parse(atob(b64 + pad));
   } catch (e) {
+    log.debug("Leaving decodeJwtPayload().");
     return null;
   }
   log.debug("Leaving decodeJwtPayload().");
 }
 
 function extractNonce(id_token) {
+  log.debug("Entering extractNonce().");
   if (id_token) {
     var payload = decodeJwtPayload(id_token);
-    if (payload && payload.nonce) return payload.nonce;
+    if (payload && payload.nonce) {
+      log.debug("Leaving extractNonce().");
+      return payload.nonce;
+    }
   }
+  log.debug("Leaving extractNonce().");
   return null;
 }
 
@@ -2654,13 +2965,18 @@ function extractNonce(id_token) {
 // from the very same session. OIDC Session Management defines sid on the
 // id_token, and it is the same session either token names.
 function extractSid(access_token, id_token) {
+  log.debug("Entering extractSid().");
   var tokens = [access_token, id_token];
   for (var i = 0; i < tokens.length; i++) {
     if (tokens[i]) {
       var payload = decodeJwtPayload(tokens[i]);
-      if (payload && payload.sid) return payload.sid;
+      if (payload && payload.sid) {
+        log.debug("Leaving extractSid().");
+        return payload.sid;
+      }
     }
   }
+  log.debug("Leaving extractSid().");
   return null;
 }
 
@@ -2676,7 +2992,8 @@ function rememberAuthorizationDetails(data) {
   var details = data && data.authorization_details;
   try {
     if (details) {
-      localStorage.setItem("token_authorization_details", JSON.stringify(details));
+      localStorage.setItem("token_authorization_details",
+                           JSON.stringify(details));
       log.debug("The token response granted authorization_details.");
     } else {
       localStorage.removeItem("token_authorization_details");
@@ -2705,8 +3022,9 @@ function saveTokenSetToHistory(access_token, refresh_token, id_token, source) {
     localStorage.removeItem('token_history');
     renderTokenHistory();
     // Every generation went with it, including one the Authorization Endpoint
-    // Results pane may be naming in its links. Same redraw as clearTokenHistory()
-    // does, for the same reason — this is the other way the history is wiped.
+    // Results pane may be naming in its links. Same redraw as
+    // clearTokenHistory() does, for the same reason — this is the other way the
+    // history is wiped.
     if (authorizationResponseTokenSet) {
       renderAuthorizationEndpointResults(authorizationResponseTokenSet.expected,
                                          authorizationResponseTokenSet);
@@ -2714,6 +3032,7 @@ function saveTokenSetToHistory(access_token, refresh_token, id_token, source) {
     // Nothing was stored, so there is no index to hand back — callers that
     // record the index alongside an operation must not point at a set that was
     // just discarded.
+    log.debug("Leaving saveTokenSetToHistory().");
     return null;
   }
   history.push({
@@ -2740,11 +3059,13 @@ function selectTokenSet(index) {
     history = JSON.parse(localStorage.getItem('token_history') || '[]'); 
   } catch(e) { 
     log.error("An error occurred while reading from local storage: " + e);
+    log.debug("Leaving selectTokenSet().");
     return false; 
   }
   if (index < 0 ||
       index >= history.length) 
   {
+    log.debug("Leaving selectTokenSet().");
     return false;
   }
   var entry = history[index];
@@ -2764,7 +3085,9 @@ function selectTokenSet(index) {
 function renderCurrentlyViewing(index, entry) {
   log.debug("Entering renderCurrentlyViewing().");
   var html = '<div class="dbg-pane">' +
-               '<legend class="dbg-legend" data-target="currently_viewing_fieldset">Currently Viewing</legend>' +
+               '<legend class="dbg-legend" ' +
+                   'data-target="currently_viewing_fieldset">Currently ' +
+                   'Viewing</legend>' +
                '<fieldset id="currently_viewing_fieldset">' +
                '<p><em>Token set selected from Token History.</em></p>' +
                '<table>' +
@@ -2772,22 +3095,34 @@ function renderCurrentlyViewing(index, entry) {
                    '<td>' +
                      '<P><a href="/token_detail.html?type=history_access&generation=' + index + '" onclick="debugger2.clickLink()">Access Token</a></P>' +
                      '<P style="font-size:50%;"><a href="/introspection.html?type=history_access&generation=' + index + '" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
-                     '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="history_access" data-revoke-generation="' + index + '" /></P>' +
-                     '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                     '<P><input class="btn2 revoke_token_btn" type="button" ' +
+                         'value="Revoke Token" ' +
+                         'data-revoke-type="history_access" ' +
+                         'data-revoke-generation="' + index + '" /></P>' +
+                     '<P><form><input class="btn2" type="submit" ' +
+                         'value="Copy Token"' +
                      ' onclick="return debugger2.onClickCopyToken(\'#cv_access_token\');"/></form></P>' +
                    '</td>' +
-                   '<td><textarea rows=5 cols=60 readonly name=cv_access_token id=cv_access_token data-token-field="access"></textarea></td>' +
+                   '<td><textarea rows=5 cols=60 readonly ' +
+                       'name=cv_access_token id=cv_access_token ' +
+                       'data-token-field="access"></textarea></td>' +
                  '</tr>';
   if (entry.refresh_token) {
     html +=      '<tr>' +
                    '<td>' +
                      '<P><a href="/token_detail.html?type=history_refresh&generation=' + index + '" onclick="debugger2.clickLink()">Refresh Token</a></P>' +
                      '<P style="font-size:50%;"><a href="/introspection.html?type=history_refresh&generation=' + index + '" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
-                     '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="history_refresh" data-revoke-generation="' + index + '" /></P>' +
-                     '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                     '<P><input class="btn2 revoke_token_btn" type="button" ' +
+                         'value="Revoke Token" ' +
+                         'data-revoke-type="history_refresh" ' +
+                         'data-revoke-generation="' + index + '" /></P>' +
+                     '<P><form><input class="btn2" type="submit" ' +
+                         'value="Copy Token"' +
                      ' onclick="return debugger2.onClickCopyToken(\'#cv_refresh_token\');"/></form></P>' +
                    '</td>' +
-                   '<td><textarea rows=5 cols=60 readonly name=cv_refresh_token id=cv_refresh_token data-token-field="refresh"></textarea></td>' +
+                   '<td><textarea rows=5 cols=60 readonly ' +
+                       'name=cv_refresh_token id=cv_refresh_token ' +
+                       'data-token-field="refresh"></textarea></td>' +
                  '</tr>';
   }
   if (entry.id_token) {
@@ -2795,10 +3130,12 @@ function renderCurrentlyViewing(index, entry) {
                    '<td>' +
                      '<P><a href="/token_detail.html?type=history_id_token&generation=' + index + '" onclick="debugger2.clickLink()">ID Token</a></P>' +
                      '<P style="font-size:50%;">Get <a href="/userinfo.html?type=history_access&generation=' + index + '" onclick="debugger2.clickLink()">UserInfo Data</a></P>' +
-                     '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                     '<P><form><input class="btn2" type="submit" ' +
+                         'value="Copy Token"' +
                      ' onclick="return debugger2.onClickCopyToken(\'#cv_id_token\');"/></form></P>' +
                    '</td>' +
-                   '<td><textarea rows=5 cols=60 readonly name=cv_id_token id=cv_id_token data-token-field="id"></textarea></td>' +
+                   '<td><textarea rows=5 cols=60 readonly name=cv_id_token ' +
+                       'id=cv_id_token data-token-field="id"></textarea></td>' +
                  '</tr>';
   }
   html +=      '<tr>' +
@@ -2807,18 +3144,21 @@ function renderCurrentlyViewing(index, entry) {
                '</tr>' +
                '<tr>' +
                  '<td><strong>Nonce:</strong></td>' +
-                 '<td><input type="text" readonly data-token-field="nonce" style="width:100%;" /></td>' +
+                 '<td><input type="text" readonly data-token-field="nonce" ' +
+                     'style="width:100%;" /></td>' +
                '</tr>' +
                '<tr>' +
                  '<td><strong>Session ID (sid):</strong></td>' +
-                 '<td><input type="text" readonly data-token-field="sid" style="width:100%;" /></td>' +
+                 '<td><input type="text" readonly data-token-field="sid" ' +
+                     'style="width:100%;" /></td>' +
                '</tr>' +
              '</table>' +
              '</fieldset>' +
              '</div>';
   $('#currently-viewing-panel').html(html);
   fillGeneratedFields('#currently-viewing-panel', {
-    access: entry.access_token, refresh: entry.refresh_token, id: entry.id_token,
+    access: entry.access_token, refresh: entry.refresh_token,
+        id: entry.id_token,
     nonce: entry.nonce, sid: entry.sid
   });
   $('#currently-viewing-panel').show();
@@ -2835,9 +3175,11 @@ function renderTokenHistory() {
   }
   if (history.length === 0) {
     $("#token-history-panel").hide();
+    log.debug("Leaving renderTokenHistory().");
     return;
   }
-  var activeIndex = parseInt(localStorage.getItem('token_history_active_index'));
+  var activeIndex =
+      parseInt(localStorage.getItem('token_history_active_index'));
   if (isNaN(activeIndex)) activeIndex = -1;
 
   // Group entries by session id (sid) from the access token, preserving
@@ -2858,7 +3200,8 @@ function renderTokenHistory() {
   html += '<input type="button" value="Clear History" onclick="return debugger2.clearTokenHistory();" />';
   html += '<div style="max-height:450px; overflow-y:auto;">';
   sessionOrder.slice().reverse().forEach(function(sid) {
-    var label = sid === '__no_sid__' ? 'No Session ID (sid)' : 'Session ID (sid): ' + sid;
+    var label = sid === '__no_sid__' ?
+        'No Session ID (sid)' : 'Session ID (sid): ' + sid;
     html += '<div style="margin-bottom:10px;">';
     html += '<strong>' + escapeHtmlText(label) + '</strong>';
     html += '<table border="1" style="margin-top:4px;">';
@@ -2872,18 +3215,25 @@ function renderTokenHistory() {
       var timePart = e.timestamp.substring(11, 19);
       html += '<tr' + rowStyle + '>';
       html += '<td>' + (idx + 1) + '</td>';
-      html += '<td style="font-size:80%;">' + datePart + '<br>' + timePart + '</td>';
+      html += '<td style="font-size:80%;">' + datePart + '<br>' + timePart +
+          '</td>';
       html += '<td>' + e.source + '</td>';
-      html += '<td style="font-size:70%; word-break:break-all;">' + escapeHtmlText(e.nonce || '') + '</td>';
-      html += '<td style="font-size:70%; word-break:break-all;">' + escapeHtmlText(e.sid || '') + '</td>';
-      html += '<td style="text-align:center;">' + (e.access_token ? '&#10003;' : '') + '</td>';
-      html += '<td style="text-align:center;">' + (e.refresh_token ? '&#10003;' : '') + '</td>';
-      html += '<td style="text-align:center;">' + (e.id_token ? '&#10003;' : '') + '</td>';
+      html += '<td style="font-size:70%; word-break:break-all;">' +
+          escapeHtmlText(e.nonce || '') + '</td>';
+      html += '<td style="font-size:70%; word-break:break-all;">' +
+          escapeHtmlText(e.sid || '') + '</td>';
+      html += '<td style="text-align:center;">' + (e.access_token ?
+          '&#10003;' : '') + '</td>';
+      html += '<td style="text-align:center;">' + (e.refresh_token ?
+          '&#10003;' : '') + '</td>';
+      html += '<td style="text-align:center;">' + (e.id_token ?
+          '&#10003;' : '') + '</td>';
       html += '<td>';
       if (isActive) {
         html += '<strong>Active</strong>';
       } else {
-        html += '<input type="button" value="Activate" onclick="return debugger2.selectTokenSet(' + idx + ');" />';
+        html += '<input type="button" value="Activate" onclick="return ' +
+            'debugger2.selectTokenSet(' + idx + ');" />';
       }
       html += '</td>';
       html += '</tr>';
@@ -2900,20 +3250,25 @@ function renderTokenHistory() {
 }
 
 function regenerateState() {
+  log.debug("Entering regenerateState().");
   $("#state").val(generateUUID());
   localStorage.setItem('state', $("#state").val());
+  log.debug("Leaving regenerateState().");
 }
 
 function regenerateNonce() {
+  log.debug("Entering regenerateNonce().");
   $("#nonce_field").val(generateUUID());
   localStorage.setItem('nonce_field', $("#nonce_field").val());
+  log.debug("Leaving regenerateNonce().");
 }
 
 function recreateTokenDisplay()
 {
   log.debug("Entering recreateTokenDisplay().");
       var token_endpoint_result_html = "";
-      log.debug("displayOpenIDConnectArtifacts=" + displayOpenIDConnectArtifacts);
+      log.debug("displayOpenIDConnectArtifacts=" +
+                displayOpenIDConnectArtifacts);
       var refreshToken = localStorage.getItem("token_refresh_token");
       if(displayOpenIDConnectArtifacts == true)
       {
@@ -2923,14 +3278,18 @@ function recreateTokenDisplay()
          token_endpoint_result_html = '<div class="dbg-pane">' +
                                       '<legend class="dbg-legend" data-target="token_result_fieldset">Token Endpoint Results:</legend>' +
                                       '<fieldset id="token_result_fieldset">' +
-                                 "<p><em>Most recent results of the OAuth2 Grant or OIDC Authentication Flow call.</em></p>" +
+                                 "<p><em>Most recent results of the OAuth2 " +
+                                     "Grant or OIDC Authentication Flow " +
+                                     "call.</em></p>" +
                                       "<table>" +
                                         "<tr>" +
                                           '<td>' +
                                               '<P><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></P>' +
                                               '<P style="font-size:50%;"><a href="/introspection.html?type=access" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
                                          '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="access" /></P>' + 
-                                              '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                              '<P><form><input class="btn2" ' +
+                                                  'type="submit" ' +
+                                                  'value="Copy Token"' +
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           "</td>" +
                                           "<td>" +
@@ -2944,7 +3303,9 @@ function recreateTokenDisplay()
                                               '<P><a href="/token_detail.html?type=refresh" onclick="debugger2.clickLink()">Refresh Token</a></P>' +
                                               '<P style="font-size:50%;"><a href="/introspection.html?type=refresh" onclick="debugger2.clickLink()">Introspect Token</a></P>' +
                                          '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="refresh" /></P>' +
-                                              '<P><form><input class="btn2" type="submit" value="Copy Token"' + 
+                                              '<P><form><input class="btn2" ' +
+                                                  'type="submit" ' +
+                                                  'value="Copy Token"' + 
                                               ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
@@ -2956,7 +3317,10 @@ function recreateTokenDisplay()
                                           '<td>' +
                                             '<P><a href="/token_detail.html?type=id" onclick="debugger2.clickLink()">ID Token</a></P>' +
                                             '<P style="font-size:50%;">Get <a href="/userinfo.html?type=token_access_token" onclick="debugger2.clickLink()">UserInfo Data</a></P>' +
-                                            '<P><form><input class="token_btn" type="submit" value="Copy Token"' + 
+                                            '<P><form><input ' +
+                                                'class="token_btn" ' +
+                                                'type="submit" ' +
+                                                'value="Copy Token"' + 
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_id_token\');"/></form></P>' +
                                           '</td>' +
                                           '<td>' +
@@ -2970,14 +3334,19 @@ function recreateTokenDisplay()
          log.debug("Logging access_token only.");
          log.debug("RCBJ0002");
          token_endpoint_result_html = "<fieldset>" +
-                                      "<legend>Token Endpoint Results:</legend>" +
-                                 "<p><em>Most recent results of the OAuth2 Grant or OIDC Authentication Flow call.</em></p>" +
+                                      "<legend>Token Endpoint " +
+                                          "Results:</legend>" +
+                                 "<p><em>Most recent results of the OAuth2 " +
+                                     "Grant or OIDC Authentication Flow " +
+                                     "call.</em></p>" +
                                       "<table>" +
                                         "<tr>" +
                                           '<td>' +
                                             '<p><a href="/token_detail.html?type=access" onclick="debugger2.clickLink()">Access Token</a></p>' +
                                             '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="access" /></P>' +
-                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            '<P><form><input class="btn2" ' +
+                                                'type="submit" ' +
+                                                'value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_access_token\');"/></form></P>' +
                                           '</td>' +
                                           "<td><textarea rows=5 cols=60 readonly name=token_access_token id=token_access_token data-token-field=\"access\"></textarea>" +
@@ -2989,7 +3358,9 @@ function recreateTokenDisplay()
                                           '<td>' +
                                             '<a href="/token_detail.html?type=refresh" onclick="debugger2.clickLink()">Refresh Token</a>' +
                                             '<P><input class="btn2 revoke_token_btn" type="button" value="Revoke Token" data-revoke-type="refresh" /></P>' +
-                                            '<P><form><input class="btn2" type="submit" value="Copy Token"' +
+                                            '<P><form><input class="btn2" ' +
+                                                'type="submit" ' +
+                                                'value="Copy Token"' +
                                             ' onclick="return debugger2.onClickCopyToken(\'#token_refresh_token\');"/></form></P>' +
                                           '</td>' +
                                           "<td>" +
@@ -3015,7 +3386,8 @@ function displayTokenCustomParametersCheck()
   log.debug("Entering displayTokenCustomParametersCheck().");
   var yesCheck = $("#customTokenParametersCheck-yes").is(":checked");
   var noCheck = $("#customTokenParametersCheck-no").is(":checked");
-  log.debug("customParamtersYesCheck=" + yesCheck, "customParamtersNoCheck=" + noCheck);
+  log.debug("customParamtersYesCheck=" + yesCheck, "customParamtersNoCheck=" +
+            noCheck);
   if(yesCheck) {
     $("#tokenCustomParametersRow").show();
     $("#customTokenParametersCheck-no").prop("checked", false);
@@ -3057,26 +3429,36 @@ function generateCustomParametersListUI()
         "<tr>" +
           "<td>Custom Parameter #" + i + "</td>" +
           "<td>" +
-            '<input class="stored" id="' + 'customTokenParameterName-' + i + '" name="' + 'customTokenParameterName-' + i + '" type="text" maxlength="64" size="32" />' +
+            '<input class="stored" id="' + 'customTokenParameterName-' + i +
+                '" name="' + 'customTokenParameterName-' + i +
+                '" type="text" maxlength="64" size="32" />' +
           "</td>" +
           "<td>" +
-            '<input class="stored" id="' + 'customTokenParameterValue-' + i + '" name="' + 'customTokenParameterValue-' + i + '" type="text" maxlength="128" size="64" />' +
+            '<input class="stored" id="' + 'customTokenParameterValue-' + i +
+                '" name="' + 'customTokenParameterValue-' + i +
+                '" type="text" maxlength="128" size="64" />' +
           "</td>" +
         "</tr>";
       }
       customParametersListHTML = customParametersListHTML +
         "</table>" +
         "</fieldset>";
-      $("#token_custom_parameter_list").html(DOMPurify.sanitize(customParametersListHTML));
+      $("#token_custom_parameter_list")
+        .html(DOMPurify.sanitize(customParametersListHTML));
   if ($("#customTokenParametersCheck-yes").is(":checked")) {
     var i = 0;
-    var authzNumberCustomParameters = parseInt($("#tokenNumberCustomParameters").val());
+    var authzNumberCustomParameters =
+        parseInt($("#tokenNumberCustomParameters").val());
     for(i = 0; i < authzNumberCustomParameters; i++)
     {
-      $("#customTokenParameterName-" + i).val(localStorage.getItem("customTokenParameterName-" + i));
-      $("#customTokenParameterValue-" + i).val(localStorage.getItem("customTokenParameterValue-" + i));
-      $("#customTokenParameterName-" + i).on("keypress", recalculateTokenRequestDescription);
-      $("#customTokenParameterValue-" + i).on("keypress", recalculateTokenRequestDescription);
+      $("#customTokenParameterName-" +
+        i).val(localStorage.getItem("customTokenParameterName-" + i));
+      $("#customTokenParameterValue-" +
+        i).val(localStorage.getItem("customTokenParameterValue-" + i));
+      $("#customTokenParameterName-" + i).on("keypress",
+        recalculateTokenRequestDescription);
+      $("#customTokenParameterValue-" + i).on("keypress",
+        recalculateTokenRequestDescription);
 
     }
   }
@@ -3229,6 +3611,8 @@ function usePKCERFC()
 
 function getLSBooleanItem(key)
 {
+  log.debug("Entering getLSBooleanItem().");
+  log.debug("Leaving getLSBooleanItem().");
   return localStorage.getItem(key) === 'true';
 }
 
@@ -3237,7 +3621,8 @@ function setPostAuthStyleCheckToken() {
   $("#token_postAuthStyleCheckToken").prop("checked", true);
   $("#token_headerAuthStyleCheckToken").prop("checked", false);
   localStorage.setItem("token_post_auth_style", true);
-  log.debug("Leaving setPostAuthStyleCheckToken(): token_post_auth_style=" + localStorage.getItem("token_post_auth_style") + ".");
+  log.debug("Leaving setPostAuthStyleCheckToken(): token_post_auth_style=" +
+            localStorage.getItem("token_post_auth_style") + ".");
   return false;
 }
 
@@ -3246,7 +3631,8 @@ function setHeaderAuthStyleCheckToken() {
   $("#token_postAuthStyleCheckToken").prop("checked", false);
   $("#token_headerAuthStyleCheckToken").prop("checked", true);
   localStorage.setItem("token_post_auth_style", false);
-  log.debug("Leaving setHeaderAuthStyleCheckToken(): token_post_auth_style=" + localStorage.getItem("token_post_auth_style") + ".");
+  log.debug("Leaving setHeaderAuthStyleCheckToken(): token_post_auth_style=" +
+            localStorage.getItem("token_post_auth_style") + ".");
   return false;
 }
 
@@ -3255,7 +3641,8 @@ function setPostAuthStyleRefreshToken() {
   $("#refresh_postAuthStyleCheckToken").prop("checked", true);
   $("#refresh_headerAuthStyleCheckToken").prop("checked", false);
   localStorage.setItem("refresh_post_auth_style", true);
-  log.debug("Leaving setPostAuthStyleRefreshToken(): token_post_auth_style=" + localStorage.getItem("refresh_post_auth_style") + ".");
+  log.debug("Leaving setPostAuthStyleRefreshToken(): token_post_auth_style=" +
+            localStorage.getItem("refresh_post_auth_style") + ".");
   return false;
 }
 
@@ -3264,7 +3651,9 @@ function setHeaderAuthStyleRefreshToken() {
   $("#refresh_postAuthStyleCheckToken").prop("checked", false);
   $("#refresh_headerAuthStyleCheckToken").prop("checked", true);
   localStorage.setItem("refresh_post_auth_style", false);
-  log.debug("Leaving setHeaderAuthStyleRefreshToken(): refresh_post_auth_style=" + localStorage.getItem("refresh_post_auth_style") + ".");
+  log.debug("Leaving setHeaderAuthStyleRefreshToken(): " +
+            "refresh_post_auth_style=" +
+            localStorage.getItem("refresh_post_auth_style") + ".");
   return false;
 }
 
@@ -3292,8 +3681,10 @@ function setInitiateFromEnd() {
 
 function setInitiateRefreshFromEnd() {
   log.debug("Entering setInitiateRefreshFromEnd().");
-  var frontEndRefreshInitiated = $("#refresh_initiateFromFrontEnd").is(":checked");
-  var backEndRefreshInitiated = $("#refresh_initiateFromBackEnd").is(":checked");
+  var frontEndRefreshInitiated =
+      $("#refresh_initiateFromFrontEnd").is(":checked");
+  var backEndRefreshInitiated =
+      $("#refresh_initiateFromBackEnd").is(":checked");
   if(frontEndRefreshInitiated) {
     useRefreshFrontEnd = true;
   } else {
@@ -3312,6 +3703,7 @@ function clickLink() {
 }
 
 function clearTokenHistory() {
+  log.debug("Entering clearTokenHistory().");
   localStorage.removeItem('token_history');
   localStorage.removeItem('token_history_active_index');
   $('#token-history-panel').hide();
@@ -3324,6 +3716,7 @@ function clearTokenHistory() {
     renderAuthorizationEndpointResults(authorizationResponseTokenSet.expected,
                                        authorizationResponseTokenSet);
   }
+  log.debug("Leaving clearTokenHistory().");
   return false;
 }
 
@@ -3333,6 +3726,8 @@ function clearTokenHistory() {
 // markup. The operation history table is rendered without DOMPurify so its
 // inline onclick handlers survive, so dynamic values must be escaped here.
 function escapeHtmlText(s) {
+  log.debug("Entering escapeHtmlText().");
+  log.debug("Leaving escapeHtmlText().");
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -3343,22 +3738,28 @@ function escapeHtmlText(s) {
 // The session nonce: preferring the nonce carried in the most recent id_token,
 // falling back to the nonce generated for the authorization request.
 function getCurrentSessionNonce() {
-  var idToken = localStorage.getItem('refresh_id_token') || localStorage.getItem('token_id_token');
+  log.debug("Entering getCurrentSessionNonce().");
+  var idToken = localStorage.getItem('refresh_id_token') ||
+      localStorage.getItem('token_id_token');
   var n = extractNonce(idToken);
   if (!!n) {
+    log.debug("Leaving getCurrentSessionNonce().");
     return n;
   }
+  log.debug("Leaving getCurrentSessionNonce().");
   return localStorage.getItem('nonce_field') || '';
 }
 
 // Index of the most recently saved token_history entry, or -1 if none.
 function getLatestTokenHistoryIndex() {
+  log.debug("Entering getLatestTokenHistoryIndex().");
   var history = [];
   try {
     history = JSON.parse(localStorage.getItem('token_history') || '[]');
   } catch (e) {
     log.error("Failed to parse token_history: " + e);
   }
+  log.debug("Leaving getLatestTokenHistoryIndex().");
   return history.length - 1;
 }
 
@@ -3382,7 +3783,8 @@ function saveOperationToHistory(operation, options) {
     detail: options.detail || '',
     client_id: (options.client_id != null) ? options.client_id : '',
     nonce: (options.nonce != null) ? options.nonce : getCurrentSessionNonce(),
-    tokenHistoryIndex: (typeof options.tokenHistoryIndex === 'number') ? options.tokenHistoryIndex : null
+    tokenHistoryIndex: (typeof options.tokenHistoryIndex === 'number') ?
+                        options.tokenHistoryIndex : null
   });
   localStorage.setItem('operation_history', JSON.stringify(history));
   renderOperationHistory();
@@ -3398,31 +3800,43 @@ function renderOperationHistory() {
     log.error("Failed to parse operation_history: " + e);
   }
   var html = '<div class="dbg-pane">' +
-               '<legend class="dbg-legend" data-target="operation_history_fieldset">Operation History</legend>' +
+               '<legend class="dbg-legend" ' +
+                   'data-target="operation_history_fieldset">Operation ' +
+                   'History</legend>' +
                '<fieldset id="operation_history_fieldset">' +
-               '<p><em>Chronological history of every endpoint operation performed.</em></p>' +
+               '<p><em>Chronological history of every endpoint operation ' +
+                   'performed.</em></p>' +
                '<input type="button" value="Clear History" onclick="return debugger2.clearOperationHistory();" />';
   if (history.length === 0) {
     html += '<p><em>No operations recorded yet.</em></p></fieldset></div>';
     $("#operation-history-panel").html(html);
+    log.debug("Leaving renderOperationHistory().");
     return;
   }
   // Cap the visible area to roughly 3-5 rows; a scrollbar appears beyond that.
   html += '<div style="max-height:200px; overflow-y:auto; margin-top:4px;">';
   html += '<table border="1" style="width:100%;">';
   var thStyle = 'position:sticky; top:0; background:#fafafa;';
-  html += '<tr><th style="' + thStyle + ' width:5%">#</th><th style="' + thStyle + ' width:22%">Time</th><th style="' + thStyle + ' width:27%">Operation</th><th style="' + thStyle + ' width:18%">Client ID</th><th style="' + thStyle + ' width:28%">Nonce</th></tr>';
+  html += '<tr><th style="' + thStyle + ' width:5%">#</th><th style="' +
+      thStyle + ' width:22%">Time</th><th style="' + thStyle +
+      ' width:27%">Operation</th><th style="' + thStyle +
+      ' width:18%">Client ID</th><th style="' + thStyle +
+      ' width:28%">Nonce</th></tr>';
   history.slice().reverse().forEach(function(item, ridx) {
     var idx = history.length - 1 - ridx;
     var datePart = (item.timestamp || '').substring(0, 10);
     var timePart = (item.timestamp || '').substring(11, 19);
-    var op = escapeHtmlText(item.operation) + (item.detail ? ' (' + escapeHtmlText(item.detail) + ')' : '');
+    var op = escapeHtmlText(item.operation) + (item.detail ? ' (' +
+        escapeHtmlText(item.detail) + ')' : '');
     html += '<tr>';
     html += '<td>' + (idx + 1) + '</td>';
-    html += '<td style="font-size:80%;">' + escapeHtmlText(datePart) + '<br>' + escapeHtmlText(timePart) + '</td>';
+    html += '<td style="font-size:80%;">' + escapeHtmlText(datePart) + '<br>' +
+        escapeHtmlText(timePart) + '</td>';
     html += '<td style="font-size:90%;">' + op + '</td>';
-    html += '<td style="word-break:break-all; font-size:80%;">' + escapeHtmlText(item.client_id) + '</td>';
-    html += '<td style="word-break:break-all; font-size:75%;">' + escapeHtmlText(item.nonce) + '</td>';
+    html += '<td style="word-break:break-all; font-size:80%;">' +
+        escapeHtmlText(item.client_id) + '</td>';
+    html += '<td style="word-break:break-all; font-size:75%;">' +
+        escapeHtmlText(item.nonce) + '</td>';
     html += '</tr>';
   });
   html += '</table></div></fieldset></div>';
@@ -3431,8 +3845,10 @@ function renderOperationHistory() {
 }
 
 function clearOperationHistory() {
+  log.debug("Entering clearOperationHistory().");
   localStorage.removeItem('operation_history');
   renderOperationHistory();
+  log.debug("Leaving clearOperationHistory().");
   return false;
 }
 
@@ -3443,7 +3859,8 @@ function clearOperationHistory() {
 // type identifies which token to load; generation is the token history index
 // (only used for the history_* types).
 function loadTokenForRevocation(type, generation) {
-  log.debug("Entering loadTokenForRevocation(). type=" + type + ", generation=" + generation);
+  log.debug("Entering loadTokenForRevocation(). type=" + type +
+            ", generation=" + generation);
   var token = "";
   var hint = "";
   if (type == "access") {
@@ -3484,13 +3901,16 @@ function loadTokenForRevocation(type, generation) {
   $("#revocation_token_type_hint").val(hint);
   // Populate endpoint and client credentials from the most recent values.
   if (!!localStorage.getItem("revocation_endpoint")) {
-    $("#revocation_revocation_endpoint").val(localStorage.getItem("revocation_endpoint"));
+    $("#revocation_revocation_endpoint")
+      .val(localStorage.getItem("revocation_endpoint"));
   }
   if (!$("#revocation_client_id").val()) {
-    $("#revocation_client_id").val($("#token_client_id").val() || localStorage.getItem("client_id"));
+    $("#revocation_client_id").val($("#token_client_id").val() ||
+      localStorage.getItem("client_id"));
   }
   if (!$("#revocation_client_secret").val()) {
-    $("#revocation_client_secret").val($("#token_client_secret").val() || localStorage.getItem("client_secret"));
+    $("#revocation_client_secret").val($("#token_client_secret").val() ||
+      localStorage.getItem("client_secret"));
   }
   // Make sure the revocation pane is visible and expanded.
   $("#step6").show();
@@ -3509,8 +3929,10 @@ function loadTokenForRevocation(type, generation) {
 // token field: populates the Token Revocation pane for the chosen token and
 // immediately submits the revocation request.
 function revokeTokenDirect(type, generation) {
-  log.debug("Entering revokeTokenDirect(). type=" + type + ", generation=" + generation);
+  log.debug("Entering revokeTokenDirect(). type=" + type + ", generation=" +
+            generation);
   loadTokenForRevocation(type, generation);
+  log.debug("Leaving revokeTokenDirect().");
   return revokeButtonClick();
 }
 
@@ -3543,21 +3965,29 @@ function revokeButtonClick() {
   recalculateRevocationRequestDescription();
   var formData = buildInternalRevocationRequestMessage();
   if (!formData.token) {
-    displayRevocationResult("No token specified. Use a \"Revoke Token\" link above a token field, " +
-                            "or paste a token into the Token field, then try again.", true);
+    displayRevocationResult("No token specified. Use a \"Revoke Token\" link " +
+                            "above a token field, " +
+                            "or paste a token into the Token field, then " +
+                                "try again.", true);
+    log.debug("Leaving revokeButtonClick().");
     return false;
   }
   if (!formData.revocation_endpoint) {
-    displayRevocationResult("No revocation endpoint configured. Populate it from the discovery document " +
-                            "on the previous page, or enter it manually.", true);
+    displayRevocationResult("No revocation endpoint configured. Populate it " +
+                            "from the discovery document " +
+                            "on the previous page, or enter it manually.",
+                                true);
+    log.debug("Leaving revokeButtonClick().");
     return false;
   }
   if (useRevocationFrontEnd) {
-    log.debug("Using frontend to call Revocation Endpoint. auth_style(POST body)=" + formData.auth_style);
+    log.debug("Using frontend to call Revocation Endpoint. " +
+              "auth_style(POST body)=" + formData.auth_style);
     var headers = { "Content-Type": "application/x-www-form-urlencoded" };
     var bodyParams = "token=" + encodeURIComponent(formData.token);
     if (!!formData.token_type_hint) {
-      bodyParams += "&token_type_hint=" + encodeURIComponent(formData.token_type_hint);
+      bodyParams += "&token_type_hint=" +
+          encodeURIComponent(formData.token_type_hint);
     }
     if (formData.auth_style) {
       // POST body: send client credentials as request parameters.
@@ -3565,12 +3995,14 @@ function revokeButtonClick() {
         bodyParams += "&client_id=" + encodeURIComponent(formData.client_id);
       }
       if (!!formData.client_secret) {
-        bodyParams += "&client_secret=" + encodeURIComponent(formData.client_secret);
+        bodyParams += "&client_secret=" +
+            encodeURIComponent(formData.client_secret);
       }
     } else {
       // HTTP Basic authorization header.
       if (!!formData.client_secret) {
-        headers["Authorization"] = "Basic " + btoa(formData.client_id + ":" + formData.client_secret);
+        headers["Authorization"] = "Basic " + btoa(formData.client_id + ":" +
+                formData.client_secret);
       } else if (!!formData.client_id) {
         bodyParams += "&client_id=" + encodeURIComponent(formData.client_id);
       }
@@ -3601,20 +4033,25 @@ function revokeButtonClick() {
 }
 
 function successfulRevocationAPICall(data, textStatus, jqXHR) {
-  log.debug("Entering successfulRevocationAPICall(): data=" + JSON.stringify(data) + ", textStatus=" + textStatus);
+  log.debug("Entering successfulRevocationAPICall(): data=" +
+            JSON.stringify(data) + ", textStatus=" + textStatus);
   var status = (jqXHR && jqXHR.status) ? jqXHR.status : 200;
   var statusText = (jqXHR && jqXHR.statusText) ? jqXHR.statusText : "";
   var bodyText = "";
   try {
-    bodyText = (typeof data === "string") ? data : JSON.stringify(data, null, 2);
+    bodyText = (typeof data === "string") ? data : JSON.stringify(data, null,
+        2);
   } catch (e) {
     bodyText = String(data);
   }
   var message = "Token revocation request accepted.\n" +
-                "Per RFC 7009, the authorization server returns HTTP 200 whether or not the token\n" +
-                "previously existed, so a 200 here does not by itself confirm a token was active.\n\n" +
+                "Per RFC 7009, the authorization server returns HTTP 200 " +
+                    "whether or not the token\n" +
+                "previously existed, so a 200 here does not by itself " +
+                    "confirm a token was active.\n\n" +
                 "HTTP Status: " + status + " " + statusText + "\n" +
-                "Response Body: " + (bodyText && bodyText !== "{}" ? bodyText : "(empty)");
+                "Response Body: " + (bodyText && bodyText !== "{}" ?
+                    bodyText : "(empty)");
   displayRevocationResult(message, false);
   saveOperationToHistory('Revocation Endpoint', {
     client_id: $("#revocation_client_id").val(),
@@ -3636,9 +4073,11 @@ function errorRevocationAPICall(jqXHR, status, error) {
     responseObject = {};
   }
   var message = "An error occurred during token revocation.\n" +
-                "HTTP Status: " + (jqXHR ? jqXHR.status : "") + " " + (jqXHR ? jqXHR.statusText : "") + "\n" +
+                "HTTP Status: " + (jqXHR ? jqXHR.status : "") + " " + (jqXHR ?
+                    jqXHR.statusText : "") + "\n" +
                 "error: " + (responseObject.error || error || "") + "\n" +
-                "error_description: " + (responseObject.error_description || "") + "\n" +
+                "error_description: " + (responseObject.error_description ||
+                    "") + "\n" +
                 "Response Body: " + responseText;
   displayRevocationResult(message, true);
   saveOperationToHistory('Revocation Endpoint', {
@@ -3653,11 +4092,14 @@ function displayRevocationResult(message, isError) {
   var legend = isError ? "Token Revocation Error" : "Token Revocation Results";
   var html = "<fieldset>" +
                "<legend>" + legend + "</legend>" +
-               "<p><em>Most recent result of the Token Revocation (RFC 7009) call.</em></p>" +
+               "<p><em>Most recent result of the Token Revocation (RFC 7009) " +
+                   "call.</em></p>" +
                "<table>" +
                  "<tr>" +
                    "<td>" +
-                     "<textarea rows='9' cols='80' readonly id='revocation_result_textarea' name='revocation_result_textarea'></textarea>" +
+                     "<textarea rows='9' cols='80' readonly " +
+                         "id='revocation_result_textarea' " +
+                         "name='revocation_result_textarea'></textarea>" +
                    "</td>" +
                  "</tr>" +
                "</table>" +
@@ -3674,6 +4116,7 @@ function recalculateRevocationRequestDescription() {
   log.debug("Entering recalculateRevocationRequestDescription().");
   var ta1 = $("#display_revocation_request_form_textarea1");
   if (!ta1) {
+    log.debug("Leaving recalculateRevocationRequestDescription().");
     return;
   }
   var endpoint = $("#revocation_revocation_endpoint").val();
@@ -3685,7 +4128,8 @@ function recalculateRevocationRequestDescription() {
   var request = "POST " + endpoint + "\n" +
                 "Content-Type: application/x-www-form-urlencoded\n";
   if (!postAuthStyle && !!clientSecret) {
-    request += "Authorization: Basic base64(" + clientId + ":<client_secret>)\n";
+    request += "Authorization: Basic base64(" + clientId +
+        ":<client_secret>)\n";
   }
   request += "Message Body:\n" +
              "token=" + token;
@@ -3724,7 +4168,9 @@ function setPostAuthStyleRevocation() {
   $("#revocation_headerAuthStyleCheckToken").prop("checked", false);
   localStorage.setItem("revocation_post_auth_style", true);
   recalculateRevocationRequestDescription();
-  log.debug("Leaving setPostAuthStyleRevocation(): revocation_post_auth_style=" + localStorage.getItem("revocation_post_auth_style") + ".");
+  log.debug("Leaving setPostAuthStyleRevocation(): " +
+            "revocation_post_auth_style=" +
+            localStorage.getItem("revocation_post_auth_style") + ".");
   return false;
 }
 
@@ -3734,7 +4180,9 @@ function setHeaderAuthStyleRevocation() {
   $("#revocation_headerAuthStyleCheckToken").prop("checked", true);
   localStorage.setItem("revocation_post_auth_style", false);
   recalculateRevocationRequestDescription();
-  log.debug("Leaving setHeaderAuthStyleRevocation(): revocation_post_auth_style=" + localStorage.getItem("revocation_post_auth_style") + ".");
+  log.debug("Leaving setHeaderAuthStyleRevocation(): " +
+            "revocation_post_auth_style=" +
+            localStorage.getItem("revocation_post_auth_style") + ".");
   return false;
 }
 
@@ -3742,12 +4190,15 @@ function setHeaderAuthStyleRevocation() {
 // Token call (if one has been made) over the access token from the initial
 // Token Endpoint call.
 function getLatestAccessToken() {
+  log.debug("Entering getLatestAccessToken().");
   if (getLSBooleanItem("refresh_token_used")) {
     var refreshAccessToken = localStorage.getItem("refresh_access_token");
     if (!!refreshAccessToken) {
+      log.debug("Leaving getLatestAccessToken().");
       return refreshAccessToken;
     }
   }
+  log.debug("Leaving getLatestAccessToken().");
   return localStorage.getItem("token_access_token") || "";
 }
 
@@ -3765,7 +4216,8 @@ function populateRevocationTokenWithLatestAccessToken() {
 
 // ---- Token Exchange (RFC 8693) ----
 
-var TOKEN_EXCHANGE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:token-exchange";
+var TOKEN_EXCHANGE_GRANT_TYPE =
+    "urn:ietf:params:oauth:grant-type:token-exchange";
 
 // Pre-populates the Token Exchange pane's subject_token with the latest access
 // token (from the initial Token Endpoint call or a Refresh Token call). Used on
@@ -3830,9 +4282,12 @@ function buildInternalTokenExchangeRequestMessage() {
 // Appends a key=value pair to an x-www-form-urlencoded body string when value
 // is non-empty.
 function appendFormParam(body, key, value) {
+  log.debug("Entering appendFormParam().");
   if (!value) {
+    log.debug("Leaving appendFormParam().");
     return body;
   }
+  log.debug("Leaving appendFormParam().");
   return (body ? body + "&" : "") + key + "=" + encodeURIComponent(value);
 }
 
@@ -3842,42 +4297,59 @@ function tokenExchangeButtonClick() {
   recalculateTokenExchangeRequestDescription();
   var formData = buildInternalTokenExchangeRequestMessage();
   if (!formData.token_endpoint) {
-    displayTokenExchangeResult("No token endpoint configured. Populate it from the discovery document " +
-                               "on the previous page, or enter it manually.", true);
+    displayTokenExchangeResult("No token endpoint configured. Populate it " +
+                               "from the discovery document " +
+                               "on the previous page, or enter it manually.",
+                                   true);
+    log.debug("Leaving tokenExchangeButtonClick().");
     return false;
   }
   if (!formData.subject_token) {
-    displayTokenExchangeResult("No subject token specified. The subject token defaults to the most recent " +
-                               "access token; obtain a token first, or paste one into the Subject Token field.", true);
+    displayTokenExchangeResult("No subject token specified. The subject " +
+                               "token defaults to the most recent " +
+                               "access token; obtain a token first, or paste " +
+                                   "one into the Subject Token field.", true);
+    log.debug("Leaving tokenExchangeButtonClick().");
     return false;
   }
   if ($("#tokenexchange_delegation").is(":checked") && !formData.actor_token) {
-    displayTokenExchangeResult("Delegation is selected but no actor token was provided. Enter an actor token, " +
+    displayTokenExchangeResult("Delegation is selected but no actor token " +
+                               "was provided. Enter an actor token, " +
                                "or switch to Impersonation.", true);
+    log.debug("Leaving tokenExchangeButtonClick().");
     return false;
   }
   if (useTokenExchangeFrontEnd) {
-    log.debug("Using frontend to call Token Endpoint for token exchange. auth_style(POST body)=" + formData.auth_style);
+    log.debug("Using frontend to call Token Endpoint for token exchange. " +
+              "auth_style(POST body)=" + formData.auth_style);
     var headers = { "Content-Type": "application/x-www-form-urlencoded" };
     var bodyParams = "grant_type=" + encodeURIComponent(formData.grant_type);
-    bodyParams = appendFormParam(bodyParams, "subject_token", formData.subject_token);
-    bodyParams = appendFormParam(bodyParams, "subject_token_type", formData.subject_token_type);
-    bodyParams = appendFormParam(bodyParams, "actor_token", formData.actor_token);
-    bodyParams = appendFormParam(bodyParams, "actor_token_type", formData.actor_token_type);
-    bodyParams = appendFormParam(bodyParams, "requested_token_type", formData.requested_token_type);
+    bodyParams = appendFormParam(bodyParams, "subject_token",
+        formData.subject_token);
+    bodyParams = appendFormParam(bodyParams, "subject_token_type",
+        formData.subject_token_type);
+    bodyParams = appendFormParam(bodyParams, "actor_token",
+        formData.actor_token);
+    bodyParams = appendFormParam(bodyParams, "actor_token_type",
+        formData.actor_token_type);
+    bodyParams = appendFormParam(bodyParams, "requested_token_type",
+        formData.requested_token_type);
     bodyParams = appendFormParam(bodyParams, "resource", formData.resource);
     bodyParams = appendFormParam(bodyParams, "audience", formData.audience);
     bodyParams = appendFormParam(bodyParams, "scope", formData.scope);
     if (formData.auth_style) {
       // POST body: send client credentials as request parameters.
       bodyParams = appendFormParam(bodyParams, "client_id", formData.client_id);
-      bodyParams = appendFormParam(bodyParams, "client_secret", formData.client_secret);
+      bodyParams = appendFormParam(bodyParams, "client_secret",
+          formData.client_secret);
     } else {
       // HTTP Basic authorization header.
       if (!!formData.client_secret) {
-        headers["Authorization"] = "Basic " + btoa(formData.client_id + ":" + formData.client_secret);
+        headers["Authorization"] = "Basic " + btoa(formData.client_id + ":" +
+                formData.client_secret);
       } else if (!!formData.client_id) {
-        bodyParams = appendFormParam(bodyParams, "client_id", formData.client_id);
+        bodyParams = appendFormParam(bodyParams, "client_id",
+            formData.client_id);
       }
     }
     $.ajax({
@@ -3906,22 +4378,26 @@ function tokenExchangeButtonClick() {
 }
 
 function successfulTokenExchangeAPICall(data, textStatus, jqXHR) {
-  log.debug("Entering successfulTokenExchangeAPICall(): data=" + JSON.stringify(data) + ", textStatus=" + textStatus);
+  log.debug("Entering successfulTokenExchangeAPICall(): data=" +
+            JSON.stringify(data) + ", textStatus=" + textStatus);
   var status = (jqXHR && jqXHR.status) ? jqXHR.status : 200;
   var statusText = (jqXHR && jqXHR.statusText) ? jqXHR.statusText : "";
   var bodyText = "";
   try {
-    bodyText = (typeof data === "string") ? data : JSON.stringify(data, null, 2);
+    bodyText = (typeof data === "string") ? data : JSON.stringify(data, null,
+        2);
   } catch (e) {
     bodyText = String(data);
   }
   var message = "Token exchange request succeeded.\n" +
                 "HTTP Status: " + status + " " + statusText + "\n" +
-                "Response Body:\n" + (bodyText && bodyText !== "{}" ? bodyText : "(empty)");
+                "Response Body:\n" + (bodyText && bodyText !== "{}" ?
+                    bodyText : "(empty)");
   displayTokenExchangeResult(message, false);
   saveOperationToHistory('Token Exchange', {
     client_id: $("#tokenexchange_client_id").val(),
-    detail: $("#tokenexchange_delegation").is(":checked") ? 'delegation' : 'impersonation'
+    detail: $("#tokenexchange_delegation").is(":checked") ?
+              'delegation' : 'impersonation'
   });
   log.debug("Leaving successfulTokenExchangeAPICall().");
 }
@@ -3939,14 +4415,17 @@ function errorTokenExchangeAPICall(jqXHR, status, error) {
     responseObject = {};
   }
   var message = "An error occurred during token exchange.\n" +
-                "HTTP Status: " + (jqXHR ? jqXHR.status : "") + " " + (jqXHR ? jqXHR.statusText : "") + "\n" +
+                "HTTP Status: " + (jqXHR ? jqXHR.status : "") + " " + (jqXHR ?
+                    jqXHR.statusText : "") + "\n" +
                 "error: " + (responseObject.error || error || "") + "\n" +
-                "error_description: " + (responseObject.error_description || "") + "\n" +
+                "error_description: " + (responseObject.error_description ||
+                    "") + "\n" +
                 "Response Body: " + responseText;
   displayTokenExchangeResult(message, true);
   saveOperationToHistory('Token Exchange', {
     client_id: $("#tokenexchange_client_id").val(),
-    detail: ($("#tokenexchange_delegation").is(":checked") ? 'delegation' : 'impersonation') + ', error'
+    detail: ($("#tokenexchange_delegation").is(":checked") ?
+             'delegation' : 'impersonation') + ', error'
   });
   log.debug("Leaving errorTokenExchangeAPICall().");
 }
@@ -3956,11 +4435,14 @@ function displayTokenExchangeResult(message, isError) {
   var legend = isError ? "Token Exchange Error" : "Token Exchange Results";
   var html = "<fieldset>" +
                "<legend>" + legend + "</legend>" +
-               "<p><em>Most recent result of the Token Exchange (RFC 8693) call.</em></p>" +
+               "<p><em>Most recent result of the Token Exchange (RFC 8693) " +
+                   "call.</em></p>" +
                "<table>" +
                  "<tr>" +
                    "<td>" +
-                     "<textarea rows='12' cols='80' readonly id='tokenexchange_result_textarea' name='tokenexchange_result_textarea'></textarea>" +
+                     "<textarea rows='12' cols='80' readonly " +
+                         "id='tokenexchange_result_textarea' " +
+                         "name='tokenexchange_result_textarea'></textarea>" +
                    "</td>" +
                  "</tr>" +
                "</table>" +
@@ -3977,6 +4459,7 @@ function recalculateTokenExchangeRequestDescription() {
   log.debug("Entering recalculateTokenExchangeRequestDescription().");
   var ta1 = $("#display_tokenexchange_request_form_textarea1");
   if (!ta1) {
+    log.debug("Leaving recalculateTokenExchangeRequestDescription().");
     return;
   }
   var endpoint = $("#tokenexchange_token_endpoint").val();
@@ -3987,14 +4470,17 @@ function recalculateTokenExchangeRequestDescription() {
   var request = "POST " + endpoint + "\n" +
                 "Content-Type: application/x-www-form-urlencoded\n";
   if (!postAuthStyle && !!clientSecret) {
-    request += "Authorization: Basic base64(" + clientId + ":<client_secret>)\n";
+    request += "Authorization: Basic base64(" + clientId +
+        ":<client_secret>)\n";
   }
   request += "Message Body:\n" +
              "grant_type=" + TOKEN_EXCHANGE_GRANT_TYPE;
   var addLine = function (key, value) {
+    log.debug("Entering addLine().");
     if (!!value) {
       request += "&\n" + key + "=" + value;
     }
+    log.debug("Leaving addLine().");
   };
   addLine("subject_token", $("#tokenexchange_subject_token").val());
   addLine("subject_token_type", $("#tokenexchange_subject_token_type").val());
@@ -4002,7 +4488,8 @@ function recalculateTokenExchangeRequestDescription() {
     addLine("actor_token", $("#tokenexchange_actor_token").val());
     addLine("actor_token_type", $("#tokenexchange_actor_token_type").val());
   }
-  addLine("requested_token_type", $("#tokenexchange_requested_token_type").val());
+  addLine("requested_token_type",
+          $("#tokenexchange_requested_token_type").val());
   addLine("resource", $("#tokenexchange_resource").val());
   addLine("audience", $("#tokenexchange_audience").val());
   addLine("scope", $("#tokenexchange_scope").val());
@@ -4020,7 +4507,8 @@ function recalculateTokenExchangeRequestDescription() {
 
 function setInitiateTokenExchangeFromEnd() {
   log.debug("Entering setInitiateTokenExchangeFromEnd().");
-  var frontEndInitiated = $("#tokenexchange_initiateFromFrontEnd").is(":checked");
+  var frontEndInitiated =
+      $("#tokenexchange_initiateFromFrontEnd").is(":checked");
   if (frontEndInitiated) {
     useTokenExchangeFrontEnd = true;
   } else {

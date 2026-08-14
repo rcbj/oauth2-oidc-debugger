@@ -19,6 +19,35 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+// The Entering/Leaving logging convention (see the repo-root CLAUDE.md)
+// wants a `log` here, and bunyan is not reachable from this file:
+// it runs from a checkout, before and outside the image build.
+// So this is the same call shape backed by console. Debug output is off by
+// default, so an ordinary run stays quiet; flip DEBUG to follow a call
+// through. Note the methods below are the one place the convention cannot
+// apply — a log line inside log.debug() is infinite recursion.
+var DEBUG = false;
+var LOG_TAG = "[build]";
+var log = {
+  debug: function () {
+    if (!DEBUG) return;
+    console.log.apply(console,
+      [LOG_TAG].concat(Array.prototype.slice.call(arguments)));
+  },
+  info: function () {
+    console.log.apply(console,
+      [LOG_TAG].concat(Array.prototype.slice.call(arguments)));
+  },
+  warn: function () {
+    console.warn.apply(console,
+      [LOG_TAG].concat(Array.prototype.slice.call(arguments)));
+  },
+  error: function () {
+    console.error.apply(console,
+      [LOG_TAG].concat(Array.prototype.slice.call(arguments)));
+  }
+};
+
 const CLIENT_DIR = __dirname;
 const DIST = path.join(CLIENT_DIR, 'dist');
 const PUBLIC = path.join(CLIENT_DIR, 'public');
@@ -28,7 +57,8 @@ const CONFIG_FILE = process.env.CONFIG_FILE || './env/prod.js';
 const BROWSERIFY = path.join(CLIENT_DIR, 'node_modules', '.bin', 'browserify');
 const TERSER = path.join(CLIENT_DIR, 'node_modules', '.bin', 'terser');
 const CLEANCSS = path.join(CLIENT_DIR, 'node_modules', '.bin', 'cleancss');
-const HTMLMIN = path.join(CLIENT_DIR, 'node_modules', '.bin', 'html-minifier-terser');
+const HTMLMIN = path.join(CLIENT_DIR, 'node_modules', '.bin',
+    'html-minifier-terser');
 
 // Minify JS/CSS/HTML so the hosted static site loads faster. On by default for
 // this build; set MINIFY=false to skip (useful when debugging a bundle). The
@@ -96,8 +126,11 @@ const CALLBACK_HTML = `<!DOCTYPE html>
 // Google Analytics (GA4 / gtag.js) snippet, placed as high in <head> as
 // possible per Google's guidance. Only emitted when GA_MEASUREMENT_ID is set.
 function gaSnippet(id) {
+  log.debug("Entering gaSnippet().");
+  log.debug("Leaving gaSnippet().");
   return '\n    <!-- Google tag (gtag.js) -->\n' +
-    '    <script async src="https://www.googletagmanager.com/gtag/js?id=' + id + '"></script>\n' +
+    '    <script async src="https://www.googletagmanager.com/gtag/js?id=' + id +
+        '"></script>\n' +
     '    <script>\n' +
     '      window.dataLayer = window.dataLayer || [];\n' +
     '      function gtag(){dataLayer.push(arguments);}\n' +
@@ -106,7 +139,11 @@ function gaSnippet(id) {
     '    </script>\n';
 }
 
-function log(msg) { console.log('[build] ' + msg); }
+function log(msg) {
+  log.debug("Entering log().");
+  console.log('[build] ' + msg);
+  log.debug("Leaving log().");
+}
 
 // 1. Clean output
 log('cleaning ' + path.relative(CLIENT_DIR, DIST));
@@ -119,7 +156,8 @@ const VERSION = appversion.stamp(DIST);
 const BUILD_INFO = appversion.buildInfo(VERSION);
 log('version ' + VERSION.version + ' (' + BUILD_INFO + ')');
 // Warn (don't fail) if a project's package.json version drifted from VERSION.
-appversion.checkManifests().filter(function (m) { return !m.ok; }).forEach(function (m) {
+appversion.checkManifests().filter(function (m) { return !m.ok; })
+                          .forEach(function (m) {
   log('WARNING: ' + m.path + ' says ' + m.actual + ', expected ' + m.expected +
       ' — run `node client/version.js --sync-manifests`');
 });
@@ -146,7 +184,8 @@ fs.copyFileSync(COMMON_DATA, stagedData);
 try {
   for (const [name, standalone] of BUNDLES) {
     const out = path.join(DIST, 'js', name + '.js');
-    log('browserify src/' + name + '.js -> dist/js/' + name + '.js (CONFIG_FILE=' + CONFIG_FILE + ')');
+    log('browserify src/' + name + '.js -> dist/js/' + name +
+        '.js (CONFIG_FILE=' + CONFIG_FILE + ')');
     // Omit inline source maps (--debug) when minifying — they would bloat the
     // shipped bundle and defeat the point.
     const bArgs = [
@@ -170,6 +209,7 @@ try {
 // 4. Resolve <!--#include file="/partials/x.html"--> directives in-place
 const INCLUDE_RE = /<!--#include file="([^"]+)"-->/g;
 function resolveIncludes(dir) {
+  log.debug("Entering resolveIncludes().");
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) { resolveIncludes(full); continue; }
@@ -180,7 +220,8 @@ function resolveIncludes(dir) {
       try {
         return fs.readFileSync(incPath, 'utf8');
       } catch (e) {
-        console.error('[build] include failed: ' + inc + ' (' + e.message + ')');
+        console.error('[build] include failed: ' + inc + ' (' + e.message +
+                      ')');
         return '';
       }
     });
@@ -189,6 +230,7 @@ function resolveIncludes(dir) {
       log('resolved includes in ' + path.relative(DIST, full));
     }
   }
+  log.debug("Leaving resolveIncludes().");
 }
 resolveIncludes(DIST);
 
@@ -199,6 +241,7 @@ resolveIncludes(DIST);
 //     so the pages and that file agree.
 const YEAR = String(new Date().getFullYear());
 function stampYear(dir) {
+  log.debug("Entering stampYear().");
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) { stampYear(full); continue; }
@@ -211,6 +254,7 @@ function stampYear(dir) {
       .split('{{BUILD_INFO}}').join(BUILD_INFO));
     log('stamped year in ' + path.relative(DIST, full));
   }
+  log.debug("Leaving stampYear().");
 }
 log('stamping copyright year ' + YEAR + ' and version ' + VERSION.version);
 stampYear(DIST);
@@ -220,18 +264,22 @@ if (GA_MEASUREMENT_ID) {
   const snippet = gaSnippet(GA_MEASUREMENT_ID);
   const HEAD_RE = /<head\b[^>]*>/i;
   function injectGA(dir) {
+    log.debug("Entering injectGA().");
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) { injectGA(full); continue; }
       if (!entry.name.endsWith('.html')) continue;
       const html = fs.readFileSync(full, 'utf8');
       if (!HEAD_RE.test(html)) continue;
-      const injected = html.replace(HEAD_RE, function (m) { return m + snippet; });
+      const injected = html.replace(HEAD_RE, function (m) { return m +
+          snippet; });
       fs.writeFileSync(full, injected);
       log('injected GA into ' + path.relative(DIST, full));
     }
+    log.debug("Leaving injectGA().");
   }
-  log('injecting Google Analytics (GA_MEASUREMENT_ID=' + GA_MEASUREMENT_ID + ')');
+  log('injecting Google Analytics (GA_MEASUREMENT_ID=' + GA_MEASUREMENT_ID +
+      ')');
   injectGA(DIST);
 } else {
   log('GA_MEASUREMENT_ID not set — skipping Google Analytics injection');
@@ -241,16 +289,21 @@ if (GA_MEASUREMENT_ID) {
 //    an input and writes an output, so minify to a temp file then swap it in.
 if (MINIFY) {
   function minifyInPlace(bin, buildArgs, file) {
+    log.debug("Entering minifyInPlace().");
     const tmp = file + '.min.tmp';
-    execFileSync(bin, buildArgs(file, tmp), { cwd: CLIENT_DIR, stdio: 'inherit' });
+    execFileSync(bin, buildArgs(file, tmp), { cwd: CLIENT_DIR,
+                 stdio: 'inherit' });
     fs.renameSync(tmp, file);
+    log.debug("Leaving minifyInPlace().");
   }
   function walk(dir, ext, fn) {
+    log.debug("Entering walk().");
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) { walk(full, ext, fn); continue; }
       if (entry.name.endsWith(ext)) fn(full);
     }
+    log.debug("Leaving walk().");
   }
 
   log('minifying CSS');

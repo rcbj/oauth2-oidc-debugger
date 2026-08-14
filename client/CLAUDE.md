@@ -106,3 +106,15 @@ Three rules follow, and `tests/jwk_pem_encoding.js` enforces all three:
 
 What remains is `browserify`'s own copy, on disk in the built image. It is not reachable from any page, and removing it needs the runtime image to prune devDependencies (a multi-stage build, or `npm prune --omit=dev` after the bundling steps plus dropping the global `npm install -g browserify`) — not done.
 
+### No BigInt literals in `client/src`
+
+`0n`, `8n`, `0xffn` — write `BigInt(0)` instead, and hoist it: `var _B0 = BigInt(0), _B8 = BigInt(8), _B255 = BigInt(255);`. Both `digital_signature.js` and `bbs.js` do, and both learned it the same way.
+
+The reason is the toolchain, not the language. **browserify runs the `envify` transform over every file in a bundle that references `process.env`, and `envify` parses with an `esprima` build old enough to predate BigInt literals** — it rejects one outright as `Line NNN: Unexpected token ILLEGAL`. `insert-module-globals` lexes the same files for the same reason.
+
+What makes this expensive is *when* it fires. A literal is completely harmless until the file it sits in acquires a `process.env` reference — and then the build fails with a **syntax error against a file the change never touched**, reported in the bundle of whichever page happens to require it, however many requires away that is. `bbs.js` carried three of them for months while nothing in it mentioned `process`; adding a `log.debug` logger (whose level comes from `CONFIG_FILE`) took out `browserify src/vc_presentation_2.js` at `Error: Line 104: Unexpected token ILLEGAL`, with nothing in the message naming `bbs.js`, BigInt, or the logger.
+
+So the rule is "none in `client/src`", not "none in a file that mentions `process.env`": the trigger is not a property of the file, so a rule conditioned on it is one that passes until the day it matters. `bigIntLiteralsStayOutOfTheBundles()` in `tests/jwk_pem_encoding.js` enforces it, beside the `elliptic` check and for the same reason — it is the only thing that catches it without a full image build, and it is mutation-tested against putting `0xffn` back.
+
+**If you hit `Unexpected token ILLEGAL` from a browserify step, do not start with the file the step names.** Run `esprima` over every file in that bundle's require graph; the offender is usually a module the entry point reaches indirectly.
+
