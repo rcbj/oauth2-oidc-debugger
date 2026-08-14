@@ -50,6 +50,12 @@ var waitTime = appconfig.waitTime;
 // busy CI host. node-forge RSA key generation is pure JS and much slower.
 var cryptoWait = Math.max(waitTime, 20000);
 var rsaWait = Math.max(waitTime, 90000);
+// The WebDriver script timeout, which is NOT waitTime: the default is 30s and
+// it bounds each executeScript call. The power-set sweep is the only thing here
+// that comes close, and it is sliced so it does not — but a slice on a loaded
+// runner is still the longest single script this test runs, and the failure
+// when it overruns is a bare "script timeout" naming nothing on the page.
+var scriptWait = Math.max(waitTime, 120000);
 
 var ATTR_PREFIX = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/";
 var ATTR_NAME = "emailaddress";
@@ -975,12 +981,24 @@ async function testAllAttributeTypes(driver, v) {
 }
 
 // The complete power set of the optional-element checkboxes. Driven in-page (a
-// round-trip per state would take minutes): for each of the 2^9 combinations it
-// rebuilds, then checks the XML parses, that each element is present exactly
+// round-trip per state would take minutes): for each of the 2^10 combinations
+// it rebuilds, then checks the XML parses, that each element is present exactly
 // when the settings imply it, and that the compliance verdict matches whether
 // the combination is genuinely valid.
+//
+// It runs a SLICE of the power set per call — `from` (inclusive) to `to`
+// (exclusive) — rather than all 1024 states in one. A synchronous script holds
+// the renderer for as long as it runs, so a single call is a cliff: the whole
+// sweep either finishes inside the WebDriver script timeout or the run dies
+// with a bare "script timeout" that names nothing on the page. It did exactly
+// that on a GitHub Actions runner on 2026-08-14, and the slice keeps any one
+// call to an eighth of the work so the margin no longer depends on how loaded
+// the host is.
+var POWER_SET_STATES = 1 << 10;
+var POWER_SET_SLICE = 128;
 var POWER_SET_SCRIPT = [
   "var version = arguments[0], markers = arguments[1];",
+  "var from = arguments[2], to = arguments[3];",
   "var keys = ['subject','subjconf','conditions','audience','onetimeuse'," +
       "'proxy','advice','authn','locality','authz'];",
   "var ids = {subject:'sa_opt_subject', subjconf:'sa_opt_subjconf', " +
@@ -993,7 +1011,7 @@ var POWER_SET_SCRIPT = [
   "var problems = [], states = 0;",
   "var attrsBox = document.getElementById('sa_opt_attrs');",
   "var parser = new DOMParser();",
-  "for (var mask = 0; mask < (1 << keys.length); mask++) {",
+  "for (var mask = from; mask < to; mask++) {",
   "  var on = {};",
   "  for (var i = 0; i < keys.length; i++) {",
   "    on[keys[i]] = !!(mask & (1 << i));",
@@ -1071,13 +1089,25 @@ async function testOptionalElementPowerSet(driver, v) {
     authz: v2 ?
         '<saml:AuthzDecisionStatement' : '<saml:AuthorizationDecisionStatement',
   };
-  var result = await driver.executeScript(POWER_SET_SCRIPT, v, markers);
-  assert.strictEqual(result.problems.length, 0,
+  // One slice per call — see the note above POWER_SET_SCRIPT. A slice that
+  // finds something wrong ends the sweep: the states after it would report the
+  // same defect a few hundred more times.
+  var states = 0, problems = [];
+  for (var from = 0; from < POWER_SET_STATES; from += POWER_SET_SLICE) {
+    var slice = await driver.executeScript(POWER_SET_SCRIPT, v, markers, from,
+        Math.min(from + POWER_SET_SLICE, POWER_SET_STATES));
+    states += slice.states;
+    problems = problems.concat(slice.problems);
+    if (problems.length) {
+      break;
+    }
+  }
+  assert.strictEqual(problems.length, 0,
     "[" + v + "] optional-element combinations misbehaved:\n  " +
-        result.problems.join("\n  "));
-  assert.strictEqual(result.states, 1024, "[" + v +
-                     "] expected 1024 combinations, ran " + result.states);
-  log.info("[" + v + "] OK — " + result.states +
+        problems.join("\n  "));
+  assert.strictEqual(states, POWER_SET_STATES, "[" + v + "] expected " +
+                     POWER_SET_STATES + " combinations, ran " + states);
+  log.info("[" + v + "] OK — " + states +
       " optional-element combinations: structure and compliance both correct.");
   await setCheckboxes(driver, ALL_ON);
   log.debug("Leaving testOptionalElementPowerSet().");
@@ -1409,6 +1439,7 @@ async function test() {
 
   try {
     log.info("Starting Test run.");
+    await driver.manage().setTimeouts({ script: scriptWait });
     await driver.manage().deleteAllCookies();
     await samlAssertionActivities(driver);
     log.info("Test completed successfully.");

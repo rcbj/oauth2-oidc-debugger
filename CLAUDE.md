@@ -151,11 +151,32 @@ code you write **as you write it**, not as a later sweep.
     (`log.info(...)`, as `build.js` and `background.js` now do) or rename it
     (`logLine()`, as the proxy does) — never leave two.
 
-  The one standing exception is a **hot path**, and it must say so: `cbor.js`
-  runs its item decoder hundreds of times for a single credential, so it logs at
-  the entry points and carries a comment explaining the omission below them. An
+  The standing exception is a **hot path**, and it must say so: `cbor.js` runs
+  its item decoder hundreds of times for a single credential, so it logs at the
+  entry points and carries a comment explaining the omission below them. An
   exception without that comment is indistinguishable from an oversight and will
   be "fixed" by the next sweep.
+
+  **A hot path is not only a loop inside one function — a whole rebuild path
+  counts, and that is how this rule cost a CI run on 2026-08-14.** The second
+  standing exception is the one-line helpers in `client/src/saml_tools.js`
+  (`el`/`val`/`setVal`/`isOn`/`show`/`esc`/`version`/`isV2`, the attribute and
+  compliance helpers, and `checkCompliance`'s own `pass`/`fail`/`warn`): every
+  edit to any field on that page rebuilds the assertion and re-runs the
+  compliance check, and one rebuild passes through those accessors on the order
+  of a thousand times. At `logLevel: "debug"` — which `client/src/env/local.js`
+  **and** `client/src/env/docker-tests.js` both set, so both test stacks emit
+  every line — a record is a JSON serialization plus a console write, ~15µs
+  measured in headless Chrome 121. Adding the pairs took `tests/saml_tools.js`'s
+  in-page power-set sweep (2^10 rebuilds per version, one `executeScript` call)
+  from 1.9s to 34s locally and past the WebDriver **script timeout** on a
+  GitHub Actions runner, where the whole test died with `script timeout
+  (Session info: chrome=121.0.6167.85)` — a message that names no page, no
+  function and no log line, three steps after the last thing it printed. So
+  before logging a getter, ask what calls it and how often: a pair of log lines
+  in a one-line accessor is not a trace, it is the entire log. The functions
+  that *call* those helpers keep their logging, which is where a trace of the
+  rebuild actually lives.
 
 - **No single-line `try`/`catch`.** There is a newline after every `try {` and
   after every `} catch (e) {` (and after `} finally {`), so the first statement

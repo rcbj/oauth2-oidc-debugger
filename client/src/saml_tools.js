@@ -61,56 +61,57 @@ var V2_ONLY_NAMEID = /^urn:oasis:names:tc:SAML:2\.0:nameid-format:/;
 
 // ---------------------------------------------------------------------------
 // Small DOM helpers (mirror saml_request.js).
+//
+// THE REBUILD PATH IS A HOT PATH, and these helpers are on it. Note the
+// deliberate absence of the Entering/Leaving logging this codebase uses
+// elsewhere, here and in the five blocks below that say the same thing:
+// every edit to any field rebuilds the whole assertion and re-runs the
+// compliance check, and one rebuild calls these accessors several hundred
+// times (`val()` alone reads ~40 fields, and each `val()` is also an `el()`).
+// A pair of log lines in a one-line getter is not a trace, it is the entire
+// log — at logLevel=debug (which `client/src/env/local.js` and
+// `client/src/env/docker-tests.js` both set, so BOTH test stacks emit these)
+// it buries every line that says something, and each record costs a JSON
+// serialization plus a console write: ~15us in headless Chrome 121, measured.
+// That is invisible until something drives the page in a loop, and something
+// does: `tests/saml_tools.js` walks the 2^10 power set of the optional-element
+// checkboxes for each version, rebuilding and re-checking per state. With
+// these lines in place that one `executeScript` call went from 1.9s to 34s
+// locally and overran the WebDriver script timeout on a GitHub Actions runner
+// — reported as a bare "script timeout" naming nothing. The functions that
+// call these — the ones an actual trace wants — keep their logging.
 // ---------------------------------------------------------------------------
 function el(id) {
-  log.debug("Entering el().");
-  log.debug("Leaving el().");
   return document.getElementById(id);
 }
 function val(id) {
-  log.debug("Entering val().");
   var e = el(id);
-  log.debug("Leaving val().");
   return e ? e.value : '';
 }
 function setVal(id, v) {
-  log.debug("Entering setVal().");
   var e = el(id);
   if (e) e.value = (v == null ? '' : v);
-  log.debug("Leaving setVal().");
 }
 function setStatus(id, msg) {
-  log.debug("Entering setStatus().");
   setVal(id, msg);
-  log.debug("Leaving setStatus().");
 }
 function isOn(id) {
-  log.debug("Entering isOn().");
   var e = el(id);
-  log.debug("Leaving isOn().");
   return !!(e && e.checked);
 }
 function show(id, on) {
-  log.debug("Entering show().");
   var e = el(id);
   if (e) { if (on) e.classList.remove('saml-hidden'); else e.classList.add(
       'saml-hidden'); }
-  log.debug("Leaving show().");
 }
 function esc(s) {
-  log.debug("Entering esc().");
-  log.debug("Leaving esc().");
   return xd.xmlEscape(s);
 }
 
 function version() {
-  log.debug("Entering version().");
-  log.debug("Leaving version().");
   return val('sa_version') || '2.0';
 }
 function isV2() {
-  log.debug("Entering isV2().");
-  log.debug("Leaving isV2().");
   return version() === '2.0';
 }
 
@@ -119,9 +120,9 @@ function isV2() {
 // timestamp fields are deliberately NOT .stored: a stale IssueInstant would
 // produce an expired assertion on the next visit, so they are regenerated.
 // ---------------------------------------------------------------------------
+// On the rebuild path (saveState runs on every change) — see the note above
+// el(): no Entering/Leaving logging in these one-line helpers.
 function persistedEls() {
-  log.debug("Entering persistedEls().");
-  log.debug("Leaving persistedEls().");
   return document.querySelectorAll('.stored');
 }
 function saveState() {
@@ -178,15 +179,13 @@ function restoreState() {
 // a trailing offset other than Z, so everything is emitted as ...Z with second
 // precision.
 // ---------------------------------------------------------------------------
+// Both are called several times per rebuild — see the note above el(): no
+// Entering/Leaving logging in these one-line helpers.
 function toInstant(d) {
-  log.debug("Entering toInstant().");
-  log.debug("Leaving toInstant().");
   return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 function num(id, dflt) {
-  log.debug("Entering num().");
   var n = parseInt(val(id), 10);
-  log.debug("Leaving num().");
   return isNaN(n) ? dflt : n;
 }
 
@@ -314,40 +313,35 @@ function renderAttributes() {
   log.debug("Leaving renderAttributes().");
 }
 
+// Called once per attribute per rebuild — see the note above el(): no
+// Entering/Leaving logging in these one-line helpers.
 function attrFullName(a) {
-  log.debug("Entering attrFullName().");
-  log.debug("Leaving attrFullName().");
   return (a.prefix || '') + a.name;
 }
 function attrsUseXsiType() {
-  log.debug("Entering attrsUseXsiType().");
   for (var i = 0; i < attributes.length; i++) {
     if (attributes[i].type && attributes[i].type !== 'unspecified') {
-      log.debug("Leaving attrsUseXsiType().");
       return true;
     }
   }
-  log.debug("Leaving attrsUseXsiType().");
   return false;
 }
 function xsiTypeAttr(a) {
-  log.debug("Entering xsiTypeAttr().");
-  log.debug("Leaving xsiTypeAttr().");
   return (a.type && a.type !== 'unspecified') ? ' xsi:type="xs:' + a.type +
           '"' : '';
 }
 
 // ---------------------------------------------------------------------------
 // Assertion construction
+//
+// attrOpt() is called for every optional XML attribute of every element the
+// assertion carries — the densest part of the rebuild path. See the note
+// above el(): no Entering/Leaving logging in these one-line helpers.
 // ---------------------------------------------------------------------------
 function attrOpt(name, value) {
-  log.debug("Entering attrOpt().");
-  log.debug("Leaving attrOpt().");
   return value ? ' ' + name + '="' + esc(value) + '"' : '';
 }
 function confirmationMethod() {
-  log.debug("Entering confirmationMethod().");
-  log.debug("Leaving confirmationMethod().");
   return (CM_PREFIX[version()] || CM_PREFIX['2.0']) +
           (val('sa_confirm_method') || 'bearer');
 }
@@ -764,36 +758,30 @@ function buildAssertionUi() {
 // Spec compliance check. Parses the generated assertion and applies the
 // structural rules of the selected version's schema/spec.
 // ---------------------------------------------------------------------------
+// The five predicates and lookups below, and pass/fail/warn inside
+// checkCompliance(), each run tens of times per check — and the check runs on
+// every rebuild. See the note above el(): no Entering/Leaving logging in
+// these one-line helpers. checkCompliance() itself keeps its logging.
 function isAbsoluteUri(v) {
-log.debug("Entering isAbsoluteUri().");
-try {
-  new URL(v);
-  log.debug("Leaving isAbsoluteUri().");
-  return true;
-} catch (e) {
-  log.debug("Leaving isAbsoluteUri().");
-  return false;
-} }
+  try {
+    new URL(v);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 function isInstant(v) {
-  log.debug("Entering isInstant().");
-  log.debug("Leaving isInstant().");
   return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(v || '');
 }
 function isNCName(v) {
-  log.debug("Entering isNCName().");
-  log.debug("Leaving isNCName().");
   return /^[A-Za-z_][A-Za-z0-9._\-]*$/.test(v || '');
 }
 function firstLocal(root, name) {
-  log.debug("Entering firstLocal().");
   var e = root.getElementsByTagNameNS('*', name);
-  log.debug("Leaving firstLocal().");
   return e && e.length ? e[0] : null;
 }
 function countLocal(root, name) {
-  log.debug("Entering countLocal().");
   var e = root.getElementsByTagNameNS('*', name);
-  log.debug("Leaving countLocal().");
   return e ? e.length : 0;
 }
 
@@ -801,19 +789,13 @@ function checkCompliance() {
   log.debug("Entering checkCompliance().");
   var results = [];
   function pass(c, m) {
-    log.debug("Entering pass().");
     results.push('PASS  ' + c + ': ' + m);
-    log.debug("Leaving pass().");
   }
   function fail(c, m) {
-    log.debug("Entering fail().");
     results.push('FAIL  ' + c + ': ' + m);
-    log.debug("Leaving fail().");
   }
   function warn(c, m) {
-    log.debug("Entering warn().");
     results.push('WARN  ' + c + ': ' + m);
-    log.debug("Leaving warn().");
   }
 
   var xml = val('sa_assertion');
