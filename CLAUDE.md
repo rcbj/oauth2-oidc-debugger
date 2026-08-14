@@ -102,24 +102,31 @@ code you write **as you write it**, not as a later sweep.
   `log` is the module's own `bunyan` logger, created at the top of the file with
   the level read from `CONFIG_FILE` inside a `try`/`catch` that falls back to
   `"info"` — every module already has one; copy the block from a neighbour.
-  **Four places cannot reach bunyan** and carry a console-backed `log` of the
+  **Five places cannot reach bunyan** and carry a console-backed `log` of the
   same shape instead, each saying why in a comment above it: `extension/src/*`
   (loaded raw by the browser, no module system), `infra/edge/*` (Lambda@Edge
   bundles a handler with no dependencies), `common/sp_keypair.js` (`common/` is
   outside the reach of `tests/node_modules` — see the note in `common/tests.js`),
-  and the build scripts `client/version.js`, `client/build.js`,
+  the build scripts `client/version.js`, `client/build.js`,
   `extension/build.js` plus `waltid/cors-proxy.js`, which run before or outside
-  an install. Those shims' own `debug`/`info`/`warn`/`error` are the one place
-  the convention *cannot* apply: a log line inside `log.debug()` is infinite
-  recursion.
+  an install, and **`client/src/coverage_beacon.js`**, which looks like an
+  ordinary client module and is not one: `client/Dockerfile`'s coverage step
+  *appends* it to each finished bundle (`cat src/coverage_beacon.js >>
+  public/js/${src_name}.js`), so browserify and envify never see it and neither
+  `require` nor `process` exists where it runs. Its shim is the only one written
+  **inside** the file's IIFE rather than at the top, because appending it puts
+  anything at top level into the *page's* global scope. Those shims' own
+  `debug`/`info`/`warn`/`error` are the one place the convention *cannot* apply:
+  a log line inside `log.debug()` is infinite recursion.
   This covers **declared functions and named function values** (`function foo()`,
   `var foo = function () {…}`, `const foo = () => {…}`, object and class
   methods). It does not extend to anonymous inline callbacks — a `.map(x => …)`,
   an `addEventListener` handler, a config IIFE — which have no name to log and
   are left alone.
 
-  **Three places a log line is not a log line but a crash, and all three cost a
-  full suite run on 2026-08-14 (26 of 127 tests, from a baseline of 127 green).**
+  **Four places a log line is not a log line but a crash, and all four cost a
+  run on 2026-08-14 (26 of 127 tests on the plain suite, from a baseline of 127
+  green, and 12 more plus an empty coverage report on `./run-coverage.sh`).**
   Check each before adding one:
 
   * **`log` must actually be in scope.** `tests/edge_landing_contract.js` keeps
@@ -150,6 +157,22 @@ code you write **as you write it**, not as a later sweep.
     were invisible to the suite.) Fold the old function into the shim
     (`log.info(...)`, as `build.js` and `background.js` now do) or rename it
     (`logLine()`, as the proxy does) — never leave two.
+  * **A file under `client/src` is not necessarily browserified.**
+    `client/src/coverage_beacon.js` sits beside sixty modules that all take
+    `require("bunyan")`, and it is the one that cannot: the coverage build
+    **appends** it to already-built bundles, so it reaches the browser as raw
+    script with no `require` and no `process`. The `require("bunyan")` this sweep
+    gave it threw at top level, before `setInterval()` — so `./run-coverage.sh`
+    shipped **no frontend coverage at all** (an empty
+    `coverage/frontend/.nyc_output`, a 0-byte `lcov.info`) *and* failed the 12
+    tests that assert the browser console is clean. None of the 12 named the
+    beacon, coverage, or a require; each named a page and a line deep inside a
+    bundle. The plain launchers never append the file, so **nothing but
+    `./run-coverage.sh` can see this** — which is why
+    `appendedBeaconNeedsNoModuleSystem()` in `tests/jwk_pem_encoding.js` now
+    reads that file for `require`/`process`/`module.exports` on every ordinary
+    run. Before adding a logger to a file here, check how it gets into a bundle,
+    not just where it lives.
 
   The standing exception is a **hot path**, and it must say so: `cbor.js` runs
   its item decoder hundreds of times for a single credential, so it logs at the

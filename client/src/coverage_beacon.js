@@ -18,22 +18,49 @@
 // harmless (merge unions covered statements; inflated hit counts don't affect
 // coverage %).
 
-// The log level comes from the same configuration everything else here
-// reads. A caller without one still has to be able to load this module,
-// so an unresolvable CONFIG_FILE falls back to info rather than throwing.
-var bunyan = require("bunyan");
-var log = bunyan.createLogger({
-  name: "coverage_beacon",
-  level: (function () {
-    try {
-      return require(process.env.CONFIG_FILE).logLevel || "info";
-    } catch (e) {
-      return "info";
-    }
-  })()
-});
-
 (function () {
+  // The Entering/Leaving logging convention (see the repo-root CLAUDE.md)
+  // wants a `log` here, and bunyan is not reachable from this file: the
+  // Dockerfile's coverage step APPENDS it to an already-browserified bundle
+  // (`cat src/coverage_beacon.js >> public/js/${src_name}.js`), so it is never
+  // run through browserify or envify at all. `require` and `process` are both
+  // undefined in the browser, so a top-level `require("bunyan")` here is not a
+  // logger but an uncaught ReferenceError on every instrumented page — which
+  // is what it was between 2026-08-14's style sweep and this fix, and it
+  // failed the 12 tests that assert the browser console is clean.
+  // So this is the same call shape backed by console. Debug output is off by
+  // default, so an ordinary run stays quiet; flip DEBUG to follow a call
+  // through. Note the methods below are the one place the convention cannot
+  // apply — a log line inside log.debug() is infinite recursion.
+  //
+  // It lives INSIDE this IIFE rather than at the top of the file, unlike the
+  // other console-backed shims in the tree, because this file is appended to a
+  // bundle: at the top it would be three new `var`s in the PAGE's global scope
+  // on every instrumented page, and `log` is a name a page script could
+  // plausibly want. Everything that logs here is in this function anyway.
+  var DEBUG = false;
+  var LOG_TAG = "[coverage_beacon]";
+  var log = {
+    debug: function () {
+      if (!DEBUG) {
+        return;
+      }
+      console.log.apply(console,
+        [LOG_TAG].concat(Array.prototype.slice.call(arguments)));
+    },
+    info: function () {
+      console.log.apply(console,
+        [LOG_TAG].concat(Array.prototype.slice.call(arguments)));
+    },
+    warn: function () {
+      console.warn.apply(console,
+        [LOG_TAG].concat(Array.prototype.slice.call(arguments)));
+    },
+    error: function () {
+      console.error.apply(console,
+        [LOG_TAG].concat(Array.prototype.slice.call(arguments)));
+    }
+  };
   if (typeof window === "undefined") {
     return;
   }

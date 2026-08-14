@@ -569,6 +569,88 @@ function bigIntLiteralsStayOutOfTheBundles() {
 }
 
 
+// client/src/coverage_beacon.js is the one file here that is NOT browserified.
+// The Dockerfile's coverage step appends it to each finished bundle with
+//   cat src/coverage_beacon.js >> public/js/${src_name}.js
+// so it never passes through browserify or envify at all: in the browser it is
+// raw script text, where `require` and `process` do not exist. A `require` in
+// it is therefore not a module import but an uncaught ReferenceError on every
+// instrumented page.
+//
+// That is not hypothetical either. The 2026-08-14 style sweep gave it the
+// standard bunyan logger, and `require("bunyan")` at its top level threw before
+// setInterval() was ever reached — so `./run-coverage.sh` shipped NO frontend
+// coverage (an empty coverage/frontend/.nyc_output, a 0-byte lcov.info) and
+// failed the 12 tests that assert the browser console is clean. None of those
+// 12 named the beacon, coverage, or a require; they named a page.
+//
+// This check lives in the ordinary suite rather than in the coverage build
+// because that is the whole problem: the plain launchers never append this
+// file, so nothing outside `./run-coverage.sh` can see the breakage, and that
+// is not what anybody runs after an edit. Console-backed `log` shim only — see
+// the note in the file itself and the list in the repo-root CLAUDE.md.
+function appendedBeaconNeedsNoModuleSystem() {
+  log.debug("Entering appendedBeaconNeedsNoModuleSystem().");
+  log.info("[beacon] Reading client/src/coverage_beacon.js, which is " +
+           "appended to bundles raw, for module-system references.");
+  const beacon = path.join(__dirname, "..", "client", "src",
+      "coverage_beacon.js");
+  if (!fs.existsSync(beacon)) {
+    // Same reason as the two checks above: the tests image copies individual
+    // modules flat and does not carry this one. Say so rather than pass
+    // quietly.
+    log.info("[beacon] SKIPPED — no client/src/coverage_beacon.js in this " +
+             "layout (running from the tests image).");
+    log.debug("Leaving appendedBeaconNeedsNoModuleSystem().");
+    return;
+  }
+  // Comments in this file name `require("bunyan")` and `process` on purpose —
+  // that is where the reasoning lives — so strip the comments rather than
+  // skipping whole lines: the point of the file is a shim whose explanation
+  // quotes the very thing it must not do.
+  const text = fs.readFileSync(beacon, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^[ \t]*\/\/.*$/gm, "")
+    .replace(/[ \t]+\/\/.*$/gm, "");
+  const banned = [
+    { pattern: /\brequire\s*\(/, name: "require(",
+      why: "browserify never sees this file, so `require` is undefined in " +
+          "the browser" },
+    { pattern: /\bprocess\s*\./, name: "process.",
+      why: "envify never sees this file either, so `process` is undefined in " +
+          "the browser" },
+    { pattern: /\bmodule\s*\.\s*exports\b/, name: "module.exports",
+      why: "there is no module wrapper around this file once it is appended" }
+  ];
+  const offences = [];
+  banned.forEach(function (rule) {
+    if (rule.pattern.test(text)) {
+      offences.push(rule.name + " — " + rule.why);
+    }
+  });
+  assert.deepStrictEqual(offences, [],
+    "client/src/coverage_beacon.js is APPENDED to already-browserified " +
+        "bundles (see the\n" +
+    "COVERAGE block in client/Dockerfile), so each of these is an uncaught " +
+        "ReferenceError\n" +
+    "on every instrumented page — which empties the frontend coverage " +
+        "report and fails\n" +
+    "every test that asserts a clean browser console:\n  " +
+    offences.join("\n  "));
+  // And it must still have a logger of the shape the convention expects, or the
+  // next sweep will "fix" its absence by adding bunyan back.
+  assert.ok(/var\s+log\s*=\s*\{/.test(text),
+    "client/src/coverage_beacon.js has no console-backed `log` shim; the " +
+        "logging convention " +
+    "cannot reach bunyan from a file appended raw to a bundle, so the shim " +
+        "is what keeps " +
+    "somebody from adding one");
+  log.info("[beacon] OK — no require/process/module.exports, and the " +
+           "console-backed log shim is present.");
+  log.debug("Leaving appendedBeaconNeedsNoModuleSystem().");
+}
+
+
 async function test() {
   log.debug("Entering test().");
   rsaKeys();
@@ -580,6 +662,7 @@ async function test() {
   privateMembersAreIgnored();
   ellipticStaysOutOfTheBundles();
   bigIntLiteralsStayOutOfTheBundles();
+  appendedBeaconNeedsNoModuleSystem();
   log.info("Test completed successfully.");
   log.debug("Leaving test().");
 }

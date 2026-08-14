@@ -536,9 +536,19 @@ function buildJobs() {
   // own SPKI parser, and additionally fails if any file in client/src takes a
   // require that would put elliptic back into a bundle. Node only, never
   // skipped.
+  //
+  // It carries two more source checks of the same kind, both about things that
+  // reach a bundle and break it: no BigInt literal in client/src (envify's
+  // esprima cannot parse one, and the build then fails against a file nobody
+  // touched), and no `require`/`process` in coverage_beacon.js — the one file
+  // there that is APPENDED to finished bundles rather than browserified, so a
+  // require in it is an uncaught ReferenceError on every instrumented page.
+  // That last one is invisible to this suite's own launchers, which never
+  // append the beacon; only ./run-coverage.sh does, and it failed 12 tests and
+  // shipped an empty frontend report on 2026-08-14 for exactly that.
   jobs.push({
-    name: "JWK to PEM encoder (SPKI DER correctness; elliptic stays out of " +
-        "the bundles)",
+    name: "JWK to PEM encoder (SPKI DER correctness; elliptic, BigInt " +
+        "literals and require() stay out of the bundles)",
     script: "jwk_pem_encoding.js",
     env: {},
   });
